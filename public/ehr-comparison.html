@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Clarity EHR — 5-Way Competitive Analysis</title>
+<style>
+  @page { size: landscape; margin: 0.4in; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: #1e293b; font-size: 9px; line-height: 1.4; background: #fff; }
+  .page { page-break-after: always; padding: 10px 0; }
+  .page:last-child { page-break-after: avoid; }
+
+  /* Header */
+  .header { background: linear-gradient(135deg, #0f172a, #1e3a5f); color: #fff; padding: 24px 30px; border-radius: 10px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 22px; font-weight: 900; }
+  .header p { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+  .header .date { font-size: 10px; color: #94a3b8; text-align: right; }
+  .header .badge { display: inline-block; background: #3b82f6; color: #fff; padding: 3px 12px; border-radius: 20px; font-size: 10px; font-weight: 700; margin-top: 6px; }
+
+  h2 { font-size: 14px; font-weight: 800; color: #0f172a; margin: 16px 0 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px; }
+  h3 { font-size: 11px; font-weight: 700; margin: 10px 0 6px; color: #334155; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 8.5px; margin-bottom: 12px; }
+  th { background: #f1f5f9; color: #475569; font-weight: 700; text-align: left; padding: 5px 6px; border: 1px solid #e2e8f0; font-size: 8px; text-transform: uppercase; letter-spacing: 0.3px; }
+  td { padding: 4px 6px; border: 1px solid #e2e8f0; vertical-align: middle; }
+  tr:nth-child(even) { background: #f8fafc; }
+  .cat-row td { background: #0f172a; color: #fff; font-weight: 800; font-size: 8.5px; letter-spacing: 0.5px; padding: 5px 8px; }
+  .full { color: #16a34a; font-weight: 700; }
+  .partial { color: #d97706; font-weight: 600; }
+  .none { color: #dc2626; font-weight: 600; }
+
+  /* Summary cards */
+  .summary-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 12px 0; }
+  .summary-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; }
+  .summary-card .name { font-size: 12px; font-weight: 800; margin-bottom: 6px; }
+  .summary-card .score { font-size: 28px; font-weight: 900; }
+  .summary-card .label { font-size: 9px; color: #64748b; margin-top: 2px; }
+  .summary-card .bar { height: 6px; background: #e2e8f0; border-radius: 99px; margin-top: 8px; overflow: hidden; }
+  .summary-card .bar-fill { height: 100%; border-radius: 99px; }
+
+  .clarity { border-color: #3b82f6; }
+  .clarity .name { color: #2563eb; }
+  .clarity .score { color: #2563eb; }
+
+  /* Key takeaways */
+  .takeaways { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 14px 18px; margin: 12px 0; }
+  .takeaways li { margin-bottom: 4px; font-size: 9px; line-height: 1.5; }
+  .takeaways strong { color: #0f172a; }
+
+  /* Footer */
+  .footer { text-align: center; font-size: 8px; color: #94a3b8; margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none; }
+  }
+  .print-btn { position: fixed; top: 16px; right: 16px; background: #2563eb; color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; z-index: 999; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+  .print-btn:hover { background: #1d4ed8; }
+</style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+
+<!-- ═══════════════ PAGE 1 ═══════════════ -->
+<div class="page">
+  <div class="header">
+    <div>
+      <h1>🏆 Clarity EHR — 5-Way Competitive Analysis</h1>
+      <p>Comprehensive feature-by-feature comparison across leading EHR & practice management platforms</p>
+      <span class="badge">CONFIDENTIAL — INTERNAL USE</span>
+    </div>
+    <div class="date">
+      <div style="font-size: 13px; font-weight: 800;">April 15, 2026</div>
+      <div>Prepared by Clarity Health</div>
+      <div>Version 2.0</div>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <h2>📊 Overall Feature Coverage</h2>
+  <div class="summary-grid">
+    <div class="summary-card clarity">
+      <div class="name">🏥 Clarity EHR</div>
+      <div class="score">100%</div>
+      <div class="label">61 of 61 features · ✅ 61 Full</div>
+      <div class="bar"><div class="bar-fill" style="width:100%; background:#2563eb;"></div></div>
+    </div>
+    <div class="summary-card">
+      <div class="name">🏛️ Epic</div>
+      <div class="score" style="color:#7c3aed;">95%</div>
+      <div class="label">57 Full · 2 Partial · 2 Missing</div>
+      <div class="bar"><div class="bar-fill" style="width:95%; background:#7c3aed;"></div></div>
+    </div>
+    <div class="summary-card">
+      <div class="name">☁️ athenaOne</div>
+      <div class="score" style="color:#0891b2;">85%</div>
+      <div class="label">47 Full · 10 Partial · 4 Missing</div>
+      <div class="bar"><div class="bar-fill" style="width:85%; background:#0891b2;"></div></div>
+    </div>
+    <div class="summary-card">
+      <div class="name">💼 Tebra</div>
+      <div class="score" style="color:#d97706;">60%</div>
+      <div class="label">30 Full · 13 Partial · 18 Missing</div>
+      <div class="bar"><div class="bar-fill" style="width:60%; background:#d97706;"></div></div>
+    </div>
+    <div class="summary-card">
+      <div class="name">📹 Mend</div>
+      <div class="score" style="color:#dc2626;">25%</div>
+      <div class="label">12 Full · 6 Partial · 43 Missing</div>
+      <div class="bar"><div class="bar-fill" style="width:25%; background:#dc2626;"></div></div>
+    </div>
+  </div>
+
+  <!-- Feature Table — Core Clinical + Prescribing + Scheduling -->
+  <h2>📋 Detailed Feature Comparison</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%;">Feature</th>
+        <th style="width:14.4%; text-align:center;">Clarity EHR</th>
+        <th style="width:14.4%; text-align:center;">Epic</th>
+        <th style="width:14.4%; text-align:center;">athenaOne</th>
+        <th style="width:14.4%; text-align:center;">Tebra</th>
+        <th style="width:14.4%; text-align:center;">Mend</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="cat-row"><td colspan="6">── CORE CLINICAL ──</td></tr>
+      <tr><td>Patient Chart (Problems, Meds, Allergies, Vitals, Immunizations)</td><td class="full" style="text-align:center">✅ Full</td><td class="full" style="text-align:center">✅ Full</td><td class="full" style="text-align:center">✅ Full</td><td class="full" style="text-align:center">✅ Full</td><td class="partial" style="text-align:center">⚠️ Basic</td></tr>
+      <tr><td>Encounter Documentation</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Limited</td></tr>
+      <tr><td>Assessments & Treatment Plans</td><td class="full" style="text-align:center">✅ Psych-focused</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Basic</td><td class="partial" style="text-align:center">⚠️ Basic</td></tr>
+      <tr><td>Problem List / ICD-10</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Lab Orders & Results</td><td class="full" style="text-align:center">✅ + New Order</td><td class="full" style="text-align:center">✅ Full</td><td class="full" style="text-align:center">✅ Full</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Orders Management</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Basic</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Demographics & Insurance</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Basic</td></tr>
+
+      <tr class="cat-row"><td colspan="6">── PRESCRIBING ──</td></tr>
+      <tr><td>E-Prescribe (NCPDP)</td><td class="full" style="text-align:center">✅ Full</td><td class="full" style="text-align:center">✅ Full</td><td class="full" style="text-align:center">✅ Full</td><td class="full" style="text-align:center">✅ Veradigm</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>EPCS Two-Factor (DEA 21 CFR 1311)</td><td class="full" style="text-align:center">✅ PIN + OTP</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>RxNorm Live Search (NLM API)</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Controlled Substance Scheduling</td><td class="full" style="text-align:center">✅ Sched II–V</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Staff Refill Routing (MD-only)</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Basic</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Pharmacy Directory Search</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>DAW / Substitution Control</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+
+      <tr class="cat-row"><td colspan="6">── SCHEDULING ──</td></tr>
+      <tr><td>Appointment Calendar</td><td class="full" style="text-align:center">✅ Multi-view</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td></tr>
+      <tr><td>Online Self-Scheduling</td><td class="full" style="text-align:center">✅ Portal</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td></tr>
+      <tr><td>Waitlist Management</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Multi-Provider Scheduling</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Basic</td></tr>
+      <tr><td>Recurring Appointments</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+
+      <tr class="cat-row"><td colspan="6">── TELEHEALTH ──</td></tr>
+      <tr><td>1:1 Video Visits</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅ Core</td></tr>
+      <tr><td>Group Telehealth</td><td class="full" style="text-align:center">✅ Breakout rooms</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td><td class="full" style="text-align:center">✅</td></tr>
+      <tr><td>Virtual Waiting Room</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="full" style="text-align:center">✅</td></tr>
+      <tr><td>Screen Share</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td><td class="full" style="text-align:center">✅</td></tr>
+      <tr><td>In-Session Chat</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="none" style="text-align:center">❌</td><td class="full" style="text-align:center">✅</td></tr>
+      <tr><td>Go-To Session (Quick Launch)</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td><td class="full" style="text-align:center">✅</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════ PAGE 2 ═══════════════ -->
+<div class="page">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:8px 12px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;">
+    <span style="font-weight:800; font-size:12px; color:#0f172a;">Clarity EHR — Competitive Analysis (cont.)</span>
+    <span style="font-size:9px; color:#64748b;">April 15, 2026 · Page 2 of 3</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%;">Feature</th>
+        <th style="width:14.4%; text-align:center;">Clarity EHR</th>
+        <th style="width:14.4%; text-align:center;">Epic</th>
+        <th style="width:14.4%; text-align:center;">athenaOne</th>
+        <th style="width:14.4%; text-align:center;">Tebra</th>
+        <th style="width:14.4%; text-align:center;">Mend</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="cat-row"><td colspan="6">── PATIENT PORTAL ──</td></tr>
+      <tr><td>Patient Portal</td><td class="full" style="text-align:center">✅ 9-tab</td><td class="full" style="text-align:center">✅ MyChart</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td></tr>
+      <tr><td>Multi-Language Support</td><td class="full" style="text-align:center">✅ 8 languages</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ 2–3</td><td class="partial" style="text-align:center">⚠️ Spanish</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Patient Messaging</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td></tr>
+      <tr><td>Online Bill Pay</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>AutoPay Enrollment</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>AI Chat Assistant (Patient)</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Limited</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Appointment Self-Scheduling</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td></tr>
+      <tr><td>Lab Results Viewing</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Medication List</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+
+      <tr class="cat-row"><td colspan="6">── MESSAGING & INBOX ──</td></tr>
+      <tr><td>Unified Clinical Inbox</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Basic</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Staff-to-Staff Messaging</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Patient Chat (Async)</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="full" style="text-align:center">✅</td></tr>
+      <tr><td>Message Routing & Triage</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+
+      <tr class="cat-row"><td colspan="6">── INTEROPERABILITY (HIE) ──</td></tr>
+      <tr><td>CareEverywhere / HIE</td><td class="full" style="text-align:center">✅ 5 networks</td><td class="full" style="text-align:center">✅ Industry leader</td><td class="full" style="text-align:center">✅ CommonWell</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>C-CDA Document Exchange</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>FHIR R4 API</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>External Record Query & Import</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Network Directory</td><td class="full" style="text-align:center">✅ 10 orgs</td><td class="full" style="text-align:center">✅ Thousands</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>HIE Consent Management</td><td class="full" style="text-align:center">✅ 42 CFR Part 2</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Query Audit Trail</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>ONC TEFCA Compliance</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+
+      <tr class="cat-row"><td colspan="6">── BILLING & RCM ──</td></tr>
+      <tr><td>Claims Management</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅ Best-in-class</td><td class="full" style="text-align:center">✅ Core</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Payment Collection</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Insurance Verification</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Denial Management</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>ERA/EOB Processing</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Patient Statements</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════ PAGE 3 ═══════════════ -->
+<div class="page">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:8px 12px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;">
+    <span style="font-weight:800; font-size:12px; color:#0f172a;">Clarity EHR — Competitive Analysis (cont.)</span>
+    <span style="font-size:9px; color:#64748b;">April 15, 2026 · Page 3 of 3</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%;">Feature</th>
+        <th style="width:14.4%; text-align:center;">Clarity EHR</th>
+        <th style="width:14.4%; text-align:center;">Epic</th>
+        <th style="width:14.4%; text-align:center;">athenaOne</th>
+        <th style="width:14.4%; text-align:center;">Tebra</th>
+        <th style="width:14.4%; text-align:center;">Mend</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="cat-row"><td colspan="6">── REPORTING & ANALYTICS ──</td></tr>
+      <tr><td>Clinical Analytics Dashboard</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Basic</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Operational Signals (AI)</td><td class="full" style="text-align:center">✅ 12 AI signals</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Care Gaps Tracking</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>MIPS/Quality Reporting</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>BTG Audit Log</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+
+      <tr class="cat-row"><td colspan="6">── DOCUMENTATION TOOLS ──</td></tr>
+      <tr><td>Smart Phrases / Macros</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅ (.phrases)</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Sticky Notes (Chart)</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+
+      <tr class="cat-row"><td colspan="6">── PRACTICE OPERATIONS ──</td></tr>
+      <tr><td>Multi-Location Management</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Practice Marketing / Reputation</td><td class="full" style="text-align:center">✅ 5 tabs</td><td class="none" style="text-align:center">❌</td><td class="partial" style="text-align:center">⚠️ Basic</td><td class="full" style="text-align:center">✅ Core</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>SEO & Web Presence</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Review Management + AI Replies</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Directory Listings</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td><td class="partial" style="text-align:center">⚠️</td><td class="full" style="text-align:center">✅</td><td class="none" style="text-align:center">❌</td></tr>
+
+      <tr class="cat-row"><td colspan="6">── SECURITY & COMPLIANCE ──</td></tr>
+      <tr><td>Role-Based Access (RBAC)</td><td class="full" style="text-align:center">✅ 5 roles</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Basic</td></tr>
+      <tr><td>Break-the-Glass (BTG)</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>2FA Login</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td></tr>
+      <tr><td>HIPAA Compliance</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td></tr>
+      <tr><td>21st Century Cures Act</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="none" style="text-align:center">❌</td></tr>
+
+      <tr class="cat-row"><td colspan="6">── PSYCHIATRY-SPECIFIC ──</td></tr>
+      <tr><td>PHQ-9 / GAD-7 Scoring</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Add-on</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Psych-Specific Assessments</td><td class="full" style="text-align:center">✅ Native</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="none" style="text-align:center">❌</td><td class="partial" style="text-align:center">⚠️</td></tr>
+      <tr><td>Therapy Session Notes</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="none" style="text-align:center">❌</td><td class="partial" style="text-align:center">⚠️</td></tr>
+      <tr><td>Treatment Plan Builder</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Therapist Role Restrictions</td><td class="full" style="text-align:center">✅ Enforced</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Key Takeaways -->
+  <h2>🔑 Key Takeaways</h2>
+  <div class="takeaways">
+    <ul style="padding-left: 16px;">
+      <li><strong>Clarity EHR (100%)</strong> — Matches or exceeds Epic on every category including CareEverywhere (HIE). Uniquely combines psychiatric specialization with full-spectrum practice management, marketing, and AI-powered features.</li>
+      <li><strong>Epic (95%)</strong> — Remains the gold standard for large health systems and interoperability, but lacks practice marketing tools and has no go-to-session quick-launch telehealth feature.</li>
+      <li><strong>athenaOne (85%)</strong> — Excels at revenue cycle management and billing, but falls behind on telehealth capabilities (no group sessions, screen share), patient portal languages, and documentation tools (no sticky notes).</li>
+      <li><strong>Tebra (60%)</strong> — Strong in marketing/reputation management and core billing, but has zero interoperability (no HIE, no FHIR, no CareEverywhere), limited clinical depth, and no psychiatric-specific features.</li>
+      <li><strong>Mend (25%)</strong> — Telehealth-only platform with no EHR capabilities, no billing/RCM, no prescribing, no interoperability, and no clinical documentation. Only suitable as a supplemental telehealth add-on.</li>
+    </ul>
+  </div>
+
+  <!-- Competitive Advantage -->
+  <div style="background: linear-gradient(135deg, #0f172a, #1e3a5f); border-radius: 10px; padding: 16px 20px; margin-top: 12px; color: #fff;">
+    <h3 style="font-size: 13px; font-weight: 800; color: #fff; margin: 0 0 8px;">💎 Clarity's Unique Competitive Advantages</h3>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; font-size: 8.5px;">
+      <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; text-align: center;">
+        <div style="font-size: 18px; margin-bottom: 4px;">🧠</div>
+        <div style="font-weight: 700; margin-bottom: 2px;">Psychiatry-Native</div>
+        <div style="color: #94a3b8;">Built ground-up for behavioral health with PHQ-9, GAD-7, treatment plans, and therapist role enforcement</div>
+      </div>
+      <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; text-align: center;">
+        <div style="font-size: 18px; margin-bottom: 4px;">🤖</div>
+        <div style="font-weight: 700; margin-bottom: 2px;">AI-Powered</div>
+        <div style="color: #94a3b8;">Patient AI chat assistant, operational signals, AI review replies, and smart phrases — no competitor matches all four</div>
+      </div>
+      <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; text-align: center;">
+        <div style="font-size: 18px; margin-bottom: 4px;">🌐</div>
+        <div style="font-weight: 700; margin-bottom: 2px;">Full-Stack Platform</div>
+        <div style="color: #94a3b8;">Only platform combining EHR + billing + telehealth + HIE + marketing + patient portal in a single product</div>
+      </div>
+      <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; text-align: center;">
+        <div style="font-size: 18px; margin-bottom: 4px;">🌍</div>
+        <div style="font-weight: 700; margin-bottom: 2px;">8-Language Portal</div>
+        <div style="color: #94a3b8;">Industry-leading multilingual patient portal: English, Spanish, French, Mandarin, Arabic, Hindi, Korean, Vietnamese</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <strong>CONFIDENTIAL</strong> — Clarity Health · 456 Wellness Blvd, Suite 200, Chicago, IL 60601 · info@clarity.health · April 15, 2026<br/>
+    This document is for internal strategic planning purposes only. Competitor data based on publicly available information as of Q2 2026.
+  </div>
+</div>
+
+</body>
+</html>
