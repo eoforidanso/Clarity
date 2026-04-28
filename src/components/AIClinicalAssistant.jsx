@@ -1,0 +1,176 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { usePatient } from '../contexts/PatientContext';
+
+/* ── Simulated AI responses ─────────────────────────────── */
+const AI_CAPABILITIES = [
+  { icon: '🏥', label: 'Suggest ICD-10 Codes', prompt: 'Suggest ICD-10 codes for this patient' },
+  { icon: '💊', label: 'Drug Interactions', prompt: 'Check for drug interactions' },
+  { icon: '📝', label: 'Draft Progress Note', prompt: 'Draft a progress note' },
+  { icon: '📋', label: 'Summarize History', prompt: 'Summarize patient history' },
+  { icon: '⚠️', label: 'Risk Assessment', prompt: 'Generate risk assessment' },
+  { icon: '🎯', label: 'Care Recommendations', prompt: 'Recommend next steps' },
+];
+
+function generateAIResponse(prompt, patient, meds, problems) {
+  const name = patient ? `${patient.firstName} ${patient.lastName}` : 'the patient';
+  const patientMeds = patient ? (meds[patient.id] || []) : [];
+  const patientProblems = patient ? (problems[patient.id] || []) : [];
+
+  if (prompt.toLowerCase().includes('icd-10') || prompt.toLowerCase().includes('code')) {
+    const suggestions = patientProblems.length > 0
+      ? patientProblems.map(p => `• **${p.code || 'F32.1'}** — ${p.name || p.description} (${p.status || 'Active'})`).join('\n')
+      : '• **F32.1** — Major Depressive Disorder, Single Episode, Moderate\n• **F41.1** — Generalized Anxiety Disorder\n• **F90.0** — ADHD, Predominantly Inattentive';
+    return `### 🏥 Suggested ICD-10 Codes for ${name}\n\nBased on the current problem list and recent encounters:\n\n${suggestions}\n\n*Review and confirm codes before applying to the encounter.*`;
+  }
+
+  if (prompt.toLowerCase().includes('drug interaction')) {
+    const medList = patientMeds.length > 0
+      ? patientMeds.map(m => m.name || m.medication).join(', ')
+      : 'Sertraline 100mg, Lorazepam 0.5mg, Trazodone 50mg';
+    return `### 💊 Drug Interaction Analysis\n\n**Current Medications:** ${medList}\n\n**⚠️ Moderate Interaction Found:**\n- Sertraline + Trazodone → Increased risk of serotonin syndrome. Monitor for symptoms: agitation, confusion, rapid heart rate.\n\n**ℹ️ Minor Interactions:**\n- Benzodiazepine + SSRI → Enhanced sedation possible.\n\n**✅ Recommendation:** Continue current regimen with clinical monitoring. Consider scheduling a medication reconciliation.`;
+  }
+
+  if (prompt.toLowerCase().includes('progress note') || prompt.toLowerCase().includes('draft')) {
+    return `### 📝 Draft Progress Note — ${name}\n\n**S:** Patient presents for follow-up psychiatric evaluation. Reports mood has been "better" since last visit. Sleep improved with current regimen. Denies SI/HI. Appetite stable.\n\n**O:** Affect: pleasant, congruent. Speech: normal rate/rhythm. Thought process: linear, goal-directed. PHQ-9: 8 (mild). GAD-7: 6 (mild). No psychomotor abnormalities noted.\n\n**A:** Major Depressive Disorder — improving on current treatment. Generalized Anxiety Disorder — stable.\n\n**P:**\n1. Continue current medications\n2. Follow up in 4 weeks\n3. PHQ-9/GAD-7 at next visit\n4. Continue therapy referral\n\n*This is an AI-generated draft. Please review and edit before signing.*`;
+  }
+
+  if (prompt.toLowerCase().includes('summarize') || prompt.toLowerCase().includes('history')) {
+    return `### 📋 Patient Summary — ${name}\n\n**Demographics:** ${patient?.age || 35}yo ${patient?.gender || 'Patient'}, ${patient?.insurance?.primary?.name || 'Insured'}\n\n**Active Problems:**\n${patientProblems.length > 0 ? patientProblems.slice(0, 4).map(p => `• ${p.name || p.description}`).join('\n') : '• Major Depressive Disorder\n• Generalized Anxiety Disorder'}\n\n**Current Medications:** ${patientMeds.length > 0 ? patientMeds.slice(0, 4).map(m => m.name || m.medication).join(', ') : 'Sertraline 100mg, Lorazepam 0.5mg PRN'}\n\n**Recent Trends:**\n- PHQ-9 trending down (14 → 10 → 8)\n- Good medication adherence\n- Attending therapy sessions biweekly\n\n**Key Notes:** Patient has been stable on current regimen for 3 months.`;
+  }
+
+  if (prompt.toLowerCase().includes('risk')) {
+    return `### ⚠️ Risk Assessment — ${name}\n\n**Suicide Risk:** LOW\n- Last C-SSRS: Negative for ideation\n- No history of attempts\n- Protective factors: family support, employment\n\n**Substance Use Risk:** MODERATE\n- AUDIT-C: 4 (at-risk level)\n- Recommend brief intervention and rescreen\n\n**Fall Risk:** LOW\n- No contributing medications\n- No history of falls\n\n**Medication Safety:**\n- Monitor benzodiazepine use duration\n- PDMP last checked: within 90 days ✓`;
+  }
+
+  return `### 🎯 Care Recommendations — ${name}\n\n**Immediate Actions:**\n1. Schedule follow-up within 4 weeks\n2. Repeat PHQ-9/GAD-7 screening\n3. Review medication refills\n\n**Pending Care Gaps:**\n- Annual metabolic panel — due\n- Tobacco screening — overdue by 2 months\n- Depression screening documentation — current ✓\n\n**Quality Measures Impact:**\n- CMS-159 (Depression Remission): On track\n- CMS-2 (Depression Screening): Compliant\n\n*Generated by Clarity AI Assistant. All recommendations should be clinically validated.*`;
+}
+
+export default function AIClinicalAssistant() {
+  const { selectedPatient, meds, problemList } = usePatient();
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const chatEndRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = (text) => {
+    const userMsg = text || input.trim();
+    if (!userMsg) return;
+
+    setMessages(prev => [...prev, { role: 'user', content: userMsg, time: new Date() }]);
+    setInput('');
+    setIsTyping(true);
+
+    // Simulate AI response delay
+    setTimeout(() => {
+      const response = generateAIResponse(userMsg, selectedPatient, meds, problemList);
+      setMessages(prev => [...prev, { role: 'assistant', content: response, time: new Date() }]);
+      setIsTyping(false);
+    }, 1200 + Math.random() * 800);
+  };
+
+  const handleQuickAction = (prompt) => {
+    handleSend(prompt);
+  };
+
+  return (
+    <>
+      {/* Floating toggle button */}
+      <button
+        className={`ai-fab ${isOpen ? 'open' : ''}`}
+        onClick={() => { setIsOpen(!isOpen); setTimeout(() => inputRef.current?.focus(), 100); }}
+        title="AI Clinical Assistant"
+      >
+        {isOpen ? '✕' : '🤖'}
+      </button>
+
+      {/* Chat panel */}
+      {isOpen && (
+        <div className="ai-panel">
+          <div className="ai-panel-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 20 }}>🤖</span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>AI Clinical Assistant</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  {selectedPatient ? `Viewing: ${selectedPatient.firstName} ${selectedPatient.lastName}` : 'No patient selected'}
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-muted)' }}>✕</button>
+          </div>
+
+          <div className="ai-panel-body">
+            {messages.length === 0 ? (
+              <div style={{ padding: 16 }}>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                  How can I help? Select a quick action or type a question.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {AI_CAPABILITIES.map(c => (
+                    <button
+                      key={c.label}
+                      className="ai-quick-btn"
+                      onClick={() => handleQuickAction(c.prompt)}
+                    >
+                      <span>{c.icon}</span>
+                      <span>{c.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: 12 }}>
+                {messages.map((m, i) => (
+                  <div key={i} className={`ai-message ${m.role}`}>
+                    <div className="ai-message-content">
+                      {m.role === 'assistant' ? (
+                        <div style={{ fontSize: 13, lineHeight: 1.6 }}
+                          dangerouslySetInnerHTML={{ __html: m.content
+                            .replace(/### (.+)/g, '<h4 style="font-size:14px;font-weight:700;margin:8px 0 4px">$1</h4>')
+                            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                            .replace(/\*(.+?)\*/g, '<em style="color:var(--text-muted);font-size:12px">$1</em>')
+                            .replace(/\n/g, '<br/>') }} />
+                      ) : (
+                        <span style={{ fontSize: 13 }}>{m.content}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {isTyping && (
+                  <div className="ai-message assistant">
+                    <div className="ai-message-content">
+                      <div className="ai-typing">
+                        <span></span><span></span><span></span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+            )}
+          </div>
+
+          <div className="ai-panel-footer">
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Ask the AI assistant..."
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
+            />
+            <button onClick={() => handleSend()} disabled={!input.trim()} className="ai-send-btn">
+              ➤
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
