@@ -38,6 +38,7 @@ export default function PatientWaitlist() {
   const [aiRunning, setAiRunning] = useState(false);
   const [aiResults, setAiResults] = useState(null);
   const [showAiPanel, setShowAiPanel] = useState(false);
+  const [msgSent, setMsgSent] = useState(null);
 
   const filtered = useMemo(() => {
     let list = [...waitlist];
@@ -309,7 +310,7 @@ export default function PatientWaitlist() {
                 {selectedEntry.status !== 'Scheduled' && <button className="btn btn-primary btn-sm" onClick={() => updateStatus(selectedEntry.id, 'Scheduled')}>📅 Mark Scheduled</button>}
                 {selectedEntry.status === 'Waiting' && <button className="btn btn-secondary btn-sm" onClick={() => updateStatus(selectedEntry.id, 'Contacted')}>📞 Log Contact</button>}
                 {selectedEntry.status !== 'Cancelled' && <button className="btn btn-secondary btn-sm" onClick={() => updateStatus(selectedEntry.id, 'Cancelled')}>❌ Cancel</button>}
-                <button className="btn btn-secondary btn-sm" onClick={() => alert('📧 Sending outreach message...')}>📧 Send Message</button>
+                <button className="btn btn-secondary btn-sm" style={msgSent === selectedEntry.id ? { background: '#dcfce7', color: '#166534', borderColor: '#86efac' } : {}} onClick={() => { setMsgSent(selectedEntry.id); setTimeout(() => setMsgSent(null), 2000); }}>{msgSent === selectedEntry.id ? '✅ Message Sent' : '📧 Send Message'}</button>
               </div>
             </div>
           </div>

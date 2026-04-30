@@ -23,7 +23,7 @@ const TYPE_COLORS = {
 };
 
 export default function Inbox() {
-  const { inboxMessages, updateMessageStatus, patients } = usePatient();
+  const { inboxMessages, updateMessageStatus, addInboxMessage, patients } = usePatient();
   const { currentUser } = useAuth();
   const [selectedId, setSelectedId] = useState(null);
   const [selectedPatientId, setSelectedPatientId] = useState(null);
@@ -125,10 +125,68 @@ export default function Inbox() {
     updateMessageStatus(id, 'Unread');
   };
 
+  const [replySent, setReplySent] = useState(false);
+  const [assignedMsg, setAssignedMsg] = useState(false);
+  const [refillAction, setRefillAction] = useState({}); // { [msgId]: 'Approved' | 'Denied' }
+
+  const isMedicationRelated = (msg) => {
+    if (!msg) return false;
+    const medKeywords = /\b(med|medication|medicine|drug|prescription|rx|refill|dose|dosage|pill|tablet|capsule|pharmacy|pharmacist|inhaler|insulin|antibiotic|titrate|taper|script)\b/i;
+    return medKeywords.test(msg.subject || '') || medKeywords.test(msg.body || '');
+  };
+
+  const handleAssignToProvider = () => {
+    if (!selectedMessage) return;
+    addInboxMessage({
+      type: 'Staff Message',
+      from: `${currentUser?.firstName ?? ''} ${currentUser?.lastName ?? ''}`.trim() || 'Front Desk',
+      to: 'Provider',
+      patient: selectedMessage.patient,
+      patientName: selectedMessage.patientName,
+      subject: `[Assigned] ${selectedMessage.subject}`,
+      body: `This message was assigned to you by front desk staff for clinical review:\n\n${selectedMessage.body}`,
+      date: new Date().toISOString().slice(0, 10),
+      time: new Date().toTimeString().slice(0, 5),
+      priority: selectedMessage.urgent ? 'Urgent' : 'Normal',
+      read: false,
+      status: 'Unread',
+    });
+    updateMessageStatus(selectedMessage.id, 'Assigned to Provider');
+    setAssignedMsg(true);
+    setTimeout(() => setAssignedMsg(false), 4000);
+  };
+
+  const handleApproveRefill = (msg) => {
+    updateMessageStatus(msg.id, 'Approved');
+    setRefillAction(prev => ({ ...prev, [msg.id]: 'Approved' }));
+  };
+
+  const handleDenyRefill = (msg) => {
+    updateMessageStatus(msg.id, 'Denied');
+    setRefillAction(prev => ({ ...prev, [msg.id]: 'Denied' }));
+  };
+
   const handleSendReply = () => {
-    if (!replyText.trim()) return;
+    if (!replyText.trim() || !selectedMessage) return;
+    const now = new Date();
+    addInboxMessage({
+      type: 'Provider Message',
+      from: `${currentUser?.firstName ?? ''} ${currentUser?.lastName ?? ''}`.trim() || 'Provider',
+      to: selectedMessage.patient,
+      patient: selectedMessage.patient,
+      patientName: selectedMessage.patientName,
+      subject: `Re: ${selectedMessage.subject}`,
+      body: replyText.trim(),
+      date: now.toISOString().slice(0, 10),
+      time: now.toTimeString().slice(0, 5),
+      priority: 'Normal',
+      read: true,
+      status: 'Sent',
+    });
     setReplyText('');
     setShowReply(false);
+    setReplySent(true);
+    setTimeout(() => setReplySent(false), 3000);
   };
 
   return (
@@ -291,6 +349,17 @@ export default function Inbox() {
                 </div>
               </div>
 
+              {/* Medication restriction banner for front desk */}
+              {currentUser?.role === 'front_desk' && isMedicationRelated(selectedMessage) && (
+                <div style={{ background: '#fef9c3', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: '#92400e', marginBottom: 2 }}>Medication-related message</div>
+                    <div style={{ fontSize: 12, color: '#78350f' }}>Front desk staff cannot reply to messages about medications. Please assign this to the treating provider for clinical review.</div>
+                  </div>
+                </div>
+              )}
+
               {/* Message Body */}
               <div style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 20, whiteSpace: 'pre-wrap' }}>
                 {selectedMessage.body}
@@ -299,18 +368,40 @@ export default function Inbox() {
               {/* Actions */}
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
                 <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-                  <button className="btn btn-primary btn-sm" onClick={() => setShowReply(!showReply)}>
-                    ↩️ Reply
-                  </button>
+                  {currentUser?.role === 'front_desk' && isMedicationRelated(selectedMessage) ? (
+                    <button
+                      className="btn btn-sm"
+                      style={{ background: '#7c3aed', color: 'white' }}
+                      onClick={handleAssignToProvider}
+                      disabled={selectedMessage.status === 'Assigned to Provider'}
+                    >
+                      📋 {selectedMessage.status === 'Assigned to Provider' ? 'Assigned to Provider' : 'Assign to Provider'}
+                    </button>
+                  ) : (
+                    <button className="btn btn-primary btn-sm" onClick={() => setShowReply(!showReply)}>
+                      ↩️ Reply
+                    </button>
+                  )}
                   <button className="btn btn-outline btn-sm" onClick={() => handleMarkUnread(selectedMessage.id)}>
                     📩 Mark Unread
                   </button>
-                  {selectedMessage.type === 'Rx Refill Request' && (
-                    <>
-                      <button className="btn btn-sm" style={{ background: 'var(--success)', color: 'white' }}>✅ Approve Refill</button>
-                      <button className="btn btn-sm" style={{ background: 'var(--danger)', color: 'white' }}>❌ Deny Refill</button>
-                    </>
-                  )}
+                  {selectedMessage.type === 'Rx Refill Request' && (() => {
+                    const action = refillAction[selectedMessage.id] || selectedMessage.status;
+                    if (action === 'Approved') {
+                      return <span style={{ background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: 6, padding: '5px 14px', fontSize: 12, fontWeight: 700 }}>✅ Refill Approved</span>;
+                    }
+                    if (action === 'Denied') {
+                      return <span style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 6, padding: '5px 14px', fontSize: 12, fontWeight: 700 }}>❌ Refill Denied</span>;
+                    }
+                    return (
+                      <>
+                        <button className="btn btn-sm" style={{ background: 'var(--success)', color: 'white' }}
+                          onClick={() => handleApproveRefill(selectedMessage)}>✅ Approve Refill</button>
+                        <button className="btn btn-sm" style={{ background: 'var(--danger)', color: 'white' }}
+                          onClick={() => handleDenyRefill(selectedMessage)}>❌ Deny Refill</button>
+                      </>
+                    );
+                  })()}
                   {selectedMessage.type === 'Prior Auth' && (
                     <button className="btn btn-sm" style={{ background: 'var(--warning)', color: 'white' }}>📋 Open PA Form</button>
                   )}
@@ -319,18 +410,35 @@ export default function Inbox() {
                   )}
                 </div>
 
-                {/* Reply Form */}
-                {showReply && (
+                {replySent && (
+                  <div className="alert alert-success" style={{ marginTop: 12, padding: '8px 14px', fontSize: 13 }}>
+                    ✅ Reply sent to {selectedMessage.patientName}.
+                  </div>
+                )}
+
+                {assignedMsg && (
+                  <div className="alert alert-success" style={{ marginTop: 12, padding: '8px 14px', fontSize: 13 }}>
+                    ✅ Message assigned to provider for clinical review.
+                  </div>
+                )}
+
+                {/* Reply Form — hidden for front desk on medication messages */}
+                {showReply && !(currentUser?.role === 'front_desk' && isMedicationRelated(selectedMessage)) && (
                   <div style={{ marginTop: 16, padding: 16, background: 'var(--bg)', borderRadius: 'var(--radius)' }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                      Replying to <strong>{selectedMessage.patientName}</strong> — this message will appear in their Patient Chat.
+                    </div>
                     <textarea
                       className="form-textarea"
                       rows={4}
                       placeholder="Type your reply..."
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSendReply(); } }}
+                      autoFocus
                     />
                     <div className="flex gap-2 mt-2">
-                      <button className="btn btn-primary btn-sm" onClick={handleSendReply}>Send Reply</button>
+                      <button className="btn btn-primary btn-sm" onClick={handleSendReply} disabled={!replyText.trim()}>Send Reply</button>
                       <button className="btn btn-outline btn-sm" onClick={() => { setShowReply(false); setReplyText(''); }}>Cancel</button>
                     </div>
                   </div>

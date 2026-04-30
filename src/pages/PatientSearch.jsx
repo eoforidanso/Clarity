@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useSite } from '../contexts/SiteContext';
 
 const VISIT_TYPES = [
   'Follow-Up', 'Office Visit', 'Telehealth', 'Walk-In',
@@ -12,6 +13,7 @@ const VISIT_TYPES = [
 export default function PatientSearch() {
   const { patients, selectPatient, addEncounter } = usePatient();
   const { currentUser } = useAuth();
+  const { activeSiteId, isFiltered } = useSite();
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
   const inputRef = useRef(null);
@@ -25,6 +27,8 @@ export default function PatientSearch() {
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   const filtered = patients.filter((p) => {
+    // Site filter: if a specific site is active, only show patients at that location
+    if (isFiltered && p.locationId && p.locationId !== activeSiteId) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -142,7 +146,7 @@ export default function PatientSearch() {
                           color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontWeight: 700, fontSize: 11, flexShrink: 0,
                         }}>
-                          {p.firstName[0]}{p.lastName[0]}
+                          {p.firstName?.[0] || ''}{p.lastName?.[0] || ''}
                         </div>
                         <div>
                           <div style={{ fontWeight: 700, fontSize: 13 }}>{p.lastName}, {p.firstName}</div>

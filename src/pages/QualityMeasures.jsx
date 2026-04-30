@@ -209,7 +209,7 @@ export default function QualityMeasures() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => alert('Report exported as PDF')}>📄 Export Report</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => { const blob = new Blob(['Quality Measures Report\n\nExported: ' + new Date().toLocaleDateString()], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'quality_measures_report.txt'; a.click(); URL.revokeObjectURL(url); }}>📄 Export Report</button>
           <button className="btn btn-primary btn-sm">🔄 Refresh Data</button>
         </div>
       </div>

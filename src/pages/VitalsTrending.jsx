@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { usePatient } from '../contexts/PatientContext';
 
 const MOCK_VITALS_HISTORY = [
   { date: '2026-01-06', systolic: 128, diastolic: 82, hr: 76, temp: 98.4, rr: 16, spo2: 97, weight: 172, height: 68, bmi: 26.2 },
@@ -13,6 +14,34 @@ const MOCK_VITALS_HISTORY = [
   { date: '2025-09-08', systolic: 140, diastolic: 90, hr: 84, temp: 98.6, rr: 17, spo2: 97, weight: 179, height: 68, bmi: 27.2 },
   { date: '2025-08-25', systolic: 136, diastolic: 87, hr: 79, temp: 98.4, rr: 16, spo2: 98, weight: 177, height: 68, bmi: 26.9 },
 ];
+
+/* Parse "128/82" → { systolic: 128, diastolic: 82 } */
+function parseBP(bp) {
+  if (!bp) return { systolic: 0, diastolic: 0 };
+  const parts = String(bp).split('/');
+  return { systolic: parseInt(parts[0], 10) || 0, diastolic: parseInt(parts[1], 10) || 0 };
+}
+
+/* Transform PatientContext vitals (newest-first) to the chart shape (oldest-first) */
+function transformVitals(raw) {
+  return [...raw]
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .map((v) => {
+      const { systolic, diastolic } = parseBP(v.bp);
+      return {
+        date: v.date,
+        systolic,
+        diastolic,
+        hr: v.hr || 0,
+        temp: v.temp || 0,
+        rr: v.rr || 0,
+        spo2: v.spo2 || 0,
+        weight: v.weight || 0,
+        height: v.height || 0,
+        bmi: v.bmi || 0,
+      };
+    });
+}
 
 const VITAL_CONFIGS = {
   systolic: { label: 'Systolic BP', unit: 'mmHg', color: '#ef4444', low: 90, high: 140, icon: '❤️' },
@@ -69,17 +98,24 @@ function Sparkline({ data, config, width = 200, height = 50 }) {
 
 export default function VitalsTrending() {
   const { currentUser } = useAuth();
-  const [vitals] = useState(MOCK_VITALS_HISTORY);
+  const { selectedPatient, vitalSigns } = usePatient();
+
+  /* Use the selected patient's vitals; fall back to demo data */
+  const rawVitals = selectedPatient ? (vitalSigns[selectedPatient.id] || []) : [];
+  const baseVitals = rawVitals.length > 0 ? transformVitals(rawVitals) : MOCK_VITALS_HISTORY;
+
+  const [vitals] = useState(baseVitals);
   const [selectedMetric, setSelectedMetric] = useState('systolic');
   const [timeRange, setTimeRange] = useState('6m');
 
   const filteredVitals = useMemo(() => {
-    const now = new Date('2026-01-06');
+    const now = new Date();
     const months = timeRange === '3m' ? 3 : timeRange === '6m' ? 6 : 12;
     const cutoff = new Date(now);
     cutoff.setMonth(cutoff.getMonth() - months);
-    return vitals.filter(v => new Date(v.date) >= cutoff).reverse();
-  }, [vitals, timeRange]);
+    const source = selectedPatient ? transformVitals(vitalSigns[selectedPatient.id] || []) : MOCK_VITALS_HISTORY;
+    return source.filter(v => new Date(v.date) >= cutoff);
+  }, [selectedPatient, vitalSigns, timeRange]);
 
   const latestVitals = vitals[0];
   const prevVitals = vitals[1];
@@ -99,7 +135,11 @@ export default function VitalsTrending() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>📈 Vitals Trending</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Historical vitals graphing with trends and sparklines</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>
+            {selectedPatient
+              ? `${selectedPatient.firstName} ${selectedPatient.lastName} · ${rawVitals.length} recorded entries`
+              : 'Select a patient from the chart to view their vitals · Showing demo data'}
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {['3m', '6m', '12m'].map(r => (

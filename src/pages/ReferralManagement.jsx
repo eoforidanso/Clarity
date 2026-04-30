@@ -47,6 +47,7 @@ export default function ReferralManagement() {
     direction: 'Outbound', patientId: '', referredTo: '', specialty: '', facility: '',
     reason: '', priority: 'Routine', notes: '', authRequired: false,
   });
+  const [faxedIds, setFaxedIds] = useState(new Set());
 
   const filtered = useMemo(() => {
     let list = [...referrals];
@@ -78,6 +79,67 @@ export default function ReferralManagement() {
   const updateStatus = (id, status) => {
     setReferrals(prev => prev.map(r => r.id === id ? { ...r, status, ...(status === 'Completed' ? { completedDate: new Date().toISOString().split('T')[0] } : {}) } : r));
     if (selectedRef?.id === id) setSelectedRef(prev => ({ ...prev, status }));
+  };
+
+  const printReferral = (ref) => {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const win = window.open('', '_blank', 'width=750,height=650');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><title>Referral \u2014 ${ref.patientName}</title><style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:Arial,sans-serif; font-size:13px; color:#111; padding:28px 36px; }
+.header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #4f46e5; padding-bottom:12px; margin-bottom:16px; }
+.facility-name { font-size:20px; font-weight:800; color:#4f46e5; }
+.facility-sub { font-size:12px; color:#374151; margin-top:3px; line-height:1.6; }
+.header-right { text-align:right; font-size:11px; color:#374151; }
+.badge { display:inline-block; background:#ede9fe; color:#4f46e5; font-weight:700; font-size:11px; padding:3px 9px; border-radius:12px; border:1px solid #c4b5fd; }
+.badge-urgent { background:#fee2e2; color:#991b1b; border-color:#fca5a5; }
+.section { margin-bottom:14px; }
+.section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:#6b7280; border-bottom:1px solid #e5e7eb; padding-bottom:4px; margin-bottom:8px; }
+table { width:100%; border-collapse:collapse; }
+td { padding:5px 6px; vertical-align:top; font-size:12.5px; }
+td.lbl { width:40%; font-weight:600; color:#374151; }
+.reason-box { background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:10px 14px; font-size:12px; line-height:1.6; color:#92400e; margin-top:4px; }
+.footer { margin-top:20px; padding-top:8px; border-top:1px solid #e5e7eb; font-size:10.5px; color:#6b7280; text-align:center; }
+@media print { body { padding:10px 16px; } }
+</style></head><body>
+<div class="header"><div>
+  <div class="facility-name">Clarity Behavioral Health</div>
+  <div class="facility-sub">200 N Michigan Ave, Suite 1400, Chicago, IL 60601<br/>Phone: (312) 555-0200 &nbsp;|&nbsp; Fax: (312) 555-0201</div>
+</div><div class="header-right">
+  <span class="badge${ref.priority === 'Urgent' || ref.priority === 'STAT' ? ' badge-urgent' : ''}">${ref.direction} Referral</span>
+  <div style="margin-top:8px">Date: <strong>${dateStr}</strong></div>
+  <div>Time: <strong>${timeStr}</strong></div>
+  <div style="margin-top:4px;font-weight:700;color:${ref.status === 'Completed' ? '#059669' : '#374151'}">${ref.status}</div>
+</div></div>
+<div class="section"><div class="section-title">Patient</div><table>
+  <tr><td class="lbl">Name</td><td>${ref.patientName}</td></tr>
+  ${ref.insuranceName ? `<tr><td class="lbl">Insurance</td><td>${ref.insuranceName}</td></tr>` : ''}
+</table></div>
+<div class="section"><div class="section-title">Referral Details</div><table>
+  <tr><td class="lbl">Referring Provider</td><td>${ref.referringProvider}</td></tr>
+  <tr><td class="lbl">Referred To</td><td>${ref.referredTo}</td></tr>
+  <tr><td class="lbl">Specialty</td><td>${ref.specialty}</td></tr>
+  <tr><td class="lbl">Facility</td><td>${ref.facility || '\u2014'}</td></tr>
+  <tr><td class="lbl">Priority</td><td>${ref.priority}</td></tr>
+  <tr><td class="lbl">Created</td><td>${ref.createdDate}</td></tr>
+  ${ref.sentDate ? `<tr><td class="lbl">Sent</td><td>${ref.sentDate}</td></tr>` : ''}
+  ${ref.scheduledDate ? `<tr><td class="lbl">Scheduled</td><td>${ref.scheduledDate}</td></tr>` : ''}
+  ${ref.completedDate ? `<tr><td class="lbl">Completed</td><td>${ref.completedDate}</td></tr>` : ''}
+  <tr><td class="lbl">Expires</td><td>${ref.expiresDate || '\u2014'}</td></tr>
+  <tr><td class="lbl">Auth Required</td><td>${ref.authRequired ? `Yes \u2014 ${ref.authStatus}${ref.authNumber ? ' (' + ref.authNumber + ')' : ''}` : 'No'}</td></tr>
+</table></div>
+${ref.reason ? `<div class="section"><div class="section-title">Clinical Reason for Referral</div><div class="reason-box">${ref.reason}</div></div>` : ''}
+${ref.notes ? `<div class="section"><div class="section-title">Notes</div><div class="reason-box">${ref.notes}</div></div>` : ''}
+${ref.attachments?.length ? `<div class="section"><div class="section-title">Attachments</div><div style="font-size:12px">${ref.attachments.map(a => `\ud83d\udcce ${a}`).join('&nbsp;&nbsp;')}</div></div>` : ''}
+<div class="footer">Printed ${dateStr} at ${timeStr} \u00b7 Clarity EHR \u00b7 Confidential \u2014 For authorized use only</div>
+</body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
   };
 
   const submitReferral = () => {
@@ -300,8 +362,9 @@ export default function ReferralManagement() {
                 {selectedRef.status === 'Sent' && <button className="btn btn-primary btn-sm" onClick={() => updateStatus(selectedRef.id, 'Accepted')}>✅ Mark Accepted</button>}
                 {selectedRef.status === 'Accepted' && <button className="btn btn-primary btn-sm" onClick={() => updateStatus(selectedRef.id, 'Scheduled')}>📅 Mark Scheduled</button>}
                 {selectedRef.status === 'Scheduled' && <button className="btn btn-success btn-sm" onClick={() => updateStatus(selectedRef.id, 'Completed')}>✔️ Mark Completed</button>}
-                <button className="btn btn-secondary btn-sm" onClick={() => alert('📠 Faxed referral documents to ' + (selectedRef.facility || selectedRef.referredTo))}>📠 Fax</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => alert('🖨️ Printing referral for ' + selectedRef.patientName)}>🖨️ Print</button>
+                <button className="btn btn-secondary btn-sm" style={faxedIds.has(selectedRef.id) ? { background: '#dcfce7', color: '#166534', borderColor: '#86efac' } : {}} onClick={() => setFaxedIds(prev => new Set([...prev, selectedRef.id]))}>{
+faxedIds.has(selectedRef.id) ? '✅ Faxed' : '📠 Fax'}</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => printReferral(selectedRef)}>🖨️ Print</button>
               </div>
             </div>
           </div>

@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { usePatient } from '../../contexts/PatientContext';
 
 export default function ProblemList({ patientId }) {
-  const { problemList, addProblem } = usePatient();
+  const { problemList, addProblem, updateProblem } = usePatient();
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ code: '', description: '', status: 'Active', onsetDate: '', diagnosedBy: '' });
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({});
 
   const problems = problemList[patientId] || [];
   const active = problems.filter(p => p.status === 'Active');
@@ -15,6 +17,78 @@ export default function ProblemList({ patientId }) {
     addProblem(patientId, form);
     setForm({ code: '', description: '', status: 'Active', onsetDate: '', diagnosedBy: '' });
     setShowAdd(false);
+  };
+
+  const startEdit = (prob) => {
+    setEditingId(prob.id);
+    setEditForm({ code: prob.code, description: prob.description, status: prob.status, onsetDate: prob.onsetDate || '', diagnosedBy: prob.diagnosedBy || '' });
+  };
+
+  const saveEdit = () => {
+    updateProblem(patientId, editingId, editForm);
+    setEditingId(null);
+  };
+
+  const quickStatus = (prob, status) => updateProblem(patientId, prob.id, { status });
+
+  const statusBadge = (s) => s === 'Active' ? 'badge-danger' : s === 'In Remission' ? 'badge-warning' : 'badge-success';
+
+  const ProbRow = ({ prob, dimmed }) => {
+    const isEditing = editingId === prob.id;
+    return (
+      <>
+        <tr style={{ opacity: dimmed ? 0.65 : 1, background: isEditing ? '#f0f9ff' : 'transparent' }}>
+          <td style={{ color: 'var(--primary)', fontWeight: 700, fontFamily: 'monospace' }}>
+            {isEditing
+              ? <input className="form-input" style={{ width: 90, fontSize: 12 }} value={editForm.code} onChange={e => setEditForm(f => ({ ...f, code: e.target.value }))} />
+              : prob.code}
+          </td>
+          <td className="font-medium">
+            {isEditing
+              ? <input className="form-input" style={{ fontSize: 12 }} value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />
+              : prob.description}
+          </td>
+          <td>
+            {isEditing
+              ? <select className="form-select" style={{ fontSize: 12 }} value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
+                  <option>Active</option><option>In Remission</option><option>Resolved</option>
+                </select>
+              : <span className={`badge ${statusBadge(prob.status)}`}>{prob.status}</span>}
+          </td>
+          <td className="text-sm">
+            {isEditing
+              ? <input type="date" className="form-input" style={{ fontSize: 12 }} value={editForm.onsetDate} onChange={e => setEditForm(f => ({ ...f, onsetDate: e.target.value }))} />
+              : prob.onsetDate}
+          </td>
+          <td className="text-sm text-muted">
+            {isEditing
+              ? <input className="form-input" style={{ fontSize: 12 }} value={editForm.diagnosedBy} onChange={e => setEditForm(f => ({ ...f, diagnosedBy: e.target.value }))} />
+              : prob.diagnosedBy}
+          </td>
+          <td style={{ whiteSpace: 'nowrap' }}>
+            {isEditing ? (
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button className="btn btn-sm btn-primary" style={{ fontSize: 10 }} onClick={saveEdit}>💾</button>
+                <button className="btn btn-sm btn-secondary" style={{ fontSize: 10 }} onClick={() => setEditingId(null)}>✕</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button className="btn btn-sm btn-secondary" style={{ fontSize: 10 }} onClick={() => startEdit(prob)}>✏️</button>
+                {prob.status === 'Active' && (
+                  <button className="btn btn-sm btn-secondary" style={{ fontSize: 10 }} onClick={() => quickStatus(prob, 'Resolved')} title="Mark Resolved">✅</button>
+                )}
+                {prob.status === 'Active' && (
+                  <button className="btn btn-sm btn-secondary" style={{ fontSize: 10 }} onClick={() => quickStatus(prob, 'In Remission')} title="Mark In Remission">💤</button>
+                )}
+                {prob.status !== 'Active' && (
+                  <button className="btn btn-sm btn-secondary" style={{ fontSize: 10 }} onClick={() => quickStatus(prob, 'Active')} title="Reactivate">↩️</button>
+                )}
+              </div>
+            )}
+          </td>
+        </tr>
+      </>
+    );
   };
 
   return (
@@ -65,31 +139,22 @@ export default function ProblemList({ patientId }) {
         <div className="card-body no-pad">
           <table className="data-table">
             <thead>
-              <tr><th>ICD-10</th><th>Description</th><th>Status</th><th>Onset Date</th><th>Diagnosed By</th></tr>
+              <tr><th>ICD-10</th><th>Description</th><th>Status</th><th>Onset Date</th><th>Diagnosed By</th><th>Actions</th></tr>
             </thead>
             <tbody>
-              {active.map((p) => (
-                <tr key={p.id}>
-                  <td style={{ color: 'var(--primary)', fontWeight: 700, fontFamily: 'monospace' }}>{p.code}</td>
-                  <td className="font-medium">{p.description}</td>
-                  <td><span className="badge badge-danger">{p.status}</span></td>
-                  <td className="text-sm">{p.onsetDate}</td>
-                  <td className="text-sm text-muted">{p.diagnosedBy}</td>
-                </tr>
-              ))}
+              {active.map((prob) => <ProbRow key={prob.id} prob={prob} dimmed={false} />)}
               {resolved.length > 0 && (
                 <>
-                  <tr><td colSpan={5} style={{ background: 'var(--bg)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)' }}>Resolved / In Remission</td></tr>
-                  {resolved.map((p) => (
-                    <tr key={p.id} style={{ opacity: 0.7 }}>
-                      <td style={{ fontFamily: 'monospace' }}>{p.code}</td>
-                      <td>{p.description}</td>
-                      <td><span className="badge badge-success">{p.status}</span></td>
-                      <td className="text-sm">{p.onsetDate}</td>
-                      <td className="text-sm text-muted">{p.diagnosedBy}</td>
-                    </tr>
-                  ))}
+                  <tr>
+                    <td colSpan={6} style={{ background: 'var(--bg)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)' }}>
+                      Resolved / In Remission
+                    </td>
+                  </tr>
+                  {resolved.map((prob) => <ProbRow key={prob.id} prob={prob} dimmed={true} />)}
                 </>
+              )}
+              {problems.length === 0 && (
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No problems recorded</td></tr>
               )}
             </tbody>
           </table>

@@ -1961,6 +1961,154 @@ img { max-width: 100%; }
 .video-control-btn.end-call:hover { background: #b91c1c; }
 .telehealth-sidebar { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
 
+/* ── Floating Telehealth PiP ──────────────────────────────────────────── */
+.telehealth-floating-pip {
+  width: 272px;
+  background: #0f172a;
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1.5px rgba(59,130,246,0.45);
+  overflow: hidden;
+  user-select: none;
+}
+.tfp-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  background: #0f172a;
+  border-bottom: 1px solid #1e293b;
+  cursor: grab;
+}
+.tfp-header:active { cursor: grabbing; }
+.tfp-live  { font-size: 10px; font-weight: 800; color: #f87171; white-space: nowrap; }
+.tfp-timer { font-size: 11px; font-weight: 800; font-family: monospace; color: #e2e8f0; white-space: nowrap; }
+.tfp-patient {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tfp-icon-btn {
+  background: #1e3a5f;
+  border: 1px solid #3b82f6;
+  color: #60a5fa;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  line-height: 1.5;
+  flex-shrink: 0;
+}
+.tfp-icon-btn:hover { background: #1e40af; }
+.tfp-video-area {
+  position: relative;
+  width: 100%;
+  height: 154px;
+  background: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.tfp-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: scaleX(-1);
+}
+.tfp-video-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #475569;
+}
+.tfp-video-label { font-size: 11px; color: #64748b; }
+.tfp-you-label {
+  position: absolute;
+  bottom: 6px;
+  left: 8px;
+  font-size: 10px;
+  color: #cbd5e1;
+  background: rgba(0,0,0,0.55);
+  border-radius: 4px;
+  padding: 2px 7px;
+  pointer-events: none;
+}
+.tfp-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 9px;
+  background: #0f172a;
+}
+.tfp-ctrl-btn {
+  background: rgba(255,255,255,0.08);
+  border: none;
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #fff;
+  line-height: 1;
+  transition: background 0.15s;
+}
+.tfp-ctrl-btn:hover { background: rgba(255,255,255,0.16); }
+.tfp-ctrl-btn.active { background: #dc2626; }
+.tfp-ctrl-btn.tfp-return {
+  flex: 1;
+  font-size: 10px;
+  font-weight: 700;
+  background: #1e3a5f;
+  border: 1px solid #3b82f6;
+  color: #60a5fa;
+  padding: 5px 8px;
+  text-align: center;
+}
+.tfp-ctrl-btn.tfp-return:hover { background: #1e40af; }
+.tfp-ctrl-btn.tfp-end {
+  background: rgba(239,68,68,0.15);
+  color: #f87171;
+  font-size: 12px;
+  font-weight: 800;
+}
+.tfp-ctrl-btn.tfp-end:hover { background: #dc2626; color: #fff; }
+.tfp-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  background: #1e293b;
+}
+.tfp-confirm-text { flex: 1; font-size: 11px; font-weight: 700; color: #e2e8f0; }
+.tfp-confirm-yes {
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tfp-confirm-yes:hover { background: #b91c1c; }
+.tfp-confirm-no {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.08);
+  color: #94a3b8;
+  border: none;
+  font-size: 11px;
+  cursor: pointer;
+}
+.tfp-confirm-no:hover { background: rgba(255,255,255,0.14); }
+
 /* ══════════════════════════════════════════════════════════════
    EMPTY STATE
 ══════════════════════════════════════════════════════════════ */

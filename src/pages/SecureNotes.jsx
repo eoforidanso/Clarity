@@ -30,6 +30,8 @@ export default function SecureNotes() {
   const [filterVisibility, setFilterVisibility] = useState('All');
   const [showNew, setShowNew] = useState(false);
   const [newForm, setNewForm] = useState({ patientName: '', type: 'Sticky Note', content: '', color: 'yellow', visibility: 'All Staff', pinned: false, expiresDate: '' });
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({});
 
   const filtered = useMemo(() => {
     let list = [...notes];
@@ -60,6 +62,16 @@ export default function SecureNotes() {
   const togglePin = (id) => setNotes(prev => prev.map(n => n.id === id ? { ...n, pinned: !n.pinned } : n));
   const deleteNote = (id) => setNotes(prev => prev.filter(n => n.id !== id));
 
+  const startEdit = (note) => {
+    setEditingId(note.id);
+    setEditForm({ type: note.type, content: note.content, color: note.color, visibility: note.visibility, pinned: note.pinned, expiresDate: note.expiresDate || '' });
+  };
+
+  const saveEdit = (id) => {
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, ...editForm } : n));
+    setEditingId(null);
+  };
+
   return (
     <div className="fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
@@ -86,36 +98,90 @@ export default function SecureNotes() {
       {/* Notes Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
         {filtered.map(note => {
-          const clr = COLORS.find(c => c.id === note.color) || COLORS[0];
+          const isEditing = editingId === note.id;
+          const displayColor = isEditing ? editForm.color : note.color;
+          const clr = COLORS.find(c => c.id === displayColor) || COLORS[0];
           return (
-            <div key={note.id} style={{ background: clr.bg, borderRadius: 14, border: `1px solid ${clr.border}`, padding: 18, position: 'relative', transition: 'transform 0.15s', minHeight: 140 }}>
-              {/* Pin indicator */}
-              {note.pinned && <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 14 }}>📌</span>}
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: clr.text }}>{note.patientName}</div>
-                  <div style={{ fontSize: 10, color: clr.text, opacity: 0.7 }}>{note.mrn}</div>
-                </div>
-                <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: 'rgba(255,255,255,0.6)', color: clr.text }}>{note.type}</span>
-              </div>
+            <div key={note.id} style={{ background: clr.bg, borderRadius: 14, border: `2px solid ${isEditing ? clr.text : clr.border}`, padding: 18, position: 'relative', transition: 'border-color 0.2s', minHeight: 140 }}>
+              {/* Pin indicator (when not editing) */}
+              {!isEditing && note.pinned && <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 14 }}>📌</span>}
 
-              <div style={{ fontSize: 12, lineHeight: 1.6, color: clr.text, marginBottom: 12, whiteSpace: 'pre-wrap' }}>{note.content}</div>
+              {isEditing ? (
+                /* ── Edit mode ── */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: clr.text, textTransform: 'uppercase', marginBottom: 3 }}>Type</div>
+                      <select value={editForm.type} onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))}
+                        style={{ width: '100%', fontSize: 11, padding: '4px 6px', borderRadius: 6, border: `1px solid ${clr.border}`, background: 'rgba(255,255,255,0.7)', color: clr.text }}>
+                        {NOTE_TYPES.map(t => <option key={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: clr.text, textTransform: 'uppercase', marginBottom: 3 }}>Visibility</div>
+                      <select value={editForm.visibility} onChange={e => setEditForm(f => ({ ...f, visibility: e.target.value }))}
+                        style={{ width: '100%', fontSize: 11, padding: '4px 6px', borderRadius: 6, border: `1px solid ${clr.border}`, background: 'rgba(255,255,255,0.7)', color: clr.text }}>
+                        {VISIBILITY.map(v => <option key={v}>{v}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: clr.text, textTransform: 'uppercase', marginBottom: 3 }}>Color</div>
+                    <div style={{ display: 'flex', gap: 5 }}>
+                      {COLORS.map(c => (
+                        <div key={c.id} onClick={() => setEditForm(f => ({ ...f, color: c.id }))}
+                          style={{ width: 22, height: 22, borderRadius: 6, background: c.bg, border: `2px solid ${editForm.color === c.id ? c.text : c.border}`, cursor: 'pointer' }} />
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: clr.text, textTransform: 'uppercase', marginBottom: 3 }}>Content</div>
+                    <textarea value={editForm.content} onChange={e => setEditForm(f => ({ ...f, content: e.target.value }))} rows={4}
+                      style={{ width: '100%', fontSize: 12, padding: '6px 8px', borderRadius: 8, border: `1px solid ${clr.border}`, background: 'rgba(255,255,255,0.7)', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, color: clr.text, boxSizing: 'border-box' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, cursor: 'pointer', color: clr.text }}>
+                      <input type="checkbox" checked={editForm.pinned} onChange={e => setEditForm(f => ({ ...f, pinned: e.target.checked }))}
+                        style={{ accentColor: clr.text }} /> 📌 Pinned
+                    </label>
+                    <input type="date" value={editForm.expiresDate} onChange={e => setEditForm(f => ({ ...f, expiresDate: e.target.value }))}
+                      style={{ fontSize: 10, padding: '3px 6px', borderRadius: 6, border: `1px solid ${clr.border}`, background: 'rgba(255,255,255,0.7)', color: clr.text }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 2 }}>
+                    <button onClick={() => setEditingId(null)}
+                      style={{ padding: '5px 12px', borderRadius: 7, border: `1px solid ${clr.border}`, background: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer', color: clr.text, fontWeight: 600 }}>✕ Cancel</button>
+                    <button onClick={() => saveEdit(note.id)}
+                      style={{ padding: '5px 12px', borderRadius: 7, border: 'none', background: clr.text, color: clr.bg, fontSize: 11, cursor: 'pointer', fontWeight: 700 }}>💾 Save</button>
+                  </div>
+                </div>
+              ) : (
+                /* ── Display mode ── */
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 13, color: clr.text }}>{note.patientName}</div>
+                      <div style={{ fontSize: 10, color: clr.text, opacity: 0.7 }}>{note.mrn}</div>
+                    </div>
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: 'rgba(255,255,255,0.6)', color: clr.text }}>{note.type}</span>
+                  </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                <div>
-                  <div style={{ fontSize: 10, color: clr.text, opacity: 0.6 }}>{note.author} · {note.createdDate}</div>
-                  <div style={{ fontSize: 9, color: clr.text, opacity: 0.5, marginTop: 1 }}>👁 {note.visibility}{note.expiresDate ? ` · Expires: ${note.expiresDate}` : ''}</div>
-                </div>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <button onClick={() => togglePin(note.id)} style={{ background: 'rgba(255,255,255,0.5)', border: 'none', borderRadius: 6, padding: '3px 6px', cursor: 'pointer', fontSize: 11 }} title="Toggle Pin">
-                    {note.pinned ? '📌' : '📎'}
-                  </button>
-                  <button onClick={() => deleteNote(note.id)} style={{ background: 'rgba(255,255,255,0.5)', border: 'none', borderRadius: 6, padding: '3px 6px', cursor: 'pointer', fontSize: 11 }} title="Delete">
-                    🗑️
-                  </button>
-                </div>
-              </div>
+                  <div style={{ fontSize: 12, lineHeight: 1.6, color: clr.text, marginBottom: 12, whiteSpace: 'pre-wrap' }}>{note.content}</div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: clr.text, opacity: 0.6 }}>{note.author} · {note.createdDate}</div>
+                      <div style={{ fontSize: 9, color: clr.text, opacity: 0.5, marginTop: 1 }}>👁 {note.visibility}{note.expiresDate ? ` · Expires: ${note.expiresDate}` : ''}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button onClick={() => startEdit(note)} style={{ background: 'rgba(255,255,255,0.5)', border: 'none', borderRadius: 6, padding: '3px 6px', cursor: 'pointer', fontSize: 11 }} title="Edit">✏️</button>
+                      <button onClick={() => togglePin(note.id)} style={{ background: 'rgba(255,255,255,0.5)', border: 'none', borderRadius: 6, padding: '3px 6px', cursor: 'pointer', fontSize: 11 }} title="Toggle Pin">
+                        {note.pinned ? '📌' : '📎'}
+                      </button>
+                      <button onClick={() => deleteNote(note.id)} style={{ background: 'rgba(255,255,255,0.5)', border: 'none', borderRadius: 6, padding: '3px 6px', cursor: 'pointer', fontSize: 11 }} title="Delete">🗑️</button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           );
         })}

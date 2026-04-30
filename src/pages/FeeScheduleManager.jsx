@@ -39,6 +39,10 @@ export default function FeeScheduleManager() {
   const [selectedFee, setSelectedFee] = useState(null);
   const [editFee, setEditFee] = useState(null);
   const [showEdit, setShowEdit] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [imported, setImported] = useState(false);
+  const [showAddCode, setShowAddCode] = useState(false);
+  const [newFee, setNewFee] = useState({ cpt: '', description: '', category: 'office_visit', fee: 0, medicare: 0, medicaid: 0, commercial: 0, selfPay: 0, rvu: 0 });
 
   const filtered = useMemo(() => {
     let list = [...fees];
@@ -76,8 +80,10 @@ export default function FeeScheduleManager() {
           <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Manage CPT codes, fee amounts by payer type, and RVU values</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={() => alert('📥 Importing CMS fee schedule...')}>📥 Import CMS</button>
-          <button className="btn btn-primary" onClick={() => alert('➕ Add new CPT code...')}>➕ Add Code</button>
+          <button className="btn btn-secondary" disabled={importing || imported} onClick={() => { setImporting(true); setTimeout(() => { setImporting(false); setImported(true); setTimeout(() => setImported(false), 3000); }, 1500); }}>
+            {importing ? '⏳ Importing…' : imported ? '✅ Imported 2026 CMS Rates' : '📥 Import CMS'}
+          </button>
+          <button className="btn btn-primary" onClick={() => { setNewFee({ cpt: '', description: '', category: 'office_visit', fee: 0, medicare: 0, medicaid: 0, commercial: 0, selfPay: 0, rvu: 0 }); setShowAddCode(true); }}>➕ Add Code</button>
         </div>
       </div>
 
@@ -164,6 +170,47 @@ export default function FeeScheduleManager() {
             <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button className="btn btn-secondary" onClick={() => setShowEdit(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={saveFee}>💾 Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Add Code Modal */}
+      {showAddCode && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowAddCode(false); }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 480, boxShadow: '0 24px 64px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 22px', background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', color: '#fff' }}>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>➕ Add New CPT Code</div>
+            </div>
+            <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, display: 'block', marginBottom: 6 }}>CPT Code *</label>
+                  <input className="form-input" placeholder="e.g. 99213" value={newFee.cpt} onChange={e => setNewFee(f => ({ ...f, cpt: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, display: 'block', marginBottom: 6 }}>Category</label>
+                  <select className="form-input" value={newFee.category} onChange={e => setNewFee(f => ({ ...f, category: e.target.value }))}>
+                    {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, display: 'block', marginBottom: 6 }}>Description *</label>
+                <input className="form-input" placeholder="e.g. Office Visit — Established, Level 3" value={newFee.description} onChange={e => setNewFee(f => ({ ...f, description: e.target.value }))} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                {[['Standard Fee', 'fee'], ['Medicare', 'medicare'], ['Medicaid', 'medicaid'], ['Commercial', 'commercial'], ['Self-Pay', 'selfPay'], ['RVU', 'rvu']].map(([label, key]) => (
+                  <div key={key}>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, display: 'block', marginBottom: 6 }}>{label}</label>
+                    <input className="form-input" type="number" step="0.01" value={newFee[key]} onChange={e => setNewFee(f => ({ ...f, [key]: parseFloat(e.target.value) || 0 }))} />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn btn-secondary" onClick={() => setShowAddCode(false)}>Cancel</button>
+              <button className="btn btn-primary" disabled={!newFee.cpt || !newFee.description} onClick={() => { setFees(prev => [...prev, { ...newFee, id: `f${Date.now()}`, effectiveDate: new Date().toISOString().slice(0,10), status: 'Active' }]); setShowAddCode(false); }}>➕ Add CPT Code</button>
             </div>
           </div>
         </div>

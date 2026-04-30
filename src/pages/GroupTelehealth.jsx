@@ -34,6 +34,12 @@ export default function GroupTelehealth() {
   const [participantSearch, setParticipantSearch] = useState('');
   const [sessionTimer, setSessionTimer] = useState(0);
   const timerRef = useRef(null);
+  const [mutedAll, setMutedAll] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [handRaised, setHandRaised] = useState(false);
+  const [showWhiteboard, setShowWhiteboard] = useState(false);
+  const [copiedLinkId, setCopiedLinkId] = useState(null);
 
   // Timer for active session
   useEffect(() => {
@@ -150,12 +156,24 @@ export default function GroupTelehealth() {
 
             {/* Session Controls */}
             <div style={{ padding: 12, borderBottom: '1px solid #e2e8f0', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              <button className="btn btn-sm btn-secondary" title="Mute All">🔇 Mute All</button>
-              <button className="btn btn-sm btn-secondary" title="Screen Share">🖥️ Share</button>
-              <button className="btn btn-sm btn-secondary" title="Whiteboard">✏️ Board</button>
-              <button className="btn btn-sm btn-secondary" title="Record">⏺️ Record</button>
-              <button className="btn btn-sm btn-secondary" title="Breakout Rooms">🚪 Breakout</button>
-              <button className="btn btn-sm btn-secondary" title="Hand Raise">✋ Hands</button>
+              <button className={`btn btn-sm ${mutedAll ? 'btn-primary' : 'btn-secondary'}`} title="Mute All" onClick={() => { setMutedAll(m => !m); }}>
+                {mutedAll ? '🔇 Muted All' : '🔇 Mute All'}
+              </button>
+              <button className={`btn btn-sm ${sharing ? 'btn-primary' : 'btn-secondary'}`} title="Screen Share" onClick={() => setSharing(s => !s)}>
+                {sharing ? '🖥️ Sharing' : '🖥️ Share'}
+              </button>
+              <button className={`btn btn-sm ${showWhiteboard ? 'btn-primary' : 'btn-secondary'}`} title="Whiteboard" onClick={() => setShowWhiteboard(w => !w)}>
+                {showWhiteboard ? '✏️ Board ✓' : '✏️ Board'}
+              </button>
+              <button className={`btn btn-sm ${recording ? 'btn-primary' : 'btn-secondary'}`} title="Record" style={recording ? { background: '#ef4444', color: '#fff' } : {}} onClick={() => setRecording(r => !r)}>
+                {recording ? '⏹️ Stop Rec' : '⏺️ Record'}
+              </button>
+              <button className={`btn btn-sm ${showBreakout ? 'btn-primary' : 'btn-secondary'}`} title="Breakout Rooms" onClick={() => setShowBreakout(b => !b)}>
+                {showBreakout ? '🚪 Rooms ✓' : '🚪 Breakout'}
+              </button>
+              <button className={`btn btn-sm ${handRaised ? 'btn-primary' : 'btn-secondary'}`} title="Hand Raise" onClick={() => setHandRaised(h => !h)}>
+                {handRaised ? '✋ Lowered' : '✋ Hands'}
+              </button>
             </div>
 
             {/* Group Chat */}
@@ -258,8 +276,11 @@ export default function GroupTelehealth() {
                     <button onClick={() => {
                       const link = `https://telehealth.clarity.health/group/${session.room}`;
                       navigator.clipboard?.writeText(link);
-                      alert(`Link copied: ${link}`);
-                    }} className="btn btn-sm btn-secondary">🔗 Copy Link</button>
+                      setCopiedLinkId(session.id);
+                      setTimeout(() => setCopiedLinkId(null), 2000);
+                    }} className="btn btn-sm btn-secondary" style={copiedLinkId === session.id ? { background: '#dcfce7', color: '#166534', borderColor: '#86efac' } : {}}>
+                      {copiedLinkId === session.id ? '✅ Copied!' : '🔗 Copy Link'}
+                    </button>
                   </>
                 )}
                 {session.status === 'completed' && (

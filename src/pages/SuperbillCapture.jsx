@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 
@@ -20,11 +21,18 @@ const STATUS_COLORS = {
 };
 
 export default function SuperbillCapture() {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [bills, setBills] = useState(MOCK_SUPERBILLS);
   const [filterStatus, setFilterStatus] = useState('All');
   const [selectedBill, setSelectedBill] = useState(null);
   const [search, setSearch] = useState('');
+  const [toast, setToast] = useState(null); // { message, type }
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   const filtered = useMemo(() => {
     let list = [...bills];
@@ -55,13 +63,50 @@ export default function SuperbillCapture() {
     if (selectedBill?.id === id) setSelectedBill(prev => ({ ...prev, status }));
   };
 
+  const submitAllReady = () => {
+    const readyIds = bills.filter(b => b.status === 'Ready to Submit').map(b => b.id);
+    if (readyIds.length === 0) return;
+    setBills(prev => prev.map(b => readyIds.includes(b.id) ? { ...b, status: 'Submitted' } : b));
+    showToast(`✅ ${readyIds.length} superbill${readyIds.length > 1 ? 's' : ''} submitted to claims successfully`);
+  };
+
+  const submitToClaimsWithFeedback = (bill) => {
+    updateStatus(bill.id, 'Submitted');
+    showToast(`📤 Claim created for ${bill.patientName} — ${bill.cptCodes.map(c => c.code).join(', ')} · $${bill.totalCharge.toFixed(2)}`);
+  };
+
   return (
     <div className="fade-in">
+      {/* Toast notification */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 20, right: 20, zIndex: 9999,
+          background: toast.type === 'success' ? '#059669' : '#dc2626',
+          color: '#fff', padding: '12px 20px', borderRadius: 10,
+          fontWeight: 600, fontSize: 13, boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+          maxWidth: 400, animation: 'fadeInUp 0.25s ease',
+        }}>
+          {toast.message}
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>🧾 Superbill & Charge Capture</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Auto-generated superbills from encounters, charge review, and claim submission</p>
         </div>
+        {stats.readyToSubmit > 0 && (
+          <button
+            onClick={submitAllReady}
+            style={{
+              background: 'linear-gradient(135deg, #059669, #047857)', color: '#fff',
+              border: 'none', borderRadius: 10, padding: '10px 20px',
+              fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+              boxShadow: '0 4px 12px rgba(5,150,105,0.3)',
+            }}>
+            📤 Submit All Ready ({stats.readyToSubmit})
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -144,8 +189,14 @@ export default function SuperbillCapture() {
                     </span>
                   </td>
                   <td onClick={e => e.stopPropagation()}>
-                    {bill.status === 'Ready to Submit' && <button className="btn btn-primary btn-sm" style={{ fontSize: 10, padding: '3px 8px' }} onClick={() => updateStatus(bill.id, 'Submitted')}>Submit</button>}
-                    {bill.status === 'Denied' && <button className="btn btn-warning btn-sm" style={{ fontSize: 10, padding: '3px 8px' }} onClick={() => alert('Opening denial details...')}>Appeal</button>}
+                    {bill.status === 'Ready to Submit' && (
+                      <button className="btn btn-primary btn-sm"
+                        style={{ fontSize: 10, padding: '3px 10px', whiteSpace: 'nowrap' }}
+                        onClick={() => submitToClaimsWithFeedback(bill)}>
+                        📤 Submit to Claims
+                      </button>
+                    )}
+                    {bill.status === 'Denied' && <button className="btn btn-warning btn-sm" style={{ fontSize: 10, padding: '3px 8px' }} onClick={() => navigate('/denial-management')}>Appeal</button>}
                   </td>
                 </tr>
               );
@@ -250,9 +301,9 @@ export default function SuperbillCapture() {
               )}
 
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-primary btn-sm" onClick={() => alert('🖨️ Printing superbill for ' + selectedBill.patientName)}>🖨️ Print Superbill</button>
+                <button className="btn btn-primary btn-sm" onClick={() => window.print()}>🖨️ Print Superbill</button>
                 {selectedBill.status === 'Ready to Submit' && <button className="btn btn-success btn-sm" onClick={() => { updateStatus(selectedBill.id, 'Submitted'); setSelectedBill(null); }}>📤 Submit Claim</button>}
-                <button className="btn btn-secondary btn-sm" onClick={() => alert('📤 Exported as CMS-1500')}>📄 CMS-1500</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => { const lines = [`CMS-1500 Export\n`, `Patient: ${selectedBill.patientName}`, `Provider: ${selectedBill.provider}`, `Date: ${selectedBill.visitDate}`, `CPT Codes: ${selectedBill.cptCodes?.join(', ')}`, `Diagnosis: ${selectedBill.diagnosisCodes?.join(', ')}`].join('\n'); const blob = new Blob([lines], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `CMS1500_${selectedBill.patientName.replace(/\s+/g,'_')}.txt`; a.click(); URL.revokeObjectURL(url); }}>📄 CMS-1500</button>
               </div>
             </div>
           </div>

@@ -86,7 +86,9 @@ export default function PatientRecall() {
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>📞 Patient Recall & Outreach</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Track overdue patients, manage outreach campaigns, and improve care continuity</p>
         </div>
-        <button className="btn btn-primary" onClick={() => alert('📧 Sending batch outreach to all Not Started recalls...')}>📧 Batch Outreach</button>
+          <button className="btn btn-primary" disabled={batchSending || batchSent} onClick={() => { setBatchSending(true); setTimeout(() => { setBatchSending(false); setBatchSent(true); setTimeout(() => setBatchSent(false), 3000); }, 1500); }}>
+            {batchSending ? '⏳ Sending…' : batchSent ? '✅ Batch Sent' : '📧 Send Batch Outreach'}
+          </button>
       </div>
 
       {/* Stats */}
@@ -195,8 +197,12 @@ export default function PatientRecall() {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button className="btn btn-primary btn-sm" onClick={() => setShowOutreach(true)}>📞 Log Outreach</button>
                 {selectedRecall.outreachStatus !== 'Scheduled' && <button className="btn btn-secondary btn-sm" onClick={() => markScheduled(selectedRecall.id)}>📅 Mark Scheduled</button>}
-                <button className="btn btn-secondary btn-sm" onClick={() => alert('📧 Sending portal message to ' + selectedRecall.patientName)}>📧 Portal Message</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => alert('📱 Sending SMS to ' + selectedRecall.phone)}>📱 Text</button>
+                <button className="btn btn-secondary btn-sm" style={msgSentType === 'portal' ? { background: '#dcfce7', color: '#166534', borderColor: '#86efac' } : {}} onClick={() => { setMsgSentType('portal'); setTimeout(() => setMsgSentType(null), 2000); }}>
+                  {msgSentType === 'portal' ? '✅ Portal Message Sent' : '📧 Portal Message'}
+                </button>
+                <button className="btn btn-secondary btn-sm" style={msgSentType === 'sms' ? { background: '#dcfce7', color: '#166534', borderColor: '#86efac' } : {}} onClick={() => { setMsgSentType('sms'); setTimeout(() => setMsgSentType(null), 2000); }}>
+                  {msgSentType === 'sms' ? '✅ SMS Sent' : '📱 Text'}
+                </button>
               </div>
             </div>
           </div>

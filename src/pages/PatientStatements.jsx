@@ -26,6 +26,9 @@ export default function PatientStatements() {
   const [selectedStmt, setSelectedStmt] = useState(null);
   const [showPaymentPlan, setShowPaymentPlan] = useState(false);
   const [planForm, setPlanForm] = useState({ months: 3 });
+  const [batchGenerating, setBatchGenerating] = useState(false);
+  const [batchDone, setBatchDone] = useState(false);
+  const [emailedIds, setEmailedIds] = useState(new Set());
 
   const filtered = useMemo(() => {
     let list = [...statements];
@@ -47,7 +50,7 @@ export default function PatientStatements() {
 
   const setupPaymentPlan = () => {
     if (!selectedStmt) return;
-    const monthlyAmount = Math.ceil(selectedStmt.balance / planForm.months);
+    const monthlyAmount = planForm.months > 0 ? Math.ceil(selectedStmt.balance / planForm.months) : 0;
     setStatements(prev => prev.map(s => s.id === selectedStmt.id ? {
       ...s, status: 'Partial', paymentPlan: {
         monthlyAmount, totalRemaining: s.balance,
@@ -74,7 +77,9 @@ export default function PatientStatements() {
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>💳 Patient Statements & Payment Plans</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Generate statements, track balances, and manage patient payment plans</p>
         </div>
-        <button className="btn btn-primary" onClick={() => alert('📄 Generating batch statements for all patients with outstanding balances...')}>📄 Generate Batch Statements</button>
+        <button className="btn btn-primary" disabled={batchGenerating || batchDone} onClick={() => { setBatchGenerating(true); setTimeout(() => { setBatchGenerating(false); setBatchDone(true); setTimeout(() => setBatchDone(false), 3000); }, 1800); }}>
+          {batchGenerating ? '⏳ Generating…' : batchDone ? '✅ Statements Generated' : '📄 Generate Batch Statements'}
+        </button>
       </div>
 
       {/* Stats */}
@@ -205,8 +210,10 @@ export default function PatientStatements() {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {selectedStmt.balance > 0 && <button className="btn btn-primary btn-sm" onClick={() => recordPayment(selectedStmt.id, selectedStmt.balance)}>💳 Record Full Payment</button>}
                 {selectedStmt.balance > 0 && !selectedStmt.paymentPlan && <button className="btn btn-secondary btn-sm" onClick={() => setShowPaymentPlan(true)}>📅 Setup Payment Plan</button>}
-                <button className="btn btn-secondary btn-sm" onClick={() => alert('📧 Statement emailed to ' + selectedStmt.email)}>📧 Email Statement</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => alert('🖨️ Printing statement...')}>🖨️ Print</button>
+                <button className="btn btn-secondary btn-sm" style={emailedIds.has(selectedStmt.id) ? { background: '#dcfce7', color: '#166534', borderColor: '#86efac' } : {}} onClick={() => { setEmailedIds(prev => new Set([...prev, selectedStmt.id])); }}>
+                  {emailedIds.has(selectedStmt.id) ? '✅ Emailed' : '📧 Email Statement'}
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={() => window.print()}>🖨️ Print</button>
               </div>
             </div>
           </div>
@@ -225,12 +232,12 @@ export default function PatientStatements() {
             <div style={{ padding: 22 }}>
               <div style={{ marginBottom: 16 }}>
                 <label style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, display: 'block', marginBottom: 6 }}>Number of Monthly Payments</label>
-                <select className="form-input" value={planForm.months} onChange={e => setPlanForm({ months: parseInt(e.target.value) })}>
+                <select className="form-input" value={planForm.months} onChange={e => setPlanForm({ months: parseInt(e.target.value, 10) })}>
                   {[2, 3, 4, 6, 9, 12].map(m => <option key={m} value={m}>{m} months — ${Math.ceil(selectedStmt.balance / m)}/mo</option>)}
                 </select>
               </div>
               <div style={{ padding: 14, background: '#f0fdf4', borderRadius: 8, border: '1px solid #86efac', fontSize: 13 }}>
-                <strong>Monthly Payment:</strong> ${Math.ceil(selectedStmt.balance / planForm.months)}<br />
+                <strong>Monthly Payment:</strong> ${planForm.months > 0 ? Math.ceil(selectedStmt.balance / planForm.months) : 0}<br />
                 <strong>First Payment:</strong> {new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)}
               </div>
             </div>

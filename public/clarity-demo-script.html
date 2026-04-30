@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Clarity EHR — Demo Video Script</title>
+<style>
+  @page { size: letter; margin: 0.55in 0.6in; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: #1e293b; font-size: 9.5px; line-height: 1.6; background: #fff; }
+
+  /* Print button */
+  .print-btn { position: fixed; top: 16px; right: 16px; background: #2563eb; color: #fff; border: none; padding: 10px 22px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; z-index: 999; box-shadow: 0 4px 14px rgba(37,99,235,0.4); }
+  @media print { .print-btn { display: none; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+  /* Cover */
+  .cover { background: linear-gradient(150deg, #0f172a 0%, #1e3a5f 55%, #1e40af 100%); color: #fff; min-height: 8.5in; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 60px 40px; border-radius: 6px; page-break-after: always; }
+  .cover-icon { font-size: 70px; margin-bottom: 18px; }
+  .cover h1 { font-size: 40px; font-weight: 900; letter-spacing: -1px; }
+  .cover h2 { font-size: 18px; font-weight: 400; color: #93c5fd; margin: 6px 0 36px; }
+  .cover-meta { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 20px 36px; display: inline-block; margin-bottom: 32px; }
+  .cover-meta div { font-size: 12px; color: #cbd5e1; margin: 4px 0; }
+  .cover-meta strong { color: #fff; }
+  .cover-pills { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .cover-pill { background: rgba(59,130,246,0.25); border: 1px solid rgba(59,130,246,0.45); color: #bfdbfe; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+
+  /* Page structure */
+  .page { page-break-after: always; padding-bottom: 10px; }
+  .page:last-child { page-break-after: avoid; }
+  .page-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding: 7px 14px; background: #f1f5f9; border-radius: 7px; border: 1px solid #e2e8f0; }
+  .page-hdr .title { font-weight: 800; font-size: 11px; color: #0f172a; }
+  .page-hdr .pg { font-size: 9px; color: #64748b; }
+  .footer { text-align: center; font-size: 8px; color: #94a3b8; margin-top: 14px; padding-top: 8px; border-top: 1px solid #e2e8f0; }
+
+  /* Scene cards */
+  .scene { border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 14px; overflow: hidden; }
+  .scene-header { display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+  .scene-num { background: #2563eb; color: #fff; font-size: 10px; font-weight: 800; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .scene-title { font-weight: 800; font-size: 11px; color: #0f172a; flex: 1; }
+  .scene-time { background: #dbeafe; color: #1d4ed8; font-size: 9px; font-weight: 700; padding: 3px 8px; border-radius: 10px; }
+  .scene-body { display: grid; grid-template-columns: 1fr 1fr; }
+  .scene-col { padding: 11px 14px; }
+  .scene-col + .scene-col { border-left: 1px solid #e2e8f0; }
+  .col-label { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: #64748b; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+  .col-label .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .dot-screen { background: #7c3aed; }
+  .dot-voice { background: #16a34a; }
+
+  /* Screen action items */
+  .screen-action { display: flex; gap: 7px; margin-bottom: 5px; align-items: flex-start; }
+  .sa-icon { font-size: 10px; flex-shrink: 0; margin-top: 1px; }
+  .sa-text { font-size: 9px; color: #334155; line-height: 1.5; }
+  .sa-text strong { color: #0f172a; }
+
+  /* Narration */
+  .narration { font-size: 9.5px; color: #1e293b; line-height: 1.7; font-style: italic; }
+  .narration em { font-style: normal; font-weight: 700; color: #0f172a; }
+  .hl { background: #fef9c3; padding: 1px 3px; border-radius: 3px; font-style: normal; }
+
+  /* Tips & notes */
+  .tip { background: #f0fdf4; border: 1px solid #86efac; border-radius: 7px; padding: 8px 12px; margin: 6px 0; font-size: 8.5px; color: #166534; }
+  .tip strong { color: #15803d; }
+  .note { background: #f0f9ff; border: 1px solid #7dd3fc; border-radius: 7px; padding: 8px 12px; margin: 6px 0; font-size: 8.5px; color: #0c4a6e; }
+  .cue { background: #fdf4ff; border: 1px solid #e9d5ff; border-radius: 7px; padding: 8px 12px; margin: 8px 0; font-size: 8.5px; color: #5b21b6; }
+  .cue strong { color: #7c3aed; }
+
+  /* Overview table */
+  h2 { font-size: 13px; font-weight: 900; color: #0f172a; margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 2px solid #3b82f6; }
+  h3 { font-size: 11px; font-weight: 800; color: #1e293b; margin: 10px 0 5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 12px; }
+  th { background: #f1f5f9; padding: 5px 8px; text-align: left; font-weight: 700; font-size: 8.5px; text-transform: uppercase; color: #475569; border: 1px solid #e2e8f0; }
+  td { padding: 5px 8px; border: 1px solid #e2e8f0; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+
+  /* Timeline */
+  .timeline { display: flex; gap: 0; margin-bottom: 14px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; }
+  .tl-item { flex: 1; padding: 8px 6px; text-align: center; border-right: 1px solid #e2e8f0; }
+  .tl-item:last-child { border-right: none; }
+  .tl-time { font-size: 9px; font-weight: 800; color: #2563eb; margin-bottom: 3px; }
+  .tl-label { font-size: 8px; color: #475569; font-weight: 600; }
+  .tl-item.active { background: #eff6ff; }
+
+  /* Production notes section */
+  .prod-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .prod-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; }
+  .prod-card .icon { font-size: 16px; margin-bottom: 4px; }
+  .prod-card .label { font-weight: 800; font-size: 10px; color: #0f172a; margin-bottom: 3px; }
+  .prod-card p { font-size: 8.5px; color: #475569; }
+
+  /* Dark closing box */
+  .dark-box { background: linear-gradient(135deg, #0f172a, #1e3a5f); color: #fff; border-radius: 10px; padding: 16px 20px; margin: 12px 0; }
+  .dark-box h3 { color: #fff; margin-bottom: 10px; }
+  .dark-box p { font-size: 9px; color: #94a3b8; margin-bottom: 4px; }
+
+  kbd { display: inline-block; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 3px; padding: 1px 4px; font-size: 8.5px; font-family: monospace; color: #334155; font-style: normal; }
+</style>
+</head>
+<body>
+
+<button class="print-btn" onclick="window.print()">🖨️ Save as PDF</button>
+
+<!-- ═══ COVER ═══ -->
+<div class="cover">
+  <div class="cover-icon">🎬</div>
+  <h1>Clarity EHR</h1>
+  <h2>Demo Video Script &amp; Screen Direction Guide</h2>
+  <div class="cover-meta">
+    <div><strong>Total Runtime:</strong> ~5 Minutes</div>
+    <div><strong>Format:</strong> Narrated Screen Recording</div>
+    <div><strong>Audience:</strong> Prospective Customers / Clinicians / Administrators</div>
+    <div><strong>Version:</strong> 2.0 &nbsp;|&nbsp; <strong>Date:</strong> April 2026</div>
+  </div>
+  <div class="cover-pills">
+    <span class="cover-pill">📋 Scene-by-Scene Script</span>
+    <span class="cover-pill">🖥️ Screen Directions</span>
+    <span class="cover-pill">🎙️ Narration Text</span>
+    <span class="cover-pill">⏱️ Timing Cues</span>
+    <span class="cover-pill">🎬 Production Notes</span>
+  </div>
+</div>
+
+<!-- ═══ PAGE 2 — OVERVIEW ═══ -->
+<div class="page">
+  <div class="page-hdr"><span class="title">Demo Overview &amp; Run-of-Show</span><span class="pg">Page 2</span></div>
+
+  <h2>⏱️ Run-of-Show Timeline</h2>
+  <div class="timeline">
+    <div class="tl-item active"><div class="tl-time">0:00</div><div class="tl-label">🎬 Intro<br>Title Card</div></div>
+    <div class="tl-item"><div class="tl-time">0:15</div><div class="tl-label">🔐 Login &amp;<br>Dashboard</div></div>
+    <div class="tl-item"><div class="tl-time">0:50</div><div class="tl-label">🔍 Patient<br>Search</div></div>
+    <div class="tl-item"><div class="tl-time">1:15</div><div class="tl-label">📋 Patient<br>Chart</div></div>
+    <div class="tl-item"><div class="tl-time">1:50</div><div class="tl-label">🗒️ Encounter<br>+ AI Scribe</div></div>
+    <div class="tl-item"><div class="tl-time">2:30</div><div class="tl-label">💊 E-Prescribe<br>+ EPCS</div></div>
+    <div class="tl-item"><div class="tl-time">3:05</div><div class="tl-label">📹 Telehealth<br>Session</div></div>
+    <div class="tl-item"><div class="tl-time">3:35</div><div class="tl-label">💰 Billing<br>Dashboard</div></div>
+    <div class="tl-item"><div class="tl-time">4:10</div><div class="tl-label">🤖 AI<br>Features</div></div>
+    <div class="tl-item active"><div class="tl-time">4:45</div><div class="tl-label">✅ Closing<br>CTA</div></div>
+  </div>
+
+  <h2>🗂️ Scene Summary</h2>
+  <table>
+    <thead><tr><th>#</th><th>Scene Title</th><th>Time</th><th>Duration</th><th>Key Message</th></tr></thead>
+    <tbody>
+      <tr><td><strong>1</strong></td><td>Title Card &amp; Brand Intro</td><td>0:00</td><td>15 sec</td><td>Clarity is the modern EHR built for outpatient care</td></tr>
+      <tr><td><strong>2</strong></td><td>Login &amp; Dashboard</td><td>0:15</td><td>35 sec</td><td>Role-based access · clean dashboard · session security</td></tr>
+      <tr><td><strong>3</strong></td><td>Patient Search &amp; Banner</td><td>0:50</td><td>25 sec</td><td>Find any patient in seconds, open up to 4 charts</td></tr>
+      <tr><td><strong>4</strong></td><td>Patient Chart Tour</td><td>1:15</td><td>35 sec</td><td>All clinical data in one place — tabbed, structured</td></tr>
+      <tr><td><strong>5</strong></td><td>Encounter Note + AI Scribe</td><td>1:50</td><td>40 sec</td><td>Document faster with ambient AI transcription</td></tr>
+      <tr><td><strong>6</strong></td><td>E-Prescribe &amp; EPCS</td><td>2:30</td><td>35 sec</td><td>Send any prescription — including controlled, securely</td></tr>
+      <tr><td><strong>7</strong></td><td>Telehealth 1:1 Session</td><td>3:05</td><td>30 sec</td><td>Built-in video, no third-party app needed</td></tr>
+      <tr><td><strong>8</strong></td><td>Billing &amp; Revenue Cycle</td><td>3:35</td><td>35 sec</td><td>Claims, eligibility, statements all in one workflow</td></tr>
+      <tr><td><strong>9</strong></td><td>AI Features Overview</td><td>4:10</td><td>35 sec</td><td>Triage, voice, clinical assistant — all configurable</td></tr>
+      <tr><td><strong>10</strong></td><td>Closing &amp; Call to Action</td><td>4:45</td><td>15 sec</td><td>Schedule a live demo · Free trial</td></tr>
+    </tbody>
+  </table>
+
+  <h2>🎬 Before You Record — Production Checklist</h2>
+  <div class="prod-grid">
+    <div class="prod-card"><div class="icon">💻</div><div class="label">Screen Setup</div><p>Set resolution to 1920×1080. Use Chrome in full-screen. Hide bookmarks bar. Close all other tabs. Use a clean browser profile with no extensions showing.</p></div>
+    <div class="prod-card"><div class="icon">🎙️</div><div class="label">Audio</div><p>Record in a quiet room. Use a USB condenser mic or headset. Record narration separately and mix in post for cleaner audio, or use live narration if comfortable.</p></div>
+    <div class="prod-card"><div class="icon">🖱️</div><div class="label">Mouse &amp; Cursor</div><p>Use a spotlight/cursor-highlight tool (e.g., Mouseposé on Mac, Cursor Spotlight on Windows). Move the mouse slowly and deliberately between elements.</p></div>
+    <div class="prod-card"><div class="icon">🗃️</div><div class="label">Demo Data</div><p>Use demo credentials: <strong>demo@clarity.health / Demo2026!</strong>. Patient: <strong>Sarah Johnson, DOB 03/14/1985</strong>. All data is pre-seeded and reset-safe.</p></div>
+    <div class="prod-card"><div class="icon">⏸️</div><div class="label">Pacing</div><p>Pause 1–2 seconds after navigating to a new screen before speaking. This gives viewers time to orient. Don't rush — aim for a calm, confident delivery.</p></div>
+    <div class="prod-card"><div class="icon">🎨</div><div class="label">Post-Production</div><p>Add a lower-third title bar for each section. Use smooth fade transitions (0.3s). Add background music at ~20% volume (royalty-free, upbeat corporate).</p></div>
+  </div>
+
+  <div class="footer">Clarity EHR Demo Script · Version 2.0 · April 2026 · Confidential</div>
+</div>
+
+<!-- ═══ PAGE 3 — SCENES 1–4 ═══ -->
+<div class="page">
+  <div class="page-hdr"><span class="title">Scenes 1–4 &nbsp;|&nbsp; Intro through Patient Chart</span><span class="pg">Page 3</span></div>
+
+  <!-- SCENE 1 -->
+  <div class="scene">
+    <div class="scene-header">
+      <div class="scene-num">1</div>
+      <div class="scene-title">🎬 Title Card &amp; Brand Introduction</div>
+      <div class="scene-time">0:00 – 0:15 &nbsp;|&nbsp; 15 sec</div>
+    </div>
+    <div class="scene-body">
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-screen"></span>🖥️ On Screen</div>
+        <div class="screen-action"><div class="sa-icon">▶️</div><div class="sa-text">Show the Clarity <strong>splash screen / login page</strong>. The animated logo and tagline fade in.</div></div>
+        <div class="screen-action"><div class="sa-icon">✨</div><div class="sa-text">Lower third text appears: <strong>"Clarity EHR — The Modern Practice Platform"</strong></div></div>
+        <div class="screen-action"><div class="sa-icon">🎵</div><div class="sa-text">Background music fades in at low volume.</div></div>
+      </div>
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-voice"></span>🎙️ Narration</div>
+        <p class="narration">"Meet <em>Clarity</em> — the all-in-one EHR and practice management platform designed for <em>outpatient clinicians who want to spend less time on software and more time with patients</em>. Let's take a five-minute tour."</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 2 -->
+  <div class="scene">
+    <div class="scene-header">
+      <div class="scene-num">2</div>
+      <div class="scene-title">🔐 Login &amp; Dashboard</div>
+      <div class="scene-time">0:15 – 0:50 &nbsp;|&nbsp; 35 sec</div>
+    </div>
+    <div class="scene-body">
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-screen"></span>🖥️ On Screen</div>
+        <div class="screen-action"><div class="sa-icon">1️⃣</div><div class="sa-text">Type <strong>demo@clarity.health</strong> into the email field. Type password (show dots only).</div></div>
+        <div class="screen-action"><div class="sa-icon">2️⃣</div><div class="sa-text">Click <strong>Sign In</strong>. Show the brief loading animation, then the <strong>Dashboard</strong> loads.</div></div>
+        <div class="screen-action"><div class="sa-icon">3️⃣</div><div class="sa-text">Slowly pan over the Dashboard — highlight <strong>Today's Appointments</strong> (5 patients), <strong>Inbox badge</strong> (3 messages), and the <strong>Quick Actions row</strong>.</div></div>
+        <div class="screen-action"><div class="sa-icon">4️⃣</div><div class="sa-text">Click the sidebar to show it expanding — briefly show the section groupings.</div></div>
+      </div>
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-voice"></span>🎙️ Narration</div>
+        <p class="narration">"Logging in is quick and secure. After authentication, <em>every team member sees a dashboard tailored to their role</em> — providers see their patient schedule, front desk sees check-ins, and billing staff sees claim status."</p>
+        <br>
+        <p class="narration">"Everything is accessible from the sidebar — <em>scheduling, clinical tools, billing, reporting, and administration</em> — all organised and just one click away."</p>
+      </div>
+    </div>
+    <div style="padding: 8px 14px; background: #fafafa; border-top: 1px solid #e2e8f0;">
+      <div class="cue"><strong>📍 Post-production:</strong> Add a subtle zoom-in highlight (Ken Burns effect) on the appointment list when saying "dashboard tailored to their role."</div>
+    </div>
+  </div>
+
+  <!-- SCENE 3 -->
+  <div class="scene">
+    <div class="scene-header">
+      <div class="scene-num">3</div>
+      <div class="scene-title">🔍 Patient Search</div>
+      <div class="scene-time">0:50 – 1:15 &nbsp;|&nbsp; 25 sec</div>
+    </div>
+    <div class="scene-body">
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-screen"></span>🖥️ On Screen</div>
+        <div class="screen-action"><div class="sa-icon">1️⃣</div><div class="sa-text">Click <strong>Patient Search</strong> in the sidebar (or press <kbd>Ctrl+F</kbd> — show the shortcut appearing on screen).</div></div>
+        <div class="screen-action"><div class="sa-icon">2️⃣</div><div class="sa-text">Type <strong>"Sarah"</strong> — show results filtering in real time. Click <strong>Sarah Johnson</strong>.</div></div>
+        <div class="screen-action"><div class="sa-icon">3️⃣</div><div class="sa-text">Show the <strong>Patient Banner</strong> appearing at the top — name, DOB, insurance, allergies badge.</div></div>
+        <div class="screen-action"><div class="sa-icon">4️⃣</div><div class="sa-text">Show "Sarah Johnson" now appearing in the <strong>Open Charts</strong> sidebar section.</div></div>
+      </div>
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-voice"></span>🎙️ Narration</div>
+        <p class="narration">"Finding a patient takes seconds. Type any part of their name, and Clarity filters results instantly. Once selected, a <em>persistent patient banner</em> follows you everywhere in the app — so you always know whose chart you're in."</p>
+        <br>
+        <p class="narration">"You can have <em>up to four charts open simultaneously</em>, making it easy to manage a busy clinic day."</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 4 -->
+  <div class="scene">
+    <div class="scene-header">
+      <div class="scene-num">4</div>
+      <div class="scene-title">📋 Patient Chart Tour</div>
+      <div class="scene-time">1:15 – 1:50 &nbsp;|&nbsp; 35 sec</div>
+    </div>
+    <div class="scene-body">
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-screen"></span>🖥️ On Screen</div>
+        <div class="screen-action"><div class="sa-icon">1️⃣</div><div class="sa-text">Click <strong>Chart Summary</strong>. Slowly scroll to show active problems, current meds, and recent vitals side-by-side.</div></div>
+        <div class="screen-action"><div class="sa-icon">2️⃣</div><div class="sa-text">Click <strong>Medications</strong> tab — show the list of active medications with refill history.</div></div>
+        <div class="screen-action"><div class="sa-icon">3️⃣</div><div class="sa-text">Click <strong>Vitals</strong> — show the trend graph for blood pressure over the last 6 visits.</div></div>
+        <div class="screen-action"><div class="sa-icon">4️⃣</div><div class="sa-text">Briefly click <strong>Lab Results</strong> — show one abnormal flag highlighted in red.</div></div>
+      </div>
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-voice"></span>🎙️ Narration</div>
+        <p class="narration">"The patient chart puts <em>every piece of clinical information in one structured place</em>. The Chart Summary gives a complete snapshot — active problems, current medications, allergies, and recent vitals."</p>
+        <br>
+        <p class="narration">"Vitals automatically graph over time, so you can see trends at a glance. <em>Abnormal lab values are flagged in red</em> so nothing critical is missed."</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Clarity EHR Demo Script · Version 2.0 · April 2026 · Confidential</div>
+</div>
+
+<!-- ═══ PAGE 4 — SCENES 5–7 ═══ -->
+<div class="page">
+  <div class="page-hdr"><span class="title">Scenes 5–7 &nbsp;|&nbsp; Encounter · E-Prescribe · Telehealth</span><span class="pg">Page 4</span></div>
+
+  <!-- SCENE 5 -->
+  <div class="scene">
+    <div class="scene-header">
+      <div class="scene-num">5</div>
+      <div class="scene-title">🗒️ Encounter Note &amp; AI Ambient Scribe</div>
+      <div class="scene-time">1:50 – 2:30 &nbsp;|&nbsp; 40 sec</div>
+    </div>
+    <div class="scene-body">
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-screen"></span>🖥️ On Screen</div>
+        <div class="screen-action"><div class="sa-icon">1️⃣</div><div class="sa-text">Click <strong>Encounters</strong> in the chart sidebar. Click <strong>+ New Encounter</strong>. Select "SOAP Note."</div></div>
+        <div class="screen-action"><div class="sa-icon">2️⃣</div><div class="sa-text">Click the <strong>🎙️ Ambient AI Scribe</strong> button. Show the recording indicator activating (pulsing red dot).</div></div>
+        <div class="screen-action"><div class="sa-icon">3️⃣</div><div class="sa-text">Pause 3 seconds (simulating a brief conversation). Click <strong>Stop Recording</strong>. Show a spinner, then watch the SOAP sections auto-fill with generated text.</div></div>
+        <div class="screen-action"><div class="sa-icon">4️⃣</div><div class="sa-text">Type <strong>.followup</strong> in the Plan field and press <kbd>Tab</kbd> — show it expand to a follow-up template. Highlight the word "Smart Phrases."</div></div>
+        <div class="screen-action"><div class="sa-icon">5️⃣</div><div class="sa-text">Click <strong>Sign Note</strong>. Show the green "Note Signed" confirmation.</div></div>
+      </div>
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-voice"></span>🎙️ Narration</div>
+        <p class="narration">"Documentation is where clinicians lose the most time. Clarity's <em>Ambient AI Scribe</em> listens to the patient encounter and automatically drafts the SOAP note — so you can focus on the patient, not the screen."</p>
+        <br>
+        <p class="narration">"You can also use <em>Smart Phrases</em> — typed shortcuts that expand into full clinical templates with a single keystroke."</p>
+        <br>
+        <p class="narration">"When you're satisfied, one click <em>signs and locks the note</em>, creating a permanent, audited record."</p>
+      </div>
+    </div>
+    <div style="padding: 8px 14px; background: #fafafa; border-top: 1px solid #e2e8f0;">
+      <div class="tip"><strong>🎬 Direction tip:</strong> Pre-stage a nearly completed note so the "auto-fill" appears to happen live. The key visual moment is the text appearing in the Subjective and Assessment fields as if being typed by AI.</div>
+    </div>
+  </div>
+
+  <!-- SCENE 6 -->
+  <div class="scene">
+    <div class="scene-header">
+      <div class="scene-num">6</div>
+      <div class="scene-title">💊 E-Prescribing &amp; EPCS</div>
+      <div class="scene-time">2:30 – 3:05 &nbsp;|&nbsp; 35 sec</div>
+    </div>
+    <div class="scene-body">
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-screen"></span>🖥️ On Screen</div>
+        <div class="screen-action"><div class="sa-icon">1️⃣</div><div class="sa-text">Navigate to <strong>Clinical Tools → E-Prescribe</strong>. Click <strong>+ New Prescription</strong>.</div></div>
+        <div class="screen-action"><div class="sa-icon">2️⃣</div><div class="sa-text">Type <strong>"sertraline"</strong> in the medication search. Select <strong>Sertraline HCl 50mg tablet</strong>.</div></div>
+        <div class="screen-action"><div class="sa-icon">3️⃣</div><div class="sa-text">Fill in <strong>1 tablet PO daily, #30, 3 refills</strong>. Select the pharmacy from the search (type "CVS").</div></div>
+        <div class="screen-action"><div class="sa-icon">4️⃣</div><div class="sa-text">Click <strong>Send Prescription</strong>. Show the success screen with the pharmacy name and Rx number.</div></div>
+        <div class="screen-action"><div class="sa-icon">5️⃣</div><div class="sa-text"><em>(Optional: briefly show the EPCS flow)</em> Mention you can also prescribe controlled substances with DEA two-factor auth — briefly show the PIN + OTP entry modal.</div></div>
+      </div>
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-voice"></span>🎙️ Narration</div>
+        <p class="narration">"Prescribing is fully electronic. Search any medication by name, set the dose, SIG, and quantity, then send directly to the patient's preferred pharmacy — <em>in under thirty seconds</em>."</p>
+        <br>
+        <p class="narration">"For controlled substances, Clarity supports <em>EPCS</em> — Electronic Prescribing for Controlled Substances — with DEA-compliant two-factor authentication, keeping your practice fully compliant while eliminating paper prescriptions."</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 7 -->
+  <div class="scene">
+    <div class="scene-header">
+      <div class="scene-num">7</div>
+      <div class="scene-title">📹 Telehealth Session</div>
+      <div class="scene-time">3:05 – 3:35 &nbsp;|&nbsp; 30 sec</div>
+    </div>
+    <div class="scene-body">
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-screen"></span>🖥️ On Screen</div>
+        <div class="screen-action"><div class="sa-icon">1️⃣</div><div class="sa-text">Navigate to the <strong>Schedule</strong>. Click the <strong>▶ Start Visit</strong> button on Sarah's telehealth appointment.</div></div>
+        <div class="screen-action"><div class="sa-icon">2️⃣</div><div class="sa-text">Show the <strong>telehealth waiting room screen</strong> — the provider view with the patient queue.</div></div>
+        <div class="screen-action"><div class="sa-icon">3️⃣</div><div class="sa-text">Click <strong>Admit Patient</strong>. Show the video call interface — two-camera tiles, toolbar with Chat, Mute, Share Screen, End Session.</div></div>
+        <div class="screen-action"><div class="sa-icon">4️⃣</div><div class="sa-text">Click <strong>End Session</strong>. Show the automatic redirect to the <strong>Encounter Note</strong> for that visit.</div></div>
+      </div>
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-voice"></span>🎙️ Narration</div>
+        <p class="narration">"Telehealth is built right in — <em>no third-party app, no extra logins</em>. Start a video visit directly from the schedule with one click."</p>
+        <br>
+        <p class="narration">"Patients join from a link in their email or through the Patient Portal. <em>No download required on their end.</em>"</p>
+        <br>
+        <p class="narration">"When the visit ends, Clarity <em>automatically opens the encounter note</em>, so documentation flows naturally from the visit."</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Clarity EHR Demo Script · Version 2.0 · April 2026 · Confidential</div>
+</div>
+
+<!-- ═══ PAGE 5 — SCENES 8–10 + CLOSING ═══ -->
+<div class="page">
+  <div class="page-hdr"><span class="title">Scenes 8–10 &nbsp;|&nbsp; Billing · AI · Closing</span><span class="pg">Page 5</span></div>
+
+  <!-- SCENE 8 -->
+  <div class="scene">
+    <div class="scene-header">
+      <div class="scene-num">8</div>
+      <div class="scene-title">💰 Billing &amp; Revenue Cycle</div>
+      <div class="scene-time">3:35 – 4:10 &nbsp;|&nbsp; 35 sec</div>
+    </div>
+    <div class="scene-body">
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-screen"></span>🖥️ On Screen</div>
+        <div class="screen-action"><div class="sa-icon">1️⃣</div><div class="sa-text">Navigate to <strong>Billing → Billing Dashboard</strong>. Slowly scan the summary cards (AR total, clean claim rate, denials).</div></div>
+        <div class="screen-action"><div class="sa-icon">2️⃣</div><div class="sa-text">Click <strong>Eligibility Verification</strong>. Show entering a patient name, clicking Check, and the coverage summary appearing.</div></div>
+        <div class="screen-action"><div class="sa-icon">3️⃣</div><div class="sa-text">Click <strong>Claims Management</strong>. Show a row with a denial badge in red. Click <strong>Resubmit</strong>.</div></div>
+        <div class="screen-action"><div class="sa-icon">4️⃣</div><div class="sa-text">Click <strong>Patient Statements</strong>. Select a statement. Click <strong>Setup Payment Plan</strong> and choose 3 months — show the monthly amount auto-calculating.</div></div>
+      </div>
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-voice"></span>🎙️ Narration</div>
+        <p class="narration">"Clarity's revenue cycle tools give your billing team <em>full visibility from claim creation to payment posting</em>."</p>
+        <br>
+        <p class="narration">"Run real-time eligibility checks before every appointment. <em>Denials are flagged immediately</em> with suggested corrections so your team can resubmit in seconds."</p>
+        <br>
+        <p class="narration">"And for patients with outstanding balances, <em>flexible payment plans</em> can be set up in just a few clicks, improving collections without uncomfortable conversations."</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 9 -->
+  <div class="scene">
+    <div class="scene-header">
+      <div class="scene-num">9</div>
+      <div class="scene-title">🤖 AI Features Overview</div>
+      <div class="scene-time">4:10 – 4:45 &nbsp;|&nbsp; 35 sec</div>
+    </div>
+    <div class="scene-body">
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-screen"></span>🖥️ On Screen</div>
+        <div class="screen-action"><div class="sa-icon">1️⃣</div><div class="sa-text">Navigate to <strong>Settings → AI Features</strong>. Show the toggle panel with all AI features listed. Toggle one on/off to demonstrate control.</div></div>
+        <div class="screen-action"><div class="sa-icon">2️⃣</div><div class="sa-text">Show the <strong>AI Clinical Assistant</strong> floating panel opening — type "What are the first-line treatments for GAD?" — show a result appearing.</div></div>
+        <div class="screen-action"><div class="sa-icon">3️⃣</div><div class="sa-text">Navigate to <strong>AI Triage Chat</strong>. Show the patient-facing chat window with symptom questions and an urgency result at the bottom.</div></div>
+        <div class="screen-action"><div class="sa-icon">4️⃣</div><div class="sa-text">Navigate to <strong>CDS Alerts</strong> — briefly show a drug interaction alert card and the recommended action.</div></div>
+      </div>
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-voice"></span>🎙️ Narration</div>
+        <p class="narration">"Clarity is built with AI at its core — but <em>always under your control</em>. Every AI feature can be individually enabled or disabled in Settings."</p>
+        <br>
+        <p class="narration">"The <em>AI Clinical Assistant</em> is available on every screen — ask it clinical questions, check drug interactions, or request a differential diagnosis in seconds."</p>
+        <br>
+        <p class="narration">"<em>AI Triage Chat</em> guides patients through their symptoms before the visit, so you walk in already knowing the chief complaint and urgency level."</p>
+        <br>
+        <p class="narration">"And <em>Clinical Decision Support alerts</em> catch dangerous drug combinations before a prescription is sent."</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 10 -->
+  <div class="scene">
+    <div class="scene-header">
+      <div class="scene-num">10</div>
+      <div class="scene-title">✅ Closing &amp; Call to Action</div>
+      <div class="scene-time">4:45 – 5:00 &nbsp;|&nbsp; 15 sec</div>
+    </div>
+    <div class="scene-body">
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-screen"></span>🖥️ On Screen</div>
+        <div class="screen-action"><div class="sa-icon">🎬</div><div class="sa-text">Fade to the Clarity <strong>login / splash screen</strong> or a clean branded title card.</div></div>
+        <div class="screen-action"><div class="sa-icon">📋</div><div class="sa-text">Show the following text on screen:<br><br><strong>clarity.health</strong><br>Schedule a Live Demo<br>Start Your Free Trial<br><br><em>Email: demo@clarity.health</em></div></div>
+        <div class="screen-action"><div class="sa-icon">🎵</div><div class="sa-text">Background music swells gently, then fades out with the logo.</div></div>
+      </div>
+      <div class="scene-col">
+        <div class="col-label"><span class="dot dot-voice"></span>🎙️ Narration</div>
+        <p class="narration">"From documentation to billing, telehealth to AI — <em>Clarity brings your entire practice into one seamless platform</em>."</p>
+        <br>
+        <p class="narration">"Ready to see it in action with your own data? <em>Schedule a personalised live demo</em> or start your free trial today at <em>clarity.health</em>."</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Clarity EHR Demo Script · Version 2.0 · April 2026 · Confidential</div>
+</div>
+
+<!-- ═══ PAGE 6 — FULL NARRATION TRANSCRIPT ═══ -->
+<div class="page">
+  <div class="page-hdr"><span class="title">Full Narration Transcript (Read-Through Version)</span><span class="pg">Page 6</span></div>
+  <p style="margin-bottom:12px; font-size:9px; color:#64748b;"><em>Use this page for rehearsal. Each paragraph corresponds to one scene. Times are approximate.</em></p>
+
+  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px 20px; line-height:2; font-size:10px; color:#1e293b;">
+
+    <p style="margin-bottom:10px;"><strong style="color:#2563eb;">[0:00]</strong> Meet <em>Clarity</em> — the all-in-one EHR and practice management platform designed for outpatient clinicians who want to spend less time on software and more time with patients. Let's take a five-minute tour.</p>
+
+    <p style="margin-bottom:10px;"><strong style="color:#2563eb;">[0:15]</strong> Logging in is quick and secure. After authentication, every team member sees a dashboard tailored to their role — providers see their patient schedule, front desk sees check-ins, and billing staff sees claim status. Everything is accessible from the sidebar — scheduling, clinical tools, billing, reporting, and administration — all organised and just one click away.</p>
+
+    <p style="margin-bottom:10px;"><strong style="color:#2563eb;">[0:50]</strong> Finding a patient takes seconds. Type any part of their name, and Clarity filters results instantly. Once selected, a persistent patient banner follows you everywhere in the app — so you always know whose chart you're in. You can have up to four charts open simultaneously, making it easy to manage a busy clinic day.</p>
+
+    <p style="margin-bottom:10px;"><strong style="color:#2563eb;">[1:15]</strong> The patient chart puts every piece of clinical information in one structured place. The Chart Summary gives a complete snapshot — active problems, current medications, allergies, and recent vitals. Vitals automatically graph over time, so you can see trends at a glance. Abnormal lab values are flagged in red so nothing critical is missed.</p>
+
+    <p style="margin-bottom:10px;"><strong style="color:#2563eb;">[1:50]</strong> Documentation is where clinicians lose the most time. Clarity's Ambient AI Scribe listens to the patient encounter and automatically drafts the SOAP note — so you can focus on the patient, not the screen. You can also use Smart Phrases — typed shortcuts that expand into full clinical templates with a single keystroke. When you're satisfied, one click signs and locks the note, creating a permanent, audited record.</p>
+
+    <p style="margin-bottom:10px;"><strong style="color:#2563eb;">[2:30]</strong> Prescribing is fully electronic. Search any medication by name, set the dose, SIG, and quantity, then send directly to the patient's preferred pharmacy — in under thirty seconds. For controlled substances, Clarity supports EPCS — Electronic Prescribing for Controlled Substances — with DEA-compliant two-factor authentication, keeping your practice fully compliant while eliminating paper prescriptions.</p>
+
+    <p style="margin-bottom:10px;"><strong style="color:#2563eb;">[3:05]</strong> Telehealth is built right in — no third-party app, no extra logins. Start a video visit directly from the schedule with one click. Patients join from a link in their email or through the Patient Portal. No download required on their end. When the visit ends, Clarity automatically opens the encounter note, so documentation flows naturally from the visit.</p>
+
+    <p style="margin-bottom:10px;"><strong style="color:#2563eb;">[3:35]</strong> Clarity's revenue cycle tools give your billing team full visibility from claim creation to payment posting. Run real-time eligibility checks before every appointment. Denials are flagged immediately with suggested corrections so your team can resubmit in seconds. And for patients with outstanding balances, flexible payment plans can be set up in just a few clicks, improving collections without uncomfortable conversations.</p>
+
+    <p style="margin-bottom:10px;"><strong style="color:#2563eb;">[4:10]</strong> Clarity is built with AI at its core — but always under your control. Every AI feature can be individually enabled or disabled in Settings. The AI Clinical Assistant is available on every screen — ask it clinical questions, check drug interactions, or request a differential diagnosis in seconds. AI Triage Chat guides patients through their symptoms before the visit, so you walk in already knowing the chief complaint and urgency level. And Clinical Decision Support alerts catch dangerous drug combinations before a prescription is sent.</p>
+
+    <p><strong style="color:#2563eb;">[4:45]</strong> From documentation to billing, telehealth to AI — Clarity brings your entire practice into one seamless platform. Ready to see it in action with your own data? Schedule a personalised live demo or start your free trial today at <strong>clarity.health</strong>.</p>
+  </div>
+
+  <div class="dark-box" style="margin-top:16px;">
+    <h3>🎬 Distribution &amp; Export Notes</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:9px;">
+      <div>
+        <p style="color:#fff; font-weight:700; margin-bottom:4px;">Recommended Export Settings</p>
+        <p>• Resolution: 1920×1080 (Full HD)</p>
+        <p>• Format: MP4 (H.264), max 50MB for web</p>
+        <p>• Frame rate: 30fps</p>
+        <p>• Audio: AAC 192kbps, stereo</p>
+        <p>• Add captions / subtitles for accessibility (SRT file)</p>
+      </div>
+      <div>
+        <p style="color:#fff; font-weight:700; margin-bottom:4px;">Suggested Distribution Channels</p>
+        <p>• Website homepage hero section</p>
+        <p>• Sales email outreach (Loom / Vidyard link)</p>
+        <p>• LinkedIn and YouTube</p>
+        <p>• Conference booth screens (loop-friendly)</p>
+        <p>• Investor / pitch deck embed</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Clarity EHR Demo Script · Version 2.0 · April 2026 · © Clarity Health Inc. · support@clarity.health · Confidential</div>
+</div>
+
+</body>
+</html>

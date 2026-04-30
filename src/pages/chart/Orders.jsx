@@ -5,7 +5,7 @@ import { labOrderDatabase, labFacilities, users, orderInsurance } from '../../da
 
 export default function Orders({ patientId }) {
   const { currentUser } = useAuth();
-  const { orders, addOrder, addInboxMessage } = usePatient();
+  const { orders, addOrder, updateOrder, addInboxMessage, patients } = usePatient();
   const [showAdd, setShowAdd] = useState(false);
   const [orderType, setOrderType] = useState('Lab');
   const [search, setSearch] = useState('');
@@ -18,8 +18,66 @@ export default function Orders({ patientId }) {
 
   const isFrontDesk  = currentUser?.role === 'front_desk';
   const isTherapist  = currentUser?.role === 'therapist';
-  const mustForward  = isFrontDesk; // front desk must forward; therapist can't create orders at all
+  const isAdmin      = currentUser?.role === 'admin';
+  const mustForward  = isFrontDesk;
   const providers = users.filter(u => u.role === 'prescriber');
+
+  const patient = patients?.find(p => p.id === patientId);
+
+  const printOrder = (order) => {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const patientName = patient ? `${patient.firstName} ${patient.lastName}` : patientId;
+    const win = window.open('', '_blank', 'width=700,height=600');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><title>Order — ${patientName} — ${order.type}</title><style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:Arial,sans-serif; font-size:13px; color:#111; padding:28px 36px; }
+.header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #1d4ed8; padding-bottom:12px; margin-bottom:16px; }
+.facility-name { font-size:20px; font-weight:800; color:#1d4ed8; }
+.facility-sub { font-size:12px; color:#374151; margin-top:3px; line-height:1.6; }
+.header-right { text-align:right; font-size:11px; color:#374151; }
+.badge { display:inline-block; background:#dbeafe; color:#1e40af; font-weight:700; font-size:11px; padding:3px 9px; border-radius:12px; border:1px solid #93c5fd; }
+.section { margin-bottom:14px; }
+.section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:#6b7280; border-bottom:1px solid #e5e7eb; padding-bottom:4px; margin-bottom:8px; }
+table { width:100%; border-collapse:collapse; }
+td { padding:5px 6px; vertical-align:top; font-size:12.5px; }
+td.lbl { width:38%; font-weight:600; color:#374151; }
+.footer { margin-top:20px; padding-top:8px; border-top:1px solid #e5e7eb; font-size:10.5px; color:#6b7280; text-align:center; }
+@media print { body { padding:10px 16px; } }
+</style></head><body>
+<div class="header"><div>
+  <div class="facility-name">Clarity Behavioral Health</div>
+  <div class="facility-sub">200 N Michigan Ave, Suite 1400, Chicago, IL 60601<br/>Phone: (312) 555-0200 &nbsp;|&nbsp; Fax: (312) 555-0201</div>
+</div><div class="header-right">
+  <span class="badge">${order.type} Order</span>
+  <div style="margin-top:8px">Date: <strong>${dateStr}</strong></div>
+  <div>Time: <strong>${timeStr}</strong></div>
+</div></div>
+<div class="section"><div class="section-title">Patient</div><table>
+  <tr><td class="lbl">Name</td><td>${patientName}</td></tr>
+  ${patient?.dob ? `<tr><td class="lbl">Date of Birth</td><td>${patient.dob}</td></tr>` : ''}
+  ${patient?.mrn ? `<tr><td class="lbl">MRN</td><td>${patient.mrn}</td></tr>` : ''}
+</table></div>
+<div class="section"><div class="section-title">Order Details</div><table>
+  <tr><td class="lbl">Type</td><td>${order.type}</td></tr>
+  <tr><td class="lbl">Description</td><td><strong>${order.description}</strong></td></tr>
+  <tr><td class="lbl">Priority</td><td>${order.priority}</td></tr>
+  <tr><td class="lbl">Status</td><td>${order.status}</td></tr>
+  <tr><td class="lbl">Date Ordered</td><td>${order.orderedDate}</td></tr>
+  <tr><td class="lbl">Ordered By</td><td>${order.orderedBy}</td></tr>
+  ${order.labFacility ? `<tr><td class="lbl">Lab Facility</td><td>${order.labFacility}</td></tr>` : ''}
+  ${order.forwardedTo ? `<tr><td class="lbl">Forwarded To</td><td>${order.forwardedTo}</td></tr>` : ''}
+  ${order.notes ? `<tr><td class="lbl">Clinical Notes</td><td>${order.notes}</td></tr>` : ''}
+</table></div>
+<div class="footer">Printed ${dateStr} at ${timeStr} · Clarity EHR · Confidential — For authorized use only</div>
+</body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
+  };
 
   const patientOrders = orders[patientId] || [];
 
@@ -116,7 +174,7 @@ export default function Orders({ patientId }) {
           <div className="card-body no-pad">
             <table className="data-table">
               <thead>
-                <tr><th>Type</th><th>Description</th><th>Status</th><th>Date</th><th>Ordered By</th><th>Priority</th><th>Insurance</th><th>Notes</th></tr>
+                <tr><th>Type</th><th>Description</th><th>Status</th><th>Date</th><th>Ordered By</th><th>Priority</th><th>Insurance</th><th>Notes</th><th></th></tr>
               </thead>
               <tbody>
                 {patientOrders.map((o) => {
@@ -146,10 +204,11 @@ export default function Orders({ patientId }) {
                           ) : <span className="text-muted">—</span>}
                         </td>
                         <td className="text-sm text-muted">{o.notes}</td>
+                        <td><button className="btn btn-sm btn-secondary" title="Print order slip" onClick={e => { e.stopPropagation(); printOrder(o); }}>🖨️</button></td>
                       </tr>
                       {expandedOrder === o.id && ins && (
                         <tr>
-                          <td colSpan={8} style={{ padding: 0, background: 'var(--bg)' }}>
+                          <td colSpan={9} style={{ padding: 0, background: 'var(--bg)' }}>
                             <div style={{ padding: '12px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px 24px', fontSize: 12 }}>
                               <div><span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Insurance:</span> {ins.insuranceName}</div>
                               <div><span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Member ID:</span> {ins.memberId}</div>
@@ -170,7 +229,7 @@ export default function Orders({ patientId }) {
                   );
                 })}
                 {patientOrders.length === 0 && (
-                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No orders</td></tr>
+                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No orders</td></tr>
                 )}
               </tbody>
             </table>
@@ -316,7 +375,7 @@ export default function Orders({ patientId }) {
         <div className="card-body no-pad">
           <table className="data-table">
             <thead>
-              <tr><th>Type</th><th>Description</th><th>Status</th><th>Date</th><th>Ordered By</th><th>Priority</th><th>Insurance</th><th>Notes</th></tr>
+              <tr><th>Type</th><th>Description</th><th>Status</th><th>Date</th><th>Ordered By</th><th>Priority</th><th>Insurance</th><th>Notes</th><th></th></tr>
             </thead>
             <tbody>
               {patientOrders.map((o) => {
@@ -346,10 +405,19 @@ export default function Orders({ patientId }) {
                     ) : <span className="text-muted">—</span>}
                   </td>
                   <td className="text-sm text-muted">{o.notes}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="btn btn-sm btn-secondary" title="Print order slip" onClick={e => { e.stopPropagation(); printOrder(o); }} style={{ marginRight: 4 }}>🖨️</button>
+                    {!['Completed', 'Cancelled'].includes(o.status) && (<>
+                      <button className="btn btn-sm btn-success" title="Mark complete" style={{ marginRight: 4 }}
+                        onClick={e => { e.stopPropagation(); updateOrder(patientId, o.id, { status: 'Completed' }); }}>✅</button>
+                      <button className="btn btn-sm btn-danger" title="Cancel order"
+                        onClick={e => { e.stopPropagation(); updateOrder(patientId, o.id, { status: 'Cancelled' }); }}>✕</button>
+                    </>)}
+                  </td>
                 </tr>
                 {expandedOrder === o.id && ins && (
                   <tr>
-                    <td colSpan={8} style={{ padding: 0, background: 'var(--bg)' }}>
+                    <td colSpan={9} style={{ padding: 0, background: 'var(--bg)' }}>
                       <div style={{ padding: '12px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px 24px', fontSize: 12 }}>
                         <div><span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Insurance:</span> {ins.insuranceName}</div>
                         <div><span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Member ID:</span> {ins.memberId}</div>
@@ -370,7 +438,7 @@ export default function Orders({ patientId }) {
               );
               })}
               {patientOrders.length === 0 && (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No orders</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No orders</td></tr>
               )}
             </tbody>
           </table>

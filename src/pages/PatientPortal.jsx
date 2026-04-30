@@ -993,6 +993,10 @@ export default function PatientPortal() {
   const [assessmentAnswers, setAssessmentAnswers] = useState([]);
   const [assessmentSubmitted, setAssessmentSubmitted] = useState({});
 
+  /* ── Weekly check-in ──────────────────────────────────────── */
+  const [ciAnswers, setCiAnswers] = useState(new Array(4).fill(-1));
+  const [ciResult, setCiResult] = useState(null);
+
   const startAssessment = (type) => {
     const toolDef = ASSESSMENT_TOOLS[type];
     if (!toolDef) return;
@@ -2096,6 +2100,138 @@ export default function PatientPortal() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* ── Weekly Symptom Check-In ── */}
+            <div style={{ marginBottom: 32 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 800, color: '#1e293b', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18 }}>📅</span> Weekly Symptom Check-In
+                <span style={{ fontSize: 10, fontWeight: 600, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: 20, textTransform: 'none' }}>takes 2 min</span>
+              </h2>
+              <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
+                A brief weekly check-in helps your provider track how you're feeling between visits. Your responses are visible to your care team.
+              </p>
+              {(() => {
+                const PHQ2 = [
+                  'Little interest or pleasure in doing things',
+                  'Feeling down, depressed, or hopeless',
+                ];
+                const GAD2 = [
+                  'Feeling nervous, anxious, or on edge',
+                  'Not being able to stop or control worrying',
+                ];
+                const OPTS = ['Not at all', 'Several days', 'More than half the days', 'Nearly every day'];
+
+                const allAnswered = ciAnswers.every(a => a >= 0);
+                const phq2Score = ciAnswers[0] + ciAnswers[1];
+                const gad2Score = ciAnswers[2] + ciAnswers[3];
+
+                const phq2Interp = phq2Score >= 3 ? 'Possible depression — your provider will follow up' : phq2Score >= 1 ? 'Mild symptoms noted' : 'Minimal symptoms';
+                const gad2Interp = gad2Score >= 3 ? 'Possible anxiety — your provider will follow up' : gad2Score >= 1 ? 'Mild symptoms noted' : 'Minimal symptoms';
+
+                if (ciResult) {
+                  return (
+                    <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 12, padding: '20px 24px' }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: '#065f46', marginBottom: 8 }}>✅ Weekly Check-In Complete!</div>
+                      <div style={{ fontSize: 12, color: '#16a34a', marginBottom: 12 }}>Your responses have been sent to your care team.</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <div style={{ background: '#fff', borderRadius: 8, padding: '12px 14px', border: '1px solid #d1fae5' }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 4 }}>PHQ-2 (Depression)</div>
+                          <div style={{ fontSize: 20, fontWeight: 800, color: ciResult.phq2 >= 3 ? '#dc2626' : '#1e293b' }}>{ciResult.phq2}/{6}</div>
+                          <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{phq2Interp}</div>
+                        </div>
+                        <div style={{ background: '#fff', borderRadius: 8, padding: '12px 14px', border: '1px solid #d1fae5' }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 4 }}>GAD-2 (Anxiety)</div>
+                          <div style={{ fontSize: 20, fontWeight: 800, color: ciResult.gad2 >= 3 ? '#d97706' : '#1e293b' }}>{ciResult.gad2}/{6}</div>
+                          <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{gad2Interp}</div>
+                        </div>
+                      </div>
+                      {(ciResult.phq2 >= 3 || ciResult.gad2 >= 3) && (
+                        <div style={{ marginTop: 12, background: '#fef3c7', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#92400e' }}>
+                          <strong>⚠️ Your provider will review these scores before your next appointment.</strong> If you're in distress now, call or text <strong>988</strong> (Suicide &amp; Crisis Lifeline).
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '20px 24px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', marginBottom: 16 }}>
+                      Over the <strong>past 7 days</strong>, how often have you been bothered by:
+                    </div>
+
+                    {/* PHQ-2 */}
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: '#4f46e5', letterSpacing: '0.5px', marginBottom: 10 }}>Depression Symptoms (PHQ-2)</div>
+                      {PHQ2.map((q, qi) => (
+                        <div key={qi} style={{ marginBottom: 14 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginBottom: 8 }}>{qi + 1}. {q}</div>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {OPTS.map((opt, oi) => (
+                              <button key={oi} type="button"
+                                onClick={() => { const a = [...ciAnswers]; a[qi] = oi; setCiAnswers(a); }}
+                                style={{
+                                  padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+                                  border: `1.5px solid ${ciAnswers[qi] === oi ? '#4f46e5' : '#e2e8f0'}`,
+                                  background: ciAnswers[qi] === oi ? '#ede9fe' : '#fff',
+                                  color: ciAnswers[qi] === oi ? '#4338ca' : '#64748b',
+                                  fontWeight: ciAnswers[qi] === oi ? 700 : 400,
+                                }}>
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* GAD-2 */}
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: '#d97706', letterSpacing: '0.5px', marginBottom: 10 }}>Anxiety Symptoms (GAD-2)</div>
+                      {GAD2.map((q, qi) => (
+                        <div key={qi} style={{ marginBottom: 14 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginBottom: 8 }}>{qi + 3}. {q}</div>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {OPTS.map((opt, oi) => (
+                              <button key={oi} type="button"
+                                onClick={() => { const a = [...ciAnswers]; a[qi + 2] = oi; setCiAnswers(a); }}
+                                style={{
+                                  padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+                                  border: `1.5px solid ${ciAnswers[qi + 2] === oi ? '#d97706' : '#e2e8f0'}`,
+                                  background: ciAnswers[qi + 2] === oi ? '#fef3c7' : '#fff',
+                                  color: ciAnswers[qi + 2] === oi ? '#92400e' : '#64748b',
+                                  fontWeight: ciAnswers[qi + 2] === oi ? 700 : 400,
+                                }}>
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      disabled={!allAnswered}
+                      onClick={() => {
+                        const p2 = ciAnswers[0] + ciAnswers[1];
+                        const g2 = ciAnswers[2] + ciAnswers[3];
+                        setCiResult({ phq2: p2, gad2: g2 });
+                        setAssessmentSubmitted(prev => ({ ...prev, weeklyCheckin: { date: new Date().toLocaleDateString(), phq2: p2, gad2: g2 } }));
+                      }}
+                      style={{
+                        padding: '10px 28px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: allAnswered ? 'pointer' : 'not-allowed',
+                        background: allAnswered ? 'linear-gradient(135deg, #4f46e5, #7c3aed)' : '#e2e8f0',
+                        color: allAnswered ? '#fff' : '#94a3b8', border: 'none',
+                      }}>
+                      Submit Check-In
+                    </button>
+                    {!allAnswered && (
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Please answer all 4 questions to submit.</div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* ── Assessment Resource Library ── */}

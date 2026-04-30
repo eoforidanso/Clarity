@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useSite } from '../contexts/SiteContext';
 import { usePatient } from '../contexts/PatientContext';
 import { useNotifications } from '../contexts/NotificationContext';
 
@@ -8,20 +9,14 @@ export default function Header() {
   const { currentUser } = useAuth();
   const { patients, selectPatient, openChart, closeChart, openCharts, selectedPatient, inboxMessages } = usePatient();
   const { unreadCount: notifUnread, togglePanel } = useNotifications();
+  const { activeSiteId, setActiveSite, availableSites, isFiltered } = useSite();
   const [search, setSearch] = useState('');
   const [showResults, setShowResults] = useState(false);
   const [now, setNow] = useState(new Date());
-  const [selectedLocation, setSelectedLocation] = useState('main');
   const navigate = useNavigate();
   const location = useLocation();
   const searchRef = useRef(null);
   const inputRef = useRef(null);
-
-  const LOCATIONS = [
-    { id: 'main', name: 'Main Campus', addr: '123 Medical Center Dr' },
-    { id: 'downtown', name: 'Downtown Clinic', addr: '456 Broadway St' },
-    { id: 'westside', name: 'Westside Office', addr: '789 West Blvd' },
-  ];
 
   const unreadCount = inboxMessages.filter(
     (m) => !m.read && (m.to === currentUser?.id || currentUser?.role === 'front_desk')
@@ -160,7 +155,7 @@ export default function Header() {
             {filteredPatients.map((p) => (
               <div key={p.id} className="search-result-item" onClick={() => handleSelectPatient(p)}>
                 <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, flexShrink: 0 }}>
-                  {p.firstName[0]}{p.lastName[0]}
+                  {p.firstName?.[0] || ''}{p.lastName?.[0] || ''}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -179,6 +174,9 @@ export default function Header() {
           <div className="search-results">
             <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
               No patients found for "{search}"
+            </div>
+            <div style={{ padding: '0 18px 14px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+              Try searching by first or last name, or MRN
             </div>
           </div>
         )}
@@ -217,7 +215,7 @@ export default function Header() {
                     color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 9, fontWeight: 800, flexShrink: 0,
                   }}>
-                    {p.firstName[0]}{p.lastName[0]}
+                    {p.firstName?.[0] || ''}{p.lastName?.[0] || ''}
                   </div>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {p.lastName}, {p.firstName[0]}.
@@ -253,17 +251,20 @@ export default function Header() {
       <div className="header-actions">
         {/* Location picker */}
         <select
-          value={selectedLocation}
-          onChange={e => setSelectedLocation(e.target.value)}
+          value={activeSiteId}
+          onChange={e => setActiveSite(e.target.value)}
           style={{
-            padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)',
-            fontSize: 11, fontWeight: 600, background: 'var(--bg)', color: 'var(--text-secondary)',
-            cursor: 'pointer', maxWidth: 140,
+            padding: '4px 8px', borderRadius: 6,
+            border: isFiltered ? '1.5px solid #f59e0b' : '1px solid var(--border)',
+            fontSize: 11, fontWeight: 600,
+            background: isFiltered ? '#fffbeb' : 'var(--bg)',
+            color: isFiltered ? '#92400e' : 'var(--text-secondary)',
+            cursor: 'pointer', maxWidth: 150,
           }}
-          title="Select Location"
+          title="Switch active site"
         >
-          {LOCATIONS.map(l => (
-            <option key={l.id} value={l.id}>📍 {l.name}</option>
+          {availableSites.map(s => (
+            <option key={s.id} value={s.id}>{s.icon} {s.shortName}</option>
           ))}
         </select>
 

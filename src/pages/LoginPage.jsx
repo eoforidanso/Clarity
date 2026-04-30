@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useTraining } from '../contexts/TrainingContext';
 import { users } from '../data/mockData';
 
 const ROLE_ICONS = {
@@ -28,6 +29,7 @@ const CERTS = ['HIPAA', 'EPCS', 'ONC', '42 CFR Part 2'];
 
 export default function LoginPage() {
   const { login, loginError } = useAuth();
+  const { enableTraining } = useTraining();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -79,6 +81,23 @@ export default function LoginPage() {
   const handleDemoLogin = (u) => {
     setUsername(u.username);
     setPassword(u.password);
+  };
+
+  const handleEnterTrainingMode = async () => {
+    // Auto-login as demo provider
+    const demoUser = users.find(u => u.role === 'prescriber');
+    if (!demoUser) return;
+    setLoading(true);
+    try {
+      const success = await login(demoUser.username, demoUser.password);
+      if (success) {
+        enableTraining();
+        navigate('/dashboard');
+      }
+    } catch (err) {
+      console.error('Training login error:', err);
+    }
+    setLoading(false);
   };
 
   const handleForgotSubmit = (e) => {
@@ -222,6 +241,36 @@ export default function LoginPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Training Mode CTA */}
+          <div style={{
+            background: 'linear-gradient(135deg,rgba(124,45,18,0.85),rgba(194,65,12,0.85))',
+            backdropFilter: 'blur(12px)', borderRadius: 14,
+            border: '1px solid rgba(234,88,12,0.4)', padding: '16px 20px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 14, marginBottom: 8,
+          }}>
+            <div>
+              <div style={{ fontWeight: 800, color: '#fff', fontSize: 14, marginBottom: 3 }}>
+                🎓 Staff Training Mode
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
+                Safe sandbox with mock data — auto-logs in as demo provider
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleEnterTrainingMode}
+              style={{
+                background: '#fff', color: '#c2410c',
+                border: 'none', borderRadius: 8,
+                padding: '7px 16px', fontSize: 12, fontWeight: 800,
+                cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              Enter Training Mode
+            </button>
           </div>
 
           {/* Patient Portal CTA */}

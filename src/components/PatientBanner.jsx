@@ -10,7 +10,7 @@ export default function PatientBanner() {
   if (!selectedPatient) return null;
 
   const p = selectedPatient;
-  const initials = `${p.firstName[0]}${p.lastName[0]}`;
+  const initials = `${p.firstName?.[0] || ''}${p.lastName?.[0] || ''}`;  
 
   const hasAllergy = p.allergies && p.allergies.length > 0;
   const patientAllergies = allergies[p.id] || [];

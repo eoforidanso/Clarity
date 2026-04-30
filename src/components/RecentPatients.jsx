@@ -64,7 +64,7 @@ export default function RecentPatients() {
           {recent.map(p => (
             <div key={p.id} className="recent-patient-item" onClick={() => { handleClick(p); setExpanded(false); }}>
               <div className="recent-patient-avatar">
-                {p.firstName[0]}{p.lastName[0]}
+                {p.firstName?.[0] || ''}{p.lastName?.[0] || ''}
               </div>
               <div className="recent-patient-info">
                 <div className="recent-patient-name">{p.lastName}, {p.firstName}</div>

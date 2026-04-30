@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useTraining } from '../contexts/TrainingContext';
 import { useAuth } from '../contexts/AuthContext';
 
 /* ─── Theme Presets ──────────────────────────────────────── */
@@ -82,8 +83,27 @@ const THEMES = [
   },
 ];
 
-const STORAGE_KEY_THEME = 'clarity_theme';
-const STORAGE_KEY_SIG   = 'clarity_signature';
+const STORAGE_KEY_THEME    = 'clarity_theme';
+const STORAGE_KEY_SIG     = 'clarity_signature';
+export const STORAGE_KEY_NAV_PREFS = 'clarity_nav_prefs';
+
+export const DEFAULT_NAV_PREFS = {
+  showApptReminders: true,
+};
+
+export function getNavPrefs() {
+  try { return { ...DEFAULT_NAV_PREFS, ...JSON.parse(localStorage.getItem(STORAGE_KEY_NAV_PREFS)) }; } catch { return DEFAULT_NAV_PREFS; }
+}
+
+export const AI_FEATURES_KEY = 'clarity_ai_features';
+export const DEFAULT_AI_FEATURES = {
+  ambientSoap: true, voiceAssistant: true, aiTriage: true, aiClinicalAssistant: true,
+  aiWaitlistMatch: true, cdsAlerts: true, aiCodingSuggestions: true, aiDocExtraction: true,
+  aiPortalAssistant: true, aiDeduplicate: true,
+};
+export function getAIFeatures() {
+  try { return { ...DEFAULT_AI_FEATURES, ...JSON.parse(localStorage.getItem(AI_FEATURES_KEY)) }; } catch { return DEFAULT_AI_FEATURES; }
+}
 
 function getStoredTheme() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY_THEME)) || null; } catch { return null; }
@@ -128,7 +148,10 @@ function hexToMid(hex, alpha) {
 /* ─── Component ──────────────────────────────────────────── */
 export default function Settings() {
   const { currentUser } = useAuth();
+  const { isTraining, enableTraining, disableTraining, resetTrainingData } = useTraining();
   const [activeSection, setActiveSection] = useState('theme');
+  const [trainingConfirmReset, setTrainingConfirmReset] = useState(false);
+  const [tourReset, setTourReset] = useState(false);
 
   /* Theme state */
   const stored = getStoredTheme();
@@ -142,20 +165,24 @@ export default function Settings() {
   const [savedSig, setSavedSig] = useState(null);
   const lastPoint = useRef(null);
 
-  /* AI Features state */
-  const AI_FEATURES_KEY = 'clarity_ai_features';
-  const defaultAI = {
-    ambientSoap: true, voiceAssistant: true, aiTriage: true, aiClinicalAssistant: true,
-    aiWaitlistMatch: true, cdsAlerts: true, aiCodingSuggestions: true, aiDocExtraction: true,
-    aiPortalAssistant: true, aiDeduplicate: true,
+  /* Navigation prefs state */
+  const [navPrefs, setNavPrefs] = useState(() => getNavPrefs());
+  const toggleNavPref = (key) => {
+    setNavPrefs(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      localStorage.setItem(STORAGE_KEY_NAV_PREFS, JSON.stringify(next));
+      return next;
+    });
   };
+
+  /* AI Features state */
   const [aiFeatures, setAiFeatures] = useState(() => {
-    try { return { ...defaultAI, ...JSON.parse(localStorage.getItem(AI_FEATURES_KEY)) }; } catch { return defaultAI; }
+    try { return { ...DEFAULT_AI_FEATURES, ...JSON.parse(localStorage.getItem(AI_FEATURES_KEY)) }; } catch { return DEFAULT_AI_FEATURES; }
   });
   const toggleAI = (key) => {
     setAiFeatures(prev => {
       const next = { ...prev, [key]: !prev[key] };
-      localStorage.setItem(AI_FEATURES_KEY, JSON.stringify(next));
+      localStorage.setItem(AI_FEATURES_KEY, JSON.stringify(next)); // exported key
       return next;
     });
   };
@@ -249,6 +276,8 @@ export default function Settings() {
     { id: 'shortcuts', icon: '⌨️', label: 'Keyboard Shortcuts' },
     { id: 'accessibility', icon: '♿', label: 'Accessibility' },
     { id: 'ai-features', icon: '🤖', label: 'AI Features' },
+    { id: 'navigation', icon: '🧭', label: 'Navigation' },
+    { id: 'training', icon: '🎓', label: 'Training Mode' },
     { id: 'about', icon: 'ℹ️', label: 'About' },
   ];
 
@@ -722,13 +751,13 @@ export default function Settings() {
             <div style={{ marginTop: 20, display: 'flex', gap: 8 }}>
               <button className="btn btn-sm btn-primary" onClick={() => {
                 const all = {};
-                Object.keys(defaultAI).forEach(k => all[k] = true);
+                Object.keys(DEFAULT_AI_FEATURES).forEach(k => all[k] = true);
                 setAiFeatures(all);
                 localStorage.setItem(AI_FEATURES_KEY, JSON.stringify(all));
               }}>✅ Enable All</button>
               <button className="btn btn-sm btn-secondary" onClick={() => {
                 const none = {};
-                Object.keys(defaultAI).forEach(k => none[k] = false);
+                Object.keys(DEFAULT_AI_FEATURES).forEach(k => none[k] = false);
                 setAiFeatures(none);
                 localStorage.setItem(AI_FEATURES_KEY, JSON.stringify(none));
               }}>🚫 Disable All</button>
@@ -736,7 +765,132 @@ export default function Settings() {
           </div>
         )}
 
+        {/* ─── Navigation ─── */}
+        {activeSection === 'navigation' && (
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Navigation</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24 }}>
+              Choose which items appear in the sidebar navigation. Toggle individual pages on or off to tailor your workspace.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { key: 'showApptReminders', icon: '📣', label: 'Appointment Reminders', desc: 'Show the Appointment Reminders page in the Administration section of the sidebar' },
+              ].map(item => (
+                <label key={item.key} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '14px 18px', borderRadius: 10, background: 'var(--bg-white)', border: '1px solid var(--border)',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
+                    <span style={{ fontSize: 22, width: 36, textAlign: 'center' }}>{item.icon}</span>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{item.label}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{item.desc}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                      background: navPrefs[item.key] ? '#dcfce7' : '#fef2f2',
+                      color: navPrefs[item.key] ? '#16a34a' : '#dc2626',
+                    }}>
+                      {navPrefs[item.key] ? 'Shown' : 'Hidden'}
+                    </span>
+                    <input type="checkbox" checked={navPrefs[item.key]} onChange={() => toggleNavPref(item.key)}
+                      style={{ width: 18, height: 18, accentColor: 'var(--primary)', cursor: 'pointer' }} />
+                  </div>
+                </label>
+              ))}
+            </div>
+            <p style={{ marginTop: 20, fontSize: 12, color: 'var(--text-muted)' }}>
+              ⓘ Changes take effect immediately and are saved to this browser. The Appointment Reminders page remains accessible via its direct URL regardless of this setting.
+            </p>
+          </div>
+        )}
+
         {/* ─── About ─── */}
+        {activeSection === 'training' && (
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>🎓 Training Mode</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24 }}>
+              Enable Training Mode for onboarding staff or running demos. All actions use mock data — no real patient data is affected.
+            </p>
+
+            {/* Status card */}
+            <div style={{
+              background: isTraining ? 'linear-gradient(135deg,#7c2d12,#c2410c)' : 'var(--bg-white)',
+              border: isTraining ? '2px solid #ea580c' : '1px solid var(--border)',
+              borderRadius: 12, padding: '20px 24px', marginBottom: 20,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+            }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: isTraining ? '#fff' : 'var(--text-primary)', marginBottom: 4 }}>
+                  {isTraining ? '🟠 Training Mode is ON' : '⚪ Training Mode is OFF'}
+                </div>
+                <div style={{ fontSize: 12, color: isTraining ? 'rgba(255,255,255,0.75)' : 'var(--text-muted)' }}>
+                  {isTraining
+                    ? 'A banner is shown on every screen reminding users this is a training environment.'
+                    : 'Enable to create a safe sandbox for training new staff or running demos.'}
+                </div>
+              </div>
+              <button
+                onClick={() => isTraining ? disableTraining() : enableTraining()}
+                style={{
+                  background: isTraining ? '#fff' : 'var(--primary)',
+                  color: isTraining ? '#c2410c' : '#fff',
+                  border: 'none', borderRadius: 8,
+                  padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                {isTraining ? 'Disable Training Mode' : 'Enable Training Mode'}
+              </button>
+            </div>
+
+            {/* What training mode does */}
+            <div style={{ background: 'var(--bg-white)', borderRadius: 12, border: '1px solid var(--border)', padding: 20, marginBottom: 20 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>What Training Mode does</h3>
+              {[
+                { icon: '🟠', text: 'Shows a persistent orange banner on every screen so no one confuses training data with real data' },
+                { icon: '👥', text: 'All demo patients, appointments, and records are pre-loaded mock data — safe to edit or delete' },
+                { icon: '🚫', text: 'No real API calls are made — prescriptions, lab orders, and messages stay local' },
+                { icon: '🔄', text: 'Reset Training Data button wipes any saved changes and restores the original demo dataset' },
+                { icon: '✅', text: 'All features are fully functional so trainees can practice every workflow end-to-end' },
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 10, fontSize: 13 }}>
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{item.text}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Reset button */}
+            {isTraining && (
+              <div style={{ background: 'var(--bg-white)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Reset Training Data</h3>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+                  This clears all locally saved changes and reloads the original demo dataset. Your theme and settings preferences are preserved.
+                </p>
+                {!trainingConfirmReset ? (
+                  <button
+                    className="btn btn-sm"
+                    style={{ background: '#ef4444', color: '#fff', border: 'none' }}
+                    onClick={() => setTrainingConfirmReset(true)}
+                  >
+                    🔄 Reset Training Data
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>Are you sure? All unsaved training changes will be lost.</span>
+                    <button className="btn btn-sm" style={{ background: '#ef4444', color: '#fff', border: 'none' }} onClick={() => { setTrainingConfirmReset(false); resetTrainingData(); }}>Yes, Reset</button>
+                    <button className="btn btn-sm btn-outline" onClick={() => setTrainingConfirmReset(false)}>Cancel</button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {activeSection === 'about' && (
           <div>
             <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>About Clarity EHR</h2>
@@ -768,9 +922,10 @@ export default function Settings() {
               ))}
             </div>
             <div style={{ marginTop: 20 }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => { localStorage.removeItem('clarity_tour_completed'); alert('Tour will restart on next page load.'); }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => { localStorage.removeItem('clarity_tour_completed'); setTourReset(true); setTimeout(() => setTourReset(false), 4000); }}>
                 🎬 Restart Onboarding Tour
               </button>
+              {tourReset && <span style={{ marginLeft: 12, fontSize: 12, color: '#166534', fontWeight: 700 }}>✅ Tour will restart on next page load</span>}
             </div>
           </div>
         )}

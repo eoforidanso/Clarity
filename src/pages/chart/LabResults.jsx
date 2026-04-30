@@ -253,7 +253,7 @@ export default function LabResults({ patientId }) {
         </div>
       ) : (
         <div ref={printRef}>
-        patientLabs.map((lab) => (
+        {patientLabs.map((lab) => (
           <div key={lab.id} className="card mb-4">
             <div className="card-header">
               <h2>🔬 Lab Results — {lab.resultDate}</h2>
@@ -298,7 +298,7 @@ export default function LabResults({ patientId }) {
               ))}
             </div>
           </div>
-        ))
+        ))}
         </div>
       )}
     </div>

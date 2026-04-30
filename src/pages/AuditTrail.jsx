@@ -41,6 +41,29 @@ export default function AuditTrail() {
   const [filter, setFilter] = useState('all');
   const [userFilter, setUserFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [refreshed, setRefreshed] = useState(false);
+
+  const handleRefresh = () => {
+    setRefreshed(true);
+    setTimeout(() => setRefreshed(false), 2000);
+  };
+
+  const exportCSV = () => {
+    const cols = ['timestamp', 'user', 'type', 'detail', 'patient', 'ip'];
+    const rows = filtered.map(a =>
+      cols.map(c => JSON.stringify((a[c] || '').toString())).join(',')
+    );
+    const csv = [cols.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const filtered = useMemo(() => {
     return MOCK_ACTIVITIES.filter(a => {
@@ -70,8 +93,8 @@ export default function AuditTrail() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => alert('Exported audit log as CSV')}>📤 Export CSV</button>
-          <button className="btn btn-primary btn-sm">🔄 Refresh</button>
+          <button className="btn btn-secondary btn-sm" onClick={exportCSV}>📤 Export CSV</button>
+          <button className="btn btn-primary btn-sm" onClick={handleRefresh}>{refreshed ? '✅ Refreshed' : '🔄 Refresh'}</button>
         </div>
       </div>
 

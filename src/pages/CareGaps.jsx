@@ -47,7 +47,7 @@ function ProgressRing({ pct, size = 44, stroke = 5, color = 'var(--primary)' }) 
 
 export default function CareGaps() {
   const { currentUser } = useAuth();
-  const { patients, meds, labResults, immunizations, assessmentScores, vitalSigns, appointments } = usePatient();
+  const { patients, meds, labResults, immunizations, assessmentScores, vitalSigns, appointments, selectPatient } = usePatient();
   const navigate = useNavigate();
 
   const [filter, setFilter] = useState('All');
@@ -167,8 +167,8 @@ export default function CareGaps() {
 
       // Elevated BP
       if (recentVitals) {
-        const sys = parseInt(recentVitals.systolic || recentVitals.bp?.split('/')[0]);
-        const dia = parseInt(recentVitals.diastolic || recentVitals.bp?.split('/')[1]);
+        const sys = parseInt(recentVitals.systolic || recentVitals.bp?.split('/')[0], 10);
+        const dia = parseInt(recentVitals.diastolic || recentVitals.bp?.split('/')[1], 10);
         if (sys >= 140 || dia >= 90) {
           gaps.push({
             id: `${pid}-htn`,
@@ -563,7 +563,7 @@ export default function CareGaps() {
                         <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
                           <span
                             style={{ color: 'var(--primary)', cursor: 'pointer', fontWeight: 600 }}
-                            onClick={e => { e.stopPropagation(); navigate(`/chart/${gap.patient.id}/summary`); }}
+                            onClick={e => { e.stopPropagation(); selectPatient(gap.patient.id); navigate(`/chart/${gap.patient.id}/summary`); }}
                           >
                             {gap.patient.lastName}, {gap.patient.firstName}
                           </span>
@@ -587,7 +587,7 @@ export default function CareGaps() {
                         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                           <button
                             className="btn btn-sm btn-primary"
-                            onClick={e => { e.stopPropagation(); navigate(`/chart/${gap.patient.id}/summary`); }}
+                            onClick={e => { e.stopPropagation(); selectPatient(gap.patient.id); navigate(`/chart/${gap.patient.id}/summary`); }}
                           >
                             📂 Open Chart
                           </button>
@@ -600,7 +600,7 @@ export default function CareGaps() {
                           {gap.category === 'Screening / Assessment' && (
                             <button
                               className="btn btn-sm btn-secondary"
-                              onClick={e => { e.stopPropagation(); navigate(`/chart/${gap.patient.id}/assessments`); }}
+                              onClick={e => { e.stopPropagation(); selectPatient(gap.patient.id); navigate(`/chart/${gap.patient.id}/assessments`); }}
                             >
                               📊 Go to Assessments
                             </button>
@@ -608,7 +608,7 @@ export default function CareGaps() {
                           {gap.category === 'Lab / Monitoring' && (
                             <button
                               className="btn btn-sm btn-secondary"
-                              onClick={e => { e.stopPropagation(); navigate(`/chart/${gap.patient.id}/orders`); }}
+                              onClick={e => { e.stopPropagation(); selectPatient(gap.patient.id); navigate(`/chart/${gap.patient.id}/orders`); }}
                             >
                               📝 Go to Orders
                             </button>
@@ -616,7 +616,7 @@ export default function CareGaps() {
                           {gap.category === 'Immunization' && (
                             <button
                               className="btn btn-sm btn-secondary"
-                              onClick={e => { e.stopPropagation(); navigate(`/chart/${gap.patient.id}/immunizations`); }}
+                              onClick={e => { e.stopPropagation(); selectPatient(gap.patient.id); navigate(`/chart/${gap.patient.id}/immunizations`); }}
                             >
                               💉 Go to Immunizations
                             </button>
@@ -667,7 +667,7 @@ export default function CareGaps() {
                     <div
                       key={pg.patient.id}
                       style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12 }}
-                      onClick={() => navigate(`/chart/${pg.patient.id}/summary`)}
+                      onClick={() => { selectPatient(pg.patient.id); navigate(`/chart/${pg.patient.id}/summary`); }}
                     >
                       <div style={{ width: 28, height: 28, borderRadius: '50%', background: critCount > 0 ? 'var(--danger-light)' : 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: critCount > 0 ? 'var(--danger)' : 'var(--text-secondary)', flexShrink: 0 }}>
                         {pg.gaps.length}

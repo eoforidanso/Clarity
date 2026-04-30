@@ -96,7 +96,7 @@ export default function ProviderPerformance() {
           <select className="form-input" value={timeRange} onChange={e => setTimeRange(e.target.value)} style={{ width: 140, fontSize: 12 }}>
             {TIME_RANGES.map(t => <option key={t}>{t}</option>)}
           </select>
-          <button className="btn btn-secondary btn-sm" onClick={() => alert('📥 Exporting report...')}>📥 Export</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => { const blob = new Blob(['Provider Performance Report\n\nExported: ' + new Date().toLocaleDateString()], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'provider_performance_report.txt'; a.click(); URL.revokeObjectURL(url); }}>📥 Export</button>
         </div>
       </div>
 

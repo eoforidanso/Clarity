@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { medicationDatabase, pharmacies, users } from '../data/mockData';
 import { rxnorm as rxnormApi, openfda as openfdaApi } from '../services/api';
+import { generateILPmpReport } from '../utils/pmpMock';
 
 // ── MD-only helper: only licensed MDs may authorize / receive refills ──
 const isMD = (user) => /\bMD\b/i.test(user?.credentials || '');
@@ -299,13 +300,13 @@ function StaffRefillRequest() {
                 {reqPatient ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#6366f1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600 }}>
-                      {reqPatient.firstName[0]}{reqPatient.lastName[0]}
+                      {reqPatient.firstName?.[0] || ''}{reqPatient.lastName?.[0] || ''}
                     </div>
                     <div>
                       <div className="font-bold">{reqPatient.lastName}, {reqPatient.firstName}</div>
                       <div className="text-sm text-muted">{reqPatient.mrn} · DOB: {reqPatient.dob}</div>
                     </div>
-                    <button className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }} onClick={() => setReqPatient(null)}>Change</button>
+                    <button className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }} onClick={() => { setReqPatient(null); setSelectedMedName(''); setCustomMed(''); setNotes(''); setUrgent(false); }}>Change</button>
                   </div>
                 ) : (
                   <div>
@@ -471,11 +472,59 @@ export default function EPrescribe() {
   const [otpExpiry, setOtpExpiry] = useState(null);
   const [otpCountdown, setOtpCountdown] = useState(30);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [pmpData, setPmpData]       = useState(null);
+  const [pmpLoading, setPmpLoading] = useState(false);
   const otpTimerRef = useRef(null);
+
+  // Auto-query IL PMP whenever a controlled substance is selected with a patient
+  useEffect(() => {
+    if (step === 2 && selectedMed?.isControlled && prescriptionPatient) {
+      setPmpData(null);
+      setPmpLoading(true);
+      const t = setTimeout(() => {
+        setPmpData(generateILPmpReport(prescriptionPatient, selectedMed.name, selectedMed.schedule));
+        setPmpLoading(false);
+      }, 1200);
+      return () => clearTimeout(t);
+    }
+  }, [step, selectedMed?.isControlled, prescriptionPatient?.id]);
 
   // Only MDs get full e-prescribe. NPs, PAs, or any non-MD prescriber → staff form.
   if (currentUser?.role !== 'prescriber' || !isMD(currentUser)) {
     return <StaffRefillRequest />;
+  }
+
+  // NPI is required to prescribe any medication
+  const hasNpi = !!(currentUser?.npi && currentUser.npi.trim().length === 10);
+  // DEA is required to prescribe controlled substances
+  const hasDea = !!(currentUser?.deaNumber && /^[A-Z]{2}\d{7}$/i.test(currentUser.deaNumber.trim()));
+
+  if (!hasNpi) {
+    return (
+      <div className="fade-in">
+        <div className="page-header">
+          <h1>📋 E-Prescribe</h1>
+          <p>Electronic prescribing — Clarity Health</p>
+        </div>
+        <div style={{ maxWidth: 580, margin: '32px auto', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 14, padding: '32px 36px', textAlign: 'center' }}>
+          <div style={{ fontSize: 52, marginBottom: 12 }}>🚫</div>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#dc2626', marginBottom: 10 }}>NPI Number Required</h2>
+          <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.7, marginBottom: 8 }}>
+            A <strong>National Provider Identifier (NPI)</strong> is required for all prescribers before electronic prescribing can be enabled.
+          </p>
+          <p style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>
+            Your account does not have a valid NPI on file. Please contact your administrator to complete provider registration.
+          </p>
+          <div style={{ background: '#fff', border: '1px solid #fca5a5', borderRadius: 10, padding: '14px 20px', display: 'inline-block', textAlign: 'left', fontSize: 12.5, lineHeight: 1.8, marginBottom: 20 }}>
+            <strong>What is an NPI?</strong><br />
+            The NPI (Type 1 — Individual) is a 10-digit identifier issued by CMS via NPPES and is required to bill insurance and to prescribe medications. Verify/look up at: <strong>nppes.cms.hhs.gov</strong>
+          </div>
+          <div>
+            <a href="/Clarity/admin-toolkit" className="btn btn-primary" style={{ marginRight: 8 }}>Go to Admin Toolkit →</a>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const filteredMeds = medSearch.length > 1
@@ -515,10 +564,10 @@ export default function EPrescribe() {
   };
 
   // Phase 1: Verify PIN → generate OTP and advance to phase 2
-  const handleVerifyPin = () => {
+  const handleVerifyPin = async () => {
     const pin = epcsPin.join('');
-    if (verifyEPCS(pin)) {
-      const otp = generateEPCSOTP();
+    if (await verifyEPCS(pin)) {
+      const otp = await generateEPCSOTP();
       setGeneratedOTP(otp);
       setOtpExpiry(Date.now() + 30000);
       setOtpCountdown(30);
@@ -558,10 +607,10 @@ export default function EPrescribe() {
   };
 
   // Phase 2: Verify OTP → submit prescription
-  const handleVerifyOTP = () => {
+  const handleVerifyOTP = async () => {
     clearInterval(otpTimerRef.current);
     const code = epcsOtpInputs.join('');
-    if (verifyEPCSOTP(code)) {
+    if (await verifyEPCSOTP(code)) {
       setEpcsError('');
       handleSubmitPrescription(true);
     } else {
@@ -585,6 +634,10 @@ export default function EPrescribe() {
     if (!prescriptionPatient || !selectedMed) return;
 
     if (selectedMed.isControlled && !epcsVerified) {
+      if (!hasDea) {
+        // DEA missing — cannot prescribe controlled substance
+        return; // The UI will show the warning banner; button is disabled
+      }
       setStep(3);
       return;
     }
@@ -597,7 +650,7 @@ export default function EPrescribe() {
       startDate: new Date().toISOString().split('T')[0],
       prescriber: `${currentUser.credentials ? currentUser.credentials + ' ' : ''}${currentUser.firstName} ${currentUser.lastName}`,
       status: 'Active',
-      refillsLeft: parseInt(rx.refills) || 0,
+      refillsLeft: parseInt(rx.refills, 10) || 0,
       isControlled: selectedMed.isControlled,
       schedule: selectedMed.schedule || null,
       pharmacy: rx.pharmacy || 'Default Pharmacy',
@@ -617,19 +670,88 @@ export default function EPrescribe() {
     });
 
     setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      setStep(1);
-      setSelectedMed(null);
-      setMedSearch('');
-      setRx({ dose: '', frequency: 'Once daily', quantity: '30', refills: '0', sig: '', pharmacy: '', notes: '', daw: false });
-      setPharmacySearch('');
-      setShowPharmacyDropdown(false);
-      setEpcsPin(['', '', '', '']);
-      setEpcsOtpInputs(['', '', '', '', '', '']);
-      setEpcsPhase(1);
-      setGeneratedOTP('');
-    }, 3000);
+  };
+
+  const resetPrescriber = () => {
+    setShowSuccess(false);
+    setStep(1);
+    setSelectedMed(null);
+    setMedSearch('');
+    setRx({ dose: '', frequency: 'Once daily', quantity: '30', refills: '0', sig: '', pharmacy: '', notes: '', daw: false });
+    setPharmacySearch('');
+    setShowPharmacyDropdown(false);
+    setEpcsPin(['', '', '', '']);
+    setEpcsOtpInputs(['', '', '', '', '', '']);
+    setEpcsPhase(1);
+    setGeneratedOTP('');
+  };
+
+  const printRxReceipt = () => {
+    if (!prescriptionPatient || !selectedMed) return;
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const providerName = `${currentUser.firstName} ${currentUser.lastName}${currentUser.credentials ? ', ' + currentUser.credentials : ''}`;
+    const patientName = `${prescriptionPatient.firstName} ${prescriptionPatient.lastName}`;
+    const isControlled = selectedMed.isControlled;
+    const sigText = rx.sig || `Take ${rx.dose} by ${(selectedMed.routes?.[0] || '').toLowerCase()} ${rx.frequency.toLowerCase()}`;
+    const win = window.open('', '_blank', 'width=780,height=700');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><title>Prescription — ${patientName} — ${dateStr}</title><style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:Arial,sans-serif; font-size:13px; color:#111; padding:28px 36px; }
+.header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #1d4ed8; padding-bottom:12px; margin-bottom:16px; }
+.facility-name { font-size:20px; font-weight:800; color:#1d4ed8; }
+.facility-sub { font-size:12px; color:#374151; margin-top:3px; line-height:1.6; }
+.header-right { text-align:right; font-size:11px; color:#374151; }
+.badge { display:inline-block; background:#dbeafe; color:#1e40af; font-weight:700; font-size:11px; padding:3px 9px; border-radius:12px; border:1px solid #93c5fd; }
+.section { margin-bottom:14px; }
+.section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:#6b7280; border-bottom:1px solid #e5e7eb; padding-bottom:4px; margin-bottom:8px; }
+table { width:100%; border-collapse:collapse; }
+td { padding:5px 6px; vertical-align:top; font-size:12.5px; }
+td.lbl { width:38%; font-weight:600; color:#374151; }
+.controlled-box { background:#fef2f2; border:2px solid #fca5a5; border-radius:8px; padding:10px 14px; margin-bottom:14px; }
+.controlled-title { font-size:13px; font-weight:800; color:#dc2626; }
+.sig-area { margin-top:36px; padding-top:10px; border-top:1.5px solid #374151; font-size:11px; color:#374151; display:flex; justify-content:space-between; }
+.footer { margin-top:20px; padding-top:8px; border-top:1px solid #e5e7eb; font-size:10.5px; color:#6b7280; text-align:center; }
+@media print { body { padding:10px 16px; } }
+</style></head><body>
+<div class="header"><div>
+  <div class="facility-name">Clarity Behavioral Health</div>
+  <div class="facility-sub">200 N Michigan Ave, Suite 1400, Chicago, IL 60601<br/>Phone: (312) 555-0200 &nbsp;|&nbsp; Fax: (312) 555-0201</div>
+</div><div class="header-right">
+  <span class="badge">${isControlled ? '🔒 Controlled Substance Rx' : '💊 Prescription'}</span>
+  <div style="margin-top:8px">Date: <strong>${dateStr}</strong></div>
+  <div>Time: <strong>${timeStr}</strong></div>
+</div></div>
+${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ CONTROLLED SUBSTANCE — ${selectedMed.schedule}</div><div style="font-size:11.5px;color:#7f1d1d;margin-top:3px">Transmitted electronically via EPCS — DEA 21 CFR §1311. Two-factor authentication verified.</div></div>` : ''}
+<div class="section"><div class="section-title">Prescriber</div><table>
+  <tr><td class="lbl">Provider</td><td>${providerName}</td></tr>
+  <tr><td class="lbl">NPI</td><td>${currentUser.npi || 'On file'}</td></tr>
+  ${isControlled ? `<tr><td class="lbl">DEA Number</td><td>${currentUser.deaNumber || 'On file'}</td></tr>` : ''}
+</table></div>
+<div class="section"><div class="section-title">Patient</div><table>
+  <tr><td class="lbl">Name</td><td>${patientName}</td></tr>
+  <tr><td class="lbl">Date of Birth</td><td>${prescriptionPatient.dob || '—'}</td></tr>
+  <tr><td class="lbl">MRN</td><td>${prescriptionPatient.mrn || '—'}</td></tr>
+</table></div>
+<div class="section"><div class="section-title">Prescription</div><table>
+  <tr><td class="lbl">Medication</td><td><strong>${selectedMed.name}</strong>${rx.dose ? ` &nbsp;${rx.dose}` : ''}</td></tr>
+  <tr><td class="lbl">SIG</td><td>${sigText}</td></tr>
+  <tr><td class="lbl">Quantity</td><td>${rx.quantity || '—'}</td></tr>
+  <tr><td class="lbl">Refills</td><td>${rx.refills !== '' ? rx.refills : '—'}</td></tr>
+  <tr><td class="lbl">Frequency</td><td>${rx.frequency || '—'}</td></tr>
+  ${rx.notes ? `<tr><td class="lbl">Special Instructions</td><td>${rx.notes}</td></tr>` : ''}
+  <tr><td class="lbl">Pharmacy</td><td>${rx.pharmacy || 'As directed by provider'}</td></tr>
+  ${isControlled ? `<tr><td class="lbl">EPCS Status</td><td style="color:#15803d;font-weight:700">✓ EPCS Verified — Two-Factor Authenticated</td></tr>` : ''}
+</table></div>
+<div class="sig-area"><div>Prescriber Signature: _______________________________</div><div>${providerName}</div></div>
+<div class="footer">Printed ${dateStr} at ${timeStr} · Clarity EHR · Confidential — For authorized use only</div>
+</body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
   };
 
   if (showSuccess) {
@@ -644,6 +766,10 @@ export default function EPrescribe() {
         <p className="text-muted mt-2">
           Patient: {prescriptionPatient?.firstName} {prescriptionPatient?.lastName}
         </p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 28 }}>
+          <button className="btn btn-secondary" onClick={printRxReceipt}>🖨️ Print Rx</button>
+          <button className="btn btn-primary" onClick={resetPrescriber}>✏️ Write Another Prescription</button>
+        </div>
       </div>
     );
   }
@@ -682,7 +808,7 @@ export default function EPrescribe() {
           {prescriptionPatient ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#6366f1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600 }}>
-                {prescriptionPatient.firstName[0]}{prescriptionPatient.lastName[0]}
+                {prescriptionPatient.firstName?.[0] || ''}{prescriptionPatient.lastName?.[0] || ''}
               </div>
               <div>
                 <div className="font-bold">{prescriptionPatient.lastName}, {prescriptionPatient.firstName}</div>
@@ -847,6 +973,153 @@ export default function EPrescribe() {
               </div>
             )}
 
+            {selectedMed.isControlled && !hasDea && (
+              <div style={{ background: '#fef2f2', border: '2px solid #dc2626', borderRadius: 12, padding: '16px 20px', marginBottom: 16, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ fontSize: 32, flexShrink: 0 }}>🚫</div>
+                <div>
+                  <div style={{ fontWeight: 800, color: '#dc2626', fontSize: 15, marginBottom: 4 }}>DEA Number Required</div>
+                  <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.6 }}>
+                    A <strong>DEA registration number</strong> is required to prescribe controlled substances (CII–CV).
+                    Your account does not have a DEA number on file.
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+                    Contact your administrator to add your DEA number via Admin Toolkit → Register Provider.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Illinois PMP Panel ─────────────────────────────────── */}
+            {selectedMed.isControlled && (
+              <div style={{ border: '2px solid #6366f1', borderRadius: 12, marginBottom: 20, overflow: 'hidden' }}>
+                {/* Header */}
+                <div style={{ background: 'linear-gradient(135deg,#4338ca,#6366f1)', padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 22 }}>🏛️</span>
+                    <div>
+                      <div style={{ fontWeight: 800, color: '#fff', fontSize: 13 }}>Illinois Prescription Monitoring Program (IL PMP)</div>
+                      <div style={{ fontSize: 11, color: '#c7d2fe' }}>Controlled substance dispensing history — required before prescribing CII–CV</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setPmpData(null); setPmpLoading(true);
+                      setTimeout(() => { setPmpData(generateILPmpReport(prescriptionPatient, selectedMed.name, selectedMed.schedule)); setPmpLoading(false); }, 1200);
+                    }}
+                    disabled={!prescriptionPatient || pmpLoading}
+                    style={{ padding: '5px 14px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                      background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.35)', color: '#fff',
+                      opacity: (!prescriptionPatient || pmpLoading) ? 0.5 : 1 }}>
+                    {pmpLoading ? '⏳ Querying…' : '🔄 Re-query'}
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div style={{ background: '#fafafe', padding: '14px 18px' }}>
+                  {!prescriptionPatient && (
+                    <div style={{ fontSize: 13, color: '#6b7280', fontStyle: 'italic', textAlign: 'center', padding: '12px 0' }}>
+                      Select a patient above to run an IL PMP query.
+                    </div>
+                  )}
+
+                  {prescriptionPatient && pmpLoading && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0' }}>
+                      <div style={{ width: 20, height: 20, border: '3px solid #6366f1', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, color: '#6366f1', fontWeight: 600 }}>Querying Illinois PMP registry…</span>
+                    </div>
+                  )}
+
+                  {prescriptionPatient && pmpData && !pmpLoading && (() => {
+                    const pd = pmpData;
+                    const riskColor = pd.risk.color;
+                    return (
+                      <>
+                        {/* Query meta */}
+                        <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#64748b', marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                          <span>Query ID: <strong>{pd.queryId}</strong></span>
+                          <span>Date: <strong>{pd.queryDate} {pd.queryTime}</strong></span>
+                          <span>Patient: <strong>{pd.patient.name}</strong> · DOB: <strong>{pd.patient.dob}</strong></span>
+                          <span style={{ padding: '2px 8px', borderRadius: 12, background: '#e0e7ff', color: '#4338ca', fontWeight: 700 }}>✅ Query Complete</span>
+                        </div>
+
+                        {/* Risk score + stats */}
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+                          <div style={{ flex: '0 0 auto', background: pd.risk.bg, border: `1.5px solid ${pd.risk.border}`, borderRadius: 10, padding: '10px 16px', textAlign: 'center', minWidth: 110 }}>
+                            <div style={{ fontSize: 24, fontWeight: 900, color: riskColor }}>{pd.risk.score}</div>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: riskColor, textTransform: 'uppercase', letterSpacing: '0.5px' }}>NarxScore</div>
+                            <div style={{ marginTop: 3, fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: `${riskColor}20`, color: riskColor }}>{pd.risk.level} Risk</div>
+                          </div>
+                          {[
+                            { label: 'Prescribers (90d)', val: pd.stats.prescribers90, warn: pd.stats.prescribers90 > 1 },
+                            { label: 'Pharmacies (90d)',  val: pd.stats.pharmacies90,  warn: pd.stats.pharmacies90  > 1 },
+                            { label: 'Fills (90d)',       val: pd.stats.fills90,        warn: false },
+                            { label: 'Fills (12 mo)',     val: pd.stats.fills365,       warn: false },
+                          ].map(s => (
+                            <div key={s.label} style={{ flex: '1 1 80px', background: s.warn ? '#fef3c7' : '#fff', border: `1px solid ${s.warn ? '#fcd34d' : 'var(--border)'}`, borderRadius: 8, padding: '9px 12px', textAlign: 'center' }}>
+                              <div style={{ fontSize: 20, fontWeight: 800, color: s.warn ? '#d97706' : 'var(--text-primary)' }}>{s.val}</div>
+                              <div style={{ fontSize: 10, color: s.warn ? '#92400e' : 'var(--text-muted)', fontWeight: s.warn ? 700 : 400 }}>{s.label}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Alerts */}
+                        {pd.alerts.length > 0 && (
+                          <div style={{ marginBottom: 12 }}>
+                            {pd.alerts.map((a, i) => (
+                              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, fontWeight: 600,
+                                padding: '8px 12px', borderRadius: 7, marginBottom: 4,
+                                background: a.severity === 'danger' ? '#fee2e2' : '#fef9c3',
+                                color: a.severity === 'danger' ? '#dc2626' : '#92400e',
+                                border: `1px solid ${a.severity === 'danger' ? '#fca5a5' : '#fde68a'}` }}>
+                                <span style={{ flexShrink: 0 }}>{a.severity === 'danger' ? '🚨' : '⚠️'}</span>
+                                <span>{a.text}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Fill history table */}
+                        <details>
+                          <summary style={{ fontSize: 12, fontWeight: 700, color: '#4338ca', cursor: 'pointer', marginBottom: 6, userSelect: 'none' }}>
+                            📋 Controlled Substance Fill History ({pd.fills.length} records, last 12 months)
+                          </summary>
+                          <div style={{ overflowX: 'auto', marginTop: 6 }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                              <thead>
+                                <tr style={{ background: '#e0e7ff' }}>
+                                  {['Date', 'Drug', 'Sched.', 'Prescriber', 'Pharmacy', 'Qty', 'Days'].map(h => (
+                                    <th key={h} style={{ padding: '5px 8px', textAlign: 'left', fontWeight: 700, color: '#3730a3', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {pd.fills.slice(0, 12).map((f, i) => (
+                                  <tr key={i} style={{ borderBottom: '1px solid #e5e7eb', background: i % 2 === 0 ? '#fff' : '#f8faff' }}>
+                                    <td style={{ padding: '5px 8px', whiteSpace: 'nowrap', color: '#374151' }}>{f.date}</td>
+                                    <td style={{ padding: '5px 8px', fontWeight: 600, color: '#1e40af' }}>{f.drug}</td>
+                                    <td style={{ padding: '5px 8px', color: '#dc2626', fontWeight: 700 }}>{f.schedule}</td>
+                                    <td style={{ padding: '5px 8px', color: '#374151', whiteSpace: 'nowrap' }}>{f.prescriber}</td>
+                                    <td style={{ padding: '5px 8px', color: '#374151' }}>{f.pharmacy.split('—')[0].trim()}</td>
+                                    <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 600 }}>{f.qty}</td>
+                                    <td style={{ padding: '5px 8px', textAlign: 'right' }}>{f.daysSupply}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            {pd.fills.length > 12 && (
+                              <div style={{ fontSize: 11, color: '#6366f1', textAlign: 'center', padding: '6px 0', fontWeight: 600 }}>
+                                + {pd.fills.length - 12} older records not shown
+                              </div>
+                            )}
+                          </div>
+                        </details>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Dose *</label>
@@ -973,8 +1246,8 @@ export default function EPrescribe() {
               <button
                 className="btn btn-primary btn-lg"
                 onClick={() => handleSubmitPrescription()}
-                disabled={!prescriptionPatient}
-                title={!prescriptionPatient ? 'Select a patient above first' : ''}
+                disabled={!prescriptionPatient || (selectedMed.isControlled && !hasDea)}
+                title={!prescriptionPatient ? 'Select a patient above first' : (selectedMed.isControlled && !hasDea) ? 'DEA number required to prescribe controlled substances' : ''}
               >
                 {selectedMed.isControlled ? '🔒 Proceed to EPCS Authentication' : '📤 Send to Pharmacy'}
               </button>
@@ -987,6 +1260,20 @@ export default function EPrescribe() {
       {step === 3 && (
         <div className="card">
           <div className="card-body epcs-modal" style={{ padding: 40 }}>
+            {/* DrFirst branding bar */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 22 }}>
+              <div style={{ background: 'linear-gradient(135deg,#0a2d6e 0%,#1a4fa8 100%)', borderRadius: 10, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ background: '#fff', borderRadius: 6, padding: '4px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10, fontWeight: 900, color: '#0a2d6e', letterSpacing: '-0.5px' }}>Dr</span>
+                  <span style={{ fontSize: 13, fontWeight: 900, color: '#e63946', letterSpacing: '-0.5px' }}>First</span>
+                </div>
+                <div style={{ color: '#fff' }}>
+                  <div style={{ fontSize: 13, fontWeight: 800 }}>Rcopia EPCS</div>
+                  <div style={{ fontSize: 10, color: '#93c5fd' }}>Electronic Prescribing for Controlled Substances</div>
+                </div>
+              </div>
+            </div>
+
             <div className="lock-icon">🔐</div>
             <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>EPCS Two-Factor Authentication</h2>
             <p className="text-secondary" style={{ marginBottom: 4 }}>
@@ -1133,6 +1420,9 @@ export default function EPrescribe() {
                 </div>
                 <div style={{ marginTop: 16, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
                   DEA 21 CFR §1311.115 — Logical Access Credential Verified
+                </div>
+                <div style={{ marginTop: 8, fontSize: 10.5, color: '#0a2d6e', textAlign: 'center', fontWeight: 600 }}>
+                  Powered by <strong>DrFirst Rcopia</strong> — Secure EPCS Identity Management
                 </div>
               </div>
             )}

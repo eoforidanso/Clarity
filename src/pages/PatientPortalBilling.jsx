@@ -56,6 +56,7 @@ const PatientPortalBilling = () => {
     card_last_four: '',
     transaction_id: ''
   });
+  const [billingMsg, setBillingMsg] = useState(null); // { type: 'success'|'error', text: string }
 
   useEffect(() => {
     fetchPatients();
@@ -124,12 +125,14 @@ const PatientPortalBilling = () => {
       });
       
       if (response.success) {
-        alert(`Statement generated successfully! Statement ID: ${response.statement_id}, Amount: $${response.amount_due.toFixed(2)}`);
+        setBillingMsg({ type: 'success', text: `✅ Statement generated! ID: ${response.statement_id}, Amount: $${response.amount_due.toFixed(2)}` });
+        setTimeout(() => setBillingMsg(null), 5000);
         fetchStatements();
       }
     } catch (error) {
       console.error('Error generating statement:', error);
-      alert('Error generating statement. Patient may not have outstanding balance.');
+      setBillingMsg({ type: 'error', text: '⚠️ Error generating statement. Patient may not have outstanding balance.' });
+      setTimeout(() => setBillingMsg(null), 5000);
     } finally {
       setLoading(false);
     }
@@ -164,11 +167,13 @@ const PatientPortalBilling = () => {
           transaction_id: ''
         });
         fetchStatements();
-        alert(`Payment processed successfully! Remaining balance: $${response.remaining_balance.toFixed(2)}`);
+        setBillingMsg({ type: 'success', text: `✅ Payment processed! Remaining balance: $${response.remaining_balance.toFixed(2)}` });
+        setTimeout(() => setBillingMsg(null), 5000);
       }
     } catch (error) {
       console.error('Error processing payment:', error);
-      alert('Error processing payment. Please try again.');
+      setBillingMsg({ type: 'error', text: '⚠️ Error processing payment. Please try again.' });
+      setTimeout(() => setBillingMsg(null), 5000);
     } finally {
       setLoading(false);
     }
@@ -220,6 +225,11 @@ const PatientPortalBilling = () => {
         <p>Manage patient statements, payments, and billing communications</p>
       </div>
 
+      {billingMsg && (
+        <div style={{ margin: '0 0 14px', padding: '10px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, background: billingMsg.type === 'success' ? '#dcfce7' : '#fee2e2', color: billingMsg.type === 'success' ? '#166534' : '#991b1b', border: `1px solid ${billingMsg.type === 'success' ? '#86efac' : '#fca5a5'}` }}>
+          {billingMsg.text}
+        </div>
+      )}
       {/* Patient Selection */}
       <div className="patient-selector-section">
         <div className="patient-selector">

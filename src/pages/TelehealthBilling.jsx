@@ -35,6 +35,7 @@ const TelehealthBilling = () => {
   const [selectedPatient, setSelectedPatient] = useState('');
   const [patients, setPatients] = useState([]);
   const [providers, setProviders] = useState([]);
+  const [submitMsg, setSubmitMsg] = useState(null); // { type: 'success'|'error', text: string }
   const [sessionForm, setSessionForm] = useState({
     session_id: '',
     patient_id: '',
@@ -108,11 +109,13 @@ const TelehealthBilling = () => {
           technology_fee: 0,
           documentation_notes: ''
         });
-        alert(`Telehealth session billing created successfully! Total Amount: $${response.total_amount.toFixed(2)}`);
+        setSubmitMsg({ type: 'success', text: `✅ Billing created! Total: $${response.total_amount.toFixed(2)}` });
+        setTimeout(() => setSubmitMsg(null), 4000);
       }
     } catch (error) {
       console.error('Error creating session billing:', error);
-      alert('Error creating session billing. Please try again.');
+      setSubmitMsg({ type: 'error', text: '⚠️ Error creating session billing. Please try again.' });
+      setTimeout(() => setSubmitMsg(null), 4000);
     } finally {
       setLoading(false);
     }
@@ -319,6 +322,11 @@ const TelehealthBilling = () => {
                   {loading ? 'Creating Billing...' : 'Create Session Billing'}
                 </button>
               </div>
+              {submitMsg && (
+                <div style={{ marginTop: 12, padding: '10px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, background: submitMsg.type === 'success' ? '#dcfce7' : '#fee2e2', color: submitMsg.type === 'success' ? '#166534' : '#991b1b', border: `1px solid ${submitMsg.type === 'success' ? '#86efac' : '#fca5a5'}` }}>
+                  {submitMsg.text}
+                </div>
+              )}
             </form>
           </div>
         </div>

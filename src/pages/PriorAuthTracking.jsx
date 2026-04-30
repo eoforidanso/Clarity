@@ -282,8 +282,10 @@ export default function PriorAuthTracking() {
                 {selectedAuth.status === 'Pending Submission' && <button className="btn btn-primary" onClick={() => { updateStatus(selectedAuth.id, 'Submitted'); setSelectedAuth(null); }}>📤 Submit to Payer</button>}
                 {selectedAuth.status === 'Denied' && <button className="btn btn-warning" onClick={() => { updateStatus(selectedAuth.id, 'Appeal Filed'); setSelectedAuth(null); }}>⚖️ File Appeal</button>}
                 {selectedAuth.status === 'Info Requested' && <button className="btn btn-primary" onClick={() => { updateStatus(selectedAuth.id, 'Submitted'); setSelectedAuth(null); }}>📎 Resubmit with Info</button>}
-                <button className="btn btn-secondary" onClick={() => alert('🖨️ Printing authorization details...')}>🖨️ Print</button>
-                <button className="btn btn-secondary" onClick={() => alert('📠 Faxing authorization documents...')}>📠 Fax to Payer</button>
+                <button className="btn btn-secondary" onClick={() => window.print()}>🖨️ Print</button>
+                <button className="btn btn-secondary" style={faxedIds.has(selectedAuth.id) ? { background: '#dcfce7', color: '#166534', borderColor: '#86efac' } : {}} onClick={() => { setFaxedIds(prev => new Set([...prev, selectedAuth.id])); }}>
+                  {faxedIds.has(selectedAuth.id) ? '✅ Faxed' : '📠 Fax to Payer'}
+                </button>
               </div>
             </div>
           </div>

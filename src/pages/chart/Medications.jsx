@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../../contexts/PatientContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { medicationInsurance } from '../../data/mockData';
+import { generateILPmpReport } from '../../utils/pmpMock';
 
 // ── confirmation modal ─────────────────────────────────────────────────
 function ConfirmModal({ title, message, confirmLabel, confirmClass = 'btn-danger', onConfirm, onCancel, children }) {
@@ -400,30 +401,212 @@ function MedDetail({ med, patientId, onClose }) {
   );
 }
 
+// ── IL PMP Modal ───────────────────────────────────────────────────────
+function ILPmpModal({ patient, controlledMeds, onClose }) {
+  const firstControlled = controlledMeds[0];
+  const [selectedMedName, setSelectedMedName] = useState(firstControlled?.name || '');
+  const [pmpData, setPmpData]     = useState(null);
+  const [pmpLoading, setPmpLoading] = useState(false);
+  const [queried, setQueried]     = useState(false);
+
+  const runQuery = (medName) => {
+    setPmpData(null);
+    setPmpLoading(true);
+    setQueried(true);
+    const med = controlledMeds.find(m => m.name === medName) || controlledMeds[0];
+    setTimeout(() => {
+      setPmpData(generateILPmpReport(patient, medName, med?.schedule || 'Schedule II'));
+      setPmpLoading(false);
+    }, 1100);
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 760, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,0.35)' }}>
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#4338ca,#6366f1)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 26 }}>🏛️</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 800, color: '#fff', fontSize: 15 }}>Illinois Prescription Monitoring Program (IL PMP)</div>
+            <div style={{ fontSize: 11, color: '#c7d2fe' }}>Patient: {patient?.firstName} {patient?.lastName} · DOB: {patient?.dob}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '18px 20px' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 16 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 4 }}>Controlled Substance</label>
+              <select
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 7, border: '1px solid #d1d5db', fontSize: 13 }}
+                value={selectedMedName}
+                onChange={e => setSelectedMedName(e.target.value)}>
+                {controlledMeds.map(m => (
+                  <option key={m.id} value={m.name}>{m.name} — {m.schedule}</option>
+                ))}
+              </select>
+            </div>
+            <button
+              onClick={() => runQuery(selectedMedName)}
+              disabled={pmpLoading}
+              style={{ padding: '9px 18px', borderRadius: 8, background: '#4338ca', color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', flexShrink: 0, opacity: pmpLoading ? 0.6 : 1 }}>
+              {pmpLoading ? '⏳ Querying…' : '🔍 Query IL PMP'}
+            </button>
+          </div>
+
+          {!queried && (
+            <div style={{ textAlign: 'center', padding: '36px 20px', color: '#6b7280' }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>🏛️</div>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Query the Illinois PMP Registry</div>
+              <div style={{ fontSize: 13 }}>Select a controlled substance and click Query IL PMP to retrieve this patient's dispensing history.</div>
+            </div>
+          )}
+
+          {queried && pmpLoading && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 0' }}>
+              <div style={{ width: 22, height: 22, border: '3px solid #6366f1', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              <span style={{ fontSize: 14, color: '#6366f1', fontWeight: 600 }}>Querying Illinois PMP registry…</span>
+            </div>
+          )}
+
+          {pmpData && !pmpLoading && (() => {
+            const pd = pmpData;
+            return (
+              <>
+                {/* Meta */}
+                <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#64748b', marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span>Query ID: <strong>{pd.queryId}</strong></span>
+                  <span>Date: <strong>{pd.queryDate} {pd.queryTime}</strong></span>
+                  <span style={{ padding: '2px 8px', borderRadius: 12, background: '#dcfce7', color: '#166534', fontWeight: 700 }}>✅ Query Complete</span>
+                </div>
+
+                {/* Risk + stats */}
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+                  <div style={{ background: pd.risk.bg, border: `2px solid ${pd.risk.border}`, borderRadius: 10, padding: '10px 16px', textAlign: 'center', minWidth: 110 }}>
+                    <div style={{ fontSize: 28, fontWeight: 900, color: pd.risk.color }}>{pd.risk.score}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: pd.risk.color, textTransform: 'uppercase', letterSpacing: '0.5px' }}>NarxScore</div>
+                    <div style={{ marginTop: 4, fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: `${pd.risk.color}20`, color: pd.risk.color }}>{pd.risk.level} Risk</div>
+                  </div>
+                  {[
+                    { label: 'Prescribers (90d)', val: pd.stats.prescribers90, warn: pd.stats.prescribers90 > 1 },
+                    { label: 'Pharmacies (90d)',  val: pd.stats.pharmacies90,  warn: pd.stats.pharmacies90  > 1 },
+                    { label: 'Fills (90d)',       val: pd.stats.fills90,        warn: false },
+                    { label: 'Fills (12 mo)',     val: pd.stats.fills365,       warn: false },
+                  ].map(s => (
+                    <div key={s.label} style={{ flex: '1 1 80px', background: s.warn ? '#fef3c7' : '#f8fafc', border: `1px solid ${s.warn ? '#fcd34d' : '#e2e8f0'}`, borderRadius: 8, padding: '9px 12px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: s.warn ? '#d97706' : '#1e293b' }}>{s.val}</div>
+                      <div style={{ fontSize: 10, color: s.warn ? '#92400e' : '#64748b', fontWeight: s.warn ? 700 : 400 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Alerts */}
+                {pd.alerts.length > 0 && (
+                  <div style={{ marginBottom: 14 }}>
+                    {pd.alerts.map((a, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 7, marginBottom: 5,
+                        background: a.severity === 'danger' ? '#fee2e2' : '#fef9c3',
+                        color: a.severity === 'danger' ? '#dc2626' : '#92400e',
+                        border: `1px solid ${a.severity === 'danger' ? '#fca5a5' : '#fde68a'}` }}>
+                        <span style={{ flexShrink: 0 }}>{a.severity === 'danger' ? '🚨' : '⚠️'}</span>
+                        {a.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* No alerts */}
+                {pd.alerts.length === 0 && (
+                  <div style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#166534', fontWeight: 600, marginBottom: 14 }}>
+                    ✅ No alerts — no concerning patterns detected in the IL PMP for this patient.
+                  </div>
+                )}
+
+                {/* Fill history */}
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#4338ca', marginBottom: 6 }}>Controlled Substance Fill History ({pd.fills.length} records)</div>
+                <div style={{ overflowX: 'auto', border: '1px solid #e0e7ff', borderRadius: 8, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: '#e0e7ff' }}>
+                        {['Date', 'Drug', 'Schedule', 'Prescriber', 'Pharmacy', 'Qty', 'Days'].map(h => (
+                          <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 700, color: '#3730a3', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pd.fills.map((f, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #e0e7ff', background: i % 2 === 0 ? '#fff' : '#f8faff' }}>
+                          <td style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}>{f.date}</td>
+                          <td style={{ padding: '6px 10px', fontWeight: 600, color: '#1e40af' }}>{f.drug}</td>
+                          <td style={{ padding: '6px 10px', color: '#dc2626', fontWeight: 700 }}>{f.schedule}</td>
+                          <td style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}>{f.prescriber}</td>
+                          <td style={{ padding: '6px 10px' }}>{f.pharmacy.split('—')[0].trim()}</td>
+                          <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600 }}>{f.qty}</td>
+                          <td style={{ padding: '6px 10px', textAlign: 'right' }}>{f.daysSupply}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+
+        <div style={{ padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn btn-sm" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── main component ─────────────────────────────────────────────────────
 export default function Medications({ patientId }) {
-  const { meds } = usePatient();
+  const { meds, patients } = usePatient();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const isTherapist = currentUser?.role === 'therapist';
   const isFrontDesk = currentUser?.role === 'front_desk';
 
   const [selectedMed, setSelectedMed] = useState(null);
+  const [showPmp, setShowPmp]         = useState(false);
 
+  const patient = patients?.find(p => p.id === patientId);
   const patientMeds = meds[patientId] || [];
-  const active = patientMeds.filter(m => m.status === 'Active');
+  const active   = patientMeds.filter(m => m.status === 'Active');
   const inactive = patientMeds.filter(m => m.status !== 'Active');
+  const controlledActive = active.filter(m => m.isControlled);
 
   return (
     <div>
+      {showPmp && controlledActive.length > 0 && (
+        <ILPmpModal
+          patient={patient}
+          controlledMeds={controlledActive}
+          onClose={() => setShowPmp(false)}
+        />
+      )}
       <div className="card">
         <div className="card-header">
           <h2>💊 Medications ({active.length} active)</h2>
-          {!isTherapist && !isFrontDesk && (
-            <button className="btn btn-sm btn-primary" onClick={() => navigate('/prescribe')}>
-              + New Prescription
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {controlledActive.length > 0 && (
+              <button
+                onClick={() => setShowPmp(true)}
+                style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  background: 'linear-gradient(135deg,#4338ca,#6366f1)', color: '#fff', border: 'none',
+                  display: 'flex', alignItems: 'center', gap: 5 }}>
+                🏛️ Query IL PMP
+              </button>
+            )}
+            {!isTherapist && !isFrontDesk && (
+              <button className="btn btn-sm btn-primary" onClick={() => navigate('/prescribe')}>
+                + New Prescription
+              </button>
+            )}
+          </div>
         </div>
         <div className="card-body no-pad">
           <table className="data-table">

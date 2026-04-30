@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { TrainingProvider } from './contexts/TrainingContext';
+import TrainingBanner from './components/TrainingBanner';
 import { PatientProvider } from './contexts/PatientContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { applyTheme } from './pages/Settings';
@@ -73,7 +75,11 @@ import GroupTelehealth from './pages/GroupTelehealth';
 import OperationalSignals from './pages/OperationalSignals';
 import PracticeMarketing from './pages/PracticeMarketing';
 import CareEverywhere from './pages/CareEverywhere';
+import EHRComparison from './pages/EHRComparison';
 
+import ErrorBoundary from './components/ErrorBoundary';
+import { SiteProvider, useSite } from './contexts/SiteContext';
+import { TelehealthProvider } from './contexts/TelehealthContext';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import ToastContainer from './components/ToastContainer';
@@ -84,6 +90,32 @@ import OnboardingTour from './components/OnboardingTour';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
 import AIClinicalAssistant from './components/AIClinicalAssistant';
 import VoiceAssistant from './components/VoiceAssistant';
+import FloatingPiP from './components/FloatingPiP';
+import { getAIFeatures } from './pages/Settings';
+
+function SiteBanner() {
+  const { activeSite, isFiltered, setActiveSite } = useSite();
+  if (!isFiltered) return null;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      background: '#fffbeb', borderBottom: '1px solid #fcd34d',
+      padding: '6px 20px', fontSize: 12, fontWeight: 600, color: '#92400e',
+      flexShrink: 0,
+    }}>
+      <span>📍 Viewing: <strong>{activeSite.name}</strong> — data is filtered to this site only.</span>
+      <button
+        onClick={() => setActiveSite('all')}
+        style={{
+          background: 'transparent', border: '1px solid #f59e0b', borderRadius: 5,
+          padding: '2px 10px', fontSize: 11, fontWeight: 700, color: '#92400e', cursor: 'pointer',
+        }}
+      >
+        Show All Sites
+      </button>
+    </div>
+  );
+}
 
 function ProtectedLayout() {
   const { isAuthenticated } = useAuth();
@@ -93,6 +125,8 @@ function ProtectedLayout() {
   return (
     <PatientProvider>
       <NotificationProvider>
+        <SiteProvider>
+        <TelehealthProvider>
         <div className="app-layout">
           {/* Mobile sidebar overlay */}
           <div className={`sidebar-overlay ${mobileMenuOpen ? 'visible' : ''}`} onClick={() => setMobileMenuOpen(false)} />
@@ -102,7 +136,11 @@ function ProtectedLayout() {
           <div className="main-area">
             <Header />
             <main className="main-content">
-              <Outlet />
+              <SiteBanner />
+              <TrainingBanner />
+              <ErrorBoundary>
+                <Outlet />
+              </ErrorBoundary>
             </main>
           </div>
           {/* Mobile hamburger button */}
@@ -116,8 +154,11 @@ function ProtectedLayout() {
         <SessionTimeout />
         <OnboardingTour />
         <KeyboardShortcuts />
-        <AIClinicalAssistant />
-        <VoiceAssistant />
+        <FloatingPiP />
+        {getAIFeatures().aiClinicalAssistant && <AIClinicalAssistant />}
+        {getAIFeatures().voiceAssistant && <VoiceAssistant />}
+        </TelehealthProvider>
+        </SiteProvider>
       </NotificationProvider>
     </PatientProvider>
   );
@@ -158,8 +199,10 @@ export default function App() {
   }, []);
 
   return (
-    <BrowserRouter>
+    <ErrorBoundary>
+    <BrowserRouter basename="/Clarity/">
       <AuthProvider>
+        <TrainingProvider>
         <Routes>
           <Route path="/login" element={<LoginRoute />} />
           <Route path="/patient-portal-login" element={<PatientPortalLoginRoute />} />
@@ -234,12 +277,15 @@ export default function App() {
             <Route path="/operational-signals" element={<OperationalSignals />} />
             <Route path="/practice-marketing" element={<PracticeMarketing />} />
             <Route path="/care-everywhere" element={<CareEverywhere />} />
+            <Route path="/ehr-comparison" element={<EHRComparison />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
+        </TrainingProvider>
       </AuthProvider>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }

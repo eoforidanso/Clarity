@@ -160,6 +160,18 @@ export default function PatientChat() {
   const isPatientMsg = (msg) =>
     msg.type === 'Patient Message' || msg.type === 'Rx Refill Request';
 
+  const isSystemMsg = (msg) =>
+    msg.type === 'Lab Result' || msg.type === 'Check-in Alert' || msg.type === 'Insurance Alert';
+
+  // Filter chat to messages relevant to patient ↔ provider conversation
+  const chatThread = useMemo(() =>
+    chatHistory.filter(m =>
+      ['Patient Message', 'Rx Refill Request', 'Provider Message',
+       'Lab Result', 'Check-in Alert', 'Staff Message'].includes(m.type)
+    ),
+    [chatHistory]
+  );
+
   return (
     <div className="fade-in">
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -202,7 +214,7 @@ export default function PatientChat() {
 
           {/* Messages area */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {chatHistory.length === 0 && (
+            {chatThread.length === 0 && (
               <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 40 }}>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>💬</div>
                 <div style={{ fontWeight: 600 }}>No messages yet</div>
@@ -210,8 +222,13 @@ export default function PatientChat() {
               </div>
             )}
 
-            {chatHistory.map((msg) => {
+            {chatThread.map((msg) => {
               const fromPatient = isPatientMsg(msg);
+              const senderLabel = fromPatient
+                ? patientName
+                : msg.type === 'Provider Message'
+                  ? (msg.from || toProviderName)
+                  : (msg.from || 'Care Team');
               return (
                 <div key={msg.id} style={{
                   display: 'flex',
@@ -222,14 +239,21 @@ export default function PatientChat() {
                     maxWidth: '78%',
                     background: fromPatient
                       ? 'linear-gradient(135deg, #4f46e5, #7c3aed)'
-                      : 'var(--bg)',
-                    color: fromPatient ? 'white' : 'var(--text-primary)',
+                      : msg.type === 'Provider Message'
+                        ? 'linear-gradient(135deg, #0f766e, #0d9488)'
+                        : 'var(--bg)',
+                    color: (fromPatient || msg.type === 'Provider Message') ? 'white' : 'var(--text-primary)',
                     borderRadius: fromPatient ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                     padding: '10px 14px',
-                    border: fromPatient ? 'none' : '1px solid var(--border)',
+                    border: (fromPatient || msg.type === 'Provider Message') ? 'none' : '1px solid var(--border)',
                     boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
                   }}>
                     {/* Type badge */}
+                    {msg.type === 'Provider Message' && (
+                      <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 5, opacity: 0.85 }}>
+                        💬 Provider Reply
+                      </div>
+                    )}
                     {msg.type === 'Rx Refill Request' && (
                       <div style={{
                         fontSize: 11, fontWeight: 700, marginBottom: 5,
@@ -265,7 +289,7 @@ export default function PatientChat() {
                     )}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, paddingLeft: 4, paddingRight: 4 }}>
-                    {fromPatient ? patientName : (msg.from || 'Care Team')} · {timeAgo(msg.date, msg.time)}
+                    {senderLabel} · {timeAgo(msg.date, msg.time)}
                   </div>
                 </div>
               );

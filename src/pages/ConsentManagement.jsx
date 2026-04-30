@@ -52,6 +52,7 @@ export default function ConsentManagement() {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [newForm, setNewForm] = useState({ patient: '', type: CONSENT_TYPES[0] });
+  const [sentFeedback, setSentFeedback] = useState(null); // consentId that was just sent to portal
 
   const filtered = useMemo(() => {
     let list = [...consents];
@@ -114,7 +115,27 @@ export default function ConsentManagement() {
   };
 
   const sendForSignature = (id) => {
-    alert('📧 Consent form sent to patient portal for e-signature.');
+    const now = new Date();
+    setConsents(prev => prev.map(c => c.id === id
+      ? { ...c, portalSentDate: now.toISOString().slice(0, 10), portalSentTime: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+      : c
+    ));
+    setSentFeedback(id);
+    setTimeout(() => setSentFeedback(null), 3500);
+  };
+
+  const downloadConsentPDF = (consent) => {
+    const text = CONSENT_TEMPLATES[consent.type] || `[${consent.type} — Standard institutional consent document v${consent.version}]\n\nFull document text would render here.`;
+    const header = `${consent.type}\nPatient: ${consent.patient} | MRN: ${consent.mrn}\nProvider: ${consent.provider} | Version: v${consent.version}\nStatus: ${consent.status}${consent.signedDate ? ` | Signed: ${consent.signedDate}` : ''}\n${'─'.repeat(60)}\n\n`;
+    const blob = new Blob([header + text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `consent-${consent.type.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${consent.patient.replace(/\s/g, '-').toLowerCase()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -222,11 +243,16 @@ export default function ConsentManagement() {
                 </div>
               )}
 
-              {selectedConsent.declineReason && (
-                <div style={{ padding: 12, background: '#fef3c7', borderRadius: 8, border: '1px solid #fde68a', marginBottom: 14 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e' }}>⚠️ Decline Reason</div>
-                  <div style={{ fontSize: 12, marginTop: 2 }}>{selectedConsent.declineReason}</div>
-                </div>
+                {sentFeedback === selectedConsent.id && (
+                  <div style={{ padding: 10, background: '#dbeafe', borderRadius: 8, border: '1px solid #93c5fd', marginBottom: 14, fontSize: 11, fontWeight: 700, color: '#1e40af' }}>
+                    📧 Sent to patient portal — patient will receive an email with a secure link to sign.
+                  </div>
+                )}
+                {selectedConsent.portalSentDate && sentFeedback !== selectedConsent.id && (
+                  <div style={{ padding: 10, background: '#f0f9ff', borderRadius: 8, border: '1px solid #bae6fd', marginBottom: 14, fontSize: 11, color: '#0369a1' }}>
+                    📤 Last sent to portal: {selectedConsent.portalSentDate} at {selectedConsent.portalSentTime}
+                  </div>
+                )}
               )}
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -239,8 +265,8 @@ export default function ConsentManagement() {
                 {selectedConsent.status === 'Expired' && (
                   <button className="btn btn-primary btn-sm" onClick={() => sendForSignature(selectedConsent.id)}>🔄 Renew & Resend</button>
                 )}
-                <button className="btn btn-secondary btn-sm" onClick={() => alert('🖨️ Printing consent form...')}>🖨️ Print</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => alert('📤 Downloading PDF...')}>📤 Download PDF</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => window.print()}>🖨️ Print</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => downloadConsentPDF(selectedConsent)}>📤 Download PDF</button>
               </div>
             </div>
           </div>

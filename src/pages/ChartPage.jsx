@@ -87,7 +87,12 @@ export default function ChartPage() {
   };
   const onStickyMouseMove = (e) => {
     if (!stickyDragging.current) return;
-    setStickyPos({ x: e.clientX - stickyOffset.current.x, y: e.clientY - stickyOffset.current.y });
+    const newX = e.clientX - stickyOffset.current.x;
+    const newY = e.clientY - stickyOffset.current.y;
+    setStickyPos({
+      x: Math.max(0, Math.min(newX, window.innerWidth - 260)),
+      y: Math.max(0, Math.min(newY, window.innerHeight - 200)),
+    });
   };
   const onStickyMouseUp = () => {
     stickyDragging.current = false;
@@ -138,72 +143,298 @@ export default function ChartPage() {
   const [showPatientLetter, setShowPatientLetter] = useState(false);
   const [patientLetter, setPatientLetter] = useState({ subject: '', body: '', delivery: 'portal' });
   const [letterTemplateOpen, setLetterTemplateOpen] = useState(false);
+  const [letterSearch, setLetterSearch] = useState('');
 
-  // ── Sample letter templates ──────────────────────────────
+  // ── Comprehensive letter templates ──────────────────────
   const getLetterTemplates = () => {
     const providerName = `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}${currentUser?.credentials ? ', ' + currentUser.credentials : ''}`;
+    const providerLicense = currentUser?.licenseNumber ? `License #: ${currentUser.licenseNumber}` : 'License #: [LICENSE NUMBER]';
+    const providerNPI    = currentUser?.npi           ? `NPI: ${currentUser.npi}`               : 'NPI: [NPI NUMBER]';
+    const providerDEA    = currentUser?.deaNumber     ? `DEA: ${currentUser.deaNumber}`          : 'DEA: [DEA NUMBER]';
     const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     const patName = `${p.firstName} ${p.lastName}`;
-    const patDOB = p.dob;
+    const patDOB  = p.dob;
     const patProbs = patProblems.map(pr => pr.name || pr.problem).join(', ') || 'N/A';
     const patMedsList = patMeds.map(m => `${m.name} ${m.dose || ''}`).join(', ') || 'N/A';
+    const practiceName = 'Clarity Behavioral Health';
+    const practiceAddr = '1234 West State Street, Suite 200, Springfield, IL 62704';
+    const practicePhone = '(217) 555-0100';
+    const practiceFax   = '(217) 555-0101';
+    const practiceLine  = `${practiceName} · ${practiceAddr} · Ph: ${practicePhone} · Fax: ${practiceFax}`;
+
+    const sig = `\nSincerely,\n\n\n${providerName}\n${providerLicense}\n${providerNPI}\n${practiceLine}`;
 
     return [
+      // ── WORKPLACE / EMPLOYMENT ──────────────────────────────────────────────
       {
-        id: 'accommodation',
-        icon: '♿',
-        label: 'Accommodation Letter',
-        subject: 'Accommodation Letter',
-        body: `${today}\n\nTo Whom It May Concern,\n\nI am writing on behalf of my patient, ${patName} (DOB: ${patDOB}), who is currently under my care for the treatment of a mental health condition.\n\nBased on my clinical evaluation and ongoing treatment, ${p.firstName} has a condition that substantially limits one or more major life activities. In accordance with the Americans with Disabilities Act (ADA) and/or Section 504 of the Rehabilitation Act, I am recommending the following reasonable accommodations:\n\n• [Accommodation 1]\n• [Accommodation 2]\n• [Accommodation 3]\n\nThese accommodations are medically necessary and directly related to ${p.firstName}'s condition. They will enable ${p.firstName} to perform essential functions and participate fully in their activities.\n\nPlease do not hesitate to contact our office if you require additional information.\n\nSincerely,\n${providerName}\n[NPI Number]\n[Practice Name & Address]\n[Phone Number]`,
+        id: 'return-to-work',
+        category: 'Workplace / Employment',
+        icon: '💼',
+        label: 'Return to Work — Full Duty',
+        subject: 'Return to Work Authorization — Full Duty',
+        body: `${today}\n\nRE: Return to Work Authorization\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\nThis letter confirms that ${patName} has been under my psychiatric care and is medically cleared to return to work on a full-duty basis, effective [Return Date].\n\n${p.firstName} had been on a medically necessary leave of absence from [Start Date] through [End Date] due to a mental health condition. ${p.firstName} has responded well to treatment and has been assessed to be capable of performing all essential functions of their position without restriction.\n\nIf you have any questions or require additional documentation, please contact our office.${sig}`,
       },
       {
-        id: 'return-school',
-        icon: '🎓',
-        label: 'Return to School Letter',
-        subject: 'Return to School Authorization',
-        body: `${today}\n\nTo Whom It May Concern,\n\nThis letter is to certify that ${patName} (DOB: ${patDOB}) has been under my psychiatric/medical care.\n\n${p.firstName} was unable to attend school/classes from [Start Date] through [End Date] due to a medical/mental health condition requiring treatment.\n\nI am pleased to confirm that ${p.firstName} is now medically cleared to return to school effective [Return Date].\n\nRecommendations for transition back:\n• [Any academic accommodations needed]\n• [Gradual return schedule if applicable]\n• [Follow-up appointment scheduled for: Date]\n\nPlease provide any attendance or academic make-up accommodations as needed during this transition period.\n\nIf you have any questions or need additional information, please contact our office.\n\nSincerely,\n${providerName}\n[Practice Name & Address]\n[Phone Number]`,
+        id: 'return-to-work-restricted',
+        category: 'Workplace / Employment',
+        icon: '⚠️',
+        label: 'Return to Work — With Restrictions',
+        subject: 'Return to Work Authorization — Modified Duty',
+        body: `${today}\n\nRE: Return to Work with Restrictions\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\nThis letter certifies that ${patName} is medically cleared to return to work with the following temporary restrictions, effective [Return Date]:\n\nAUTHORIZED WORK RESTRICTIONS:\n• [ ] Reduced hours: _____ hours per day / _____ days per week\n• [ ] No overtime\n• [ ] Remote work/work from home as available\n• [ ] No high-stress tasks or tight deadlines until [Date]\n• [ ] Additional time for breaks as needed\n• [ ] Other: ____________________________\n\nThese restrictions are medically necessary and are expected to remain in place through [End Date], at which time ${p.firstName} will be reassessed.\n\nPlease provide reasonable accommodations as outlined above to support ${p.firstName}'s recovery and successful return to the workplace.${sig}`,
       },
+      {
+        id: 'work-restriction',
+        category: 'Workplace / Employment',
+        icon: '🚧',
+        label: 'Work Restriction / Limitations',
+        subject: 'Medical Work Restrictions — ${patName}',
+        body: `${today}\n\nRE: Medical Work Restrictions\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\nI am the treating psychiatrist/mental health provider for ${patName}. Based on my clinical evaluation and ongoing treatment, I am documenting the following work-related limitations that are directly related to ${p.firstName}'s medical condition:\n\nIMPOSED RESTRICTIONS (effective [Date] through [Date]):\n• [ ] Restricted from shift work / rotating shifts\n• [ ] Restricted from working alone / requires supervision or buddy system\n• [ ] Restricted from working in high-noise, high-stimulation environments\n• [ ] Restricted from tasks requiring sustained concentration exceeding _____ minutes\n• [ ] Other: ____________________________\n\nThese restrictions are medically necessary and are expected to be temporary. ${p.firstName} will be re-evaluated on [Date] to reassess functional capacity.\n\nThis letter is provided in support of any reasonable accommodation request under the ADA.${sig}`,
+      },
+      {
+        id: 'fmla',
+        category: 'Workplace / Employment',
+        icon: '📋',
+        label: 'FMLA / Medical Leave Certification',
+        subject: 'FMLA Leave Certification — Serious Health Condition',
+        body: `${today}\n\nFAMILY AND MEDICAL LEAVE ACT (FMLA) CERTIFICATION\nSERIOUS HEALTH CONDITION — WH-380-E Equivalent\n\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\nI am the treating healthcare provider for ${patName} and I certify the following regarding their serious health condition:\n\n1. DIAGNOSIS / CONDITION:\n   ${patName} has been diagnosed with a serious mental health condition (ICD-10: [CODE]) that requires ongoing medical treatment.\n\n2. TREATMENT HISTORY:\n   ${p.firstName} has been under my care since [Date]. Treatment includes psychiatric medication management, psychotherapy, and [other modalities].\n\n3. LEAVE REQUIRED:\n   a. Continuous Leave: [Start Date] through [End Date] — estimated _____ days\n   b. Intermittent Leave: _____ episodes per [week/month], _____ hours per episode\n\n4. MEDICAL NECESSITY:\n   Leave is medically necessary because [brief clinical justification without disclosing specific diagnosis details beyond what is required].\n\n5. PROVIDER INFORMATION:\n   ${providerName}\n   ${providerLicense} | ${providerNPI}\n   ${practiceLine}${sig}`,
+      },
+      {
+        id: 'short-term-disability',
+        category: 'Workplace / Employment',
+        icon: '🏥',
+        label: 'Short-Term Disability Support',
+        subject: 'Short-Term Disability — Medical Certification',
+        body: `${today}\n\nRE: Short-Term Disability Medical Certification\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\nI am writing to certify that ${patName} is under my psychiatric care and is currently unable to perform the material duties of their occupation due to a mental health condition, effective [Start Date].\n\nCLINICAL STATEMENT:\n• Onset of disabling condition: [Date]\n• Nature of condition: Psychiatric/mental health disorder requiring active treatment\n• Expected duration of disability: [Date range] or until [Functional milestone]\n• Treatment plan: Ongoing psychiatric medication management, individual psychotherapy, [other]\n\nFUNCTIONAL LIMITATIONS:\n${p.firstName} is unable to perform the following due to their condition:\n• Sustained concentration or focus\n• Managing workplace stress and pressure\n• Regular attendance and punctuality\n• [Other relevant limitations]\n\nExpected return to work date: [Date] (subject to clinical re-evaluation)${sig}`,
+      },
+      {
+        id: 'fitness-for-duty',
+        category: 'Workplace / Employment',
+        icon: '✅',
+        label: 'Fitness for Duty',
+        subject: 'Fitness for Duty Evaluation — ${patName}',
+        body: `${today}\n\nRE: Fitness for Duty Evaluation\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\nI have conducted a psychiatric evaluation of ${patName} and provide the following fitness-for-duty opinion:\n\n☐  CLEARED — FULL DUTY: ${patName} is psychiatrically fit to return to and perform all essential functions of their position without restriction.\n\n☐  CLEARED — MODIFIED DUTY: See attached work restriction letter for specific limitations.\n\n☐  NOT CLEARED: ${patName} is not psychiatrically cleared for duty at this time. Re-evaluation planned for [Date].\n\nBASIS FOR DETERMINATION:\nThis opinion is based on a clinical psychiatric evaluation conducted on [Evaluation Date] and review of available treatment records.\n\nNote: This letter does not disclose specific psychiatric diagnoses in compliance with ADA and HIPAA regulations. Details are provided only to the extent necessary for this determination.${sig}`,
+      },
+
+      // ── HOUSING / ACCOMMODATIONS ────────────────────────────────────────────
       {
         id: 'esa',
+        category: 'Housing / Accommodations',
         icon: '🐾',
-        label: 'Emotional Support Animal',
-        subject: 'Emotional Support Animal Letter',
-        body: `${today}\n\nTo Whom It May Concern,\n\nI am writing to confirm that ${patName} (DOB: ${patDOB}) is a patient currently under my care. I am a licensed mental health provider and have been treating ${p.firstName} for a diagnosed mental health condition.\n\nBased on my professional assessment, ${p.firstName} has a disability-related need for an Emotional Support Animal (ESA). The presence of an ESA is a critical component of ${p.firstName}'s treatment plan and provides therapeutic benefit by alleviating one or more identified symptoms of their condition, including but not limited to:\n\n• Reduction of anxiety and panic symptoms\n• Mitigation of depressive episodes\n• Improvement in overall emotional regulation\n• Enhanced sense of security and stability\n\nUnder the Fair Housing Act (FHA), ${p.firstName} is entitled to reasonable accommodation to keep an emotional support animal in their residence, even in housing with a "no pets" policy, without being charged additional pet fees or deposits.\n\nThis letter is valid for one year from the date of issuance. Please feel free to contact me if you have any questions.\n\nSincerely,\n${providerName}\nLicense #: [License Number]\n[Practice Name & Address]\n[Phone Number]`,
+        label: 'Emotional Support Animal (ESA)',
+        subject: 'Emotional Support Animal Letter — Fair Housing Act',
+        body: `${today}\n\nRE: Emotional Support Animal (ESA) — Reasonable Accommodation Request\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\nI am writing to confirm that ${patName} is my patient and is currently under my care for a diagnosed mental health condition. I am a licensed mental health provider authorized to make this recommendation.\n\n${p.firstName} has a disability-related need for an Emotional Support Animal (ESA) as part of their ongoing treatment plan. The ESA provides therapeutic benefit by:\n• Alleviating symptoms of anxiety and depressive episodes\n• Reducing severity of panic attacks and hyperarousal\n• Improving emotional regulation and daily functioning\n• Providing a sense of security and routine\n\nUnder the Fair Housing Act (FHA), 42 U.S.C. § 3604(f)(3)(B), ${patName} is entitled to reasonable accommodation to keep an emotional support animal in their housing, including in "no pets" buildings, without being subject to pet fees, deposits, or restrictions.\n\nThis letter is valid for one (1) year from the date above. I am available to be contacted for verification.${sig}`,
+      },
+      {
+        id: 'pet-accommodation',
+        category: 'Housing / Accommodations',
+        icon: '🏠',
+        label: 'Pet / Service Animal Housing Accommodation',
+        subject: 'Reasonable Accommodation Request — Assistance Animal',
+        body: `${today}\n\nRE: Request for Reasonable Housing Accommodation — Assistance Animal\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\nI am the treating mental health provider for ${patName}. This letter is intended to support a request for reasonable accommodation to keep an assistance animal in their place of residence.\n\n${patName} has a psychiatric disability that substantially limits one or more major life activities. The presence of an assistance animal is not merely a personal preference but is a necessary therapeutic tool that directly mitigates the functional limitations associated with ${p.firstName}'s disability.\n\nPET/ANIMAL DETAILS:\n• Type of animal: [Dog / Cat / Other]\n• Animal's name: [Name]\n• Purpose: Emotional support / psychiatric service animal\n\nAPPLICABLE LAW:\nThis request is supported under the Fair Housing Act (FHA), HUD Guidelines (FHEO-2020-01), and where applicable, Section 504 of the Rehabilitation Act of 1973.${sig}`,
+      },
+      {
+        id: 'housing-accommodation',
+        category: 'Housing / Accommodations',
+        icon: '🏢',
+        label: 'Disability Housing Accommodation (ADA)',
+        subject: 'ADA Reasonable Housing Accommodation Request',
+        body: `${today}\n\nRE: Request for Reasonable Housing Accommodation\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\nI am writing on behalf of my patient, ${patName}, who has a documented psychiatric disability that may qualify for reasonable accommodations under the Americans with Disabilities Act (ADA), the Fair Housing Act, and applicable state and local laws.\n\nACCOMMODATION REQUESTED:\n${patName} requests the following modification(s) to their housing arrangement:\n• [ ] Unit transfer to: [Location/Floor/Building specifications]\n• [ ] Structural modification: [Specify]\n• [ ] Policy exception: [Specify]\n• [ ] Other: [Specify]\n\nMEDICAL NECESSITY:\nThese accommodations are necessary due to ${p.firstName}'s psychiatric/neurological condition and are directly related to mitigating the functional limitations of their disability.\n\nThis office is available to provide additional clinical documentation as required.${sig}`,
+      },
+
+      // ── SCHOOL / EDUCATION ──────────────────────────────────────────────────
+      {
+        id: 'return-school',
+        category: 'School / Education',
+        icon: '🎓',
+        label: 'Return to School / Class',
+        subject: 'Return to School Authorization',
+        body: `${today}\n\nRE: Medical Clearance — Return to School\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\n${patName} has been a patient under my psychiatric/mental health care. ${p.firstName} was unable to attend school/classes from [Start Date] through [End Date] due to a medical/mental health condition requiring treatment.\n\nI am pleased to confirm that ${p.firstName} is now medically cleared to return to school effective [Return Date].\n\nRECOMMENDATIONS FOR TRANSITION:\n• [ ] Gradual return schedule (e.g., half days for first 2 weeks)\n• [ ] Excused absences for outpatient appointments\n• [ ] Academic accommodations: extended deadlines, reduced workload\n• [ ] Confidential check-in with school counselor\n• [ ] 504 Plan review recommended\n\nPlease provide reasonable academic accommodations during this transition period.${sig}`,
+      },
+      {
+        id: 'school-504',
+        category: 'School / Education',
+        icon: '📚',
+        label: '504 Plan / Academic Accommodation Support',
+        subject: 'Section 504 / ADA Academic Accommodation Support Letter',
+        body: `${today}\n\nRE: Support for 504 Plan / Academic Accommodation\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\nI am writing in support of a request for academic accommodations for ${patName} under Section 504 of the Rehabilitation Act and/or Title II of the Americans with Disabilities Act (ADA).\n\n${patName} has a documented psychiatric condition (ICD-10: [CODE]) that substantially limits the major life activity of learning, concentrating, and/or communicating.\n\nRECOMMENDED ACADEMIC ACCOMMODATIONS:\n• Extended time on tests and quizzes (1.5× or 2×)\n• Preferential seating away from distractions\n• Reduced homework load or modified assignments as needed\n• Access to a quiet testing environment\n• Breaks during long tasks\n• Permission to record lectures\n• Advance notice of schedule changes\n• Flexible attendance / excused absences for treatment appointments\n• Note-taking assistance\n\nThese accommodations are medically necessary and are expected to be permanent/long-term.${sig}`,
+      },
+      {
+        id: 'college-accommodation',
+        category: 'School / Education',
+        icon: '🏫',
+        label: 'College / University Disability Services',
+        subject: 'Documentation for Disability Services Office',
+        body: `${today}\n\nRE: Documentation for Disability Services / Accommodations Office\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\nI am providing this documentation in support of ${patName}'s request for accommodations through the Disability Services / Accessibility Office.\n\n1. DIAGNOSIS: ${patName} carries a diagnosis of [DSM-5 Diagnosis] (ICD-10: [Code]), which is chronic and substantially limits major life activities including [concentration, sleep, executive functioning, etc.].\n\n2. FUNCTIONAL IMPACT IN ACADEMIC SETTING:\n   • Difficulty with sustained attention and task initiation\n   • Sleep disturbance affecting morning scheduling\n   • Anxiety that is heightened by timed assessments\n   • [Other specific impacts]\n\n3. TREATMENT: ${p.firstName} is under active psychiatric treatment including medication management and psychotherapy.\n\n4. RECOMMENDED ACCOMMODATIONS:\n   • Extended time (2×) for exams\n   • Separate testing room\n   • Attendance flexibility for psychiatric appointments\n   • Permission to record lectures\n   • Incomplete grade option during acute episodes\n\nThis documentation is current as of today's date.${sig}`,
+      },
+
+      // ── DIAGNOSIS / CLINICAL LETTERS ────────────────────────────────────────
+      {
+        id: 'diagnosis-confirmation',
+        category: 'Diagnosis / Clinical',
+        icon: '🩺',
+        label: 'Diagnosis Confirmation Letter',
+        subject: 'Psychiatric Diagnosis Confirmation — ${patName}',
+        body: `${today}\n\nRE: Psychiatric Diagnosis Confirmation\nPatient: ${patName} | DOB: ${patDOB} | MRN: ${p.mrn}\n\nTo Whom It May Concern,\n\nThis letter confirms that ${patName} is an established patient under my psychiatric care and carries the following active diagnoses:\n\nACTIVE PSYCHIATRIC DIAGNOSES:\n${patProblems.length > 0 ? patProblems.map((pr, i) => `  ${i + 1}. ${pr.name || pr.problem}${pr.icd10 ? '  [ICD-10: ' + pr.icd10 + ']' : ''}${pr.onset ? '  (Onset: ' + pr.onset + ')' : ''}`).join('\n') : '  [Diagnoses per clinical record]'}\n\nCURRENT TREATMENT:\n${patName} is receiving ongoing psychiatric medication management and psychotherapy. ${p.firstName} is compliant with treatment recommendations.\n\nThis letter is provided for informational purposes upon patient request. For detailed clinical information, a signed release of information is required.${sig}`,
+      },
+      {
+        id: 'mental-health-condition',
+        category: 'Diagnosis / Clinical',
+        icon: '🧠',
+        label: 'Mental Health Condition Letter (General)',
+        subject: 'Mental Health Condition — Letter of Support',
+        body: `${today}\n\nRE: Mental Health Condition Letter\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\nI am a licensed mental health provider writing on behalf of my patient, ${patName}.\n\nThis letter confirms that ${patName} has a documented mental health condition that substantially impacts one or more major life activities. ${p.firstName} is actively engaged in treatment at our practice, which includes:\n• Psychiatric evaluation and medication management\n• Individual psychotherapy\n• [Other treatment modalities as applicable]\n\nThis condition and its associated functional limitations may entitle ${p.firstName} to reasonable accommodations under the Americans with Disabilities Act (ADA), the Fair Housing Act, and other applicable federal and state protections.\n\nAdditional documentation can be provided upon request with an appropriate signed release.${sig}`,
+      },
+      {
+        id: 'treatment-summary',
+        category: 'Diagnosis / Clinical',
+        icon: '📊',
+        label: 'Treatment Summary Letter',
+        subject: 'Psychiatric Treatment Summary — ${patName}',
+        body: `${today}\n\nPSYCHIATRIC TREATMENT SUMMARY\nPatient: ${patName} | DOB: ${patDOB} | MRN: ${p.mrn}\n\nPROVIDER: ${providerName}\nPractice: ${practiceLine}\n\nTREATMENT PERIOD: [Start Date] — Present\n\nDIAGNOSES:\n${patProblems.length > 0 ? patProblems.map((pr, i) => `  ${i + 1}. ${pr.name || pr.problem}${pr.icd10 ? '  [' + pr.icd10 + ']' : ''}`).join('\n') : '  [See clinical record]'}\n\nTREATMENT HISTORY:\n• Frequency of visits: [Frequency]\n• Modalities: Psychiatric evaluation, medication management, [psychotherapy type]\n• Response to treatment: [Describe — improved, stable, partial response]\n\nCURRENT MEDICATIONS:\n${patMeds.length > 0 ? patMeds.map((m, i) => `  ${i + 1}. ${m.name} ${m.dose || ''} ${m.route || ''} ${m.frequency || ''}`).join('\n') : '  No active psychiatric medications'}\n\nCLINICAL STATUS: [Stable / Improving / Requires ongoing treatment]\n\nPROGNOSIS: [Brief, professional statement]${sig}`,
+      },
+      {
+        id: 'continuity-of-care',
+        category: 'Diagnosis / Clinical',
+        icon: '🔄',
+        label: 'Continuity of Care / Transition Letter',
+        subject: 'Continuity of Care — ${patName}',
+        body: `${today}\n\nRE: Continuity of Care Transition\nPatient: ${patName} | DOB: ${patDOB} | MRN: ${p.mrn}\n\nDear [Receiving Provider Name],\n\nI am writing to facilitate continuity of care for ${patName}, who is transitioning their psychiatric care to your practice.\n\nCLINICAL SUMMARY:\n• Active diagnoses: ${patProbs}\n• Treatment duration at our practice: [Date range]\n• Current medications: ${patMedsList}\n• Most recent visit: [Date]\n• Clinical status at transition: [Stable / Improving / Other]\n\nKEY CLINICAL CONSIDERATIONS:\n• [Relevant history, medication trials, allergies, treatment responses]\n• [Any safety concerns, prior hospitalizations, or crises]\n• [Pending labs or referrals]\n\nRECORDS:\nA copy of the medical record will be forwarded upon receipt of a signed authorization. Records include: progress notes, medication history, lab results, and assessments.\n\nPlease do not hesitate to call our office if you have questions during this transition.${sig}`,
+      },
+      {
+        id: 'safety-plan',
+        category: 'Diagnosis / Clinical',
+        icon: '🛡️',
+        label: 'Safety Plan Letter (Patient Copy)',
+        subject: 'Your Safety Plan — ${patName}',
+        body: `${today}\n\nDear ${p.firstName},\n\nThis letter contains the safety plan we developed together during your appointment. Please keep this in a safe and accessible place.\n\nYOUR PERSONAL SAFETY PLAN\n${'─'.repeat(35)}\n\n1. WARNING SIGNS that a crisis may be developing:\n   • \n   • \n   • \n\n2. INTERNAL COPING STRATEGIES (things I can do on my own):\n   • \n   • \n   • \n\n3. PEOPLE AND SOCIAL SETTINGS that provide distraction:\n   • Name: _____________ Phone: _____________\n   • Name: _____________ Phone: _____________\n\n4. PEOPLE I CAN ASK FOR HELP:\n   • Name: _____________ Phone: _____________\n   • Name: _____________ Phone: _____________\n\n5. PROFESSIONALS AND AGENCIES I CAN CONTACT:\n   • My provider: ${providerName} — ${practicePhone}\n   • 988 Suicide & Crisis Lifeline: Call or text 988\n   • Crisis Text Line: Text HOME to 741741\n   • Nearest Emergency Room: ________________\n   • 911\n\n6. MAKING MY ENVIRONMENT SAFE:\n   • \n   • \n\nRemember: You are not alone. Reaching out is a sign of strength, not weakness.\n\nYour next appointment: ${p.nextAppointment || '[Please call to schedule]'}\n\n${providerName}\n${practiceLine}`,
       },
       {
         id: 'encounter-summary',
+        category: 'Diagnosis / Clinical',
         icon: '📋',
-        label: 'Encounter Summary',
+        label: 'Encounter / Visit Summary',
         subject: 'Visit Summary',
-        body: `${today}\n\nDear ${p.firstName},\n\nThank you for your visit on ${today}. Below is a summary of your appointment:\n\nPATIENT: ${patName} (DOB: ${patDOB}, MRN: ${p.mrn})\n\nDIAGNOSES:\n${patProblems.length > 0 ? patProblems.map(pr => `  • ${pr.name || pr.problem}${pr.icd10 ? ' (' + pr.icd10 + ')' : ''}`).join('\n') : '  • See chart for details'}\n\nCURRENT MEDICATIONS:\n${patMeds.length > 0 ? patMeds.map(m => `  • ${m.name} ${m.dose || ''} ${m.route || ''} ${m.frequency || ''}`).join('\n') : '  • No active medications'}\n\nPLAN:\n• [Treatment plan details]\n• [Medication changes if any]\n• [Follow-up instructions]\n\nNEXT APPOINTMENT: ${p.nextAppointment || '[To be scheduled]'}\n\nIf you experience any worsening symptoms, side effects, or have questions about your treatment plan, please contact our office immediately.\n\nFor emergencies, call 911 or go to your nearest emergency room.\nSuicide & Crisis Lifeline: 988\n\nSincerely,\n${providerName}\n[Practice Name & Address]`,
-      },
-      {
-        id: 'spravato',
-        icon: '💉',
-        label: 'Spravato Letter',
-        subject: 'Spravato (Esketamine) Treatment Authorization',
-        body: `${today}\n\nTo Whom It May Concern,\n\nRE: ${patName} (DOB: ${patDOB})\n\nI am writing to document the medical necessity for Spravato® (esketamine) nasal spray treatment for my patient, ${patName}.\n\nCLINICAL JUSTIFICATION:\n${p.firstName} has been diagnosed with Treatment-Resistant Depression (TRD). ${p.firstName} has had an inadequate response to at least two adequate trials of oral antidepressant medications, including:\n\n• [Medication 1, dose, duration, response]\n• [Medication 2, dose, duration, response]\n\nCurrent psychiatric medications:\n${patMedsList}\n\nSPRAVATO TREATMENT PLAN:\n• Induction Phase (Weeks 1-4): 56 mg or 84 mg intranasally, twice weekly\n• Maintenance Phase: Once weekly or every 2 weeks, based on response\n• All treatments administered in a certified healthcare setting with 2-hour post-dose monitoring per REMS requirements\n\nThe patient has been enrolled in the Spravato REMS program and meets all eligibility criteria.\n\nPlease contact our office for any additional clinical documentation needed for prior authorization.\n\nSincerely,\n${providerName}\nDEA #: [DEA Number]\n[Practice Name & Address]\n[Phone Number]`,
-      },
-      {
-        id: 'thank-you',
-        icon: '💛',
-        label: 'Thank You Letter',
-        subject: 'Thank You for Your Visit',
-        body: `${today}\n\nDear ${p.firstName},\n\nThank you for choosing our practice for your mental health care. It was a pleasure seeing you at your recent appointment.\n\nYour health and well-being are our top priority, and we value the trust you place in our team. We are committed to supporting you on your wellness journey.\n\nAs a reminder:\n• Your next appointment is: ${p.nextAppointment || '[Please call to schedule]'}\n• Continue taking all medications as prescribed\n• Don't hesitate to reach out if you have any questions or concerns between visits\n\nWe encourage you to use the patient portal for:\n• Secure messaging with your care team\n• Reviewing your visit summaries and lab results\n• Requesting prescription refills\n• Scheduling appointments\n\nThank you again for trusting us with your care. We look forward to seeing you at your next visit.\n\nWarm regards,\n${providerName}\n[Practice Name & Address]\n[Phone Number]`,
-      },
-      {
-        id: 'discharge',
-        icon: '📤',
-        label: 'Discharge from Practice',
-        subject: 'Notice of Discharge from Practice',
-        body: `${today}\n\nDear ${p.firstName},\n\nVIA CERTIFIED MAIL / RETURN RECEIPT REQUESTED\n\nRE: Notification of Termination of Provider-Patient Relationship\n\nI am writing to inform you that I will no longer be able to serve as your healthcare provider, effective [Date — typically 30 days from letter date].\n\nREASON: [Select one: Non-compliance with treatment plan / Missed appointments / Other — specify]\n\nUntil the effective date, I will continue to provide necessary care. To ensure continuity of your treatment, I recommend the following:\n\n1. FIND A NEW PROVIDER: Contact your insurance company for a list of in-network mental health providers in your area, or visit psychologytoday.com.\n\n2. PRESCRIPTION COVERAGE: I will provide a [30/60/90]-day supply of your current medications to bridge until you establish care with a new provider.\n\nCurrent medications:\n${patMedsList}\n\n3. MEDICAL RECORDS: You may request a copy of your records by submitting a signed release of information to our office.\n\n4. CRISIS RESOURCES:\n   • 988 Suicide & Crisis Lifeline: Call or text 988\n   • Crisis Text Line: Text HOME to 741741\n   • Nearest Emergency Room\n\nThis letter will be retained in your medical record.\n\nSincerely,\n${providerName}\n[Practice Name & Address]`,
+        body: `${today}\n\nDear ${p.firstName},\n\nThank you for your visit on ${today}. Below is a summary of your appointment:\n\nPATIENT: ${patName} (DOB: ${patDOB}, MRN: ${p.mrn})\n\nDIAGNOSES:\n${patProblems.length > 0 ? patProblems.map(pr => `  • ${pr.name || pr.problem}${pr.icd10 ? ' (' + pr.icd10 + ')' : ''}`).join('\n') : '  • See chart for details'}\n\nCURRENT MEDICATIONS:\n${patMeds.length > 0 ? patMeds.map(m => `  • ${m.name} ${m.dose || ''} ${m.route || ''} ${m.frequency || ''}`).join('\n') : '  • No active medications'}\n\nPLAN:\n• [Treatment plan details]\n• [Medication changes if any]\n• [Follow-up instructions]\n\nNEXT APPOINTMENT: ${p.nextAppointment || '[To be scheduled]'}\n\nFor emergencies: 911 or nearest ER. Suicide & Crisis Lifeline: 988\n\n${providerName} · ${practiceLine}`,
       },
       {
         id: 'problem-list',
-        icon: '🩺',
-        label: 'Patient Problem List',
+        category: 'Diagnosis / Clinical',
+        icon: '📝',
+        label: 'Patient Problem List Summary',
         subject: 'Patient Problem List Summary',
-        body: `${today}\n\nPATIENT PROBLEM LIST\n${'═'.repeat(40)}\n\nPatient: ${patName}\nDOB: ${patDOB}\nMRN: ${p.mrn}\nGenerated by: ${providerName}\n\nACTIVE PROBLEMS:\n${patProblems.length > 0 ? patProblems.map((pr, i) => `  ${i + 1}. ${pr.name || pr.problem}${pr.icd10 ? '  [' + pr.icd10 + ']' : ''}${pr.onset ? '  (Onset: ' + pr.onset + ')' : ''}${pr.status ? '  Status: ' + pr.status : ''}`).join('\n') : '  No active problems documented.'}\n\nCURRENT MEDICATIONS:\n${patMeds.length > 0 ? patMeds.map((m, i) => `  ${i + 1}. ${m.name} ${m.dose || ''} ${m.route || ''} ${m.frequency || ''} ${m.prescriber ? '— Prescribed by: ' + m.prescriber : ''}`).join('\n') : '  No active medications.'}\n\nALLERGIES:\n${patAllergies.length > 0 ? patAllergies.map(a => `  • ${a.allergen || a.name || a} — ${a.reaction || 'Reaction not specified'} (${a.severity || 'Severity unknown'})`).join('\n') : '  NKDA (No Known Drug Allergies)'}\n\nThis summary was generated from the electronic health record and is current as of the date listed above.\n\n— ${providerName}`,
+        body: `${today}\n\nPATIENT PROBLEM LIST\n${'═'.repeat(40)}\nPatient: ${patName} | DOB: ${patDOB} | MRN: ${p.mrn}\nGenerated by: ${providerName}\n\nACTIVE PROBLEMS:\n${patProblems.length > 0 ? patProblems.map((pr, i) => `  ${i + 1}. ${pr.name || pr.problem}${pr.icd10 ? '  [' + pr.icd10 + ']' : ''}${pr.onset ? '  (Onset: ' + pr.onset + ')' : ''}${pr.status ? '  Status: ' + pr.status : ''}`).join('\n') : '  No active problems documented.'}\n\nCURRENT MEDICATIONS:\n${patMeds.length > 0 ? patMeds.map((m, i) => `  ${i + 1}. ${m.name} ${m.dose || ''} ${m.route || ''} ${m.frequency || ''} ${m.prescriber ? '— Prescribed by: ' + m.prescriber : ''}`).join('\n') : '  No active medications.'}\n\nALLERGIES:\n${patAllergies.length > 0 ? patAllergies.map(a => `  • ${a.allergen || a.name || a} — ${a.reaction || 'Reaction not specified'} (${a.severity || 'Severity unknown'})`).join('\n') : '  NKDA — No Known Drug Allergies'}\n\nThis summary was generated from the EHR on the date listed above.\n— ${providerName}`,
+      },
+
+      // ── DISABILITY / LEGAL ──────────────────────────────────────────────────
+      {
+        id: 'disability-support',
+        category: 'Disability / Legal',
+        icon: '⚖️',
+        label: 'Disability Support Letter (General)',
+        subject: 'Disability Documentation Letter',
+        body: `${today}\n\nRE: Disability Documentation\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\nI am writing to certify that ${patName} has been diagnosed with a psychiatric/mental health condition that constitutes a disability under applicable federal and state laws, including the Americans with Disabilities Act (ADA) and the Rehabilitation Act of 1973.\n\nNATURE OF DISABILITY:\n${patName}'s condition substantially limits the following major life activities:\n• [ ] Concentrating / thinking\n• [ ] Sleeping\n• [ ] Communicating\n• [ ] Working\n• [ ] Caring for oneself\n• [ ] Other: ____________________________\n\nTREATMENT STATUS:\n${patName} is currently under active psychiatric treatment and is engaged in their care. The disability is:\n• [ ] Permanent\n• [ ] Temporary — expected duration: ________________\n• [ ] Episodic / recurring in nature\n\nThis letter is provided for purposes of establishing disability status for benefits, accommodations, or legal proceedings as authorized by ${p.firstName}.${sig}`,
+      },
+      {
+        id: 'ssdi',
+        category: 'Disability / Legal',
+        icon: '🏛️',
+        label: 'Social Security Disability (SSDI) Support',
+        subject: 'Medical Documentation — Social Security Disability Application',
+        body: `${today}\n\nRE: Social Security Disability Insurance (SSDI) — Medical Support Documentation\nPatient: ${patName} | DOB: ${patDOB} | SSN: [Last 4 only — ****]\n\nTo the Social Security Administration,\n\nI am the treating psychiatrist/mental health provider for ${patName} and am providing this documentation in support of their application for Social Security Disability Insurance benefits.\n\n1. TREATMENT RELATIONSHIP:\n   I have treated ${patName} since [Date] for psychiatric conditions.\n\n2. DIAGNOSES (DSM-5 / ICD-10):\n   ${patProbs}\n\n3. FUNCTIONAL LIMITATIONS:\n   Based on my clinical assessments, ${patName} experiences the following limitations:\n   • Marked difficulty maintaining concentration, persistence, and pace\n   • Marked difficulty interacting with others\n   • Marked difficulty managing oneself (self-care, adaptation to change)\n   • Requires ____ absences per month due to symptoms or treatment appointments\n\n4. TREATMENT RESPONSE:\n   ${patName} has not achieved sustainable functional improvement despite adequate trials of [medications / therapies].\n\n5. PROGNOSIS:\n   The prognosis for full occupational recovery is [guarded / poor] at this time.\n\nAdditional medical records are available upon receipt of a signed authorization.${sig}`,
+      },
+      {
+        id: 'firearm-restriction',
+        category: 'Disability / Legal',
+        icon: '🚫',
+        label: 'Firearm / Weapons Restriction',
+        subject: 'Firearm Safety Restriction Recommendation',
+        body: `${today}\n\nRE: Firearm / Lethal Means Safety Recommendation\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern / Household Members,\n\nAs part of ${patName}'s psychiatric treatment plan and in consideration of their current clinical condition, I am recommending the following lethal means safety measures:\n\nCLINICAL RECOMMENDATION:\nBased on my professional clinical assessment, access to firearms and other lethal means should be temporarily restricted for ${patName} during this period of treatment.\n\nREASONING:\nLimiting access to lethal means is an evidence-based component of suicide risk reduction and is recommended by the American Association for Emergency Psychiatry, the American Foundation for Suicide Prevention, and other major clinical organizations.\n\nACTION REQUESTED:\n• [ ] Remove or secure firearms from the home\n• [ ] Transfer possession to a trusted third party\n• [ ] Store at a licensed firearm dealer or storage facility\n• [ ] Other: ____________________________\n\nThis recommendation will be revisited at future clinical appointments.${sig}`,
+      },
+
+      // ── INSURANCE / MEDICAL NECESSITY ────────────────────────────────────────
+      {
+        id: 'medical-necessity',
+        category: 'Insurance / Medical Necessity',
+        icon: '🏥',
+        label: 'Medical Necessity Letter',
+        subject: 'Medical Necessity Documentation',
+        body: `${today}\n\nRE: Medical Necessity — ${patName} | DOB: ${patDOB} | Insurance ID: [ID]\n\nTo the Medical Director / Utilization Review Department,\n\nI am writing to document the medical necessity of psychiatric services for my patient, ${patName}.\n\nDIAGNOSES:\n${patProbs}\n\nTREATMENT REQUESTED:\n[ ] Outpatient psychiatric medication management — CPT: [Code]\n[ ] Individual psychotherapy — CPT: [Code]\n[ ] Intensive Outpatient Program (IOP) — CPT: [Code]\n[ ] Partial Hospitalization Program (PHP) — CPT: [Code]\n[ ] Other: ____________________________\n\nCLINICAL JUSTIFICATION:\n${patName} requires the above level of care because:\n1. [Clinical severity and symptom burden]\n2. [Failure of lower level of care or step-down indication]\n3. [Risk factors present, e.g., safety concerns, functional impairment]\n4. [Expected benefit from requested treatment]\n\nWithout this treatment, ${p.firstName} faces significant risk of [hospitalization / clinical deterioration / harm].\n\nPlease direct any questions or requests for additional documentation to our office.${sig}`,
+      },
+      {
+        id: 'prior-auth',
+        category: 'Insurance / Medical Necessity',
+        icon: '📑',
+        label: 'Prior Authorization Support',
+        subject: 'Prior Authorization Clinical Support — ${patName}',
+        body: `${today}\n\nRE: Prior Authorization Request — Clinical Support Letter\nPatient: ${patName} | DOB: ${patDOB} | Insurance ID: [ID] | NPI: ${currentUser?.npi || '[NPI]'}\n\nTo the Prior Authorization Department,\n\nI am writing to support the prior authorization request for the following:\n\nREQUESTED SERVICE / MEDICATION:\n• Drug / Service: [Name]\n• Strength / Frequency: [Details]\n• Diagnosis: ${patProbs}\n• ICD-10 Codes: [Codes]\n• CPT Codes (if applicable): [Codes]\n\nCLINICAL JUSTIFICATION:\nStep therapy trials completed and failed:\n1. [Drug/Therapy 1] — Dates: [Date range] — Result: [Inadequate response / ADR]\n2. [Drug/Therapy 2] — Dates: [Date range] — Result: [Inadequate response / ADR]\n\nThe requested medication/service is medically necessary because:\n• [Clinical rationale — symptoms, severity, FDA indication or off-label evidence]\n• [Why alternatives are contraindicated or have failed]\n\nExpected clinical benefit: [Describe]\n\nPlease expedite this review as delay may result in clinical deterioration.${sig}`,
+      },
+      {
+        id: 'medication-necessity',
+        category: 'Insurance / Medical Necessity',
+        icon: '💊',
+        label: 'Prescription Necessity Letter',
+        subject: 'Medical Necessity for Prescribed Medication',
+        body: `${today}\n\nRE: Prescription Medical Necessity\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\nThis letter documents the medical necessity of the following prescribed medication(s) for ${patName}:\n\nPRESCRIBED MEDICATIONS:\n${patMeds.length > 0 ? patMeds.map(m => `  • ${m.name} ${m.dose || ''} ${m.route || ''} ${m.frequency || ''}`).join('\n') : '  • [Medication name, dose, frequency]'}\n\nINDICATION:\nThese medications are prescribed for the treatment of: ${patProbs}\n\nCLINICAL RATIONALE:\nThe above medications are clinically indicated, FDA-approved (or supported by strong evidence for the indicated use), and represent the current standard of care for ${p.firstName}'s condition. Alternative medications have been tried and were either ineffective or not tolerated:\n• [Prior medication, reason for discontinuation]\n\nThis prescription is an essential component of ${p.firstName}'s psychiatric treatment plan and should be covered under the patient's pharmacy benefits.${sig}`,
+      },
+
+      // ── TRAVEL / SAFETY ─────────────────────────────────────────────────────
+      {
+        id: 'air-travel',
+        category: 'Travel / Safety',
+        icon: '✈️',
+        label: 'Air Travel / Medication Carry-On',
+        subject: 'Medical Letter for Air Travel — Medication and Accommodations',
+        body: `${today}\n\nRE: Air Travel Accommodation — Medical Letter\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern (TSA / Airline / Port of Entry),\n\nThis letter certifies that ${patName} is under my psychiatric care and requires the following accommodations during air travel:\n\nMEDICATIONS CARRIED ON PERSON:\n${patMeds.length > 0 ? patMeds.map(m => `  • ${m.name} ${m.dose || ''} — Prescribed for medical/psychiatric treatment`).join('\n') : '  • [Medication list]'}\n\nAll medications listed are prescribed by a licensed physician and are medically necessary. ${patName} must carry these medications in their original prescription bottles and have access to them during the flight.\n\nADDITIONAL ACCOMMODATIONS:\n• [ ] Pre-boarding due to anxiety/disability\n• [ ] Aisle seat for ease of movement\n• [ ] Service/emotional support animal on board (see separate ESA letter)\n• [ ] Other: ____________________________\n\nPlease provide reasonable accommodations as required under the Air Carrier Access Act (ACAA).${sig}`,
+      },
+      {
+        id: 'driving-restriction',
+        category: 'Travel / Safety',
+        icon: '🚗',
+        label: 'Driving Restriction Recommendation',
+        subject: 'Driving Restriction — Medical Recommendation',
+        body: `${today}\n\nRE: Driving Restriction Recommendation\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern / Patient and Family,\n\nBased on my clinical assessment of ${patName}, I am making the following recommendation regarding driving:\n\n☐  RESTRICTED FROM DRIVING — Reason:\n   ${patName}'s current psychiatric condition and/or medications may impair cognitive function, reaction time, or judgment in a manner that could pose a safety risk.\n\n   Restriction period: [Date] through [Date] or until next clinical evaluation.\n\n☐  CLEARED TO DRIVE WITH CAUTION — Considerations:\n   ${patName} should be aware that their medication(s) may cause sedation, particularly when first starting or dose-adjusting. ${p.firstName} should not drive until they know how their medication affects them.\n\nPHARMACOLOGIC CONSIDERATIONS:\n${patMeds.length > 0 ? patMeds.filter(m => m.name).map(m => `  • ${m.name} — [Sedation/impairment risk: Low / Moderate / High]`).join('\n') : '  See current medication list'}\n\nThis recommendation is based on clinical judgment and is provided in the interest of patient and public safety.${sig}`,
+      },
+
+      // ── GENERAL CORRESPONDENCE ───────────────────────────────────────────────
+      {
+        id: 'accommodation',
+        category: 'General Correspondence',
+        icon: '♿',
+        label: 'General ADA Accommodation Letter',
+        subject: 'ADA Accommodation Letter',
+        body: `${today}\n\nTo Whom It May Concern,\n\nI am writing on behalf of my patient, ${patName} (DOB: ${patDOB}), who is currently under my psychiatric care.\n\nBased on my clinical evaluation, ${p.firstName} has a mental health condition that substantially limits one or more major life activities. In accordance with the Americans with Disabilities Act (ADA) and/or Section 504 of the Rehabilitation Act, I am recommending the following reasonable accommodations:\n\n• [Accommodation 1 — be specific]\n• [Accommodation 2]\n• [Accommodation 3]\n\nThese accommodations are medically necessary and directly related to ${p.firstName}'s condition. They will enable ${p.firstName} to perform essential functions and participate fully in their activities.\n\nThis letter is provided upon patient request and with appropriate authorization.${sig}`,
+      },
+      {
+        id: 'referral',
+        category: 'General Correspondence',
+        icon: '↗️',
+        label: 'Referral Letter',
+        subject: 'Psychiatric Referral — ${patName}',
+        body: `${today}\n\nDear [Receiving Provider Name],\n\nRE: Referral — ${patName} | DOB: ${patDOB} | DOB: ${patDOB} | Phone: ${p.cellPhone || p.phone || '[Phone]'}\n\nI am referring ${patName} to your practice for [REASON: specialty evaluation / therapy / higher level of care / second opinion].\n\nCLINICAL SUMMARY:\n• Active diagnoses: ${patProbs}\n• Current medications: ${patMedsList}\n• Relevant history: [Brief summary]\n\nREASON FOR REFERRAL:\n[Clinical rationale — what you are asking the receiving provider to evaluate or treat]\n\nUrgency: ☐ Routine  ☐ Urgent  ☐ Emergent\n\nRecords will be forwarded upon completion of a signed ROI. Please contact our office with any questions regarding this patient.\n\nThank you for your assistance with ${p.firstName}'s care.${sig}`,
+      },
+      {
+        id: 'spravato',
+        category: 'General Correspondence',
+        icon: '💉',
+        label: 'Spravato (Esketamine) Letter',
+        subject: 'Spravato (Esketamine) Treatment — Medical Necessity',
+        body: `${today}\n\nRE: Spravato® (Esketamine) — Medical Necessity\nPatient: ${patName} | DOB: ${patDOB}\n\nTo Whom It May Concern,\n\n${patName} has been diagnosed with Treatment-Resistant Depression (TRD) and has had an inadequate response to at least two adequate antidepressant trials:\n• [Medication 1, dose, duration, response]\n• [Medication 2, dose, duration, response]\n\nSPRAVATO TREATMENT PLAN:\n• Induction (Weeks 1–4): 56–84 mg intranasally, twice weekly\n• Maintenance: Once weekly or biweekly per response\n• All treatments in certified REMS facility with 2-hour post-dose monitoring\n\nPatient is enrolled in the Spravato REMS program and meets all eligibility criteria.\n\nCurrent medications: ${patMedsList}${sig}`,
+      },
+      {
+        id: 'thank-you',
+        category: 'General Correspondence',
+        icon: '💛',
+        label: 'Thank You / Follow-Up Letter',
+        subject: 'Thank You for Your Visit',
+        body: `${today}\n\nDear ${p.firstName},\n\nThank you for choosing our practice for your mental health care. It was a pleasure seeing you.\n\nAs a reminder:\n• Next appointment: ${p.nextAppointment || '[Please call to schedule]'}\n• Continue all medications as prescribed\n• Contact us with questions or concerns\n\nPatient portal: secure messaging, visit summaries, lab results, refill requests, and scheduling are all available.\n\nWarm regards,\n${providerName}\n${practiceLine}`,
+      },
+      {
+        id: 'discharge',
+        category: 'General Correspondence',
+        icon: '📤',
+        label: 'Discharge from Practice',
+        subject: 'Notice of Discharge from Practice',
+        body: `${today}\n\nVIA CERTIFIED MAIL / RETURN RECEIPT REQUESTED\n\nDear ${p.firstName},\n\nRE: Termination of Provider-Patient Relationship — Effective [Date + 30 days]\n\nI am writing to inform you that I will no longer be able to serve as your healthcare provider, effective [Date — minimum 30 days from today].\n\nReason: [Non-compliance / Missed appointments / Practice closing / Other]\n\nUntil the effective date, I will continue to provide necessary emergency care.\n\nTO ENSURE CONTINUITY:\n1. Find a new provider: Contact your insurance for in-network options or visit psychologytoday.com\n2. Medications: A [30/60/90]-day bridge supply will be provided\n   Current medications: ${patMedsList}\n3. Records: Submit a signed ROI to our office to transfer your records\n\nCRISIS RESOURCES:\n• 988 Suicide & Crisis Lifeline: Call or text 988\n• Crisis Text Line: Text HOME to 741741\n• Nearest ER / 911\n\n${providerName}\n${practiceLine}`,
       },
     ];
   };
@@ -233,6 +464,18 @@ export default function ChartPage() {
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // ESC key closes active panel
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'Escape') {
+        setActivePanel(null);
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
   }, []);
 
   if (!selectedPatient) {
@@ -931,28 +1174,55 @@ export default function ChartPage() {
                           <span style={{ fontSize: 9, opacity: 0.6 }}>{letterTemplateOpen ? '▲' : '▼'}</span>
                         </button>
                         {letterTemplateOpen && (
-                          <div style={{ marginTop: 4, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', maxHeight: 240, overflowY: 'auto', background: '#ffffff' }}>
-                            {getLetterTemplates().map(t => (
-                              <div
-                                key={t.id}
-                                onClick={() => {
-                                  setPatientLetter(prev => ({ ...prev, subject: t.subject, body: t.body }));
-                                  setLetterTemplateOpen(false);
-                                }}
-                                style={{
-                                  padding: '9px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-                                  borderBottom: '1px solid var(--border)', fontSize: 12, transition: 'background 0.1s',
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                              >
-                                <span style={{ fontSize: 16, width: 24, textAlign: 'center', flexShrink: 0 }}>{t.icon}</span>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontWeight: 600 }}>{t.label}</div>
-                                </div>
-                                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Use →</span>
-                              </div>
-                            ))}
+                          <div style={{ marginTop: 4, border: '1px solid var(--border)', borderRadius: 8, background: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+                            <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
+                              <input
+                                placeholder="Search templates…"
+                                value={letterSearch}
+                                onChange={e => setLetterSearch(e.target.value)}
+                                autoFocus
+                                style={{ width: '100%', fontSize: 11.5, padding: '5px 8px', borderRadius: 5, border: '1px solid #d1d5db', outline: 'none', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                            <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+                              {(() => {
+                                const filtered = getLetterTemplates().filter(t =>
+                                  !letterSearch.trim() ||
+                                  t.label.toLowerCase().includes(letterSearch.toLowerCase()) ||
+                                  t.category.toLowerCase().includes(letterSearch.toLowerCase())
+                                );
+                                const grouped = filtered.reduce((acc, t) => {
+                                  (acc[t.category] = acc[t.category] || []).push(t);
+                                  return acc;
+                                }, {});
+                                const entries = Object.entries(grouped);
+                                if (entries.length === 0) return (
+                                  <div style={{ padding: '16px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>No templates match "{letterSearch}"</div>
+                                );
+                                return entries.map(([cat, templates]) => (
+                                  <div key={cat}>
+                                    <div style={{ padding: '5px 12px 3px', fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#94a3b8', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', position: 'sticky', top: 0 }}>{cat}</div>
+                                    {templates.map(t => (
+                                      <div
+                                        key={t.id}
+                                        onClick={() => {
+                                          setPatientLetter(prev => ({ ...prev, subject: t.subject, body: t.body }));
+                                          setLetterTemplateOpen(false);
+                                          setLetterSearch('');
+                                        }}
+                                        style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--border)', fontSize: 12 }}
+                                        onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
+                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                      >
+                                        <span style={{ fontSize: 15, width: 22, textAlign: 'center', flexShrink: 0 }}>{t.icon}</span>
+                                        <div style={{ flex: 1, fontWeight: 600 }}>{t.label}</div>
+                                        <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>Use →</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ));
+                              })()}
+                            </div>
                           </div>
                         )}
                       </div>

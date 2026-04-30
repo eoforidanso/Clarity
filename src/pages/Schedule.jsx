@@ -2,6 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { usePatient } from "../contexts/PatientContext";
+import { useSite, appointmentSiteId } from "../contexts/SiteContext";
 import { users as allUsers } from "../data/mockData";
 
 const PROVIDERS = allUsers.filter(u => u.role === "prescriber" || u.role === "nurse" || u.role === "therapist");
@@ -139,7 +140,7 @@ function MiniCalendar({ selectedDate, onSelect, aptsByDate, blockedByDate }) {
 /* ══════════════════════════════════════════════
    APPOINTMENT CARD (Schedule tab)
 ══════════════════════════════════════════════ */
-function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession }) {
+function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType }) {
   const c = getTypeColor(apt);
   const ss = getStatusStyle(apt.status);
   const initials = apt.patientName?.split(" ").map(n => n[0]).join("").slice(0,2) || "?";
@@ -193,6 +194,15 @@ function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession }) {
           )}
           {apt.visitType==="Telehealth" && apt.status!=="Completed" && (
             <button className="btn btn-sm" style={{ background:"#7c3aed", color:"#fff", fontSize:11, border:"none", borderRadius:6, padding:"4px 12px", cursor:"pointer" }}>📹 Join Call</button>
+          )}
+          {apt.status!=="Completed" && apt.status!=="Cancelled" && apt.status!=="No Show" && (
+            <button className="btn btn-sm" onClick={() => onToggleVisitType(apt)}
+              style={{ fontSize:11, border:`1px solid ${apt.visitType==="Telehealth"?"#3b82f6":"#8b5cf6"}`,
+                background:apt.visitType==="Telehealth"?"#eff6ff":"#f5f3ff",
+                color:apt.visitType==="Telehealth"?"#1d4ed8":"#6d28d9",
+                borderRadius:6, padding:"4px 12px", cursor:"pointer" }}>
+              {apt.visitType==="Telehealth" ? "🏥 Switch to In-Person" : "📹 Switch to Telehealth"}
+            </button>
           )}
         </div>
       </div>
@@ -318,7 +328,7 @@ function ScheduleModal({ show, onClose, initialDate, patients, onSave }) {
 /* ══════════════════════════════════════════════
    FRONT DESK – WAITING ROOM ROW
 ══════════════════════════════════════════════ */
-function WaitingRow({ apt, onCheckIn, onNoShow, onCancel, onGoToSession, onCheckout, onReschedule, todayKey, patients }) {
+function WaitingRow({ apt, onCheckIn, onNoShow, onCancel, onGoToSession, onCheckout, onReschedule, onToggleVisitType, todayKey, patients }) {
   const ss = getStatusStyle(apt.status);
   const c = getTypeColor(apt);
   const pc = provColor(apt.provider);
@@ -432,6 +442,15 @@ function WaitingRow({ apt, onCheckIn, onNoShow, onCancel, onGoToSession, onCheck
             <button onClick={() => onReschedule(apt)}
               style={{ padding:"5px 12px", borderRadius:7, fontSize:11, fontWeight:700,
                 border:"1px solid #4f46e5", background:"#ede9fe", color:"#4f46e5", cursor:"pointer" }}>Reschedule</button>
+          )}
+          {apt.status!=="Completed" && apt.status!=="Cancelled" && apt.status!=="No Show" && (
+            <button onClick={() => onToggleVisitType(apt)}
+              style={{ padding:"5px 10px", borderRadius:7, fontSize:10, fontWeight:700, cursor:"pointer",
+                border:`1px solid ${apt.visitType==="Telehealth"?"#3b82f6":"#8b5cf6"}`,
+                background:apt.visitType==="Telehealth"?"#eff6ff":"#f5f3ff",
+                color:apt.visitType==="Telehealth"?"#1d4ed8":"#6d28d9" }}>
+              {apt.visitType==="Telehealth" ? "🏥 In-Person" : "📹 Telehealth"}
+            </button>
           )}
         </div>
       </div>
@@ -789,6 +808,14 @@ function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, a
     showToast(`Walk-in checked in: ${data.patientName}`);
   }, [addAppointment]);
 
+  const handleToggleVisitType = useCallback(apt => {
+    const isCurrentlyTelehealth = apt.visitType === "Telehealth";
+    const newVisitType = isCurrentlyTelehealth ? "In-Person" : "Telehealth";
+    const newRoom = isCurrentlyTelehealth ? "" : "Virtual";
+    updateAppointmentStatus(apt.id, apt.status, { visitType: newVisitType, room: newRoom });
+    showToast(`${apt.patientName} switched to ${newVisitType}`);
+  }, [updateAppointmentStatus]);
+
   /* daily stats */
   const stats = useMemo(() => ({
     total:      todayApts.length,
@@ -904,7 +931,7 @@ function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, a
             <WaitingRow key={apt.id} apt={apt} patients={patients} todayKey={todayKey}
               onCheckIn={handleCheckIn} onNoShow={handleNoShow} onCancel={handleCancel}
               onGoToSession={handleGoToSession} onCheckout={handleCheckout}
-              onReschedule={handleReschedule} />
+              onReschedule={handleReschedule} onToggleVisitType={handleToggleVisitType} />
           ))
         )}
       </div>
@@ -1387,9 +1414,22 @@ function CloseEncounterTab({ allAppts, patients, currentUser, todayKey, updateAp
 export default function Schedule() {
   const { currentUser } = useAuth();
   const { appointments, updateAppointmentStatus, addAppointment, selectPatient, patients, blockedDays, addBlockedDay, removeBlockedDay } = usePatient();
+  const { activeSiteId, isFiltered } = useSite();
   const navigate = useNavigate();
   const isFrontDesk = currentUser?.role === "front_desk";
   const isProvider  = currentUser?.role === "prescriber" || currentUser?.role === "therapist";
+
+  // Restrict which providers a user can block days for:
+  // - front_desk → all providers
+  // - prescriber / therapist → only themselves
+  // - all other roles (nurse, patient, etc.) → none
+  const authorizedProviders = useMemo(() => {
+    if (isFrontDesk) return PROVIDERS;
+    if (isProvider) return PROVIDERS.filter(p => p.id === currentUser?.id);
+    return [];
+  }, [isFrontDesk, isProvider, currentUser]);
+
+  const canBlockDays = authorizedProviders.length > 0;
 
   const [activeTab, setActiveTab] = useState("schedule");
   const [selectedDate, setSelectedDate] = useState(() => toKey(TODAY));
@@ -1398,7 +1438,10 @@ export default function Schedule() {
   const [showModal, setShowModal] = useState(false);
   const [modalDate, setModalDate] = useState("");
   const [showBlockPanel, setShowBlockPanel] = useState(false);
-  const [blockProvider, setBlockProvider] = useState(PROVIDERS[0]?.id||"");
+  const [blockProvider, setBlockProvider] = useState(() =>
+    // Pre-select the current user if they are a provider, otherwise the first in the list
+    (PROVIDERS.find(p => p.id === currentUser?.id)?.id) || PROVIDERS[0]?.id || ""
+  );
   const [blockDateFrom, setBlockDateFrom] = useState("");
   const [blockDateTo, setBlockDateTo] = useState("");
   const [blockReason, setBlockReason] = useState("");
@@ -1417,10 +1460,11 @@ export default function Schedule() {
     return map;
   }, [blockedDays]);
 
-  const allAppts = useMemo(() =>
-    appointments.filter(a => a.provider===currentUser?.id || isFrontDesk),
-    [appointments, currentUser, isFrontDesk]
-  );
+  const allAppts = useMemo(() => {
+    const byRole = appointments.filter(a => a.provider===currentUser?.id || isFrontDesk);
+    if (!isFiltered) return byRole;
+    return byRole.filter(a => appointmentSiteId(a) === activeSiteId);
+  }, [appointments, currentUser, isFrontDesk, activeSiteId, isFiltered]);
   const todayKey = toKey(TODAY);
 
   const aptsByDate = useMemo(() => {
@@ -1462,6 +1506,13 @@ export default function Schedule() {
   const handleCheckIn    = useCallback(apt => { updateAppointmentStatus(apt.id,"Checked In");if(apt.patientId)selectPatient(apt.patientId);navigate(`/session/${apt.id}`); }, [updateAppointmentStatus,selectPatient,navigate]);
   const handleGoToSession= useCallback(apt => { if(apt.patientId)selectPatient(apt.patientId);navigate(`/session/${apt.id}`); }, [selectPatient,navigate]);
 
+  const handleToggleVisitType = useCallback(apt => {
+    const isCurrentlyTelehealth = apt.visitType === "Telehealth";
+    const newVisitType = isCurrentlyTelehealth ? "In-Person" : "Telehealth";
+    const newRoom = isCurrentlyTelehealth ? "" : "Virtual";
+    updateAppointmentStatus(apt.id, apt.status, { visitType: newVisitType, room: newRoom });
+  }, [updateAppointmentStatus]);
+
   const handleAddBlock = () => {
     if (!blockDateFrom||!blockDateTo||!blockProvider||blockDateTo<blockDateFrom) return;
     const prov = PROVIDERS.find(p=>p.id===blockProvider);
@@ -1496,11 +1547,13 @@ export default function Schedule() {
           {activeTab==="schedule" && (
             <>
               <button className="btn btn-secondary btn-sm" onClick={() => setSelectedDate(toKey(TODAY))}>Today</button>
-              <button onClick={() => setShowBlockPanel(v=>!v)}
-                style={{ padding:"6px 14px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer",
-                  border:`1.5px solid ${showBlockPanel?"#c92b2b":"var(--border)"}`,
-                  background:showBlockPanel?"#c92b2b":"#fff",
-                  color:showBlockPanel?"#fff":"var(--text-secondary)" }}>⛔ Block Days</button>
+              {canBlockDays && (
+                <button onClick={() => setShowBlockPanel(v=>!v)}
+                  style={{ padding:"6px 14px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer",
+                    border:`1.5px solid ${showBlockPanel?"#c92b2b":"var(--border)"}`,
+                    background:showBlockPanel?"#c92b2b":"#fff",
+                    color:showBlockPanel?"#fff":"var(--text-secondary)" }}>⛔ Block Days</button>
+              )}
               {isFrontDesk && (
                 <button className="btn btn-primary btn-sm" onClick={() => { setModalDate(activeDate); setShowModal(true); }}
                   style={{ fontSize:12, fontWeight:700 }}>＋ New Appointment</button>
@@ -1537,8 +1590,9 @@ export default function Schedule() {
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12 }}>
                 <div>
                   <label style={{ display:"block", fontSize:10, fontWeight:700, textTransform:"uppercase", color:"var(--text-secondary)", marginBottom:4 }}>Provider</label>
-                  <select className="form-input" value={blockProvider} onChange={e=>setBlockProvider(e.target.value)}>
-                    {PROVIDERS.map(p=><option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+                  <select className="form-input" value={blockProvider} onChange={e=>setBlockProvider(e.target.value)}
+                    disabled={authorizedProviders.length <= 1}>
+                    {authorizedProviders.map(p=><option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
                   </select>
                 </div>
                 <div>
@@ -1756,7 +1810,8 @@ export default function Schedule() {
                   ) : (
                     dateAppts.map(apt=>(
                       <AptCard key={apt.id} apt={apt} todayKey={todayKey}
-                        onOpenChart={handleOpenChart} onCheckIn={handleCheckIn} onGoToSession={handleGoToSession} />
+                        onOpenChart={handleOpenChart} onCheckIn={handleCheckIn} onGoToSession={handleGoToSession}
+                        onToggleVisitType={handleToggleVisitType} />
                     ))
                   )}
                 </div>

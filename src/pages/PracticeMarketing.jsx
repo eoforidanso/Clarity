@@ -46,7 +46,7 @@ export default function PracticeMarketing() {
   const [showNewPost, setShowNewPost] = useState(false);
   const [newPost, setNewPost] = useState({ platform: 'Facebook', content: '', date: '2026-04-16', status: 'draft' });
 
-  const avgRating = (reviews.reduce((a, r) => a + r.rating, 0) / reviews.length).toFixed(1);
+  const avgRating = reviews.length ? (reviews.reduce((a, r) => a + r.rating, 0) / reviews.length).toFixed(1) : '0.0';
   const unreplied = reviews.filter(r => !r.replied).length;
 
   const generateAIReply = (review) => {
@@ -112,7 +112,7 @@ export default function PracticeMarketing() {
               <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>Awaiting Reply</div>
             </div>
             <div className="card" style={{ padding: 16, textAlign: 'center' }}>
-              <div style={{ fontSize: 36, fontWeight: 900, color: '#10b981' }}>{((reviews.filter(r => r.rating >= 4).length / reviews.length) * 100).toFixed(0)}%</div>
+              <div style={{ fontSize: 36, fontWeight: 900, color: '#10b981' }}>{reviews.length ? ((reviews.filter(r => r.rating >= 4).length / reviews.length) * 100).toFixed(0) : '0'}%</div>
               <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>Positive Rate</div>
             </div>
           </div>

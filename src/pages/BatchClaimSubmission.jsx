@@ -84,8 +84,9 @@ export default function BatchClaimSubmission() {
     setSelectedIds(new Set(cleanIds));
   };
 
-  const submitBatch = () => {
+  const submitBatch = (andPrint = false) => {
     const now = new Date().toISOString().slice(0, 10);
+    const submitted = claims.filter(c => selectedIds.has(c.id) && c.status === 'Clean');
     setClaims(prev => prev.map(c => selectedIds.has(c.id) && c.status === 'Clean' ? {
       ...c, status: 'Submitted', submittedDate: now, clearinghouse: selectedClearinghouse, ackDate: '',
     } : c));
@@ -95,8 +96,75 @@ export default function BatchClaimSubmission() {
         ...c, ackDate: new Date().toISOString().slice(0, 10),
       } : c));
     }, 3000);
+    if (andPrint) printBatchReport(submitted);
     setSelectedIds(new Set());
     setShowSubmitConfirm(false);
+  };
+
+  const printBatchReport = (submittedClaims) => {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const total = submittedClaims.reduce((s, c) => s + c.claimAmount, 0);
+    const rows = submittedClaims.map(c => `
+      <tr>
+        <td>${c.patientName}</td>
+        <td>${c.dos}</td>
+        <td style="font-family:monospace;color:#1e40af;font-weight:700">${c.cpt}</td>
+        <td>${c.icd}</td>
+        <td>${c.payer}</td>
+        <td>${c.provider}</td>
+        <td style="text-align:right;font-weight:700">$${c.claimAmount.toFixed(2)}</td>
+      </tr>`).join('');
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><title>Batch Claim Submission \u2014 ${dateStr}</title><style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:Arial,sans-serif; font-size:13px; color:#111; padding:28px 36px; }
+.header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #1d4ed8; padding-bottom:12px; margin-bottom:16px; }
+.title { font-size:20px; font-weight:800; color:#1d4ed8; }
+.meta { font-size:12px; color:#374151; margin-top:4px; line-height:1.6; }
+.header-right { text-align:right; font-size:11px; color:#374151; }
+.summary { display:flex; gap:20px; margin-bottom:16px; }
+.summary-box { background:#eff6ff; border:1px solid #dbeafe; border-radius:8px; padding:12px 18px; text-align:center; min-width:120px; }
+.summary-val { font-size:22px; font-weight:800; color:#1e40af; }
+.summary-lbl { font-size:10px; font-weight:600; color:#6b7280; margin-top:2px; }
+table { width:100%; border-collapse:collapse; }
+th { background:#eff6ff; color:#1e3a8a; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:8px 10px; border:1px solid #dbeafe; text-align:left; }
+td { padding:7px 10px; border:1px solid #e5e7eb; font-size:11.5px; }
+tr:nth-child(even) td { background:#f8fafc; }
+.total-row td { font-weight:800; background:#eff6ff; }
+.footer { margin-top:16px; font-size:10px; color:#6b7280; text-align:center; border-top:1px solid #e5e7eb; padding-top:8px; }
+@media print { body { padding:8px 14px; } }
+</style></head><body>
+<div class="header"><div>
+  <div class="title">📦 Batch Claim Submission Report</div>
+  <div class="meta">Clarity Behavioral Health · 200 N Michigan Ave, Suite 1400, Chicago, IL 60601</div>
+  <div class="meta">Clearinghouse: <strong>${selectedClearinghouse}</strong> &nbsp;|&nbsp; Submitted: <strong>${dateStr} at ${timeStr}</strong></div>
+</div><div class="header-right">
+  <div>Date: <strong>${dateStr}</strong></div>
+  <div>Time: <strong>${timeStr}</strong></div>
+</div></div>
+<div class="summary">
+  <div class="summary-box"><div class="summary-val">${submittedClaims.length}</div><div class="summary-lbl">Claims Submitted</div></div>
+  <div class="summary-box"><div class="summary-val" style="color:#059669">$${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div class="summary-lbl">Total Amount</div></div>
+  <div class="summary-box"><div class="summary-val">${selectedClearinghouse}</div><div class="summary-lbl">Clearinghouse</div></div>
+</div>
+<table>
+  <thead><tr><th>Patient</th><th>DOS</th><th>CPT</th><th>ICD-10</th><th>Payer</th><th>Provider</th><th style="text-align:right">Amount</th></tr></thead>
+  <tbody>${rows}
+  <tr class="total-row">
+    <td colspan="6" style="text-align:right">Total Submitted:</td>
+    <td style="text-align:right">$${total.toFixed(2)}</td>
+  </tr>
+  </tbody>
+</table>
+<div class="footer">Printed ${dateStr} at ${timeStr} \u00b7 Clarity EHR \u00b7 Confidential \u2014 For authorized use only</div>
+</body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
   };
 
   // Real-Time Claim Rules Engine scrub
@@ -152,7 +220,7 @@ export default function BatchClaimSubmission() {
           <select className="form-input" value={selectedClearinghouse} onChange={e => setSelectedClearinghouse(e.target.value)} style={{ width: 180, fontSize: 12 }}>
             {CLEARINGHOUSES.map(c => <option key={c}>{c}</option>)}
           </select>
-          <button className="btn btn-primary" onClick={() => { if (selectedIds.size > 0) setShowSubmitConfirm(true); else alert('Select claims first'); }} disabled={selectedIds.size === 0}>
+          <button className="btn btn-primary" onClick={() => { if (selectedIds.size > 0) setShowSubmitConfirm(true); }} disabled={selectedIds.size === 0}>
             📤 Submit {selectedIds.size > 0 ? `(${selectedIds.size})` : 'Batch'}
           </button>
         </div>
@@ -345,7 +413,8 @@ export default function BatchClaimSubmission() {
             </div>
             <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button className="btn btn-secondary" onClick={() => setShowSubmitConfirm(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={submitBatch}>📤 Submit Claims</button>
+              <button className="btn btn-secondary" onClick={() => submitBatch(true)}>🖨️ Submit & Print</button>
+              <button className="btn btn-primary" onClick={() => submitBatch(false)}>📤 Submit Claims</button>
             </div>
           </div>
         </div>

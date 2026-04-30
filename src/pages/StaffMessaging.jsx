@@ -100,6 +100,14 @@ export default function StaffMessaging() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [view, setView] = useState('channels'); // 'channels' | 'dms'
+  const [unreadCounts, setUnreadCounts] = useState({
+    'ch-general': 0,
+    'ch-clinical': 2,
+    'ch-urgent': 1,
+    'ch-front-desk': 0,
+    'ch-teaching': 1,
+    'ch-pharmacy': 2,
+  });
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -144,8 +152,16 @@ export default function StaffMessaging() {
       setDmMessages(prev => ({ ...prev, [key]: [...(prev[key] || []), newMsg] }));
     } else {
       setMessages(prev => ({ ...prev, [activeChannel]: [...(prev[activeChannel] || []), newMsg] }));
+      // Mark other channels as having a new message if you were to send to one you're not viewing
+      // (nothing to do here since you're in the active channel)
     }
     setInput('');
+  };
+
+  const switchChannel = (chId) => {
+    setActiveChannel(chId);
+    setActiveDM(null);
+    setUnreadCounts(prev => ({ ...prev, [chId]: 0 }));
   };
 
   const handleKeyDown = (e) => {
@@ -237,11 +253,12 @@ export default function StaffMessaging() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
             {view === 'channels' && CHANNELS.map(ch => {
               const count = (messages[ch.id] || []).length;
+              const unread = unreadCounts[ch.id] || 0;
               const isActive = !activeDM && activeChannel === ch.id;
               return (
                 <div
                   key={ch.id}
-                  onClick={() => { setActiveChannel(ch.id); setActiveDM(null); }}
+                  onClick={() => switchChannel(ch.id)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', cursor: 'pointer',
                     background: isActive ? 'rgba(59,130,246,0.15)' : 'transparent',
@@ -253,13 +270,19 @@ export default function StaffMessaging() {
                 >
                   <span style={{ fontSize: 16, width: 28, textAlign: 'center', flexShrink: 0 }}>{ch.icon}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: isActive ? 700 : 500, color: isActive ? '#93c5fd' : '#94a3b8' }}>
+                    <div style={{ fontSize: 12.5, fontWeight: isActive || unread > 0 ? 700 : 500, color: isActive ? '#93c5fd' : unread > 0 ? '#f1f5f9' : '#94a3b8' }}>
                       {ch.name}
                     </div>
                   </div>
-                  <span style={{ fontSize: 10, color: '#475569', background: 'rgba(255,255,255,0.06)', padding: '1px 6px', borderRadius: 10 }}>
-                    {count}
-                  </span>
+                  {unread > 0 ? (
+                    <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#ef4444', padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center' }}>
+                      {unread}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 10, color: '#475569', background: 'rgba(255,255,255,0.06)', padding: '1px 6px', borderRadius: 10 }}>
+                      {count}
+                    </span>
+                  )}
                 </div>
               );
             })}

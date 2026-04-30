@@ -37,6 +37,79 @@ export default function LabOrderTracking() {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterUrgency, setFilterUrgency] = useState('All');
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showNewOrder, setShowNewOrder] = useState(false);
+  const [newOrderForm, setNewOrderForm] = useState({ patient: '', test: '', urgency: 'Routine', lab: 'Quest Diagnostics' });
+
+  const handlePrintList = (list) => {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const providerName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}${currentUser.credentials ? ', ' + currentUser.credentials : ''}` : 'Unknown';
+
+    const rows = list.map(o => `
+      <tr>
+        <td>${o.patient}</td>
+        <td><strong>${o.test}</strong></td>
+        <td style="font-family:monospace;color:#1e40af">${o.code}</td>
+        <td>${o.urgency}</td>
+        <td>${o.status}</td>
+        <td>${o.lab}</td>
+        <td>${o.orderDate}</td>
+        <td>${o.resultValue || '—'}</td>
+        <td>${o.flag || '—'}</td>
+      </tr>`).join('');
+
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Lab Orders — ${dateStr}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; padding: 24px 32px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1d4ed8; padding-bottom: 10px; margin-bottom: 16px; }
+  .title { font-size: 18px; font-weight: 800; color: #1d4ed8; }
+  .meta { font-size: 11px; color: #374151; margin-top: 4px; line-height: 1.6; }
+  .header-right { text-align: right; font-size: 11px; color: #374151; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th { background: #eff6ff; color: #1e3a8a; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 10px; border: 1px solid #dbeafe; text-align: left; }
+  td { padding: 7px 10px; border: 1px solid #e5e7eb; vertical-align: top; font-size: 11.5px; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  .footer { margin-top: 16px; font-size: 10px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 8px; }
+  @media print { body { padding: 8px 14px; } }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="title">🔬 Lab Order Tracking Report</div>
+      <div class="meta">Clarity Behavioral Health · 200 N Michigan Ave, Suite 1400, Chicago, IL 60601</div>
+      <div class="meta">Provider: <strong>${providerName}</strong> &nbsp;|&nbsp; Filters: Status = ${filterStatus}, Urgency = ${filterUrgency}${search ? `, Search = "${search}"` : ''}</div>
+    </div>
+    <div class="header-right">
+      <div>Date: <strong>${dateStr}</strong></div>
+      <div>Time: <strong>${timeStr}</strong></div>
+      <div style="margin-top:6px;font-weight:800">${list.length} orders</div>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Patient</th><th>Test</th><th>CPT</th><th>Urgency</th><th>Status</th>
+        <th>Lab</th><th>Ordered</th><th>Result</th><th>Flag</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="footer">Printed ${dateStr} at ${timeStr} · Clarity EHR · Confidential — For authorized use only</div>
+</body>
+</html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
+  };
 
   const filtered = useMemo(() => {
     let list = [...orders];
@@ -70,8 +143,8 @@ export default function LabOrderTracking() {
           <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Cross-patient lab order dashboard — track orders from requisition to result</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={() => alert('🖨️ Print pending orders list...')}>🖨️ Print List</button>
-          <button className="btn btn-primary" onClick={() => alert('➕ New lab order...')}>➕ New Order</button>
+          <button className="btn btn-secondary" onClick={() => handlePrintList(filtered)}>🖨️ Print List</button>
+          <button className="btn btn-primary" onClick={() => setShowNewOrder(true)}>➕ New Order</button>
         </div>
       </div>
 
@@ -216,6 +289,34 @@ export default function LabOrderTracking() {
             </div>
             <div style={{ padding: '12px 22px', borderTop: '1px solid var(--border)', background: 'var(--bg)', textAlign: 'right' }}>
               <button className="btn btn-secondary" onClick={() => setSelectedOrder(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Order Modal */}
+      {showNewOrder && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowNewOrder(false); }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 460, boxShadow: '0 24px 64px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 22px', background: 'linear-gradient(135deg, #1e40af, #3b82f6)', color: '#fff', fontWeight: 800, fontSize: 15 }}>➕ New Lab Order</div>
+            <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {[['Patient Name', 'patient'], ['Test Name', 'test'], ['Lab', 'lab']].map(([label, key]) => (
+                <div key={key}>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, display: 'block', marginBottom: 6 }}>{label}</label>
+                  <input className="form-input" value={newOrderForm[key]} onChange={e => setNewOrderForm(f => ({ ...f, [key]: e.target.value }))} />
+                </div>
+              ))}
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, display: 'block', marginBottom: 6 }}>Urgency</label>
+                <select className="form-input" value={newOrderForm.urgency} onChange={e => setNewOrderForm(f => ({ ...f, urgency: e.target.value }))}>
+                  {['Routine', 'Urgent', 'Stat'].map(u => <option key={u}>{u}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn btn-secondary" onClick={() => setShowNewOrder(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => { if (newOrderForm.patient && newOrderForm.test) { setOrders(prev => [{ id: `lo-${Date.now()}`, patient: newOrderForm.patient, patientId: 'P-new', orderDate: new Date().toISOString().slice(0,10), test: newOrderForm.test, code: '', urgency: newOrderForm.urgency, status: 'Ordered', provider: 'Dr. Christopher Adams', resultDate: null, resultValue: null, refRange: null, flag: null, lab: newOrderForm.lab }, ...prev]); setNewOrderForm({ patient: '', test: '', urgency: 'Routine', lab: 'Quest Diagnostics' }); setShowNewOrder(false); } }}>Place Order</button>
             </div>
           </div>
         </div>

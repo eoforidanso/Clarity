@@ -36,14 +36,14 @@ export default function Vitals({ patientId }) {
     if (!form.bp) return;
     addVitals(patientId, {
       ...form,
-      hr: parseInt(form.hr) || 0,
-      rr: parseInt(form.rr) || 0,
+      hr: parseInt(form.hr, 10) || 0,
+      rr: parseInt(form.rr, 10) || 0,
       temp: parseFloat(form.temp) || 0,
-      spo2: parseInt(form.spo2) || 0,
+      spo2: parseInt(form.spo2, 10) || 0,
       weight: parseFloat(form.weight) || 0,
       height: parseFloat(form.height) || 0,
       bmi: parseFloat(form.bmi) || 0,
-      pain: parseInt(form.pain) || 0,
+      pain: parseInt(form.pain, 10) || 0,
     });
     setForm({
       date: new Date().toISOString().split('T')[0],
@@ -55,7 +55,7 @@ export default function Vitals({ patientId }) {
 
   const getBPClass = (bp) => {
     if (!bp) return '';
-    const sys = parseInt(bp.split('/')[0]);
+    const sys = parseInt(bp.split('/')[0], 10);
     if (sys >= 140) return 'text-danger font-bold';
     if (sys >= 130) return 'text-warning font-bold';
     return '';

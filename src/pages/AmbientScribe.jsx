@@ -37,6 +37,8 @@ export default function AmbientScribe() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [settingsSaved, setSettingsSaved] = useState(false);
+  const [viewingSession, setViewingSession] = useState(null); // session from SAMPLE_HISTORY
+  const [reappliedId, setReappliedId] = useState(null);
 
   const isPrescriber = currentUser?.role === 'prescriber';
   const isTherapist = currentUser?.role === 'therapist';
@@ -45,6 +47,23 @@ export default function AmbientScribe() {
   const saveSettings = () => {
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 3000);
+  };
+
+  const generateNotePreview = (h) => {
+    const d = new Date(h.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    return [
+      `SUBJECTIVE`,
+      `Patient ${h.patientName} presented for ${h.type.toLowerCase()} on ${d} at ${h.time}. Duration of session: ${h.duration}. Patient reported ongoing symptoms and discussed treatment progress. `,
+      ``,
+      `OBJECTIVE`,
+      `Patient was alert and oriented x3. Affect was appropriate. Speech was clear and fluent. No psychomotor agitation or retardation noted. Judgment and insight appear ${h.accuracy >= 90 ? 'intact' : 'partially intact'}.`,
+      ``,
+      `ASSESSMENT`,
+      `Session duration: ${h.duration}. AI transcription confidence: ${h.accuracy}%. Note format: ${h.noteType}. ${h.status === 'Applied' ? 'Note was reviewed and applied to chart.' : 'Note was discarded by provider.'}`,
+      ``,
+      `PLAN`,
+      `Continue current treatment plan. Follow up as scheduled. Patient education provided. All questions answered.`,
+    ].join('\n');
   };
 
   const appliedNotes = SAMPLE_HISTORY.filter(h => h.status === 'Applied');
@@ -237,7 +256,7 @@ export default function AmbientScribe() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                  {['Patient', 'Date', 'Time', 'Duration', 'Visit Type', 'Note Format', 'Status', 'Accuracy', 'Words'].map(h => (
+                  {['Patient', 'Date', 'Time', 'Duration', 'Visit Type', 'Note Format', 'Status', 'Accuracy', 'Words', 'Actions'].map(h => (
                     <th key={h} style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 700, color: '#64748b', fontSize: 11, textTransform: 'uppercase' }}>{h}</th>
                   ))}
                 </tr>
@@ -262,6 +281,20 @@ export default function AmbientScribe() {
                     </td>
                     <td style={{ padding: '10px 12px', fontWeight: 700, color: h.accuracy >= 95 ? '#16a34a' : h.accuracy >= 90 ? '#d97706' : '#dc2626' }}>{h.accuracy}%</td>
                     <td style={{ padding: '10px 12px', color: '#475569' }}>{h.wordCount}</td>
+                    <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                      <button
+                        onClick={() => setViewingSession(h)}
+                        style={{ padding: '4px 10px', borderRadius: 6, background: '#eff6ff', color: '#4f46e5', border: '1px solid #bfdbfe', fontSize: 11, fontWeight: 700, cursor: 'pointer', marginRight: 4 }}>
+                        📄 View Note
+                      </button>
+                      {h.status === 'Discarded' && (
+                        <button
+                          onClick={() => { setReappliedId(h.id); setTimeout(() => setReappliedId(null), 2500); }}
+                          style={{ padding: '4px 10px', borderRadius: 6, background: reappliedId === h.id ? '#f0fdf4' : '#fff7ed', color: reappliedId === h.id ? '#16a34a' : '#d97706', border: `1px solid ${reappliedId === h.id ? '#bbf7d0' : '#fde68a'}`, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                          {reappliedId === h.id ? '✅ Applied!' : '↺ Re-apply'}
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -448,6 +481,51 @@ export default function AmbientScribe() {
                   <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>{tip.text}</div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════ View Note Modal ════ */}
+      {viewingSession && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) setViewingSession(null); }}>
+          <div style={{ background: '#fff', borderRadius: 18, width: '100%', maxWidth: 600, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 22px', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 15 }}>📄 Generated {viewingSession.noteType} Note</div>
+                <div style={{ fontSize: 12, opacity: 0.8, marginTop: 2 }}>{viewingSession.patientName} · {viewingSession.date} · {viewingSession.time}</div>
+              </div>
+              <button onClick={() => setViewingSession(null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>✕ Close</button>
+            </div>
+            <div style={{ padding: '6px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: 16, fontSize: 11, flexWrap: 'wrap' }}>
+              {[
+                { label: 'Duration', value: viewingSession.duration },
+                { label: 'Visit Type', value: viewingSession.type },
+                { label: 'Accuracy', value: `${viewingSession.accuracy}%` },
+                { label: 'Words', value: viewingSession.wordCount },
+                { label: 'Status', value: viewingSession.status },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ padding: '6px 0' }}>
+                  <span style={{ fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.6 }}>{label}: </span>
+                  <span style={{ color: '#1e293b', fontWeight: 600 }}>{value}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 22 }}>
+              <pre style={{ fontFamily: 'inherit', fontSize: 13, lineHeight: 1.75, color: '#334155', whiteSpace: 'pre-wrap', margin: 0 }}>
+                {generateNotePreview(viewingSession)}
+              </pre>
+            </div>
+            <div style={{ padding: '14px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              {viewingSession.status === 'Discarded' && (
+                <button
+                  onClick={() => { setReappliedId(viewingSession.id); setViewingSession(null); setTimeout(() => setReappliedId(null), 2500); }}
+                  style={{ padding: '8px 18px', borderRadius: 8, background: '#fff7ed', color: '#d97706', border: '1px solid #fde68a', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                  ↺ Re-apply to Chart
+                </button>
+              )}
+              <button onClick={() => setViewingSession(null)} style={{ padding: '8px 18px', borderRadius: 8, background: '#4f46e5', color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Done</button>
             </div>
           </div>
         </div>

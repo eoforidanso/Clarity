@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
+import { usePatient } from '../contexts/PatientContext';
 
 /* ── Patient Self Check-In Page ─────────────────────────────
    Digital intake with screeners, consent forms, insurance card scan
@@ -39,32 +40,87 @@ const CONSENT_FORMS = [
 ];
 
 export default function PatientCheckIn() {
+  const { patients } = usePatient();
+  const frontFileRef = useRef(null);
+  const backFileRef = useRef(null);
   const [step, setStep] = useState(0);
+  const [verifyError, setVerifyError] = useState('');
+  const [dobError, setDobError] = useState('');
   const [data, setData] = useState({
     // Verification
-    dob: '', lastName: '', verified: false,
-    // Demographics
-    firstName: 'James', lastNameDemo: 'Anderson', dobDemo: '1988-03-15',
-    phone: '(555) 123-4567', email: 'james.a@email.com',
-    address: '456 Oak Lane, Springfield, IL 62701',
-    emergencyName: 'Sarah Anderson', emergencyPhone: '(555) 987-6543', emergencyRelation: 'Spouse',
-    pharmacy: 'CVS Pharmacy — 123 Main St',
+    dob: '', lastName: '', verified: false, matchedPatient: null,
+    // Demographics (populated after successful identity match)
+    firstName: '', lastNameDemo: '', dobDemo: '',
+    phone: '', email: '',
+    address: '',
+    emergencyName: '', emergencyPhone: '', emergencyRelation: '',
+    pharmacy: '',
     demoConfirmed: false,
     // Insurance
     insuranceCardFront: null, insuranceCardBack: null,
-    memberId: 'BCB-445599001', groupNumber: 'GRP-1120', payer: 'Blue Cross Blue Shield',
+    memberId: '', groupNumber: '', payer: '',
     insuranceConfirmed: false,
     // Consents
     consents: {},
     // Screeners
     phq2: [null, null], gad2: [null, null], safety: [null, null, null],
     // Payment
-    copayAmount: 30, paymentMethod: '', paymentComplete: false,
+    copayAmount: 0, paymentMethod: '', paymentComplete: false,
   });
+
+  const today = new Date().toISOString().split('T')[0];
 
   const updateData = useCallback((field, value) => {
     setData(prev => ({ ...prev, [field]: value }));
   }, []);
+
+  const handleDobChange = useCallback((value) => {
+    if (value && value > today) {
+      setDobError('Date of birth cannot be in the future.');
+    } else {
+      setDobError('');
+    }
+    updateData('dob', value);
+  }, [today, updateData]);
+
+  const handleVerify = useCallback(() => {
+    setVerifyError('');
+    const enteredLast = data.lastName.trim().toLowerCase();
+    const enteredDob  = data.dob;
+    if (!enteredLast || !enteredDob) return;
+    if (enteredDob > today) {
+      setDobError('Date of birth cannot be in the future.');
+      return;
+    }
+    const match = patients.find(
+      p => p.lastName.toLowerCase() === enteredLast && p.dob === enteredDob
+    );
+    if (!match) {
+      setVerifyError('No matching patient found. Please check your last name and date of birth.');
+      return;
+    }
+    const ins = match.insurance?.primary;
+    setData(prev => ({
+      ...prev,
+      verified: true,
+      matchedPatient: match,
+      firstName: match.firstName,
+      lastNameDemo: match.lastName,
+      dobDemo: match.dob,
+      phone: match.cellPhone || match.phone || '',
+      email: match.email || '',
+      address: match.address
+        ? `${match.address.street}, ${match.address.city}, ${match.address.state} ${match.address.zip}`
+        : '',
+      emergencyName: match.emergencyContact?.name || '',
+      emergencyPhone: match.emergencyContact?.phone || '',
+      emergencyRelation: match.emergencyContact?.relationship || '',
+      memberId: ins?.memberId || '',
+      groupNumber: ins?.groupNumber || '',
+      payer: ins?.name || '',
+      copayAmount: ins?.copay ?? 0,
+    }));
+  }, [data.lastName, data.dob, today, patients]);
 
   const currentStep = CHECKIN_STEPS[step];
   const canProceed = useMemo(() => {
@@ -104,16 +160,26 @@ export default function PatientCheckIn() {
               <div>
                 <label className="form-label">Date of Birth</label>
                 <input className="form-input" type="date"
-                  value={data.dob} onChange={e => updateData('dob', e.target.value)} />
+                  value={data.dob}
+                  max={today}
+                  onChange={e => handleDobChange(e.target.value)} />
+                {dobError && (
+                  <p style={{ color: 'var(--danger)', fontSize: 12, marginTop: 4 }}>{dobError}</p>
+                )}
               </div>
               <button className="btn btn-primary"
-                disabled={!data.lastName || !data.dob}
-                onClick={() => updateData('verified', true)}>
+                disabled={!data.lastName || !data.dob || !!dobError}
+                onClick={handleVerify}>
                 ✅ Verify Identity
               </button>
+              {verifyError && (
+                <div className="alert alert-danger" style={{ marginTop: 8 }}>
+                  ❌ {verifyError}
+                </div>
+              )}
               {data.verified && (
                 <div className="alert alert-success" style={{ marginTop: 8 }}>
-                  ✅ Identity verified — Welcome, James Anderson!
+                  ✅ Identity verified — Welcome, {data.firstName} {data.lastNameDemo}!
                 </div>
               )}
             </div>
@@ -160,15 +226,21 @@ export default function PatientCheckIn() {
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20, maxWidth: 600 }}>
               <div style={{ border: '2px dashed var(--border)', borderRadius: 12, padding: 24, textAlign: 'center', background: data.insuranceCardFront ? '#f0fdf4' : '#fafbfc', cursor: 'pointer', transition: 'all 0.2s' }}
-                onClick={() => updateData('insuranceCardFront', 'uploaded')}>
+                onClick={() => frontFileRef.current?.click()}>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>{data.insuranceCardFront ? '✅' : '📷'}</div>
-                <div style={{ fontSize: 12, fontWeight: 600 }}>{data.insuranceCardFront ? 'Front Uploaded' : 'Tap to Upload Front'}</div>
+                <div style={{ fontSize: 12, fontWeight: 600 }}>{data.insuranceCardFront ? `✅ ${data.insuranceCardFront}` : 'Tap to Upload Front'}</div>
+                {!data.insuranceCardFront && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>JPG, PNG, or PDF</div>}
               </div>
               <div style={{ border: '2px dashed var(--border)', borderRadius: 12, padding: 24, textAlign: 'center', background: data.insuranceCardBack ? '#f0fdf4' : '#fafbfc', cursor: 'pointer', transition: 'all 0.2s' }}
-                onClick={() => updateData('insuranceCardBack', 'uploaded')}>
+                onClick={() => backFileRef.current?.click()}>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>{data.insuranceCardBack ? '✅' : '📷'}</div>
-                <div style={{ fontSize: 12, fontWeight: 600 }}>{data.insuranceCardBack ? 'Back Uploaded' : 'Tap to Upload Back'}</div>
+                <div style={{ fontSize: 12, fontWeight: 600 }}>{data.insuranceCardBack ? `✅ ${data.insuranceCardBack}` : 'Tap to Upload Back'}</div>
+                {!data.insuranceCardBack && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>JPG, PNG, or PDF</div>}
               </div>
+              <input ref={frontFileRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
+                onChange={e => { if (e.target.files[0]) updateData('insuranceCardFront', e.target.files[0].name); }} />
+              <input ref={backFileRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
+                onChange={e => { if (e.target.files[0]) updateData('insuranceCardBack', e.target.files[0].name); }} />
             </div>
             <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 8, background: '#fafbfc', maxWidth: 600, marginBottom: 16 }}>
               <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 10 }}>📋 Insurance on File</div>

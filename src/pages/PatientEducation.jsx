@@ -27,6 +27,9 @@ export default function PatientEducation() {
   const [selectedRes, setSelectedRes] = useState(null);
   const [sendPatient, setSendPatient] = useState('');
   const [showSend, setShowSend] = useState(false);
+  const [sentMethod, setSentMethod] = useState(null); // 'portal' | 'email' | 'text'
+  const uploadRef = React.useRef(null);
+  const [uploadedName, setUploadedName] = useState(null);
 
   const filtered = useMemo(() => {
     let list = [...MOCK_RESOURCES];
@@ -50,7 +53,12 @@ export default function PatientEducation() {
           <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Browse, send, and print educational resources for patients and caregivers</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={() => alert('📤 Upload custom handout...')}>📤 Upload Resource</button>
+          <>
+            <input ref={uploadRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) setUploadedName(e.target.files[0].name); }} />
+            <button className="btn btn-secondary" onClick={() => uploadRef.current?.click()}>
+              {uploadedName ? `✅ ${uploadedName}` : '📤 Upload Resource'}
+            </button>
+          </>
         </div>
       </div>
 
@@ -159,8 +167,8 @@ export default function PatientEducation() {
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button className="btn btn-primary btn-sm" onClick={() => { setShowSend(true); }}>📧 Send to Patient</button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => alert('🖨️ Printing resource...')}>🖨️ Print</button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => alert('📥 Downloading...')}>📥 Download</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => window.print()}>🖨️ Print</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => { const blob = new Blob([`${selectedRes.title}\n\n${selectedRes.description}\n\nTags: ${selectedRes.tags.join(', ')}\nFormat: ${selectedRes.format} | Language: ${selectedRes.language} | Updated: ${selectedRes.lastUpdated}`], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${selectedRes.title.replace(/\s+/g, '_')}.txt`; a.click(); URL.revokeObjectURL(url); }}>📥 Download</button>
                   <button className="btn btn-secondary btn-sm" onClick={() => setSelectedRes(null)}>← Back</button>
                 </div>
               </div>
@@ -184,9 +192,17 @@ export default function PatientEducation() {
                 <input className="form-input" value={sendPatient} onChange={e => setSendPatient(e.target.value)} placeholder="e.g., James Anderson" />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => { alert('📧 Sent via Patient Portal'); setShowSend(false); }}>📱 Portal</button>
-                <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => { alert('📧 Sent via Email'); setShowSend(false); }}>📧 Email</button>
-                <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => { alert('📱 Sent via Text'); setShowSend(false); }}>💬 Text</button>
+                {sentMethod ? (
+                  <div style={{ width: '100%', padding: '10px 14px', background: '#dcfce7', color: '#166534', borderRadius: 8, fontWeight: 700, fontSize: 13, textAlign: 'center' }}>
+                    ✅ Sent via {sentMethod === 'portal' ? 'Patient Portal' : sentMethod === 'email' ? 'Email' : 'Text Message'}
+                  </div>
+                ) : (
+                  <>
+                    <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => { setSentMethod('portal'); setTimeout(() => { setSentMethod(null); setShowSend(false); }, 1500); }}>📱 Portal</button>
+                    <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => { setSentMethod('email'); setTimeout(() => { setSentMethod(null); setShowSend(false); }, 1500); }}>📧 Email</button>
+                    <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => { setSentMethod('text'); setTimeout(() => { setSentMethod(null); setShowSend(false); }, 1500); }}>💬 Text</button>
+                  </>
+                )}
               </div>
             </div>
             <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end' }}>

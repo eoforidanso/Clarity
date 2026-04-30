@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 
@@ -100,6 +100,20 @@ export default function DocumentManagement() {
   const [extractingId, setExtractingId] = useState(null);
   const [extractedData, setExtractedData] = useState({});
   const [extractProgress, setExtractProgress] = useState(0);
+  const [previewDoc, setPreviewDoc] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const uploadModalFileRef = useRef(null);
+
+  useEffect(() => {
+    if (!previewDoc) {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    } else if (previewDoc.fileObj) {
+      const url = URL.createObjectURL(previewDoc.fileObj);
+      setPreviewUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+  }, [previewDoc]);
 
   const handleAIExtract = (doc) => {
     setExtractingId(doc.id);
@@ -119,12 +133,10 @@ export default function DocumentManagement() {
   };
 
   const handleSaveToChart = (docId) => {
-    alert('✅ Extracted data saved to patient chart successfully!\n\nDiscrete data fields have been mapped to the appropriate chart sections (demographics, insurance, medications, labs, diagnoses).');
-    setExtractedData(prev => {
-      const next = { ...prev };
-      next[docId] = { ...next[docId], saved: true };
-      return next;
-    });
+    setExtractedData(prev => ({
+      ...prev,
+      [docId]: { ...prev[docId], saved: true },
+    }));
   };
 
   const filtered = documents.filter(d => {
@@ -154,21 +166,53 @@ export default function DocumentManagement() {
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
+    if (files.length === 0) return;
     setUploadedFiles(prev => [...prev, ...files]);
+    setShowUpload(true);
+    e.target.value = '';
+  };
+
+  const handleDownload = (doc) => {
+    const a = document.createElement('a');
+    if (doc.fileObj) {
+      const url = URL.createObjectURL(doc.fileObj);
+      a.href = url;
+      a.download = doc.name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const content = `Document: ${doc.name}\nCategory: ${doc.category}\nPatient: ${doc.patientName}\nUploaded by: ${doc.uploadedBy}\nDate: ${doc.uploadDate}\nSize: ${doc.size}\n\n[Demo record — actual file content not stored in this session]`;
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = doc.name.replace(/\.[^/.]+$/, '') + '_summary.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const handlePreview = (doc) => {
+    setPreviewDoc(doc);
   };
 
   const handleUploadSubmit = () => {
-    const newDocs = uploadedFiles.map((f, i) => ({
-      id: `d${documents.length + i + 1}`,
-      name: f.name,
-      category: uploadForm.category,
-      patient: uploadForm.patient || selectedPatient?.id || '',
-      patientName: patients.find(p => p.id === uploadForm.patient)?.firstName + ' ' + patients.find(p => p.id === uploadForm.patient)?.lastName || 'Unassigned',
-      size: `${Math.round(f.size / 1024)} KB`,
-      uploadedBy: `${currentUser?.firstName} ${currentUser?.lastName}`,
-      uploadDate: new Date().toISOString().split('T')[0],
-      type: f.type,
-    }));
+    const newDocs = uploadedFiles.map((f, i) => {
+      const matched = patients.find(p => p.id === uploadForm.patient);
+      const patientName = matched ? `${matched.firstName} ${matched.lastName}` : 'Unassigned';
+      return {
+        id: `d${Date.now()}_${i}`,
+        name: f.name,
+        category: uploadForm.category,
+        patient: uploadForm.patient || selectedPatient?.id || '',
+        patientName,
+        size: `${Math.round(f.size / 1024) || '<1'} KB`,
+        uploadedBy: `${currentUser?.firstName} ${currentUser?.lastName}`,
+        uploadDate: new Date().toISOString().split('T')[0],
+        type: f.type,
+        notes: uploadForm.notes,
+        fileObj: f,
+      };
+    });
     setDocuments(prev => [...newDocs, ...prev]);
     setShowUpload(false);
     setUploadedFiles([]);
@@ -265,8 +309,8 @@ export default function DocumentManagement() {
                           style={{ color: extractedData[d.id] ? '#16a34a' : '#7c3aed' }}>
                           {extractedData[d.id] ? '✅' : '🧠'}
                         </button>
-                        <button className="btn btn-sm btn-ghost" title="Download" onClick={() => alert('Download: ' + d.name)}>⬇️</button>
-                        <button className="btn btn-sm btn-ghost" title="Preview" onClick={() => alert('Preview: ' + d.name)}>👁️</button>
+                        <button className="btn btn-sm btn-ghost" title="Download" onClick={() => handleDownload(d)}>⬇️</button>
+                        <button className="btn btn-sm btn-ghost" title="Preview" onClick={() => handlePreview(d)}>👁️</button>
                         <button className="btn btn-sm btn-ghost" title="Delete" onClick={() => handleDelete(d.id)} style={{ color: 'var(--danger)' }}>🗑️</button>
                       </div>
                     </td>
@@ -332,14 +376,74 @@ export default function DocumentManagement() {
                 <button className="btn btn-sm btn-secondary" onClick={() => setExtractedData(prev => { const n = {...prev}; delete n[docId]; return n; })}>
                   Dismiss
                 </button>
-                <button className="btn btn-sm btn-primary" onClick={() => handleSaveToChart(docId)} style={{ background: '#7c3aed' }}>
-                  💾 Save to Patient Chart
-                </button>
+                {extractedData[docId]?.saved ? (
+                  <span style={{ padding: '6px 14px', borderRadius: 8, background: '#dcfce7', color: '#166534', fontWeight: 700, fontSize: 12 }}>✅ Saved to Chart</span>
+                ) : (
+                  <button className="btn btn-sm btn-primary" onClick={() => handleSaveToChart(docId)} style={{ background: '#7c3aed' }}>
+                    💾 Save to Patient Chart
+                  </button>
+                )}
               </div>
             </div>
           </div>
         );
       })}
+
+      {/* Preview Modal */}
+      {previewDoc && (
+        <div className="modal-backdrop" onClick={() => setPreviewDoc(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 720, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ margin: 0 }}>👁️ {previewDoc.name}</h3>
+                <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
+                  {previewDoc.category} · {previewDoc.patientName} · {previewDoc.uploadDate} · {previewDoc.size}
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button className="btn btn-sm btn-secondary" onClick={() => handleDownload(previewDoc)}>⬇️ Download</button>
+                <button className="modal-close" onClick={() => setPreviewDoc(null)}>✕</button>
+              </div>
+            </div>
+            <div className="modal-body" style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+              {previewUrl ? (
+                previewDoc.type?.includes('image') ? (
+                  <img src={previewUrl} alt={previewDoc.name} style={{ maxWidth: '100%', borderRadius: 8 }} />
+                ) : previewDoc.type?.includes('pdf') ? (
+                  <iframe src={previewUrl} title={previewDoc.name} style={{ width: '100%', height: 500, border: 'none', borderRadius: 8 }} />
+                ) : (
+                  <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+                    <div style={{ fontSize: 48, marginBottom: 12 }}>📎</div>
+                    <p>Preview not available for this file type.</p>
+                    <button className="btn btn-primary btn-sm" onClick={() => handleDownload(previewDoc)}>⬇️ Download to View</button>
+                  </div>
+                )
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  {[
+                    { label: 'Document Name', value: previewDoc.name },
+                    { label: 'Category', value: previewDoc.category },
+                    { label: 'Patient', value: previewDoc.patientName },
+                    { label: 'Uploaded By', value: previewDoc.uploadedBy },
+                    { label: 'Upload Date', value: previewDoc.uploadDate },
+                    { label: 'File Size', value: previewDoc.size },
+                    { label: 'File Type', value: previewDoc.type || 'Unknown' },
+                    ...(previewDoc.notes ? [{ label: 'Notes', value: previewDoc.notes }] : []),
+                  ].map((row, i) => (
+                    <div key={i} style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{row.label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{row.value}</div>
+                    </div>
+                  ))}
+                  <div style={{ gridColumn: '1/-1', padding: 16, background: '#fef3c7', borderRadius: 8, border: '1px solid #fde68a', fontSize: 12, color: '#92400e' }}>
+                    ⚠️ This is a demo record. The original file is not stored in this session. Download will export a summary.
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Upload Modal */}
       {showUpload && (
@@ -350,19 +454,29 @@ export default function DocumentManagement() {
               <button className="modal-close" onClick={() => setShowUpload(false)}>✕</button>
             </div>
             <div className="modal-body">
-              {uploadedFiles.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Selected Files</label>
-                  {uploadedFiles.map((f, i) => (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Files to Upload</label>
+                  <button className="btn btn-sm btn-secondary" onClick={() => uploadModalFileRef.current?.click()} style={{ fontSize: 11 }}>
+                    ＋ Add Files
+                  </button>
+                  <input ref={uploadModalFileRef} type="file" multiple style={{ display: 'none' }} onChange={handleFileChange} />
+                </div>
+                {uploadedFiles.length === 0 ? (
+                  <div onClick={() => uploadModalFileRef.current?.click()} style={{ border: '2px dashed var(--border)', borderRadius: 8, padding: '20px', textAlign: 'center', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12 }}>
+                    Click to browse or drag files to the drop zone
+                  </div>
+                ) : (
+                  uploadedFiles.map((f, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--bg)', borderRadius: 6, marginBottom: 4, fontSize: 12 }}>
                       <span>📎</span>
                       <span style={{ flex: 1 }}>{f.name}</span>
-                      <span style={{ color: 'var(--text-muted)' }}>{Math.round(f.size / 1024)} KB</span>
+                      <span style={{ color: 'var(--text-muted)' }}>{Math.round(f.size / 1024) || '<1'} KB</span>
                       <button onClick={() => setUploadedFiles(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)' }}>✕</button>
                     </div>
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
               <div style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Category</label>
                 <select value={uploadForm.category} onChange={e => setUploadForm({...uploadForm, category: e.target.value})}

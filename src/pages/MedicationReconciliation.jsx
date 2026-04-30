@@ -33,6 +33,9 @@ export default function MedicationReconciliation() {
   const [editAction, setEditAction] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [reconcileError, setReconcileError] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [synced, setSynced] = useState(false);
 
   const filtered = useMemo(() => {
     if (view === 'discrepancies') return meds.filter(m => m.status === 'Discrepancy');
@@ -71,9 +74,11 @@ export default function MedicationReconciliation() {
   const reconcileAll = () => {
     const unresolved = meds.filter(m => m.status !== 'Reconciled' && !m.action);
     if (unresolved.length > 0) {
-      alert(`Cannot complete — ${unresolved.length} medication(s) still need an action assigned.`);
+      setReconcileError(`${unresolved.length} medication(s) still need an action assigned before completing.`);
+      setTimeout(() => setReconcileError(''), 4000);
       return;
     }
+    setReconcileError('');
     setMeds(prev => prev.map(m => ({ ...m, status: 'Reconciled' })));
     setShowCompleteModal(true);
   };
@@ -88,10 +93,18 @@ export default function MedicationReconciliation() {
           <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Compare, verify, and reconcile medications from all sources — CMS-required at every transition of care</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={() => alert('🔄 Pulling latest pharmacy data via Surescripts...')}>🔄 Pharmacy Sync</button>
+          <button className="btn btn-secondary" disabled={syncing || synced} onClick={() => { setSyncing(true); setTimeout(() => { setSyncing(false); setSynced(true); setTimeout(() => setSynced(false), 3000); }, 1800); }}>
+            {syncing ? '⏳ Syncing…' : synced ? '✅ Synced' : '🔄 Pharmacy Sync'}
+          </button>
           <button className="btn btn-primary" onClick={reconcileAll}>✅ Complete Reconciliation</button>
         </div>
       </div>
+
+      {reconcileError && (
+        <div style={{ marginBottom: 16, padding: '10px 16px', background: '#fee2e2', color: '#991b1b', borderRadius: 8, border: '1px solid #fca5a5', fontSize: 13, fontWeight: 600 }}>
+          ⚠️ {reconcileError}
+        </div>
+      )}
 
       {/* Patient Header */}
       <div style={{ background: 'linear-gradient(135deg, #1e40af, #3b82f6)', borderRadius: 14, padding: '16px 22px', marginBottom: 18, color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

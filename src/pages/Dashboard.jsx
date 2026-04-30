@@ -1,12 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
+import { MOCK_TASKS } from './TaskManagement';
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
   const { appointments, inboxMessages, patients, selectPatient, updateAppointmentStatus } = usePatient();
   const navigate = useNavigate();
+  const [sentReminders, setSentReminders] = useState(new Set());
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -24,6 +26,16 @@ export default function Dashboard() {
   const completed     = todayAppts.filter((a) => a.status === 'Completed').length;
   const telehealthCnt = todayAppts.filter((a) => a.visitType === 'Telehealth').length;
   const remaining     = todayAppts.filter((a) => a.status !== 'Completed').length;
+
+  // Task stats (from shared mock data) — must be declared before `stats`
+  const today = new Date();
+  const overdueTasks = useMemo(() =>
+    MOCK_TASKS.filter(t =>
+      !['Completed', 'Cancelled'].includes(t.status) &&
+      t.dueDate && new Date(t.dueDate) < today
+    ).length
+  , []);
+  const activeTasks = MOCK_TASKS.filter(t => !['Completed', 'Cancelled'].includes(t.status)).length;
 
   const statusClass = (status) => {
     if (status === 'Checked In')  return 'status-checked-in';
@@ -57,11 +69,12 @@ export default function Dashboard() {
   };
 
   const stats = [
-    { icon: '📅', value: todayAppts.length, label: "Today's Appts",   color: 'blue' },
-    { icon: '✅', value: checkedIn,          label: 'Checked In',      color: 'green' },
-    { icon: '⚡', value: inProgress,         label: 'In Session',      color: 'yellow' },
-    { icon: '📹', value: telehealthCnt,      label: 'Telehealth',      color: 'teal' },
-    { icon: '📬', value: myUnread.length,    label: 'Inbox',           color: 'red' },
+    { icon: '📅', value: todayAppts.length, label: "Today's Appts",   color: 'blue',   to: '/schedule' },
+    { icon: '✅', value: checkedIn,          label: 'Checked In',      color: 'green',  to: '/schedule' },
+    { icon: '⚡', value: inProgress,         label: 'In Session',      color: 'yellow', to: '/schedule' },
+    { icon: '📹', value: telehealthCnt,      label: 'Telehealth',      color: 'teal',   to: '/telehealth' },
+    { icon: '📬', value: myUnread.length,    label: 'Inbox',           color: 'red',    to: '/inbox' },
+    { icon: overdueTasks > 0 ? '🔴' : '✅', value: activeTasks, label: overdueTasks > 0 ? `Tasks (${overdueTasks} overdue)` : 'Tasks', color: overdueTasks > 0 ? 'red' : 'blue', to: '/tasks' },
   ];
 
   // Role-specific greeting subtexts
@@ -94,7 +107,27 @@ export default function Dashboard() {
           <button className="btn btn-primary btn-sm" onClick={() => navigate('/patients')}>🔍 Find Patient</button>
           <button className="btn btn-secondary btn-sm" onClick={() => navigate('/schedule')}>📅 Full Schedule</button>
           <button className="btn btn-secondary btn-sm" onClick={() => {
-            alert('📄 Daily Summary Report exported as PDF.\n\nDate: ' + new Date().toLocaleDateString() + '\nAppointments: ' + todayAppts.length + '\nCompleted: ' + completed);
+            const lines = [
+              `Daily Summary — ${new Date().toLocaleDateString()}`,
+              `Provider: ${currentUser?.firstName} ${currentUser?.lastName}`,
+              '',
+              `Total Appointments: ${todayAppts.length}`,
+              `Checked In: ${checkedIn}`,
+              `In Session: ${inProgress}`,
+              `Completed: ${completed}`,
+              `Telehealth: ${telehealthCnt}`,
+              `Unread Messages: ${myUnread.length}`,
+              '',
+              'SCHEDULE:',
+              ...todayAppts.map(a => `  ${a.time}  ${a.patientName}  (${a.type})  [${a.status}]`),
+            ];
+            const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `daily_summary_${new Date().toISOString().slice(0,10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
           }}>📤 Export</button>
         </div>
       </div>
@@ -111,9 +144,11 @@ export default function Dashboard() {
       )}
 
       {/* Stat strip */}
-      <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14, marginBottom: 24 }}>
+      <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 14, marginBottom: 24 }}>
         {stats.map((s) => (
-          <div key={s.label} className={`stat-card row ${s.color} fade-in`}>
+          <div key={s.label} className={`stat-card row ${s.color} fade-in`}
+            style={{ cursor: s.to ? 'pointer' : 'default' }}
+            onClick={() => s.to && navigate(s.to)}>
             <div className={`stat-icon ${s.color}`}>{s.icon}</div>
             <div className="stat-info">
               <h3>{s.value}</h3>
@@ -143,6 +178,7 @@ export default function Dashboard() {
                 <span className="icon">📅</span>
                 <h3>No appointments today</h3>
                 <p>Your schedule is clear</p>
+                <button className="btn btn-primary btn-sm" style={{ marginTop: 10 }} onClick={() => navigate('/schedule')}>📅 View Full Schedule</button>
               </div>
             ) : (
               todayAppts.map((apt) => (
@@ -350,17 +386,14 @@ export default function Dashboard() {
                     </div>
                     <button
                       className="btn btn-sm btn-outline"
-                      style={{ fontSize: 10, padding: '2px 8px' }}
+                      style={{ fontSize: 10, padding: '2px 8px', ...(sentReminders.has(apt.id) ? { color: 'var(--success)', borderColor: 'var(--success)' } : {}) }}
+                      disabled={sentReminders.has(apt.id)}
                       onClick={(e) => {
                         e.stopPropagation();
-                        const btn = e.currentTarget;
-                        btn.textContent = '✓ Sent';
-                        btn.disabled = true;
-                        btn.style.color = 'var(--success)';
-                        btn.style.borderColor = 'var(--success)';
+                        setSentReminders(prev => new Set([...prev, apt.id]));
                       }}
                     >
-                      📲 Send
+                      {sentReminders.has(apt.id) ? '✓ Sent' : '📲 Send'}
                     </button>
                   </div>
                 ))

@@ -60,6 +60,10 @@ export default function ClinicalDecisionSupport() {
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [showOverride, setShowOverride] = useState(false);
   const [overrideReason, setOverrideReason] = useState('');
+  const [showConfig, setShowConfig] = useState(false);
+  const [enabledCategories, setEnabledCategories] = useState(
+    Object.fromEntries(CATEGORIES.map(c => [c, true]))
+  );
 
   const filtered = useMemo(() => {
     let list = alerts.filter(a => a.status === 'Active' || a.status === 'Acknowledged');
@@ -99,7 +103,7 @@ export default function ClinicalDecisionSupport() {
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>🧠 Clinical Decision Support</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Real-time drug-drug, drug-allergy, dosage, duplicate therapy, and preventive care alerts</p>
         </div>
-        <button className="btn btn-secondary" onClick={() => alert('⚙️ Opening CDS rules configuration...')}>⚙️ Configure Rules</button>
+        <button className="btn btn-secondary" onClick={() => setShowConfig(true)}>⚙️ Configure Rules</button>
       </div>
 
       {/* Stats */}
@@ -229,6 +233,44 @@ export default function ClinicalDecisionSupport() {
                 style={{ background: overrideReason.trim() ? '#dc2626' : '#ccc', color: '#fff', border: 'none', fontWeight: 700, fontSize: 12, padding: '8px 14px', borderRadius: 8, cursor: overrideReason.trim() ? 'pointer' : 'not-allowed' }}>
                 🛡️ Confirm Override
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      )}
+
+      {/* Configure Rules Modal */}
+      {showConfig && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 2002, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowConfig(false); }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 460, boxShadow: '0 24px 64px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 22px', background: 'linear-gradient(135deg, #1e40af, #3b82f6)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 15 }}>⚙️ CDS Rule Configuration</div>
+                <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>Enable or disable alert categories for this session</div>
+              </div>
+              <button onClick={() => setShowConfig(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+            </div>
+            <div style={{ padding: 22, maxHeight: 420, overflowY: 'auto' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 14 }}>Changes apply to the current session only. Contact your EHR administrator for permanent rule changes.</div>
+              {CATEGORIES.map(cat => (
+                <label key={cat} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{cat}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                      {enabledCategories[cat] ? `✅ Active — ${alerts.filter(a => a.category === cat && a.status === 'Active').length} active alert(s)` : '⏸️ Disabled for this session'}
+                    </div>
+                  </div>
+                  <div style={{ position: 'relative', width: 36, height: 20, flexShrink: 0 }} onClick={() => setEnabledCategories(prev => ({ ...prev, [cat]: !prev[cat] }))}>
+                    <div style={{ width: 36, height: 20, borderRadius: 10, background: enabledCategories[cat] ? '#3b82f6' : '#cbd5e1', transition: 'background 0.2s' }} />
+                    <div style={{ position: 'absolute', top: 2, left: enabledCategories[cat] ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn btn-secondary" onClick={() => setEnabledCategories(Object.fromEntries(CATEGORIES.map(c => [c, true])))}>↺ Reset All</button>
+              <button className="btn btn-primary" onClick={() => setShowConfig(false)}>Save</button>
             </div>
           </div>
         </div>

@@ -67,8 +67,8 @@ const MOCK_TEMPLATES = [
 function getTimeIndex(timeStr) {
   const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
   if (!match) return 0;
-  let h = parseInt(match[1]);
-  const m = parseInt(match[2]);
+  let h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
   const p = match[3].toUpperCase();
   if (p === 'PM' && h !== 12) h += 12;
   if (p === 'AM' && h === 12) h = 0;
@@ -86,6 +86,8 @@ export default function SchedulingTemplates() {
   const [templates, setTemplates] = useState(MOCK_TEMPLATES);
   const [selectedTpl, setSelectedTpl] = useState(templates[0]);
   const [viewMode, setViewMode] = useState('grid'); // grid | list
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [newTplName, setNewTplName] = useState('');
 
   const blockTypeMap = Object.fromEntries(BLOCK_TYPES.map(b => [b.id, b]));
 
@@ -108,8 +110,8 @@ export default function SchedulingTemplates() {
           <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Configure recurring provider schedule blocks and availability</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={() => alert('📋 Clone template...')}>📋 Clone</button>
-          <button className="btn btn-primary" onClick={() => alert('➕ Create new template...')}>➕ New Template</button>
+          <button className="btn btn-secondary" onClick={() => { const cloned = selectedTpl; if (cloned) { setTemplates(prev => [...prev, { ...cloned, id: `tpl-${Date.now()}`, name: cloned.name + ' (Copy)', status: 'Draft' }]); } }}>📋 Clone</button>
+          <button className="btn btn-primary" onClick={() => setShowNewModal(true)}>➕ New Template</button>
         </div>
       </div>
 
@@ -212,6 +214,24 @@ export default function SchedulingTemplates() {
             ))}
           </div>
         </>
+      )}
+
+      {/* New Template Modal */}
+      {showNewModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowNewModal(false); }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 22px', background: 'linear-gradient(135deg, #1e40af, #3b82f6)', color: '#fff', fontWeight: 800, fontSize: 15 }}>➕ New Scheduling Template</div>
+            <div style={{ padding: 22 }}>
+              <label style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, display: 'block', marginBottom: 6 }}>Template Name</label>
+              <input className="form-input" value={newTplName} onChange={e => setNewTplName(e.target.value)} placeholder="e.g., Dr. Smith — Summer Schedule" />
+            </div>
+            <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn btn-secondary" onClick={() => setShowNewModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => { if (newTplName.trim()) { setTemplates(prev => [...prev, { id: `tpl-${Date.now()}`, name: newTplName.trim(), provider: currentUser?.name || 'Provider', effectiveFrom: new Date().toISOString().slice(0,10), effectiveTo: '', status: 'Draft', isDefault: false, blocks: [] }]); setNewTplName(''); setShowNewModal(false); } }}>Create</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -170,7 +170,7 @@ export default function TreatmentPlans() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-secondary btn-sm" onClick={() => alert('🖨️ Printing treatment plan for ' + selectedPlan.patientName)}>🖨️ Print</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => window.print()}>🖨️ Print</button>
                   <button className="btn btn-primary btn-sm" onClick={() => setShowNewGoal(true)}>➕ Add Goal</button>
                 </div>
               </div>

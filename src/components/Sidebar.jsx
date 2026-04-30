@@ -1,24 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
+import { getNavPrefs, getAIFeatures } from '../pages/Settings';
 
 export default function Sidebar() {
   const { currentUser, logout } = useAuth();
   const { inboxMessages, selectedPatient, openCharts, appointments } = usePatient();
   const location = useLocation();
   const navigate = useNavigate();
+  const navPrefs = getNavPrefs();
+  const aiPrefs = getAIFeatures();
   const [chartExpanded, setChartExpanded] = useState(true);
 
   // ── Collapsible section state ────────────────────────────
-  const [expanded, setExpanded] = useState({
-    navigation: true,
-    chart: true,
-    clinical: false,
-    reporting: false,
-    billing: false,
-    admin: false,
+  const [expanded, setExpanded] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sidebar_expanded');
+      return saved ? JSON.parse(saved) : { navigation: true, chart: true, clinical: false, reporting: false, billing: false, admin: false };
+    } catch {
+      return { navigation: true, chart: true, clinical: false, reporting: false, billing: false, admin: false };
+    }
   });
+
+  useEffect(() => {
+    try { localStorage.setItem('sidebar_expanded', JSON.stringify(expanded)); } catch {}
+  }, [expanded]);
 
   const toggleSection = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
   const allExpanded = Object.values(expanded).every(Boolean);
@@ -42,7 +49,7 @@ export default function Sidebar() {
   const isTherapist = currentUser?.role === 'therapist';
 
   const initials = currentUser
-    ? `${currentUser.firstName[0]}${currentUser.lastName[0]}`
+    ? `${currentUser.firstName?.[0] || ''}${currentUser.lastName?.[0] || ''}`
     : '';
 
   const roleLabel = {
@@ -217,7 +224,7 @@ export default function Sidebar() {
             {navItem('/referrals', '🔄', 'Referrals')}
             {navItem('/prior-auth', '🔐', 'Prior Auth')}
             {navItem('/med-rec', '💊', 'Med Reconciliation')}
-            {navItem('/cds-alerts', '🧠', 'CDS Alerts')}
+            {aiPrefs.cdsAlerts && navItem('/cds-alerts', '🧠', 'CDS Alerts')}
             {navItem('/patient-recall', '📞', 'Patient Recall')}
             {navItem('/patient-education', '📚', 'Patient Education')}
             {navItem('/consents', '✍️', 'Consent Forms')}
@@ -226,8 +233,8 @@ export default function Sidebar() {
             {navItem('/vitals-trending', '📈', 'Vitals Trending')}
             {navItem('/network-integrations', '🌐', 'Network Integrations')}
             {navItem('/care-everywhere', '🔄', 'Care Everywhere (HIE)')}
-            {navItem('/ai-triage', '🤖', 'AI Triage Chat')}
-            {navItem('/ambient-scribe', '🎙️', 'Ambient AI Scribe')}
+            {aiPrefs.aiTriage && navItem('/ai-triage', '🤖', 'AI Triage Chat')}
+            {aiPrefs.ambientSoap && navItem('/ambient-scribe', '🎙️', 'Ambient AI Scribe')}
             {navItem('/order-sets', '📦', 'Order Set Templates')}
           </ul>
           )}
@@ -316,10 +323,11 @@ export default function Sidebar() {
           {isFrontDesk && navItem('/btg-audit', '🔓', 'BTG Audit Log')}
           {navItem('/marketplace', '🏪', 'App Marketplace')}
           {navItem('/api-docs', '🔧', 'API Documentation')}
-          {navItem('/appointment-reminders', '📣', 'Appt Reminders')}
+          {navPrefs.showApptReminders && navItem('/appointment-reminders', '📣', 'Appt Reminders')}
           {navItem('/immunization-registry', '💉', 'Immunization Registry')}
           {navItem('/multi-location', '🏢', 'Multi-Location')}
           {navItem('/practice-marketing', '📢', 'Marketing & Reputation')}
+          {navItem('/ehr-comparison', '🏆', 'EHR Comparison')}
           {navItem('/settings', '⚙️', 'Settings')}
         </ul>
         )}
@@ -337,7 +345,7 @@ export default function Sidebar() {
             </div>
           </div>
           <button
-            onClick={logout}
+            onClick={() => { if (window.confirm('Sign out of Clarity? Any unsaved changes will be lost.')) logout(); }}
             className="sidebar-sign-out"
             title="Sign Out"
           >

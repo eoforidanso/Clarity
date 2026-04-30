@@ -26,7 +26,7 @@ const TEAM_MEMBERS = [
   { id: 'u5', name: 'Billing Team', role: 'Billing', avatar: '💰' },
 ];
 
-const MOCK_TASKS = [
+export const MOCK_TASKS = [
   { id: 't-1', title: 'Review abnormal lab — James Anderson lithium level', description: 'Lithium level 1.3 mEq/L (high). Evaluate for toxicity symptoms and adjust dose.', category: 'Clinical', priority: 'Critical', status: 'To Do', assignee: 'u1', createdBy: 'u2', patientName: 'James Anderson', dueDate: '2026-04-15', createdDate: '2026-04-14', completedDate: '', comments: [{ author: 'Kelly Nguyen', text: 'Lab came back flagged high. Patient called and reports tremor and nausea.', date: '2026-04-14' }] },
   { id: 't-2', title: 'Prior auth follow-up — Maria Garcia neuropsych testing', description: 'Aetna requested additional clinical documentation for neuropsych testing PA. Need to send GAD-7 and PHQ-9 scores.', category: 'Referral', priority: 'High', status: 'In Progress', assignee: 'u3', createdBy: 'u1', patientName: 'Maria Garcia', dueDate: '2026-04-16', createdDate: '2026-04-12', completedDate: '', comments: [] },
   { id: 't-3', title: 'Complete MIPS reporting for Q1', description: 'Finalize quality measure reporting for CMS MIPS. Deadline approaching.', category: 'Compliance', priority: 'High', status: 'In Progress', assignee: 'u3', createdBy: 'u1', patientName: '', dueDate: '2026-04-18', createdDate: '2026-04-10', completedDate: '', comments: [] },

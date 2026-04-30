@@ -49,6 +49,9 @@ export default function ReportBuilder() {
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleFreq, setScheduleFreq] = useState('On Demand');
   const [exportFmt, setExportFmt] = useState('PDF');
+  const [builderError, setBuilderError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [savedFeedback, setSavedFeedback] = useState('');
 
   const availableFields = selectedType ? AVAILABLE_FIELDS[selectedType.id] || [] : [];
 
@@ -64,19 +67,22 @@ export default function ReportBuilder() {
   };
 
   const runReport = () => {
-    if (selectedFields.length === 0) { alert('Select at least one field.'); return; }
+    if (selectedFields.length === 0) { setBuilderError('Select at least one field to run the report.'); return; }
+    setBuilderError('');
     setStep('results');
     setShowResults(true);
   };
 
   const saveReport = () => {
-    if (!reportName.trim()) { alert('Give your report a name.'); return; }
+    if (!reportName.trim()) { setSaveError('Give your report a name before saving.'); return; }
+    setSaveError('');
     setSavedReports(prev => [...prev, {
       id: `sr-${Date.now()}`, name: reportName, type: selectedType?.id || 'custom',
       schedule: scheduleFreq, lastRun: new Date().toISOString().slice(0, 10),
       createdBy: currentUser?.name || 'User',
     }]);
-    alert(`✅ Report "${reportName}" saved!`);
+    setSavedFeedback(`✅ Report “${reportName}” saved!`);
+    setTimeout(() => setSavedFeedback(''), 3000);
   };
 
   return (
@@ -130,7 +136,7 @@ export default function ReportBuilder() {
                     <td style={{ padding: '12px 14px' }}>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-sm btn-primary" onClick={() => { setSelectedType(REPORT_TYPES.find(t => t.id === sr.type)); setStep('results'); setShowResults(true); setSelectedFields(AVAILABLE_FIELDS[sr.type]?.slice(0, 4) || []); }}>▶ Run</button>
-                        <button className="btn btn-sm btn-secondary" onClick={() => alert(`📤 Exporting "${sr.name}" as PDF...`)}>📤</button>
+                        <button className="btn btn-sm btn-secondary" onClick={() => { const blob = new Blob([`Report: ${sr.name}\nType: ${sr.type}\nLast Run: ${sr.lastRun}\nSchedule: ${sr.schedule}`], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${sr.name.replace(/\s+/g,'_')}.txt`; a.click(); URL.revokeObjectURL(url); }}>📤</button>
                       </div>
                     </td>
                   </tr>
@@ -212,6 +218,9 @@ export default function ReportBuilder() {
               )}
             </div>
 
+            {builderError && <div style={{ padding: '8px 14px', background: '#fee2e2', color: '#991b1b', borderRadius: 8, fontSize: 12, fontWeight: 600, border: '1px solid #fca5a5' }}>⚠️ {builderError}</div>}
+            {saveError && <div style={{ padding: '8px 14px', background: '#fee2e2', color: '#991b1b', borderRadius: 8, fontSize: 12, fontWeight: 600, border: '1px solid #fca5a5' }}>⚠️ {saveError}</div>}
+            {savedFeedback && <div style={{ padding: '8px 14px', background: '#dcfce7', color: '#166534', borderRadius: 8, fontSize: 12, fontWeight: 700, border: '1px solid #86efac' }}>{savedFeedback}</div>}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary" onClick={saveReport}>💾 Save Report</button>
               <button className="btn btn-primary" onClick={runReport}>▶ Run Report</button>
@@ -226,7 +235,7 @@ export default function ReportBuilder() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontSize: 14, fontWeight: 800 }}>📊 Report Results — {selectedType?.label || 'Report'} ({dateRange})</div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-sm btn-secondary" onClick={() => alert(`📤 Exporting as ${exportFmt}...`)}>📤 Export {exportFmt}</button>
+              <button className="btn btn-sm btn-secondary" onClick={() => { const rows = MOCK_RESULTS.map(r => Object.values(r).join(',')).join('\n'); const headers = Object.keys(MOCK_RESULTS[0]).join(','); const blob = new Blob([headers + '\n' + rows], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `report_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url); }}>📤 Export {exportFmt}</button>
               <button className="btn btn-sm btn-secondary" onClick={() => window.print()}>🖨️ Print</button>
             </div>
           </div>

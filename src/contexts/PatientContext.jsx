@@ -153,18 +153,18 @@ export function PatientProvider({ children }) {
   }, [patients, useBackend, loadPatientClinical]);
 
   const closeChart = useCallback((patientId) => {
+    let remaining;
     setOpenCharts((prev) => {
-      const next = prev.filter((c) => c.id !== patientId);
-      return next;
+      remaining = prev.filter((c) => c.id !== patientId);
+      return remaining;
     });
     setSelectedPatient((current) => {
       if (current?.id === patientId) {
-        const remaining = openCharts.filter((c) => c.id !== patientId);
-        return remaining.length > 0 ? remaining[remaining.length - 1] : null;
+        return remaining && remaining.length > 0 ? remaining[remaining.length - 1] : null;
       }
       return current;
     });
-  }, [openCharts]);
+  }, []);
 
   /* ────── Allergies ────── */
   const addAllergy = useCallback(async (patientId, allergy) => {
@@ -183,6 +183,27 @@ export function PatientProvider({ children }) {
     }
   }, []);
 
+  /* ────── Patients ────── */
+  const updatePatient = useCallback((patientId, updates) => {
+    setPatients((prev) => prev.map((p) => p.id === patientId ? { ...p, ...updates } : p));
+    setSelectedPatient((prev) => prev?.id === patientId ? { ...prev, ...updates } : prev);
+  }, []);
+
+  /* ────── Allergies (update / remove) ────── */
+  const updateAllergy = useCallback((patientId, allergyId, updates) => {
+    setAllergies((prev) => ({
+      ...prev,
+      [patientId]: (prev[patientId] || []).map((a) => a.id === allergyId ? { ...a, ...updates } : a),
+    }));
+  }, []);
+
+  const removeAllergy = useCallback((patientId, allergyId) => {
+    setAllergies((prev) => ({
+      ...prev,
+      [patientId]: (prev[patientId] || []).filter((a) => a.id !== allergyId),
+    }));
+  }, []);
+
   /* ────── Problems ────── */
   const addProblem = useCallback(async (patientId, problem) => {
     try {
@@ -197,6 +218,13 @@ export function PatientProvider({ children }) {
         [patientId]: [...(prev[patientId] || []), { ...problem, id: `pr-${Date.now()}` }],
       }));
     }
+  }, []);
+
+  const updateProblem = useCallback((patientId, problemId, updates) => {
+    setProblemList((prev) => ({
+      ...prev,
+      [patientId]: (prev[patientId] || []).map((p) => p.id === problemId ? { ...p, ...updates } : p),
+    }));
   }, []);
 
   /* ────── Vitals ────── */
@@ -216,6 +244,15 @@ export function PatientProvider({ children }) {
   }, []);
 
   /* ────── Orders ────── */
+  const updateOrder = useCallback((patientId, orderId, updates) => {
+    setOrders((prev) => ({
+      ...prev,
+      [patientId]: (prev[patientId] || []).map((o) =>
+        o.id === orderId ? { ...o, ...updates } : o
+      ),
+    }));
+  }, []);
+
   const addOrder = useCallback(async (patientId, order) => {
     try {
       const created = await ordersApi.create(patientId, order);
@@ -443,13 +480,17 @@ export function PatientProvider({ children }) {
         patients,
         selectedPatient,
         selectPatient,
+        updatePatient,
         openCharts,
         openChart,
         closeChart,
         allergies,
         addAllergy,
+        updateAllergy,
+        removeAllergy,
         problemList,
         addProblem,
+        updateProblem,
         vitalSigns,
         addVitals,
         meds,
@@ -462,6 +503,7 @@ export function PatientProvider({ children }) {
         addAssessment,
         orders,
         addOrder,
+        updateOrder,
         inboxMessages,
         updateMessageStatus,
         addInboxMessage,

@@ -26,6 +26,7 @@ export default function EligibilityVerification() {
   const [selectedCheck, setSelectedCheck] = useState(null);
   const [showVerify, setShowVerify] = useState(false);
   const [verifyForm, setVerifyForm] = useState({ patientName: '', memberId: '', payer: PAYERS[0], dob: '' });
+  const [copied, setCopied] = useState(false);
 
   const filtered = useMemo(() => {
     let list = [...checks];
@@ -224,8 +225,10 @@ export default function EligibilityVerification() {
 
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-primary btn-sm" onClick={() => reverify(selectedCheck.id)}>🔄 Reverify</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => alert('🖨️ Printing benefits summary...')}>🖨️ Print</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => alert('📋 Copied to clipboard')}>📋 Copy</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => window.print()}>🖨️ Print</button>
+                <button className="btn btn-secondary btn-sm" style={copied ? { background: '#dcfce7', color: '#166534', borderColor: '#86efac' } : {}} onClick={() => { const summary = `Patient: ${selectedCheck.patientName} | Payer: ${selectedCheck.payer} | Plan: ${selectedCheck.planType} | Status: ${selectedCheck.status} | Copay: ${selectedCheck.copay} | Deductible: ${selectedCheck.deductible} (Met: ${selectedCheck.deductibleMet}) | OOP Max: ${selectedCheck.oopMax} (Met: ${selectedCheck.oopMet}) | Coinsurance: ${selectedCheck.coinsurance} | Visits: ${selectedCheck.remainingVisits} | Network: ${selectedCheck.networkStatus}`; navigator.clipboard?.writeText(summary); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
+                  {copied ? '✅ Copied!' : '📋 Copy'}
+                </button>
               </div>
             </div>
           </div>

@@ -57,6 +57,8 @@ export default function IntakeForms() {
   const [newPacketPatient, setNewPacketPatient] = useState('');
   const [newPacketForms, setNewPacketForms] = useState([]);
   const [selectedPacket, setSelectedPacket] = useState(null);
+  const [remindedPackets, setRemindedPackets] = useState(new Set());
+  const [previewTemplate, setPreviewTemplate] = useState(null);
 
   const filteredTemplates = filterCategory === 'All' ? FORM_TEMPLATES : FORM_TEMPLATES.filter(f => f.category === filterCategory);
 
@@ -192,7 +194,12 @@ export default function IntakeForms() {
                     <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>Sent {selectedPacket.sentDate} · Due {selectedPacket.dueDate}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-secondary btn-sm" onClick={() => alert('📧 Reminder sent to patient')}>📧 Remind</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => {
+                        setRemindedPackets(prev => new Set([...prev, selectedPacket.id]));
+                        setTimeout(() => setRemindedPackets(prev => { const n = new Set(prev); n.delete(selectedPacket.id); return n; }), 3000);
+                      }}>
+                      {remindedPackets.has(selectedPacket.id) ? '✅ Reminded' : '📧 Remind'}
+                    </button>
                     <button onClick={() => setSelectedPacket(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
                   </div>
                 </div>
@@ -243,7 +250,7 @@ export default function IntakeForms() {
                 <div style={{ fontWeight: 700, fontSize: 14 }}>{t.name}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{t.pages} page{t.pages > 1 ? 's' : ''} · ~{t.estimatedTime}</div>
                 <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, background: '#eff6ff', color: '#1e40af', fontWeight: 600, alignSelf: 'flex-start' }}>{t.category}</span>
-                <button className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start', marginTop: 4 }} onClick={() => alert('📄 Preview: ' + t.name)}>👁️ Preview</button>
+                <button className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start', marginTop: 4 }} onClick={() => setPreviewTemplate(t)}>👁️ Preview</button>
               </div>
             ))}
           </div>
@@ -299,6 +306,49 @@ export default function IntakeForms() {
                 <button className="btn btn-secondary" onClick={() => setShowNewPacket(false)}>Cancel</button>
                 <button className="btn btn-primary" onClick={sendPacket} disabled={!newPacketPatient || newPacketForms.length === 0}>📤 Send to Patient</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Template Preview Modal */}
+      {previewTemplate && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) setPreviewTemplate(null); }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 520, maxHeight: '80vh', boxShadow: '0 24px 64px rgba(0,0,0,0.25)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '16px 22px', background: 'linear-gradient(135deg, #0891b2, #0e7490)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 15 }}>📄 {previewTemplate.name}</div>
+                <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{previewTemplate.category} · {previewTemplate.pages} page{previewTemplate.pages !== 1 ? 's' : ''} · ~{previewTemplate.estimatedTime}</div>
+              </div>
+              <button onClick={() => setPreviewTemplate(null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>✕ Close</button>
+            </div>
+            <div style={{ padding: 22, flex: 1, overflowY: 'auto' }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, background: '#eff6ff', color: '#1e40af', fontWeight: 700 }}>{previewTemplate.category}</span>
+                {previewTemplate.required && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, background: '#fee2e2', color: '#991b1b', fontWeight: 800 }}>REQUIRED</span>}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Form Overview</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 16 }}>
+                {[['Pages', previewTemplate.pages], ['Est. Completion', previewTemplate.estimatedTime], ['Category', previewTemplate.category], ['Required for Intake', previewTemplate.required ? 'Yes' : 'No']].map(([k, v]) => (
+                  <tr key={k} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '7px 10px', fontWeight: 700, color: 'var(--text-secondary)', width: '40%' }}>{k}</td>
+                    <td style={{ padding: '7px 10px' }}>{String(v)}</td>
+                  </tr>
+                ))}
+              </table>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Sample Questions</div>
+              <ul style={{ fontSize: 12, color: 'var(--text-secondary)', paddingLeft: 18, lineHeight: 1.8, margin: 0 }}>
+                {previewTemplate.category === 'Intake' && ['Full legal name and preferred name', 'Date of birth and gender identity', 'Emergency contact information', 'Reason for seeking services today', 'Previous mental health treatment history'].map(q => <li key={q}>{q}</li>)}
+                {previewTemplate.category === 'Consent' && ['I have read and understood the above document', 'I voluntarily consent to the described services', 'I understand I may withdraw consent at any time', 'I have had the opportunity to ask questions'].map(q => <li key={q}>{q}</li>)}
+                {previewTemplate.category === 'History' && ['Previous diagnoses and treatment', 'Current medications and supplements', 'Family psychiatric history', 'Substance use history', 'Trauma / adverse childhood experiences (ACEs)'].map(q => <li key={q}>{q}</li>)}
+                {previewTemplate.category === 'Insurance' && ['Primary insurance carrier', 'Member ID and group number', 'Policy holder name and relationship', 'Secondary insurance (if applicable)'].map(q => <li key={q}>{q}</li>)}
+                {previewTemplate.category === 'Legal' && ['Authorized recipients of information', 'Scope and purpose of disclosure', 'Expiration date of authorization', 'Right to revoke authorization in writing'].map(q => <li key={q}>{q}</li>)}
+                {previewTemplate.category === 'Clinical' && ['Safety contacts and crisis resources', 'Warning signs to watch for', 'Coping strategies and self-care steps', 'Steps to take if crisis escalates'].map(q => <li key={q}>{q}</li>)}
+              </ul>
+            </div>
+            <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn btn-secondary" onClick={() => setPreviewTemplate(null)}>Close</button>
+              <button className="btn btn-primary" onClick={() => { setShowNewPacket(true); setPreviewTemplate(null); }}>📤 Use in Packet</button>
             </div>
           </div>
         </div>

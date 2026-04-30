@@ -53,6 +53,16 @@ export default function CareEverywhere() {
   const [queryStatus, setQueryStatus] = useState(null); // null | 'querying' | 'complete'
   const [showOrgDetail, setShowOrgDetail] = useState(null);
   const [consentStatus, setConsentStatus] = useState({ p1: true, p2: true, p3: true, p4: false, p5: false });
+  const [orgs, setOrgs] = useState(CONNECTED_ORGS);
+  const [externalRecords, setExternalRecords] = useState(PATIENT_EXTERNAL_RECORDS);
+
+  const approveOrg = (id) => {
+    setOrgs(prev => prev.map(o =>
+      o.id === id
+        ? { ...o, status: 'connected', lastSync: new Date().toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) }
+        : o
+    ));
+  };
 
   const patients = [
     { id: 'p1', name: 'James Anderson' }, { id: 'p2', name: 'Maria Garcia' },
@@ -60,13 +70,13 @@ export default function CareEverywhere() {
     { id: 'p5', name: 'Dorothy Wilson' },
   ];
 
-  const records = PATIENT_EXTERNAL_RECORDS[selectedPatient] || [];
+  const records = externalRecords[selectedPatient] || [];
   const filteredRecords = records.filter(r => {
     if (categoryFilter !== 'All' && r.category !== categoryFilter) return false;
     return true;
   });
 
-  const filteredOrgs = CONNECTED_ORGS.filter(o => {
+  const filteredOrgs = orgs.filter(o => {
     if (networkFilter !== 'All' && o.network !== networkFilter) return false;
     return true;
   });
@@ -79,8 +89,14 @@ export default function CareEverywhere() {
   };
 
   const markReviewed = (recordId) => {
-    // In real app this would update backend
-    alert(`Record ${recordId} marked as reviewed by ${currentUser.firstName} ${currentUser.lastName}`);
+    const today = new Date().toISOString().slice(0, 10);
+    const reviewer = `${currentUser.firstName} ${currentUser.lastName}`;
+    setExternalRecords(prev => ({
+      ...prev,
+      [selectedPatient]: (prev[selectedPatient] || []).map(r =>
+        r.id === recordId ? { ...r, status: 'reviewed', reviewedBy: reviewer, reviewedDate: today } : r
+      ),
+    }));
   };
 
   const statusBadge = (status) => {
@@ -116,7 +132,7 @@ export default function CareEverywhere() {
           { label: 'Connected Orgs', value: CONNECTED_ORGS.filter(o => o.status === 'connected').length, icon: '🏥', color: '#10b981' },
           { label: 'Networks Active', value: 5, icon: '🌐', color: '#3b82f6' },
           { label: 'Records Available', value: CONNECTED_ORGS.reduce((a, o) => a + o.recordsAvailable, 0).toLocaleString(), icon: '📄', color: '#8b5cf6' },
-          { label: 'Unreviewed', value: Object.values(PATIENT_EXTERNAL_RECORDS).flat().filter(r => r.status === 'new').length, icon: '🆕', color: '#f59e0b' },
+          { label: 'Unreviewed', value: Object.values(externalRecords).flat().filter(r => r.status === 'new').length, icon: '🆕', color: '#f59e0b' },
           { label: 'Queries Today', value: QUERY_LOG.filter(q => q.queried.startsWith('2026-04-15')).length, icon: '🔍', color: '#06b6d4' },
         ].map((s, i) => (
           <div key={i} className="card" style={{ padding: 14, textAlign: 'center' }}>
@@ -266,7 +282,7 @@ export default function CareEverywhere() {
                     <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: 11, color: '#64748b' }}>{org.lastSync || '—'}</td>
                     <td style={{ padding: '10px 14px', textAlign: 'center' }}>
                       {org.status === 'connected' && <button className="btn btn-sm btn-secondary">🔄 Sync</button>}
-                      {org.status === 'pending' && <button className="btn btn-sm btn-primary">✅ Approve</button>}
+                      {org.status === 'pending' && <button className="btn btn-sm btn-primary" onClick={() => approveOrg(org.id)}>✅ Approve</button>}
                       {org.status === 'disconnected' && <button className="btn btn-sm btn-primary">🔗 Reconnect</button>}
                     </td>
                   </tr>

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 
@@ -34,12 +35,12 @@ const RISK_STRAT = [
 ];
 
 const INTERVENTION_OPPS = [
-  { patient: 'James Anderson', issue: 'PHQ-9 score 18 — no medication adjustment in 6 weeks', action: 'Review medication regimen', urgency: 'High', icon: '🔴' },
-  { patient: 'Maria Garcia', issue: 'Missed 2 consecutive appointments — GAD-7 rising', action: 'Outreach call + reschedule', urgency: 'High', icon: '🔴' },
-  { patient: 'David Thompson', issue: 'Lithium level overdue by 3 weeks', action: 'Order lab stat', urgency: 'Critical', icon: '🚨' },
-  { patient: 'Emily Chen', issue: 'No follow-up after ER visit 5 days ago', action: 'Schedule urgent follow-up', urgency: 'Critical', icon: '🚨' },
-  { patient: 'Robert Wilson', issue: 'Metabolic panel overdue — on olanzapine', action: 'Order fasting labs', urgency: 'Medium', icon: '🟡' },
-  { patient: 'Aisha Patel', issue: 'AUDIT-C score 8 — no SUD referral initiated', action: 'Initiate SUD assessment', urgency: 'High', icon: '🔴' },
+  { patient: 'James Anderson', patientId: 'p1', issue: 'PHQ-9 score 18 — no medication adjustment in 6 weeks', action: 'Review medication regimen', route: '/chart/p1/medications', urgency: 'High', icon: '🔴' },
+  { patient: 'Maria Garcia', patientId: 'p2', issue: 'Missed 2 consecutive appointments — GAD-7 rising', action: 'Outreach call + reschedule', route: '/schedule', urgency: 'High', icon: '🔴' },
+  { patient: 'David Thompson', patientId: null, issue: 'Lithium level overdue by 3 weeks', action: 'Order lab stat', route: '/labs', urgency: 'Critical', icon: '🚨' },
+  { patient: 'Emily Chen', patientId: null, issue: 'No follow-up after ER visit 5 days ago', action: 'Schedule urgent follow-up', route: '/schedule', urgency: 'Critical', icon: '🚨' },
+  { patient: 'Robert Wilson', patientId: null, issue: 'Metabolic panel overdue — on olanzapine', action: 'Order fasting labs', route: '/labs', urgency: 'Medium', icon: '🟡' },
+  { patient: 'Aisha Patel', patientId: null, issue: 'AUDIT-C score 8 — no SUD referral initiated', action: 'Initiate SUD assessment', route: '/care-gaps', urgency: 'High', icon: '🔴' },
 ];
 
 export default function PopulationHealth() {
@@ -47,6 +48,8 @@ export default function PopulationHealth() {
   const { patients } = usePatient();
   const [selectedCondition, setSelectedCondition] = useState(null);
   const [timeRange, setTimeRange] = useState('30d');
+  const [dismissedInterventions, setDismissedInterventions] = useState(new Set());
+  const navigate = useNavigate();
 
   const totalPatients = CHRONIC_CONDITIONS.reduce((s, c) => s + c.count, 0);
   const totalManaged = CHRONIC_CONDITIONS.reduce((s, c) => s + c.managed, 0);
@@ -191,7 +194,7 @@ export default function PopulationHealth() {
           🚨 Intervention Opportunities
         </h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {INTERVENTION_OPPS.map((i, idx) => (
+          {INTERVENTION_OPPS.filter(i => !dismissedInterventions.has(i.patient)).map((i, idx) => (
             <div key={idx} style={{
               display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderRadius: 10,
               background: i.urgency === 'Critical' ? '#fef2f2' : i.urgency === 'High' ? '#fffbeb' : '#f7f9fc',
@@ -202,14 +205,30 @@ export default function PopulationHealth() {
                 <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{i.patient}</div>
                 <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{i.issue}</div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: i.urgency === 'Critical' ? '#dc2626' : i.urgency === 'High' ? '#d97706' : '#0891b2', textTransform: 'uppercase' }}>{i.urgency}</div>
-                <button style={{ marginTop: 4, padding: '4px 12px', borderRadius: 6, background: '#4f46e5', color: '#fff', border: 'none', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
-                  {i.action}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: i.urgency === 'Critical' ? '#dc2626' : i.urgency === 'High' ? '#d97706' : '#0891b2', textTransform: 'uppercase', marginBottom: 4 }}>{i.urgency}</div>
+                  <button
+                    onClick={() => navigate(i.route)}
+                    style={{ padding: '4px 12px', borderRadius: 6, background: '#4f46e5', color: '#fff', border: 'none', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
+                    {i.action}
+                  </button>
+                </div>
+                <button
+                  onClick={() => setDismissedInterventions(prev => new Set([...prev, i.patient]))}
+                  title="Dismiss"
+                  style={{ padding: '4px 7px', borderRadius: 6, background: 'rgba(0,0,0,0.05)', border: 'none', cursor: 'pointer', fontSize: 13, color: '#94a3b8', lineHeight: 1 }}>
+                  ✕
                 </button>
               </div>
             </div>
           ))}
+          {INTERVENTION_OPPS.every(i => dismissedInterventions.has(i.patient)) && (
+            <div style={{ textAlign: 'center', padding: '24px 0', color: '#64748b', fontSize: 13 }}>
+              ✅ All interventions addressed or dismissed
+              <button onClick={() => setDismissedInterventions(new Set())} style={{ marginLeft: 10, fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Reset</button>
+            </div>
+          )}
         </div>
       </div>
     </div>

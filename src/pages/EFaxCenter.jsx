@@ -199,8 +199,10 @@ export default function EFaxCenter() {
               <div style={{ display: 'flex', gap: 8 }}>
                 {selectedFax.status === 'Failed' && <button className="btn btn-primary btn-sm" onClick={() => retryFax(selectedFax.id)}>🔄 Retry</button>}
                 {selectedFax.status === 'Queued' && <button className="btn btn-primary btn-sm" onClick={() => { setFaxes(prev => prev.map(f => f.id === selectedFax.id ? { ...f, status: 'Sending', sentDate: new Date().toLocaleString() } : f)); }}>📤 Send Now</button>}
-                <button className="btn btn-secondary btn-sm" onClick={() => alert('🖨️ Printing fax cover page...')}>🖨️ Print</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => alert('📋 Attached to patient chart')}>📋 Attach to Chart</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => window.print()}>🖨️ Print</button>
+                <button className="btn btn-secondary btn-sm" style={selectedFax.attachedToChart ? { background: '#dcfce7', color: '#166534', borderColor: '#86efac' } : {}} onClick={() => { if (!selectedFax.attachedToChart) { setFaxes(prev => prev.map(f => f.id === selectedFax.id ? { ...f, attachedToChart: true } : f)); setSelectedFax(prev => ({ ...prev, attachedToChart: true })); } }}>
+                  {selectedFax.attachedToChart ? '✅ Attached to Chart' : '📋 Attach to Chart'}
+                </button>
               </div>
             </div>
           </div>
