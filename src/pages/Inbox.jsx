@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -23,8 +24,9 @@ const TYPE_COLORS = {
 };
 
 export default function Inbox() {
-  const { inboxMessages, updateMessageStatus, addInboxMessage, patients } = usePatient();
+  const { inboxMessages, updateMessageStatus, addInboxMessage, patients, selectPatient } = usePatient();
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const [selectedId, setSelectedId] = useState(null);
   const [selectedPatientId, setSelectedPatientId] = useState(null);
   const [filterType, setFilterType] = useState('All');
@@ -405,8 +407,11 @@ export default function Inbox() {
                   {selectedMessage.type === 'Prior Auth' && (
                     <button className="btn btn-sm" style={{ background: 'var(--warning)', color: 'white' }}>📋 Open PA Form</button>
                   )}
-                  {selectedMessage.type === 'Lab Result' && (
-                    <button className="btn btn-sm btn-outline">📊 View Full Results</button>
+                  {selectedMessage.type === 'Lab Result' && selectedMessage.patient && (
+                    <button className="btn btn-sm btn-outline" onClick={() => {
+                      selectPatient(selectedMessage.patient);
+                      navigate(`/chart/${selectedMessage.patient}/labs`);
+                    }}>📊 View Full Results</button>
                   )}
                 </div>
 

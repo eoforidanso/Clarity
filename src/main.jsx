@@ -12,6 +12,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 // PWA Service Worker registration
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('/Clarity/sw.js').catch(() => {});
   });
 }
