@@ -44,6 +44,50 @@ function MedDetail({ med, patientId, onClose }) {
   const [toast, setToast] = useState(null);
   const [detailTab, setDetailTab] = useState('details');
 
+  // ── Send to Pharmacy ─────────────────────────────────────────────────
+  const [pharmForm, setPharmForm] = useState({
+    pharmacy: med.pharmacy || '',
+    qty: 30,
+    daysSupply: 30,
+    refills: med.refillsLeft || 0,
+    notes: '',
+    urgent: false,
+  });
+  const [pharmSent, setPharmSent] = useState(false);
+
+  const handleSendToPharmacy = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const time = new Date().toTimeString().slice(0, 5);
+    updateMedication(patientId, med.id, {
+      pharmacy: pharmForm.pharmacy,
+      lastFilled: today,
+      refillsLeft: pharmForm.refills,
+      rxHistory: [{
+        date: today,
+        prescribedBy: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim() || 'Provider',
+        pharmacy: pharmForm.pharmacy,
+        qty: pharmForm.qty,
+        refillNumber: (med.rxHistory || []).length + 1,
+        type: 'Sent to Pharmacy',
+        note: pharmForm.notes || '',
+      }, ...(med.rxHistory || [])],
+    });
+    addInboxMessage({
+      type: 'Rx Refill Request',
+      from: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim() || 'Provider',
+      to: currentUser?.id || 'u1',
+      patient: patientId,
+      subject: `Rx Sent to Pharmacy: ${med.name} ${med.dose}`,
+      body: `Prescription sent to ${pharmForm.pharmacy}.\nMedication: ${med.name} ${med.dose}\nSIG: ${med.sig || ''}\nQty: #${pharmForm.qty} · ${pharmForm.daysSupply}-day supply\nRefills: ${pharmForm.refills}${pharmForm.urgent ? '\n⚡ URGENT' : ''}${pharmForm.notes ? `\nNote: ${pharmForm.notes}` : ''}`,
+      date: today,
+      time,
+      priority: pharmForm.urgent ? 'High' : 'Normal',
+    });
+    setPharmSent(true);
+    setTimeout(() => { setPharmSent(false); setDetailTab('details'); }, 2500);
+    flash(`✅ Prescription sent to ${pharmForm.pharmacy}.`);
+  };
+
   const flash = (msg, type = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
@@ -165,7 +209,7 @@ function MedDetail({ med, patientId, onClose }) {
 
         {/* Tab bar */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0, marginTop: 8 }}>
-          {[['details', '📋 Details'], ['insurance', '🛡️ Insurance'], ['history', '📜 Rx History']].map(([key, label]) => (
+          {[['details', '📋 Details'], ['insurance', '🛡️ Insurance'], ['history', '📜 Rx History'], ['pharmacy', '� Submit']].map(([key, label]) => (
             <button key={key} onClick={() => setDetailTab(key)} style={{
               flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 700,
               background: 'none', border: 'none', cursor: 'pointer',
@@ -270,6 +314,84 @@ function MedDetail({ med, patientId, onClose }) {
             </div>
           )}
         </div>
+        )}
+
+        {/* Send to Pharmacy tab */}
+        {detailTab === 'pharmacy' && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+            {pharmSent ? (
+              <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                <div style={{ fontSize: 48, marginBottom: 8 }}>✅</div>
+                <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--success)' }}>Prescription Sent!</div>
+                <p className="text-muted" style={{ marginTop: 6, fontSize: 13 }}>Sent to {pharmForm.pharmacy}</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <strong>{med.name} {med.dose}</strong> · {med.frequency}
+                </div>
+
+                <div>
+                  <label className="form-label">Pharmacy *</label>
+                  <input className="form-input" value={pharmForm.pharmacy}
+                    onChange={e => setPharmForm(f => ({ ...f, pharmacy: e.target.value }))}
+                    placeholder="e.g. CVS, Walgreens, mail-order..." />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label className="form-label">Qty to Dispense</label>
+                    <input className="form-input" type="number" min={1} max={365}
+                      value={pharmForm.qty} onChange={e => setPharmForm(f => ({ ...f, qty: Number(e.target.value) }))} />
+                  </div>
+                  <div>
+                    <label className="form-label">Days Supply</label>
+                    <input className="form-input" type="number" min={1} max={365}
+                      value={pharmForm.daysSupply} onChange={e => setPharmForm(f => ({ ...f, daysSupply: Number(e.target.value) }))} />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label">Refills Authorized</label>
+                  <input className="form-input" type="number" min={0} max={12}
+                    value={pharmForm.refills} onChange={e => setPharmForm(f => ({ ...f, refills: Number(e.target.value) }))} />
+                </div>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={pharmForm.urgent}
+                    onChange={e => setPharmForm(f => ({ ...f, urgent: e.target.checked }))} />
+                  <strong>⚡ Mark Urgent</strong>
+                  <span className="text-muted" style={{ fontSize: 11 }}>— Pharmacy will prioritize</span>
+                </label>
+
+                <div>
+                  <label className="form-label">Notes to Pharmacist</label>
+                  <textarea className="form-textarea" rows={2}
+                    placeholder="Special instructions, substitution allowed, etc."
+                    value={pharmForm.notes} onChange={e => setPharmForm(f => ({ ...f, notes: e.target.value }))} />
+                </div>
+
+                {med.isControlled && (
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fde68a', fontSize: 12, color: '#92400e' }}>
+                    ⚠️ <strong>Controlled Substance ({med.schedule})</strong> — ensure EPCS compliance before sending.
+                  </div>
+                )}
+
+                <button className="btn btn-primary"
+                  disabled={!pharmForm.pharmacy.trim() || currentUser?.role === 'therapist' || currentUser?.role === 'front_desk'}
+                  onClick={handleSendToPharmacy}
+                  style={{ width: '100%', marginTop: 4 }}>
+                  � Submit Prescription
+                </button>
+
+                {(currentUser?.role === 'therapist' || currentUser?.role === 'front_desk') && (
+                  <div style={{ fontSize: 12, color: 'var(--danger)', textAlign: 'center' }}>
+                    Only prescribers can send medications to pharmacies.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Actions */}
