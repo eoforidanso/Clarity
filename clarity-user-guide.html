@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Clarity EHR — User Guide</title>
+<style>
+  @page { size: letter; margin: 0.55in 0.55in 0.6in; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: #1e293b; font-size: 9.5px; line-height: 1.55; background: #fff; }
+
+  /* Page breaks */
+  .page { page-break-after: always; padding-bottom: 10px; }
+  .page:last-child { page-break-after: avoid; }
+
+  /* Cover */
+  .cover { background: linear-gradient(150deg, #0f172a 0%, #1e3a5f 50%, #1e40af 100%); color: #fff; min-height: 9in; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 60px 40px; border-radius: 6px; }
+  .cover-logo { font-size: 64px; margin-bottom: 20px; }
+  .cover h1 { font-size: 38px; font-weight: 900; letter-spacing: -1px; margin-bottom: 8px; }
+  .cover .subtitle { font-size: 16px; color: #93c5fd; margin-bottom: 32px; }
+  .cover .meta { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; padding: 18px 30px; display: inline-block; margin-bottom: 40px; }
+  .cover .meta div { font-size: 12px; margin: 4px 0; color: #cbd5e1; }
+  .cover .meta strong { color: #fff; }
+  .cover-pills { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .cover-pill { background: rgba(59,130,246,0.3); border: 1px solid rgba(59,130,246,0.5); color: #bfdbfe; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+
+  /* Page header strip */
+  .page-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding: 7px 14px; background: #f1f5f9; border-radius: 7px; border: 1px solid #e2e8f0; }
+  .page-hdr .title { font-weight: 800; font-size: 11.5px; color: #0f172a; }
+  .page-hdr .pg { font-size: 9px; color: #64748b; }
+
+  /* Section heading */
+  h2 { font-size: 14px; font-weight: 900; color: #0f172a; margin: 18px 0 8px; padding-bottom: 5px; border-bottom: 2px solid #3b82f6; display: flex; align-items: center; gap: 7px; }
+  h3 { font-size: 11.5px; font-weight: 800; color: #1e293b; margin: 12px 0 5px; }
+  h4 { font-size: 10px; font-weight: 700; color: #475569; margin: 8px 0 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  p { margin-bottom: 6px; font-size: 9.5px; }
+
+  /* Cards grid */
+  .card-grid { display: grid; gap: 10px; margin-bottom: 14px; }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: 1fr 1fr 1fr; }
+  .g4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 11px 13px; }
+  .card .icon { font-size: 18px; margin-bottom: 5px; }
+  .card .label { font-weight: 800; font-size: 10.5px; color: #0f172a; margin-bottom: 3px; }
+  .card p { font-size: 9px; color: #475569; margin: 0; line-height: 1.5; }
+  .card.blue { border-left: 3px solid #3b82f6; }
+  .card.green { border-left: 3px solid #16a34a; }
+  .card.purple { border-left: 3px solid #7c3aed; }
+  .card.orange { border-left: 3px solid #d97706; }
+  .card.cyan { border-left: 3px solid #0891b2; }
+  .card.red { border-left: 3px solid #dc2626; }
+
+  /* Steps */
+  .steps { display: flex; flex-direction: column; gap: 7px; margin-bottom: 12px; }
+  .step { display: flex; gap: 10px; align-items: flex-start; }
+  .step-num { min-width: 22px; height: 22px; background: #3b82f6; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; flex-shrink: 0; margin-top: 1px; }
+  .step-body .step-title { font-weight: 700; font-size: 10px; color: #0f172a; margin-bottom: 2px; }
+  .step-body p { font-size: 9px; color: #475569; margin: 0; }
+
+  /* Tips / notes */
+  .tip { background: #f0fdf4; border: 1px solid #86efac; border-radius: 7px; padding: 9px 12px; margin: 8px 0; font-size: 9px; color: #166534; }
+  .tip strong { color: #15803d; }
+  .warn { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 7px; padding: 9px 12px; margin: 8px 0; font-size: 9px; color: #92400e; }
+  .warn strong { color: #b45309; }
+  .info { background: #f0f9ff; border: 1px solid #7dd3fc; border-radius: 7px; padding: 9px 12px; margin: 8px 0; font-size: 9px; color: #0c4a6e; }
+
+  /* Table of Contents */
+  .toc { display: flex; flex-direction: column; gap: 5px; }
+  .toc-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; }
+  .toc-item:hover { background: #f8fafc; }
+  .toc-item .toc-label { font-weight: 700; font-size: 10.5px; color: #1e293b; display: flex; align-items: center; gap: 7px; }
+  .toc-item .toc-pg { font-size: 9px; color: #64748b; }
+  .toc-section { font-size: 9px; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.7px; margin: 10px 0 4px; }
+
+  /* Keyboard shortcut badges */
+  kbd { display: inline-block; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 5px; font-size: 9px; font-family: monospace; color: #334155; }
+
+  /* Role badge */
+  .role { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 8.5px; font-weight: 700; }
+  .role-all { background: #dbeafe; color: #1d4ed8; }
+  .role-prescriber { background: #ede9fe; color: #6d28d9; }
+  .role-therapist { background: #dcfce7; color: #15803d; }
+  .role-nurse { background: #fef9c3; color: #854d0e; }
+  .role-desk { background: #fee2e2; color: #b91c1c; }
+  .role-admin { background: #f1f5f9; color: #475569; }
+
+  /* Feature table */
+  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 9px; }
+  th { background: #f1f5f9; padding: 5px 8px; text-align: left; font-weight: 700; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.3px; color: #475569; border: 1px solid #e2e8f0; }
+  td { padding: 5px 8px; border: 1px solid #e2e8f0; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+
+  /* Footer */
+  .footer { text-align: center; font-size: 8px; color: #94a3b8; margin-top: 14px; padding-top: 8px; border-top: 1px solid #e2e8f0; }
+
+  /* Dark callout */
+  .dark-box { background: linear-gradient(135deg, #0f172a, #1e3a5f); color: #fff; border-radius: 10px; padding: 16px 20px; margin: 12px 0; }
+  .dark-box h3 { color: #fff; font-size: 12px; margin-bottom: 10px; }
+
+  /* Print button */
+  .print-btn { position: fixed; top: 16px; right: 16px; background: #2563eb; color: #fff; border: none; padding: 10px 22px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; z-index: 999; box-shadow: 0 4px 14px rgba(37,99,235,0.4); }
+  .print-btn:hover { background: #1d4ed8; }
+  @media print { .print-btn { display: none; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+  /* Shortcut table */
+  .shortcut-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+  .shortcut-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 9px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
+  .shortcut-item .action { font-size: 9px; color: #334155; }
+  .shortcut-item .keys { display: flex; gap: 3px; }
+</style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">🖨️ Save as PDF</button>
+
+<!-- ═══════════ COVER ═══════════ -->
+<div class="page">
+  <div class="cover">
+    <div class="cover-logo">🧠</div>
+    <h1>Clarity EHR</h1>
+    <div class="subtitle">Complete User Guide — All Roles</div>
+    <div class="meta">
+      <div><strong>Version:</strong> 2.0 &nbsp;|&nbsp; <strong>Date:</strong> April 2026</div>
+      <div><strong>Platform:</strong> Outpatient EHR + Practice Management</div>
+      <div><strong>Audience:</strong> Providers, Therapists, Nurses, Front Desk, Administrators</div>
+    </div>
+    <div class="cover-pills">
+      <span class="cover-pill">🏥 Clinical</span>
+      <span class="cover-pill">💊 Prescribing</span>
+      <span class="cover-pill">📅 Scheduling</span>
+      <span class="cover-pill">📹 Telehealth</span>
+      <span class="cover-pill">💰 Billing & RCM</span>
+      <span class="cover-pill">🤖 AI Features</span>
+      <span class="cover-pill">🔄 Interoperability</span>
+      <span class="cover-pill">📊 Analytics</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PAGE 2 — TABLE OF CONTENTS ═══════════ -->
+<div class="page">
+  <h2>📋 Table of Contents</h2>
+
+  <div class="toc-section">Getting Started</div>
+  <div class="toc">
+    <div class="toc-item"><span class="toc-label">🔐 Logging In & Role-Based Access</span><span class="toc-pg">Page 3</span></div>
+    <div class="toc-item"><span class="toc-label">📊 Dashboard Overview</span><span class="toc-pg">Page 3</span></div>
+    <div class="toc-item"><span class="toc-label">🧭 Navigation & Sidebar</span><span class="toc-pg">Page 3</span></div>
+    <div class="toc-item"><span class="toc-label">⌨️ Keyboard Shortcuts & Command Palette</span><span class="toc-pg">Page 3</span></div>
+  </div>
+
+  <div class="toc-section">Patient Management</div>
+  <div class="toc">
+    <div class="toc-item"><span class="toc-label">🔍 Searching & Selecting Patients</span><span class="toc-pg">Page 4</span></div>
+    <div class="toc-item"><span class="toc-label">📋 Patient Chart — All Tabs</span><span class="toc-pg">Page 4</span></div>
+    <div class="toc-item"><span class="toc-label">📅 Scheduling Appointments</span><span class="toc-pg">Page 5</span></div>
+    <div class="toc-item"><span class="toc-label">🗒️ Writing Encounter Notes</span><span class="toc-pg">Page 5</span></div>
+  </div>
+
+  <div class="toc-section">Clinical Tools</div>
+  <div class="toc">
+    <div class="toc-item"><span class="toc-label">💊 E-Prescribing & EPCS</span><span class="toc-pg">Page 6</span></div>
+    <div class="toc-item"><span class="toc-label">📹 Telehealth — 1:1 & Group</span><span class="toc-pg">Page 6</span></div>
+    <div class="toc-item"><span class="toc-label">🔬 Lab Orders & Results</span><span class="toc-pg">Page 7</span></div>
+    <div class="toc-item"><span class="toc-label">📋 Treatment Plans & Assessments</span><span class="toc-pg">Page 7</span></div>
+    <div class="toc-item"><span class="toc-label">🤖 AI Features (Triage, Scribe, Assistant)</span><span class="toc-pg">Page 7</span></div>
+  </div>
+
+  <div class="toc-section">Billing & Revenue Cycle</div>
+  <div class="toc">
+    <div class="toc-item"><span class="toc-label">💰 Billing Dashboard & Claims</span><span class="toc-pg">Page 8</span></div>
+    <div class="toc-item"><span class="toc-label">✅ Eligibility Verification</span><span class="toc-pg">Page 8</span></div>
+    <div class="toc-item"><span class="toc-label">📄 Patient Statements & Payment Plans</span><span class="toc-pg">Page 8</span></div>
+  </div>
+
+  <div class="toc-section">Administration & Settings</div>
+  <div class="toc">
+    <div class="toc-item"><span class="toc-label">🌐 Interoperability — Care Everywhere (HIE)</span><span class="toc-pg">Page 9</span></div>
+    <div class="toc-item"><span class="toc-label">📢 Practice Marketing & Reputation</span><span class="toc-pg">Page 9</span></div>
+    <div class="toc-item"><span class="toc-label">📊 Analytics & Reporting</span><span class="toc-pg">Page 9</span></div>
+    <div class="toc-item"><span class="toc-label">⚙️ Settings & Preferences</span><span class="toc-pg">Page 10</span></div>
+    <div class="toc-item"><span class="toc-label">🔒 Security, Audit Log & BTG</span><span class="toc-pg">Page 10</span></div>
+  </div>
+
+  <div class="toc-section">Quick Reference</div>
+  <div class="toc">
+    <div class="toc-item"><span class="toc-label">⌨️ Full Keyboard Shortcut Reference</span><span class="toc-pg">Page 10</span></div>
+    <div class="toc-item"><span class="toc-label">👥 Role Permissions Summary</span><span class="toc-pg">Page 10</span></div>
+  </div>
+
+  <div class="info" style="margin-top:16px;">
+    <strong>Role Legend used throughout this guide:</strong>
+    &nbsp;<span class="role role-all">All Roles</span>
+    &nbsp;<span class="role role-prescriber">Prescriber / NP / PA</span>
+    &nbsp;<span class="role role-therapist">Therapist / Counselor</span>
+    &nbsp;<span class="role role-nurse">Nurse / MA</span>
+    &nbsp;<span class="role role-desk">Front Desk</span>
+    &nbsp;<span class="role role-admin">Admin</span>
+  </div>
+
+  <div class="footer">Clarity EHR User Guide · Version 2.0 · April 2026 · Confidential</div>
+</div>
+
+<!-- ═══════════ PAGE 3 — GETTING STARTED ═══════════ -->
+<div class="page">
+  <div class="page-hdr"><span class="title">Getting Started</span><span class="pg">Page 3</span></div>
+
+  <h2>🔐 Logging In &amp; Role-Based Access <span class="role role-all">All Roles</span></h2>
+  <div class="card-grid g2">
+    <div>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Navigate to Clarity</div><p>Open your browser and go to your practice's Clarity URL (e.g., <em>app.clarity.health/Clarity</em>).</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Enter Credentials</div><p>Type your <strong>username</strong> (email or NPI) and <strong>password</strong>. Click <strong>Sign In</strong>.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Two-Factor Auth (if enabled)</div><p>Enter the 6-digit OTP sent to your registered device. Codes expire in 30 seconds.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Redirected to Dashboard</div><p>You land on the Dashboard filtered to your role. Patient portal users are redirected to the Patient Portal.</p></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="card blue" style="margin-bottom:8px;">
+        <div class="label">👥 Available Roles</div>
+        <table style="margin:6px 0 0;">
+          <tr><td><strong>Prescriber</strong> (MD/DO/NP/PA)</td><td>Full clinical + prescribing access</td></tr>
+          <tr><td><strong>Therapist / Counselor</strong></td><td>Clinical notes, no prescribing</td></tr>
+          <tr><td><strong>Nurse / MA</strong></td><td>Vitals, labs, refill routing</td></tr>
+          <tr><td><strong>Front Desk</strong></td><td>Scheduling, check-in, billing</td></tr>
+          <tr><td><strong>Administrator</strong></td><td>All sections + audit access</td></tr>
+        </table>
+      </div>
+      <div class="warn"><strong>Session Timeout:</strong> Clarity auto-logs out after 15 minutes of inactivity to protect PHI. Save your work frequently.</div>
+    </div>
+  </div>
+
+  <h2>📊 Dashboard Overview <span class="role role-all">All Roles</span></h2>
+  <p>The Dashboard is your daily home screen. It shows real-time data relevant to your role.</p>
+  <div class="card-grid g4">
+    <div class="card blue"><div class="icon">📅</div><div class="label">Today's Appointments</div><p>Count of scheduled visits. Click any row to open the patient chart or start a session.</p></div>
+    <div class="card green"><div class="icon">✅</div><div class="label">Checked In</div><p>Patients who have checked in and are ready to be seen.</p></div>
+    <div class="card purple"><div class="icon">📬</div><div class="label">Unread Inbox Messages</div><p>Messages requiring your attention — lab results, refill requests, patient messages.</p></div>
+    <div class="card orange"><div class="icon">⚡</div><div class="label">Quick Actions</div><p>One-click buttons to start a visit, send a message, or check in a patient.</p></div>
+  </div>
+
+  <h2>🧭 Sidebar Navigation <span class="role role-all">All Roles</span></h2>
+  <p>The collapsible sidebar organises all features into sections. Click a section header to expand or collapse it. Use <strong>Expand All / Collapse All</strong> at the top.</p>
+  <div class="card-grid g3">
+    <div class="card blue"><div class="label">📌 Navigation</div><p>Dashboard · Schedule · Inbox · Patient Search · Staff Messaging</p></div>
+    <div class="card purple"><div class="label">🗒️ Chart</div><p>Appears when a patient is selected. Links to every chart tab for that patient.</p></div>
+    <div class="card green"><div class="label">🩺 Clinical Tools</div><p>Telehealth · E-Prescribe · Referrals · CDS Alerts · AI Triage · Ambient Scribe · More</p></div>
+    <div class="card cyan"><div class="label">📈 Reporting</div><p>Analytics · Care Gaps · Quality Measures · Provider Performance · Report Builder</p></div>
+    <div class="card orange"><div class="label">💰 Billing</div><p>Billing Dashboard · Claims · Eligibility · Patient Statements · Batch Claims</p></div>
+    <div class="card red"><div class="label">🗂️ Administration</div><p>Admin Toolkit · Intake Forms · eFax · Audit Trail · Settings · App Marketplace</p></div>
+  </div>
+
+  <h2>⌨️ Keyboard Shortcuts &amp; Command Palette <span class="role role-all">All Roles</span></h2>
+  <div class="card-grid g2">
+    <div>
+      <h4>Command Palette</h4>
+      <p>Press <kbd>Ctrl</kbd>+<kbd>K</kbd> to open the Command Palette from anywhere in the app. Type any feature name, patient name, or action to navigate instantly.</p>
+      <div class="tip"><strong>Tip:</strong> The Command Palette is the fastest way to navigate — faster than clicking the sidebar.</div>
+    </div>
+    <div>
+      <h4>Key Shortcuts</h4>
+      <div class="shortcut-grid">
+        <div class="shortcut-item"><span class="action">Command Palette</span><div class="keys"><kbd>Ctrl</kbd><kbd>K</kbd></div></div>
+        <div class="shortcut-item"><span class="action">New Appointment</span><div class="keys"><kbd>Ctrl</kbd><kbd>N</kbd></div></div>
+        <div class="shortcut-item"><span class="action">Patient Search</span><div class="keys"><kbd>Ctrl</kbd><kbd>F</kbd></div></div>
+        <div class="shortcut-item"><span class="action">Voice Assistant</span><div class="keys"><kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>V</kbd></div></div>
+        <div class="shortcut-item"><span class="action">Inbox</span><div class="keys"><kbd>Ctrl</kbd><kbd>I</kbd></div></div>
+        <div class="shortcut-item"><span class="action">Dashboard</span><div class="keys"><kbd>Ctrl</kbd><kbd>D</kbd></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Clarity EHR User Guide · Version 2.0 · April 2026 · Confidential</div>
+</div>
+
+<!-- ═══════════ PAGE 4 — PATIENT MANAGEMENT ═══════════ -->
+<div class="page">
+  <div class="page-hdr"><span class="title">Patient Management</span><span class="pg">Page 4</span></div>
+
+  <h2>🔍 Searching &amp; Selecting Patients <span class="role role-all">All Roles</span></h2>
+  <div class="card-grid g2">
+    <div>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Go to Patient Search</div><p>Click <strong>Patient Search</strong> in the sidebar or press <kbd>Ctrl</kbd>+<kbd>F</kbd>.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Type Name or MRN</div><p>Search by first name, last name, date of birth, or MRN. Results filter in real-time.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Select Patient</div><p>Click a result to open the patient. Their name appears in <strong>Open Charts</strong> at the top of the sidebar.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Multi-Chart Mode</div><p>Up to <strong>4 charts</strong> can be open simultaneously. Click any name in the sidebar to switch.</p></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="card green">
+        <div class="label">🕐 Recent Patients</div>
+        <p>The sidebar shows your recently viewed patients for quick one-click access without searching again.</p>
+      </div>
+      <div class="card blue" style="margin-top:8px;">
+        <div class="label">📌 Patient Banner</div>
+        <p>Once a patient is active, a persistent banner shows name, DOB, MRN, insurance, and allergies on every page — so context never gets lost.</p>
+      </div>
+    </div>
+  </div>
+
+  <h2>📋 Patient Chart <span class="role role-all">All Roles</span></h2>
+  <p>The chart is split into tabs — navigate using the sidebar <strong>Chart</strong> section when a patient is selected.</p>
+  <table>
+    <thead><tr><th>Tab</th><th>Who Uses It</th><th>What You Can Do</th></tr></thead>
+    <tbody>
+      <tr><td>📋 <strong>Chart Summary</strong></td><td><span class="role role-all">All</span></td><td>At-a-glance view of active problems, current meds, allergies, last vitals, open encounters</td></tr>
+      <tr><td>🗒️ <strong>Encounters</strong></td><td><span class="role role-prescriber">Prescriber</span> <span class="role role-therapist">Therapist</span> <span class="role role-nurse">Nurse</span></td><td>Write SOAP notes, add diagnoses (ICD-10), create orders, sign &amp; lock notes, use smart phrases</td></tr>
+      <tr><td>👤 <strong>Demographics</strong></td><td><span class="role role-all">All</span></td><td>View/edit address, insurance, emergency contacts, language preference</td></tr>
+      <tr><td>⚠️ <strong>Allergies</strong></td><td><span class="role role-all">All</span></td><td>Add/edit drug &amp; environmental allergies with reaction type and severity</td></tr>
+      <tr><td>🩺 <strong>Problem List</strong></td><td><span class="role role-prescriber">Prescriber</span> <span class="role role-therapist">Therapist</span></td><td>Add active/inactive diagnoses. Search ICD-10 codes inline</td></tr>
+      <tr><td>💓 <strong>Vitals</strong></td><td><span class="role role-nurse">Nurse</span> <span class="role role-prescriber">Prescriber</span></td><td>Record BP, HR, temp, weight, SpO2, pain. View trends over time</td></tr>
+      <tr><td>💊 <strong>Medications</strong></td><td><span class="role role-prescriber">Prescriber</span> <span class="role role-nurse">Nurse</span></td><td>View active meds, reconcile, add/edit, see refill history</td></tr>
+      <tr><td>📝 <strong>Orders</strong></td><td><span class="role role-prescriber">Prescriber</span></td><td>Create lab/imaging/referral orders. Print individual orders</td></tr>
+      <tr><td>📊 <strong>Assessments</strong></td><td><span class="role role-prescriber">Prescriber</span> <span class="role role-therapist">Therapist</span></td><td>Administer PHQ-9, GAD-7, PCL-5, AUDIT-C, and other scored assessments</td></tr>
+      <tr><td>💉 <strong>Immunizations</strong></td><td><span class="role role-nurse">Nurse</span> <span class="role role-prescriber">Prescriber</span></td><td>Record vaccinations, view history, sync with state immunization registry</td></tr>
+      <tr><td>🔬 <strong>Lab Results</strong></td><td><span class="role role-all">All</span></td><td>View inbound results, flag abnormals, add provider comments</td></tr>
+    </tbody>
+  </table>
+
+  <div class="tip"><strong>Smart Phrases:</strong> While typing in any text field, type a dot (<strong>.</strong>) followed by a phrase shortcode (e.g., <strong>.followup</strong>) and press Tab to expand a full template. Manage your phrases under <em>Clinical Tools → Smart Phrases</em>.</div>
+
+  <h2>📅 Scheduling Appointments <span class="role role-desk">Front Desk</span> <span class="role role-all">All Roles</span></h2>
+  <div class="card-grid g2">
+    <div>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Open Schedule</div><p>Click <strong>Schedule</strong> in the sidebar. Choose Day, Week, or Month view.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Click a Time Slot</div><p>Click any open slot on the calendar grid to start a new appointment.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Fill Appointment Details</div><p>Select the patient, visit type (In-Person / Telehealth), provider, duration, and reason for visit.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Save & Send Reminder</div><p>Click <strong>Save</strong>. An automated reminder can be sent via SMS or email based on your reminder settings.</p></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="card purple">
+        <div class="label">📋 Appointment Statuses</div>
+        <table style="margin-top:5px;">
+          <tr><td>Scheduled</td><td>Appointment booked</td></tr>
+          <tr><td>Checked In</td><td>Patient arrived / joined waiting room</td></tr>
+          <tr><td>In Progress</td><td>Visit actively in session</td></tr>
+          <tr><td>Completed</td><td>Visit finished &amp; documented</td></tr>
+          <tr><td>No Show</td><td>Patient did not appear</td></tr>
+          <tr><td>Cancelled</td><td>Appointment cancelled</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Clarity EHR User Guide · Version 2.0 · April 2026 · Confidential</div>
+</div>
+
+<!-- ═══════════ PAGE 5 — ENCOUNTER NOTES ═══════════ -->
+<div class="page">
+  <div class="page-hdr"><span class="title">Clinical Documentation</span><span class="pg">Page 5</span></div>
+
+  <h2>🗒️ Writing Encounter Notes <span class="role role-prescriber">Prescriber</span> <span class="role role-therapist">Therapist</span> <span class="role role-nurse">Nurse</span></h2>
+  <div class="card-grid g2">
+    <div>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Open Encounters Tab</div><p>Select a patient → click <strong>Encounters</strong> in the chart sidebar. A session timer auto-starts.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Select Note Type</div><p>Choose from SOAP Note, Progress Note, Psychiatric Evaluation, Therapy Session Note, or custom templates.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Fill SOAP Sections</div><p><strong>S</strong>ubjective — chief complaint in patient's words.<br><strong>O</strong>bjective — vitals, exam findings.<br><strong>A</strong>ssessment — diagnoses (ICD-10 inline search).<br><strong>P</strong>lan — medications, orders, follow-up.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Add Diagnoses &amp; Orders</div><p>Search and attach ICD-10 codes. Create labs, referrals, or imaging orders directly from the encounter.</p></div></div>
+        <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">Sign &amp; Lock</div><p>Click <strong>Sign Note</strong> to finalise. Locked notes are read-only and timestamped. Use <strong>Addendum</strong> to add corrections.</p></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="card blue" style="margin-bottom:8px;">
+        <div class="label">⚡ Smart Phrases in Notes</div>
+        <p>Type <strong>.hpi</strong>, <strong>.ros</strong>, <strong>.pe</strong>, etc. and press <kbd>Tab</kbd> to expand pre-built templates. Create custom phrases in <em>Smart Phrases</em>.</p>
+      </div>
+      <div class="card green" style="margin-bottom:8px;">
+        <div class="label">🎙️ Ambient AI Scribe</div>
+        <p>Enable in Settings → AI Features. During an encounter, click the microphone to record the conversation. Clarity's AI auto-drafts the SOAP note for review.</p>
+      </div>
+      <div class="card purple">
+        <div class="label">💡 AI Code Suggestions</div>
+        <p>After completing the assessment section, Clarity can suggest ICD-10 and CPT codes based on your note text. Click a suggestion to accept it.</p>
+      </div>
+    </div>
+  </div>
+
+  <h2>🔒 Secure Notes (Sensitive Records) <span class="role role-prescriber">Prescriber</span> <span class="role role-therapist">Therapist</span></h2>
+  <p>Sensitive clinical notes (e.g., substance use, HIV, psychotherapy process notes) can be stored as <strong>Secure Notes</strong> — accessible only by the treating provider. Navigate to <em>Clinical Tools → Secure Notes</em>.</p>
+
+  <h2>📋 Treatment Plans <span class="role role-prescriber">Prescriber</span> <span class="role role-therapist">Therapist</span></h2>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Navigate to Treatment Plans</div><p>Go to <em>Clinical Tools → Treatment Plans</em>.</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Create a New Plan</div><p>Click <strong>+ New Plan</strong>. Select the patient, diagnosis, and target dates.</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Add Goals &amp; Objectives</div><p>Add measurable short-term and long-term goals. Use the progress slider to update goal completion over time.</p></div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Review &amp; Update</div><p>Treatment plans carry a mandatory review date. Clarity alerts you when reviews are due.</p></div></div>
+  </div>
+
+  <h2>📊 Clinical Assessments <span class="role role-prescriber">Prescriber</span> <span class="role role-therapist">Therapist</span></h2>
+  <div class="card-grid g4">
+    <div class="card blue"><div class="label">PHQ-9</div><p>Depression severity. Score 0–27. Alerts for suicidality (item 9 ≥ 1).</p></div>
+    <div class="card purple"><div class="label">GAD-7</div><p>Generalised anxiety. Score 0–21. Colour-coded severity levels.</p></div>
+    <div class="card green"><div class="label">PCL-5</div><p>PTSD Checklist. Score 0–80. DSM-5 aligned symptom clusters.</p></div>
+    <div class="card orange"><div class="label">AUDIT-C</div><p>Alcohol use screening. Quick 3-item version for annual wellness.</p></div>
+  </div>
+  <p>All scores are automatically saved to the patient chart and trend over time. Administer from <em>Chart → Assessments</em>.</p>
+
+  <div class="footer">Clarity EHR User Guide · Version 2.0 · April 2026 · Confidential</div>
+</div>
+
+<!-- ═══════════ PAGE 6 — E-PRESCRIBE & TELEHEALTH ═══════════ -->
+<div class="page">
+  <div class="page-hdr"><span class="title">E-Prescribing &amp; Telehealth</span><span class="pg">Page 6</span></div>
+
+  <h2>💊 E-Prescribing <span class="role role-prescriber">Prescriber</span></h2>
+  <div class="card-grid g2">
+    <div>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Open E-Prescribe</div><p>Go to <em>Clinical Tools → E-Prescribe</em> or open a patient chart and click <strong>New Prescription</strong>.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Search Medication</div><p>Type the drug name. Clarity searches the live RxNorm database. Select the brand or generic.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Set Dose, SIG &amp; Refills</div><p>Choose dosage form, strength, frequency (SIG), quantity, and number of refills. Add pharmacy instructions in the notes field.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Select Pharmacy</div><p>Search the pharmacy directory by name or zip code. Patient's preferred pharmacy auto-fills if set.</p></div></div>
+        <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">Send or EPCS Sign</div><p>For non-controlled drugs: click <strong>Send Prescription</strong>. For controlled substances: complete EPCS two-factor authentication (see below).</p></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="card red" style="margin-bottom:8px;">
+        <div class="label">🔐 EPCS — Controlled Substances</div>
+        <p>Electronic prescribing of controlled substances requires DEA two-factor authentication:</p>
+        <div class="steps" style="margin-top:7px;">
+          <div class="step"><div class="step-num" style="background:#dc2626;">1</div><div class="step-body"><div class="step-title">Enter EPCS PIN</div><p>Your 4-digit personal DEA PIN.</p></div></div>
+          <div class="step"><div class="step-num" style="background:#dc2626;">2</div><div class="step-body"><div class="step-title">Enter OTP</div><p>6-digit one-time code from your authenticator app. Expires in 30 sec.</p></div></div>
+          <div class="step"><div class="step-num" style="background:#dc2626;">3</div><div class="step-body"><div class="step-title">Confirm &amp; Send</div><p>Prescription is transmitted to pharmacy with full DEA audit trail.</p></div></div>
+        </div>
+      </div>
+      <div class="card orange">
+        <div class="label">🔄 Refill Requests (Therapist / Nurse)</div>
+        <p>Non-prescribers can route refill requests to the supervising prescriber via the <em>Refill Requests</em> queue. The prescriber reviews and approves within Clarity.</p>
+      </div>
+    </div>
+  </div>
+  <div class="warn"><strong>Controlled Substance Warning:</strong> Schedule II prescriptions cannot be refilled. A new prescription must be written for each fill. Clarity enforces this automatically and prevents refill fields for Schedule II drugs.</div>
+
+  <h2>📹 Telehealth — 1:1 Video Visit <span class="role role-all">All Clinical Roles</span></h2>
+  <div class="card-grid g2">
+    <div>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Start from Schedule</div><p>On the Dashboard or Schedule, find the appointment and click <strong>▶ Start Visit</strong>. This also checks in the patient.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Go-To Session Link</div><p>Alternatively, use <em>Clinical Tools → Telehealth</em> and enter the appointment ID for a direct launch.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">In-Session Tools</div><p>Use <strong>Chat</strong>, <strong>Screen Share</strong>, <strong>Record</strong>, and <strong>Mute</strong> controls from the session toolbar.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">End &amp; Document</div><p>Click <strong>End Session</strong>. You are redirected to the encounter note for the visit.</p></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="card cyan" style="margin-bottom:8px;">
+        <div class="label">👥 Group Telehealth</div>
+        <p>Navigate to <em>Clinical Tools → Group Telehealth</em>. Create a session, add participants (up to 20), and launch. Breakout rooms can be created during the session for individual check-ins.</p>
+      </div>
+      <div class="card green">
+        <div class="label">🔗 Patient Link</div>
+        <p>Patients receive a join link via SMS/email at appointment time. No app download required — works in any modern browser. The Patient Portal also has a <strong>Join Visit</strong> button.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Clarity EHR User Guide · Version 2.0 · April 2026 · Confidential</div>
+</div>
+
+<!-- ═══════════ PAGE 7 — LABS, AI, REFERRALS ═══════════ -->
+<div class="page">
+  <div class="page-hdr"><span class="title">Labs · AI Features · Referrals</span><span class="pg">Page 7</span></div>
+
+  <h2>🔬 Lab Orders &amp; Results <span class="role role-prescriber">Prescriber</span> <span class="role role-nurse">Nurse</span></h2>
+  <div class="card-grid g2">
+    <div>
+      <h4>Ordering Labs</h4>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Chart → Orders Tab</div><p>Select the patient and go to the Orders tab. Click <strong>+ New Order</strong>.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Choose Order Type</div><p>Select Lab, Imaging, or Referral. Search for the test by name or CPT code.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Set Priority &amp; Notes</div><p>Mark Routine, Urgent, or STAT. Add clinical indication and special instructions.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Print or Transmit</div><p>Click <strong>🖨️ Print</strong> to print the order form or transmit electronically to an integrated lab.</p></div></div>
+      </div>
+    </div>
+    <div>
+      <h4>Viewing Results</h4>
+      <p style="margin-bottom:6px;">Inbound results appear in the <strong>Clinical Inbox</strong> and in the patient's <em>Lab Results</em> tab. Abnormal values are flagged in red (High) or blue (Low).</p>
+      <div class="card blue">
+        <div class="label">📊 Lab Tracking Dashboard</div>
+        <p>Go to <em>Clinical Tools → Lab Tracking</em> for a cross-patient view of all pending, resulted, and critical labs. Filter by status, urgency, or provider.</p>
+      </div>
+    </div>
+  </div>
+
+  <h2>🔄 Referrals <span class="role role-prescriber">Prescriber</span> <span class="role role-nurse">Nurse</span></h2>
+  <p>Navigate to <em>Clinical Tools → Referrals</em>. Create outbound referrals with specialty, reason, urgency, and prior auth information. Track status (Pending → Scheduled → Completed). Print the referral letter directly.</p>
+
+  <h2>🤖 AI Features <span class="role role-prescriber">Prescriber</span> <span class="role role-therapist">Therapist</span></h2>
+  <div class="card-grid g2">
+    <div>
+      <div class="card blue" style="margin-bottom:8px;">
+        <div class="icon">🎙️</div>
+        <div class="label">Ambient AI Scribe</div>
+        <p>Records the provider-patient conversation and auto-drafts a SOAP note. Enable in <em>Settings → AI Features → Ambient SOAP Generation</em>. Start from any Encounters session.</p>
+      </div>
+      <div class="card purple">
+        <div class="icon">🤖</div>
+        <div class="label">AI Triage Chat</div>
+        <p>Patient-facing symptom checker. Patients describe symptoms and receive urgency guidance (Self-Care / Call Office / Go to ED). Located at <em>Clinical Tools → AI Triage Chat</em>.</p>
+      </div>
+    </div>
+    <div>
+      <div class="card green" style="margin-bottom:8px;">
+        <div class="icon">🧠</div>
+        <div class="label">AI Clinical Assistant (Floating Panel)</div>
+        <p>A persistent AI panel accessible from any screen. Ask clinical questions, check drug interactions, or request a differential diagnosis. Enable in <em>Settings → AI Features → AI Clinical Assistant</em>.</p>
+      </div>
+      <div class="card orange">
+        <div class="icon">⚠️</div>
+        <div class="label">CDS Alerts</div>
+        <p>Real-time clinical decision support alerts for drug-drug interactions, care gaps, and preventive care reminders. Located in <em>Clinical Tools → CDS Alerts</em>. Toggle in Settings.</p>
+      </div>
+    </div>
+  </div>
+  <div class="tip"><strong>Managing AI Features:</strong> All AI features can be individually enabled or disabled in <em>Settings → AI Features</em>. Use <strong>Enable All</strong> or <strong>Disable All</strong> for quick bulk changes.</div>
+
+  <h2>🗣️ Voice Assistant <span class="role role-prescriber">Prescriber</span> <span class="role role-therapist">Therapist</span></h2>
+  <p>Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> to activate voice commands. Say things like <em>"Open chart for James Anderson"</em>, <em>"Navigate to billing"</em>, or <em>"Start telehealth session"</em>. Enable in <em>Settings → AI Features → Voice Assistant</em>.</p>
+
+  <div class="footer">Clarity EHR User Guide · Version 2.0 · April 2026 · Confidential</div>
+</div>
+
+<!-- ═══════════ PAGE 8 — BILLING & RCM ═══════════ -->
+<div class="page">
+  <div class="page-hdr"><span class="title">Billing &amp; Revenue Cycle Management</span><span class="pg">Page 8</span></div>
+
+  <h2>💰 Billing Dashboard <span class="role role-desk">Front Desk</span> <span class="role role-admin">Admin</span></h2>
+  <p>The Billing Dashboard provides an overview of outstanding AR, recent payments, claim statuses, and revenue trends. Navigate to <em>Billing → Billing Dashboard</em>.</p>
+  <div class="card-grid g4">
+    <div class="card blue"><div class="label">📊 AR Summary</div><p>Total accounts receivable broken down by 0–30, 31–60, 61–90, and 90+ days.</p></div>
+    <div class="card green"><div class="label">✅ Clean Claim Rate</div><p>Percentage of claims submitted without errors. Target > 95%.</p></div>
+    <div class="card orange"><div class="label">🔄 Claims in Process</div><p>Pending, submitted, and denied claim counts with one-click drill-down.</p></div>
+    <div class="card red"><div class="label">⚠️ Denials</div><p>Open denials requiring action. Click to open Denial Management.</p></div>
+  </div>
+
+  <h2>📋 Claims Management <span class="role role-desk">Front Desk</span> <span class="role role-admin">Admin</span></h2>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Create Claim</div><p>Claims are auto-generated from completed encounters. Go to <em>Billing → Claims</em> to review.</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Verify &amp; Scrub</div><p>Clarity runs automated claim edits. Red flags indicate missing information (diagnosis, NPI, authorization number).</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Submit to Payer</div><p>Submit individually or use <em>Batch Claims</em> to submit multiple claims at once to a clearinghouse.</p></div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Track &amp; Post Payments</div><p>ERA/EOB remittances post automatically. Use <em>Charge Posting</em> for manual adjustments.</p></div></div>
+  </div>
+  <div class="tip"><strong>Batch Submission:</strong> Use <em>Billing → Batch Claims</em> to select multiple claims, choose a clearinghouse, and submit in one action. Use <strong>Submit &amp; Print</strong> to generate a batch report automatically.</div>
+
+  <h2>✅ Insurance Eligibility Verification <span class="role role-desk">Front Desk</span></h2>
+  <p>Navigate to <em>Billing → Eligibility</em>. Enter patient name and date of service. Clarity queries the payer's real-time eligibility API and returns copay, deductible, and coverage details. Run eligibility checks the day before an appointment for best results.</p>
+
+  <h2>🚫 Denial Management <span class="role role-admin">Admin</span></h2>
+  <p>Go to <em>Billing → Denial Management</em>. Each denial shows the payer reason code, claim details, and recommended action. You can resubmit directly from this screen with corrections, or file a formal appeal with supporting documentation.</p>
+
+  <h2>📄 Patient Statements &amp; Payment Plans <span class="role role-desk">Front Desk</span></h2>
+  <div class="card-grid g2">
+    <div>
+      <h4>Sending Statements</h4>
+      <p>Go to <em>Billing → Patient Statements</em>. Filter by balance due or overdue date. Select statements and click <strong>Send Statement</strong> (email or print). Patients can pay online through the Patient Portal.</p>
+    </div>
+    <div>
+      <h4>Payment Plans</h4>
+      <p>Click a statement → click <strong>📅 Setup Payment Plan</strong>. Select the number of monthly installments (2–12 months). The system calculates the monthly amount and schedules the plan. Patients are notified automatically.</p>
+    </div>
+  </div>
+
+  <h2>🪪 Insurance Card Capture <span class="role role-desk">Front Desk</span></h2>
+  <p>Navigate to <em>Administration → Insurance Cards</em>. Use <em>Upload from Camera</em> or <em>Select File</em> to capture insurance card images. Clarity uses OCR to extract and auto-fill member ID, group number, and payer name.</p>
+
+  <div class="footer">Clarity EHR User Guide · Version 2.0 · April 2026 · Confidential</div>
+</div>
+
+<!-- ═══════════ PAGE 9 — INTEROP, MARKETING, ANALYTICS ═══════════ -->
+<div class="page">
+  <div class="page-hdr"><span class="title">Interoperability · Marketing · Analytics</span><span class="pg">Page 9</span></div>
+
+  <h2>🌐 Care Everywhere — HIE Interoperability <span class="role role-prescriber">Prescriber</span> <span class="role role-admin">Admin</span></h2>
+  <p>Care Everywhere connects Clarity to external health information exchanges for real-time patient record access.</p>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Navigate to Care Everywhere</div><p>Go to <em>Clinical Tools → Care Everywhere (HIE)</em>.</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Query External Records</div><p>Enter patient name and DOB. Select a network (CommonWell, Carequality, TEFCA, or State HIE). Click <strong>Query</strong>.</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Review &amp; Import</div><p>Results display external records (medications, labs, encounters). Click <strong>Import to Chart</strong> to pull selected data into Clarity.</p></div></div>
+  </div>
+  <div class="warn"><strong>42 CFR Part 2:</strong> Substance use treatment records require explicit patient consent before querying or sharing through the HIE. Clarity enforces this automatically.</div>
+
+  <h2>📢 Practice Marketing &amp; Reputation <span class="role role-admin">Admin</span></h2>
+  <div class="card-grid g3">
+    <div class="card blue"><div class="label">⭐ Reputation Management</div><p>View and respond to Google, Healthgrades, and Zocdoc reviews. Use AI-generated reply suggestions. Track average star rating over time.</p></div>
+    <div class="card green"><div class="label">📱 Social Media Planner</div><p>Draft and schedule posts for Facebook, Instagram, LinkedIn, and Twitter/X. View calendar of planned content.</p></div>
+    <div class="card purple"><div class="label">🔍 SEO &amp; Directories</div><p>Monitor your practice's listing status across 12 major healthcare directories. Get alerts for outdated information.</p></div>
+  </div>
+  <p>Navigate to <em>Administration → Marketing &amp; Reputation</em>.</p>
+
+  <h2>📊 Analytics &amp; Reporting <span class="role role-admin">Admin</span> <span class="role role-prescriber">Prescriber</span></h2>
+  <div class="card-grid g2">
+    <div>
+      <div class="card blue" style="margin-bottom:8px;">
+        <div class="label">📈 Clinical Analytics</div>
+        <p>Patient demographics, appointment completion rates, no-show trends, medication counts, lab result volumes. Navigate to <em>Reporting → Analytics</em>.</p>
+      </div>
+      <div class="card green">
+        <div class="label">⚡ Operational Signals (AI)</div>
+        <p>12 AI-powered performance indicators: scheduling efficiency, billing cycle length, care gap rates, and more. Navigate to <em>Reporting → Operational Signals</em>.</p>
+      </div>
+    </div>
+    <div>
+      <div class="card purple" style="margin-bottom:8px;">
+        <div class="label">🎯 Care Gaps</div>
+        <p>Identifies patients overdue for preventive screenings, chronic disease management, or follow-up visits. Generate outreach lists. Navigate to <em>Reporting → Care Gaps</em>.</p>
+      </div>
+      <div class="card orange">
+        <div class="label">📋 Report Builder</div>
+        <p>Build custom reports by selecting data fields, date ranges, and filters. Export to CSV or print. Navigate to <em>Reporting → Report Builder</em>.</p>
+      </div>
+    </div>
+  </div>
+
+  <h2>📬 Clinical Inbox <span class="role role-all">All Roles</span></h2>
+  <p>The Inbox (<em>Navigation → Clinical Inbox</em>) consolidates all incoming messages: lab results, refill requests, patient messages, prior auth updates, and task assignments. Filter by type, date, or sender. Mark items as read, action them, or forward to another team member.</p>
+
+  <h2>💬 Staff Messaging <span class="role role-all">All Roles</span></h2>
+  <p>Secure internal messaging is available under <em>Navigation → Staff Messaging</em>. Messages are HIPAA-compliant and can include patient references, file attachments, and priority flags. All messages are audit-logged.</p>
+
+  <div class="footer">Clarity EHR User Guide · Version 2.0 · April 2026 · Confidential</div>
+</div>
+
+<!-- ═══════════ PAGE 10 — SETTINGS, SECURITY, QUICK REF ═══════════ -->
+<div class="page">
+  <div class="page-hdr"><span class="title">Settings · Security · Quick Reference</span><span class="pg">Page 10</span></div>
+
+  <h2>⚙️ Settings &amp; Preferences <span class="role role-all">All Roles</span></h2>
+  <div class="card-grid g3">
+    <div class="card blue">
+      <div class="label">🎨 Theme &amp; Display</div>
+      <p>Switch between Light and Dark mode. 8 accent colour themes available. Change under <em>Settings → Theme</em>.</p>
+    </div>
+    <div class="card green">
+      <div class="label">🤖 AI Features</div>
+      <p>Enable/disable each AI feature individually: Ambient Scribe, Voice Assistant, AI Triage, Clinical Assistant, CDS Alerts, and more.</p>
+    </div>
+    <div class="card purple">
+      <div class="label">🗺️ Navigation Preferences</div>
+      <p>Show or hide optional sidebar items (e.g., Appointment Reminders) to declutter your workspace.</p>
+    </div>
+    <div class="card orange">
+      <div class="label">✍️ Signature</div>
+      <p>Upload or draw your digital signature. Used on encounter notes, prescriptions, and orders.</p>
+    </div>
+    <div class="card cyan">
+      <div class="label">🔔 Notifications</div>
+      <p>Configure which events trigger in-app alerts, email notifications, or push notifications.</p>
+    </div>
+    <div class="card red">
+      <div class="label">🔐 Security</div>
+      <p>Change password, set up 2FA, configure EPCS PIN and authenticator app pairing.</p>
+    </div>
+  </div>
+
+  <h2>🔒 Security &amp; Compliance <span class="role role-admin">Admin</span></h2>
+  <div class="card-grid g2">
+    <div>
+      <h4>Break-the-Glass (BTG)</h4>
+      <p>Certain sensitive records are BTG-protected. Accessing them requires you to provide a documented clinical reason. All BTG accesses are permanently logged and visible to compliance officers under <em>Administration → BTG Audit Log</em>.</p>
+      <div class="warn" style="margin-top:6px;"><strong>Note:</strong> Inappropriate BTG access is a HIPAA violation and may result in disciplinary action.</div>
+    </div>
+    <div>
+      <h4>Audit Trail</h4>
+      <p>Every action in Clarity — chart views, edits, prescriptions, logins — is logged with user, timestamp, and IP address. Access the full log under <em>Administration → Audit Trail</em>. Admins and Front Desk supervisors can filter, export, and review logs.</p>
+    </div>
+  </div>
+
+  <h2>⌨️ Full Keyboard Shortcut Reference <span class="role role-all">All Roles</span></h2>
+  <div class="shortcut-grid">
+    <div class="shortcut-item"><span class="action">Command Palette</span><div class="keys"><kbd>Ctrl</kbd><kbd>K</kbd></div></div>
+    <div class="shortcut-item"><span class="action">Patient Search</span><div class="keys"><kbd>Ctrl</kbd><kbd>F</kbd></div></div>
+    <div class="shortcut-item"><span class="action">Dashboard</span><div class="keys"><kbd>Ctrl</kbd><kbd>D</kbd></div></div>
+    <div class="shortcut-item"><span class="action">Inbox</span><div class="keys"><kbd>Ctrl</kbd><kbd>I</kbd></div></div>
+    <div class="shortcut-item"><span class="action">New Appointment</span><div class="keys"><kbd>Ctrl</kbd><kbd>N</kbd></div></div>
+    <div class="shortcut-item"><span class="action">Schedule</span><div class="keys"><kbd>Ctrl</kbd><kbd>S</kbd></div></div>
+    <div class="shortcut-item"><span class="action">Voice Assistant</span><div class="keys"><kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>V</kbd></div></div>
+    <div class="shortcut-item"><span class="action">Quick Actions Panel</span><div class="keys"><kbd>Ctrl</kbd><kbd>Q</kbd></div></div>
+    <div class="shortcut-item"><span class="action">Save Note / Form</span><div class="keys"><kbd>Ctrl</kbd><kbd>S</kbd></div></div>
+    <div class="shortcut-item"><span class="action">Close Active Panel</span><div class="keys"><kbd>Esc</kbd></div></div>
+  </div>
+
+  <h2>👥 Role Permissions Summary</h2>
+  <table>
+    <thead><tr><th>Feature Area</th><th>Prescriber</th><th>Therapist</th><th>Nurse / MA</th><th>Front Desk</th></tr></thead>
+    <tbody>
+      <tr><td>View Patient Chart</td><td>✅</td><td>✅</td><td>✅</td><td>✅ (limited)</td></tr>
+      <tr><td>Write Encounter Notes</td><td>✅</td><td>✅</td><td>✅ (limited)</td><td>❌</td></tr>
+      <tr><td>E-Prescribe (Non-Controlled)</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td></tr>
+      <tr><td>E-Prescribe (Controlled / EPCS)</td><td>✅ (DEA req.)</td><td>❌</td><td>❌</td><td>❌</td></tr>
+      <tr><td>Route Refill Requests</td><td>✅ (approve)</td><td>✅ (route only)</td><td>✅ (route only)</td><td>❌</td></tr>
+      <tr><td>Record Vitals</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td></tr>
+      <tr><td>Administer Assessments</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td></tr>
+      <tr><td>Billing &amp; Claims</td><td>View only</td><td>View only</td><td>View only</td><td>✅ Full</td></tr>
+      <tr><td>Scheduling</td><td>✅</td><td>✅</td><td>✅</td><td>✅ Full</td></tr>
+      <tr><td>Telehealth Launch</td><td>✅</td><td>✅</td><td>✅ (observe)</td><td>✅ (check-in)</td></tr>
+      <tr><td>Audit Trail / BTG Log</td><td>❌</td><td>❌</td><td>❌</td><td>✅ (read-only)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="dark-box">
+    <h3>📞 Need Help?</h3>
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; font-size: 9px;">
+      <div style="background:rgba(255,255,255,0.08); border-radius:7px; padding:10px;">
+        <div style="font-size:16px; margin-bottom:4px;">💬</div>
+        <div style="font-weight:700; color:#fff; margin-bottom:3px;">In-App Help</div>
+        <div style="color:#94a3b8;">Click the <strong style="color:#bfdbfe;">?</strong> icon next to any field for contextual help. Use the Onboarding Tour (Help → Restart Tour) for a guided walkthrough.</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.08); border-radius:7px; padding:10px;">
+        <div style="font-size:16px; margin-bottom:4px;">📧</div>
+        <div style="font-weight:700; color:#fff; margin-bottom:3px;">Support</div>
+        <div style="color:#94a3b8;">Email: <strong style="color:#bfdbfe;">support@clarity.health</strong><br>Phone: 1-800-CLARITY<br>Available Mon–Fri 8AM–8PM ET</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.08); border-radius:7px; padding:10px;">
+        <div style="font-size:16px; margin-bottom:4px;">🔧</div>
+        <div style="font-weight:700; color:#fff; margin-bottom:3px;">API &amp; Developer Docs</div>
+        <div style="color:#94a3b8;">Full FHIR R4 API reference available under <strong style="color:#bfdbfe;">Administration → API Documentation</strong>.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer" style="margin-top:12px;">
+    Clarity EHR User Guide · Version 2.0 · April 2026 · © Clarity Health Inc. · 456 Wellness Blvd, Suite 200, Chicago, IL 60601 · support@clarity.health<br>
+    This document is confidential and intended for authorized Clarity EHR users only. Content reflects platform features as of April 2026.
+  </div>
+</div>
+
+</body>
+</html>
