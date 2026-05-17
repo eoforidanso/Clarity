@@ -16,7 +16,8 @@ router.get('/channels', (req, res) => {
 router.get('/channels/:channelId/messages', (req, res) => {
   const { limit } = req.query;
   let query = 'SELECT * FROM staff_messages WHERE channel_id = ? ORDER BY timestamp ASC';
-  if (limit) query += ` LIMIT ${parseInt(limit, 10)}`;
+  const parsedLimit = parseInt(limit, 10);
+  if (!isNaN(parsedLimit) && parsedLimit > 0) query += ` LIMIT ${parsedLimit}`;
   const rows = db.prepare(query).all(req.params.channelId);
   res.json(rows.map(r => ({
     id: r.id, channelId: r.channel_id, userId: r.user_id, userName: r.user_name,
@@ -46,6 +47,89 @@ router.put('/messages/:messageId/reactions', (req, res) => {
   const { reactions } = req.body;
   db.prepare('UPDATE staff_messages SET reactions = ? WHERE id = ?').run(JSON.stringify(reactions), req.params.messageId);
   res.json({ success: true });
+});
+
+// ── Direct Messages ────────────────────────────────────────────────────
+
+function mapDm(r) {
+  return {
+    id: r.id,
+    senderId: r.sender_id,
+    recipientId: r.recipient_id,
+    senderName: r.sender_name,
+    content: r.content,
+    timestamp: r.timestamp,
+    reactions: JSON.parse(r.reactions || '{}'),
+    read: !!r.read,
+  };
+}
+
+// GET /api/messaging/dm/:userId/messages
+// Returns all DMs between the authenticated user and :userId
+router.get('/dm/:userId/messages', (req, res) => {
+  const me = req.user.id;
+  const other = req.params.userId;
+  const rows = db.prepare(
+    `SELECT * FROM direct_messages
+     WHERE (sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)
+     ORDER BY timestamp ASC`
+  ).all(me, other, other, me);
+  // Mark unread messages sent to current user as read
+  db.prepare(
+    `UPDATE direct_messages SET read = 1
+     WHERE recipient_id = ? AND sender_id = ? AND read = 0`
+  ).run(me, other);
+  res.json(rows.map(mapDm));
+});
+
+// POST /api/messaging/dm/:userId/messages
+// Send a DM to :userId
+router.post('/dm/:userId/messages', (req, res) => {
+  const { content } = req.body;
+  if (!content || typeof content !== 'string' || !content.trim()) {
+    return res.status(400).json({ error: 'content is required' });
+  }
+  const me = req.user.id;
+  const other = req.params.userId;
+  // Verify recipient exists and is not a patient
+  const recipient = db.prepare(`SELECT id FROM users WHERE id = ? AND role != 'patient'`).get(other);
+  if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
+
+  const id = uuidv4();
+  const senderName = `${req.user.first_name} ${req.user.last_name}`.trim() || req.user.username;
+  db.prepare(
+    `INSERT INTO direct_messages (id, sender_id, recipient_id, sender_name, content, reactions, read)
+     VALUES (?,?,?,?,?,?,0)`
+  ).run(id, me, other, senderName, content.trim(), '{}');
+
+  const row = db.prepare('SELECT * FROM direct_messages WHERE id = ?').get(id);
+  res.status(201).json(mapDm(row));
+});
+
+// PUT /api/messaging/dm/messages/:messageId/reactions
+router.put('/dm/messages/:messageId/reactions', (req, res) => {
+  const { reactions } = req.body;
+  const me = req.user.id;
+  const row = db.prepare('SELECT * FROM direct_messages WHERE id = ?').get(req.params.messageId);
+  if (!row) return res.status(404).json({ error: 'Message not found' });
+  if (row.sender_id !== me && row.recipient_id !== me) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  db.prepare('UPDATE direct_messages SET reactions = ? WHERE id = ?').run(JSON.stringify(reactions), req.params.messageId);
+  res.json({ success: true });
+});
+
+// GET /api/messaging/dm/unread-counts
+// Returns unread DM counts per sender for the current user
+router.get('/dm/unread-counts', (req, res) => {
+  const rows = db.prepare(
+    `SELECT sender_id, COUNT(*) as count FROM direct_messages
+     WHERE recipient_id = ? AND read = 0
+     GROUP BY sender_id`
+  ).all(req.user.id);
+  const counts = {};
+  rows.forEach(r => { counts[r.sender_id] = r.count; });
+  res.json(counts);
 });
 
 export default router;

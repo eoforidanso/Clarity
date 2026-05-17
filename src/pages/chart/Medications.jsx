@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../../contexts/PatientContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -43,6 +43,13 @@ function MedDetail({ med, patientId, onClose }) {
   const [refillNote, setRefillNote] = useState('');
   const [toast, setToast] = useState(null);
   const [detailTab, setDetailTab] = useState('details');
+  const toastTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   // ── Send to Pharmacy ─────────────────────────────────────────────────
   const [pharmForm, setPharmForm] = useState({
@@ -90,7 +97,8 @@ function MedDetail({ med, patientId, onClose }) {
 
   const flash = (msg, type = 'success') => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), 3500);
   };
 
   // ── refill ─────────────────────────────────────────────────────────

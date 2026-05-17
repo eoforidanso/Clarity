@@ -6,17 +6,22 @@ import { authenticate, authorize } from '../middleware/auth.js';
 const router = Router();
 router.use(authenticate);
 
-function formatPatient(row) {
+function maskSSN(ssn) {
+  if (!ssn || ssn.length < 4) return ssn ? '***-**-***' : '';
+  return `***-**-${ssn.slice(-4)}`;
+}
+
+function formatPatient(row, opts = {}) {
   return {
     id: row.id,
     mrn: row.mrn,
     firstName: row.first_name,
     lastName: row.last_name,
     dob: row.dob,
-    age: Math.floor((Date.now() - new Date(row.dob).getTime()) / 31557600000),
+    age: row.dob ? Math.floor((Date.now() - new Date(row.dob).getTime()) / 31557600000) : null,
     gender: row.gender,
     pronouns: row.pronouns,
-    ssn: row.ssn,
+    ssn: opts.fullSsn ? row.ssn : maskSSN(row.ssn),
     race: row.race,
     ethnicity: row.ethnicity,
     language: row.language,
@@ -43,7 +48,10 @@ function formatPatient(row) {
 
 // GET /api/patients
 router.get('/', (req, res) => {
-  const { search, active } = req.query;
+  const { search, active, limit: limitParam, offset: offsetParam } = req.query;
+  const limit = Math.min(parseInt(limitParam) || 100, 200); // cap at 200
+  const offset = Math.max(parseInt(offsetParam) || 0, 0);
+
   let query = 'SELECT * FROM patients WHERE 1=1';
   const params = [];
 
@@ -56,24 +64,27 @@ router.get('/', (req, res) => {
     const s = `%${search}%`;
     params.push(s, s, s, s);
   }
-  query += ' ORDER BY last_name, first_name';
+  query += ' ORDER BY last_name, first_name LIMIT ? OFFSET ?';
+  params.push(limit, offset);
 
   const rows = db.prepare(query).all(...params);
-  res.json(rows.map(formatPatient));
+  res.json(rows.map(row => formatPatient(row)));
 });
 
 // GET /api/patients/:id
 router.get('/:id', (req, res) => {
   const row = db.prepare('SELECT * FROM patients WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Patient not found' });
-  res.json(formatPatient(row));
+  const fullSsn = ['prescriber', 'billing'].includes(req.user?.role);
+  res.json(formatPatient(row, { fullSsn }));
 });
 
 // POST /api/patients
 router.post('/', authorize('prescriber', 'nurse', 'front_desk'), (req, res) => {
   const b = req.body;
   const id = uuidv4();
-  const mrn = `MRN-${String(Date.now()).slice(-5).padStart(5, '0')}`;
+  const count = db.prepare('SELECT COUNT(*) as cnt FROM patients').get().cnt;
+  const mrn = `MRN-${String(count + 1).padStart(5, '0')}-${uuidv4().replace(/-/g,'').slice(0,4).toUpperCase()}`;
 
   db.prepare(`INSERT INTO patients (id, mrn, first_name, last_name, dob, gender, pronouns, ssn, race, ethnicity, language, marital_status, phone, cell_phone, email, address_street, address_city, address_state, address_zip, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, insurance_primary_name, insurance_primary_member_id, insurance_primary_group_number, insurance_primary_copay, pcp, assigned_provider, is_btg, flags) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
     id, mrn, b.firstName, b.lastName, b.dob, b.gender, b.pronouns || '', b.ssn || '', b.race || '', b.ethnicity || '', b.language || 'English', b.maritalStatus || '', b.phone || '', b.cellPhone || '', b.email || '', b.address?.street || '', b.address?.city || '', b.address?.state || '', b.address?.zip || '', b.emergencyContact?.name || '', b.emergencyContact?.relationship || '', b.emergencyContact?.phone || '', b.insurance?.primary?.name || '', b.insurance?.primary?.memberId || '', b.insurance?.primary?.groupNumber || '', b.insurance?.primary?.copay || 0, b.pcp || '', b.assignedProvider || '', b.isBTG ? 1 : 0, JSON.stringify(b.flags || [])

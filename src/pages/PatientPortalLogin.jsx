@@ -23,7 +23,7 @@ export default function PatientPortalLogin() {
     setLocalError('');
     setLoading(true);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       // Check if this user has 2FA enabled
       const matchedUser = users.find(
         (u) => u.username === username.trim() && u.twoFactorEnabled && u.role === 'patient'
@@ -35,9 +35,9 @@ export default function PatientPortalLogin() {
         return;
       }
 
-      const ok = login(username.trim(), password);
+      const result = await login(username.trim(), password);
       setLoading(false);
-      if (ok) {
+      if (result?.ok) {
         navigate('/patient-portal', { replace: true });
       } else {
         setLocalError('Invalid username or password. Please try again.');
@@ -45,13 +45,14 @@ export default function PatientPortalLogin() {
     }, 400);
   };
 
-  const handle2FAVerify = () => {
+  const handle2FAVerify = async () => {
     if (twoFactorCode !== '121314') {
-      setLocalError('Invalid code. Please enter 121314.');
+      setLocalError('Invalid verification code. Please try again.');
       return;
     }
     setLocalError('');
-    const ok = login(pending2FALogin.username, pending2FALogin.password);
+    const result = await login(pending2FALogin.username, pending2FALogin.password);
+    const ok = result?.ok;
     if (ok) {
       navigate('/patient-portal', { replace: true });
     } else {

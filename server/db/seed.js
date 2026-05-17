@@ -20,7 +20,7 @@ export default async function seed() {
 
   console.log('Seeding database...');
 
-  const insertUser = db.prepare(`INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, epcs_pin_hash, two_factor_enabled, patient_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  const insertUser = db.prepare(`INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, epcs_pin_hash, two_factor_enabled, must_change_password, patient_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const insertPatient = db.prepare(`INSERT INTO patients (id, mrn, first_name, last_name, dob, gender, pronouns, ssn, race, ethnicity, language, marital_status, phone, cell_phone, email, address_street, address_city, address_state, address_zip, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, insurance_primary_name, insurance_primary_member_id, insurance_primary_group_number, insurance_primary_copay, insurance_secondary_name, insurance_secondary_member_id, insurance_secondary_group_number, insurance_secondary_copay, pcp, assigned_provider, photo, is_btg, is_active, last_visit, next_appointment, flags) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const insertAllergy = db.prepare(`INSERT INTO allergies (id, patient_id, allergen, type, reaction, severity, status, onset_date, source) VALUES (?,?,?,?,?,?,?,?,?)`);
   const insertProblem = db.prepare(`INSERT INTO problems (id, patient_id, code, description, status, onset_date, diagnosed_by) VALUES (?,?,?,?,?,?,?)`);
@@ -43,7 +43,10 @@ export default async function seed() {
 
   const transaction = db.transaction(() => {
     // ── Users ──
-    const users = [
+    // WARNING: These are seed-only credentials for development/demo.
+  // Never deploy a production database seeded with these accounts.
+  // Rotate all passwords before any production use.
+  const users = [
       { id: 'u1', username: 'dr.chris', password: 'Pass123!', firstName: 'Chris', lastName: 'L.', role: 'prescriber', credentials: 'MD, PhD', specialty: 'Psychiatry', npi: '1234567890', deaNumber: 'FM1234567', email: 'chris.l@clarity.health', epcsPin: '9921', twoFactorEnabled: true },
       { id: 'u2', username: 'np.joseph', password: 'Pass123!', firstName: 'Joseph', lastName: '', role: 'prescriber', credentials: 'PMHNP-BC', specialty: 'Psychiatric Mental Health', npi: '0987654321', deaNumber: 'FJ9876543', email: 'joseph@clarity.health', epcsPin: '4456', twoFactorEnabled: true },
       { id: 'u3', username: 'irina.s', password: 'Pass123!', firstName: 'Irina', lastName: 'S.', role: 'prescriber', credentials: 'MD', specialty: 'Psychiatry', npi: '1122334455', deaNumber: 'FS1122334', email: 'irina.s@clarity.health', epcsPin: '7743', twoFactorEnabled: true },
@@ -60,7 +63,10 @@ export default async function seed() {
       { id: 'pat-p6', username: 'marcus.brown', password: 'Pass123!', firstName: 'Marcus', lastName: 'Brown', role: 'patient', credentials: '', specialty: '', npi: '', email: 'marcus.brown@email.com', epcsPin: null, twoFactorEnabled: false, patientId: 'p6' },
     ];
     for (const u of users) {
-      insertUser.run(u.id, u.username, hashPassword(u.password), u.firstName, u.lastName, u.role, u.credentials || '', u.specialty || '', u.npi || '', u.deaNumber || '', u.email, u.epcsPin ? hashPassword(u.epcsPin) : null, u.twoFactorEnabled ? 1 : 0, u.patientId || null);
+      // Staff accounts: must change temporary password on first login.
+      // Patient portal accounts: no forced change (they set their own on registration).
+      const mustChange = u.role !== 'patient' ? 1 : 0;
+      insertUser.run(u.id, u.username, hashPassword(u.password), u.firstName, u.lastName, u.role, u.credentials || '', u.specialty || '', u.npi || '', u.deaNumber || '', u.email, u.epcsPin ? hashPassword(u.epcsPin) : null, u.twoFactorEnabled ? 1 : 0, mustChange, u.patientId || null);
     }
 
     // ── Patients ──

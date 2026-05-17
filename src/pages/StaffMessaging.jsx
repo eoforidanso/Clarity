@@ -1,68 +1,44 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { users as allUsers } from '../data/mockData';
-
-const STAFF = allUsers.filter(u => u.role !== 'patient');
+import { users as usersApi, messaging as messagingApi } from '../services/api';
 
 const CHANNELS = [
   { id: 'ch-general', name: 'General', icon: '💬', description: 'General announcements & updates' },
   { id: 'ch-clinical', name: 'Clinical', icon: '🩺', description: 'Clinical discussions & consults' },
   { id: 'ch-urgent', name: 'Urgent', icon: '🚨', description: 'Urgent matters requiring immediate attention' },
-  { id: 'ch-front-desk', name: 'Front Desk', icon: '🏥', description: 'Front desk communications' },
+  { id: 'ch-frontdesk', name: 'Front Desk', icon: '🏥', description: 'Front desk communications' },
   { id: 'ch-teaching', name: 'Teaching', icon: '🎓', description: 'Academic & training discussions' },
   { id: 'ch-pharmacy', name: 'Pharmacy', icon: '💊', description: 'Pharmacy coordination & prior auths' },
 ];
 
-const INITIAL_MESSAGES = {
-  'ch-general': [
-    { id: 'm1', from: 'u5', text: 'Reminder: Staff meeting at 12:30 PM today in Conference Room B. Lunch will be provided.', time: '2026-04-10T08:15:00', reactions: { '👍': ['u1', 'u4'], '✅': ['u2'] } },
-    { id: 'm2', from: 'u4', text: 'The new patient intake forms are live in the portal. Please direct patients to complete them before their first visit.', time: '2026-04-10T08:42:00', reactions: {} },
-    { id: 'm3', from: 'u1', text: 'Great work team on the Q1 quality measures — we exceeded targets on PHQ-9 screening compliance. 🎉', time: '2026-04-10T09:05:00', reactions: { '🎉': ['u2', 'u3', 'u4', 'u5'] } },
-  ],
-  'ch-clinical': [
-    { id: 'm4', from: 'u2', text: 'Quick consult request: Patient on clozapine with WBC at 3200. Current protocol says hold and recheck in 48h. Does anyone want to weigh in?', time: '2026-04-10T07:30:00', reactions: {} },
-    { id: 'm5', from: 'u1', text: 'WBC 3200 is in the yellow range for REMS. I agree — hold dose, repeat CBC in 48h, and document in REMS registry. If it drops below 3000, we need to discontinue.', time: '2026-04-10T07:45:00', reactions: { '👍': ['u2'] } },
-    { id: 'm6', from: 'u3', text: 'Also consider checking ANC — if ANC >1500, we may be able to continue with close monitoring per the updated 2025 guidelines.', time: '2026-04-10T08:00:00', reactions: { '💡': ['u1', 'u2'] } },
-    { id: 'm7', from: 'u4', text: 'I\'ll draw the repeat labs and add it to the schedule. Patient is in the AM slot on Monday.', time: '2026-04-10T08:10:00', reactions: { '✅': ['u2'] } },
-  ],
-  'ch-urgent': [
-    { id: 'm8', from: 'u4', text: '⚠️ Room 3 patient reporting active SI with plan. Dr. Chris has been paged. Safety protocol initiated.', time: '2026-04-10T09:22:00', reactions: {} },
-    { id: 'm9', from: 'u1', text: 'On my way. Kelly, please stay with patient. Irina — can you cover my 9:45 med management?', time: '2026-04-10T09:23:00', reactions: {} },
-    { id: 'm10', from: 'u3', text: 'Covering your 9:45. I\'ll pull up their chart now.', time: '2026-04-10T09:24:00', reactions: { '🙏': ['u1'] } },
-  ],
-  'ch-front-desk': [
-    { id: 'm11', from: 'u5', text: 'Insurance verification pending for 3 patients this afternoon. Working on it now.', time: '2026-04-10T08:30:00', reactions: {} },
-    { id: 'm12', from: 'u4', text: 'Room 2 is ready for the next patient. Vitals are in the chart.', time: '2026-04-10T09:00:00', reactions: { '👍': ['u5'] } },
-  ],
-  'ch-teaching': [
-    { id: 'm13', from: 'u1', text: 'Grand Rounds this Friday: "Psychedelic-Assisted Therapy: Current Evidence & Legal Framework" — Auditorium at 8 AM. CME credit available.', time: '2026-04-09T16:00:00', reactions: { '🎓': ['u2', 'u3'], '👍': ['u4'] } },
-    { id: 'm14', from: 'u2', text: 'Shared a new article on treatment-resistant depression protocols in the shared drive. Great read for anyone interested.', time: '2026-04-10T07:15:00', reactions: {} },
-    { id: 'm15', from: 'u3', text: 'NP students start their clinical rotation next Monday. I\'ll be precepting — please be welcoming and available for questions!', time: '2026-04-10T08:20:00', reactions: { '✅': ['u1', 'u4', 'u5'] } },
-  ],
-  'ch-pharmacy': [
-    { id: 'm16', from: 'u2', text: 'Prior auth approved for patient Garcia\'s Spravato. She can start next week.', time: '2026-04-10T09:10:00', reactions: { '🎉': ['u1'] } },
-    { id: 'm17', from: 'u3', text: 'FYI — generic lamotrigine XR now on backorder at CVS. Patients may need to switch to immediate-release with divided dosing temporarily.', time: '2026-04-10T09:30:00', reactions: { '📝': ['u2', 'u4'] } },
-  ],
-};
+// Convert API message format to local format
+function mapApiMsg(m) {
+  return { id: m.id, from: m.userId, text: m.content, time: m.timestamp, reactions: m.reactions || {} };
+}
 
-const DM_MESSAGES = {};
+// Convert DM API message format to local format
+function mapDmApiMsg(m) {
+  return { id: m.id, from: m.senderId, text: m.content, time: m.timestamp, reactions: m.reactions || {} };
+}
 
-function getStaffName(userId) {
-  const u = STAFF.find(s => s.id === userId);
-  if (!u) return 'Unknown';
+function getStaffName(userId, staff) {
+  const u = staff.find(s => s.id === userId);
+  if (!u) return 'Staff Member';
   return `${u.firstName} ${u.lastName}`.trim();
 }
 
-function getStaffInitials(userId) {
-  const u = STAFF.find(s => s.id === userId);
+function getStaffInitials(userId, staff) {
+  const u = staff.find(s => s.id === userId);
   if (!u) return '?';
-  return `${u.firstName[0]}${(u.lastName || u.firstName)[0]}`.toUpperCase();
+  const first = u.firstName?.[0] || '?';
+  const last = (u.lastName || u.firstName)?.[0] || first;
+  return `${first}${last}`.toUpperCase();
 }
 
-function getStaffRole(userId) {
-  const u = STAFF.find(s => s.id === userId);
+function getStaffRole(userId, staff) {
+  const u = staff.find(s => s.id === userId);
   if (!u) return '';
-  const labels = { prescriber: u.credentials || 'Provider', nurse: 'RN', front_desk: 'Front Desk Staff' };
+  const labels = { prescriber: u.credentials || 'Provider', nurse: 'RN', front_desk: 'Front Desk', therapist: 'Therapist' };
   return labels[u.role] || u.role;
 }
 
@@ -85,17 +61,21 @@ const AVATAR_COLORS = [
   'linear-gradient(135deg, #ef4444, #dc2626)',
 ];
 
-function getAvatarColor(userId) {
-  const idx = STAFF.findIndex(s => s.id === userId);
-  return AVATAR_COLORS[idx % AVATAR_COLORS.length];
+function getAvatarColor(userId, staff) {
+  const idx = staff.findIndex(s => s.id === userId);
+  const i = idx < 0 ? 0 : idx;
+  return AVATAR_COLORS[i % AVATAR_COLORS.length];
 }
 
 export default function StaffMessaging() {
   const { currentUser } = useAuth();
+  const [staff, setStaff] = useState([]);
   const [activeChannel, setActiveChannel] = useState('ch-general');
   const [activeDM, setActiveDM] = useState(null);
-  const [messages, setMessages] = useState(INITIAL_MESSAGES);
-  const [dmMessages, setDmMessages] = useState(DM_MESSAGES);
+  const [messages, setMessages] = useState({});
+  const [dmMessages, setDmMessages] = useState({});
+  const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState({});
   const [input, setInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -111,23 +91,59 @@ export default function StaffMessaging() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  const otherStaff = STAFF.filter(s => s.id !== currentUser?.id && s.role !== 'patient');
+  const otherStaff = staff.filter(s => s.id !== currentUser?.id);
 
   const currentMessages = useMemo(() => {
-    if (activeDM) {
-      const key = [currentUser?.id, activeDM].sort().join('-');
-      return dmMessages[key] || [];
-    }
+    if (activeDM) return dmMessages[activeDM] || [];
     return messages[activeChannel] || [];
-  }, [activeDM, activeChannel, messages, dmMessages, currentUser]);
+  }, [activeDM, activeChannel, messages, dmMessages]);
 
   const filteredMessages = useMemo(() => {
     if (!searchQuery.trim()) return currentMessages;
     const q = searchQuery.toLowerCase();
     return currentMessages.filter(m =>
-      m.text.toLowerCase().includes(q) || getStaffName(m.from).toLowerCase().includes(q)
+      m.text.toLowerCase().includes(q) || getStaffName(m.from, staff).toLowerCase().includes(q)
     );
   }, [currentMessages, searchQuery]);
+
+  useEffect(() => {
+    usersApi.directory()
+      .then(data => setStaff(data))
+      .catch(() => {
+        if (currentUser) {
+          setStaff([{ id: currentUser.id, firstName: currentUser.firstName || '', lastName: currentUser.lastName || '', role: currentUser.role, credentials: currentUser.credentials || '', specialty: currentUser.specialty || '' }]);
+        }
+      });
+  }, [currentUser?.id]);
+
+  // Load channel messages from backend
+  useEffect(() => {
+    if (activeDM) return;
+    setLoadingMsgs(true);
+    messagingApi.messages(activeChannel)
+      .then(data => setMessages(prev => ({ ...prev, [activeChannel]: data.map(mapApiMsg) })))
+      .catch(() => {})
+      .finally(() => setLoadingMsgs(false));
+  }, [activeChannel, activeDM]);
+
+  // Load DM messages from backend when activeDM changes
+  useEffect(() => {
+    if (!activeDM) return;
+    setLoadingMsgs(true);
+    messagingApi.dm.messages(activeDM)
+      .then(data => {
+        setDmMessages(prev => ({ ...prev, [activeDM]: data.map(mapDmApiMsg) }));
+        // Refresh unread counts after opening DM
+        messagingApi.dm.unreadCounts().then(setUnreadCounts).catch(() => {});
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMsgs(false));
+  }, [activeDM]);
+
+  // Load unread counts on mount
+  useEffect(() => {
+    messagingApi.dm.unreadCounts().then(setUnreadCounts).catch(() => {});
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -139,23 +155,40 @@ export default function StaffMessaging() {
 
   const sendMessage = () => {
     if (!input.trim()) return;
-    const newMsg = {
-      id: `m-${Date.now()}`,
-      from: currentUser?.id,
-      text: input.trim(),
-      time: new Date().toISOString(),
-      reactions: {},
-    };
+    const text = input.trim();
+    setInput('');
 
     if (activeDM) {
-      const key = [currentUser?.id, activeDM].sort().join('-');
-      setDmMessages(prev => ({ ...prev, [key]: [...(prev[key] || []), newMsg] }));
+      const tempId = `m-${Date.now()}`;
+      const optimistic = { id: tempId, from: currentUser?.id, text, time: new Date().toISOString(), reactions: {} };
+      setDmMessages(prev => ({ ...prev, [activeDM]: [...(prev[activeDM] || []), optimistic] }));
+      messagingApi.dm.send(activeDM, { content: text })
+        .then(saved => {
+          setDmMessages(prev => ({
+            ...prev,
+            [activeDM]: (prev[activeDM] || []).map(m => m.id === tempId ? mapDmApiMsg(saved) : m),
+          }));
+        })
+        .catch(() => {
+          setDmMessages(prev => ({ ...prev, [activeDM]: (prev[activeDM] || []).filter(m => m.id !== tempId) }));
+        });
     } else {
-      setMessages(prev => ({ ...prev, [activeChannel]: [...(prev[activeChannel] || []), newMsg] }));
-      // Mark other channels as having a new message if you were to send to one you're not viewing
-      // (nothing to do here since you're in the active channel)
+      // Optimistic update
+      const tempId = `m-${Date.now()}`;
+      const optimistic = { id: tempId, from: currentUser?.id, text, time: new Date().toISOString(), reactions: {} };
+      setMessages(prev => ({ ...prev, [activeChannel]: [...(prev[activeChannel] || []), optimistic] }));
+      messagingApi.send(activeChannel, { content: text })
+        .then(saved => {
+          setMessages(prev => ({
+            ...prev,
+            [activeChannel]: (prev[activeChannel] || []).map(m => m.id === tempId ? mapApiMsg(saved) : m),
+          }));
+        })
+        .catch(() => {
+          // Remove optimistic on failure
+          setMessages(prev => ({ ...prev, [activeChannel]: (prev[activeChannel] || []).filter(m => m.id !== tempId) }));
+        });
     }
-    setInput('');
   };
 
   const switchChannel = (chId) => {
@@ -170,32 +203,33 @@ export default function StaffMessaging() {
 
   const addReaction = (msgId, emoji) => {
     const uid = currentUser?.id;
+    if (!uid) return;
+    const updateReactions = (msgs) => {
+      const ch = [...msgs];
+      const idx = ch.findIndex(m => m.id === msgId);
+      if (idx < 0) return msgs;
+      const r = { ...ch[idx].reactions };
+      if (!r[emoji]) r[emoji] = [];
+      if (r[emoji].includes(uid)) r[emoji] = r[emoji].filter(id => id !== uid);
+      else r[emoji] = [...r[emoji], uid];
+      if (r[emoji].length === 0) delete r[emoji];
+      ch[idx] = { ...ch[idx], reactions: r };
+      return ch;
+    };
+
     if (activeDM) {
-      const key = [currentUser?.id, activeDM].sort().join('-');
       setDmMessages(prev => {
-        const ch = [...(prev[key] || [])];
-        const msg = ch.find(m => m.id === msgId);
-        if (!msg) return prev;
-        const r = { ...msg.reactions };
-        if (!r[emoji]) r[emoji] = [];
-        if (r[emoji].includes(uid)) r[emoji] = r[emoji].filter(id => id !== uid);
-        else r[emoji] = [...r[emoji], uid];
-        if (r[emoji].length === 0) delete r[emoji];
-        msg.reactions = r;
-        return { ...prev, [key]: ch };
+        const updated = updateReactions(prev[activeDM] || []);
+        const msg = updated.find(m => m.id === msgId);
+        if (msg) messagingApi.dm.react(msgId, { reactions: msg.reactions }).catch(() => {});
+        return { ...prev, [activeDM]: updated };
       });
     } else {
       setMessages(prev => {
-        const ch = [...(prev[activeChannel] || [])];
-        const msg = ch.find(m => m.id === msgId);
-        if (!msg) return prev;
-        const r = { ...msg.reactions };
-        if (!r[emoji]) r[emoji] = [];
-        if (r[emoji].includes(uid)) r[emoji] = r[emoji].filter(id => id !== uid);
-        else r[emoji] = [...r[emoji], uid];
-        if (r[emoji].length === 0) delete r[emoji];
-        msg.reactions = r;
-        return { ...prev, [activeChannel]: ch };
+        const updated = updateReactions(prev[activeChannel] || []);
+        const msg = updated.find(m => m.id === msgId);
+        if (msg) messagingApi.react(msgId, { reactions: msg.reactions }).catch(() => {});
+        return { ...prev, [activeChannel]: updated };
       });
     }
     setShowEmojiPicker(null);
@@ -204,9 +238,8 @@ export default function StaffMessaging() {
   const quickEmojis = ['👍', '❤️', '😂', '🎉', '💡', '✅', '🙏', '👀'];
 
   const channelInfo = CHANNELS.find(c => c.id === activeChannel);
-  const dmUser = activeDM ? STAFF.find(s => s.id === activeDM) : null;
-  const headerTitle = activeDM ? getStaffName(activeDM) : channelInfo?.name;
-  const headerDesc = activeDM ? getStaffRole(activeDM) : channelInfo?.description;
+  const headerTitle = activeDM ? getStaffName(activeDM, staff) : channelInfo?.name;
+  const headerDesc = activeDM ? getStaffRole(activeDM, staff) : channelInfo?.description;
 
   return (
     <div className="fade-in" style={{ height: 'calc(100vh - var(--header-height) - 40px)' }}>
@@ -223,7 +256,7 @@ export default function StaffMessaging() {
               💬 Staff Chat
             </div>
             <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
-              {STAFF.filter(s => s.role !== 'patient').length} team members
+              {staff.length} team members
             </div>
           </div>
 
@@ -288,8 +321,7 @@ export default function StaffMessaging() {
             })}
 
             {view === 'dms' && otherStaff.map(s => {
-              const key = [currentUser?.id, s.id].sort().join('-');
-              const count = (dmMessages[key] || []).length;
+              const unread = unreadCounts[s.id] || 0;
               const isActive = activeDM === s.id;
               return (
                 <div
@@ -305,21 +337,21 @@ export default function StaffMessaging() {
                   onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                 >
                   <div style={{
-                    width: 28, height: 28, borderRadius: '50%', background: getAvatarColor(s.id),
+                    width: 28, height: 28, borderRadius: '50%', background: getAvatarColor(s.id, staff),
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     color: 'white', fontSize: 10, fontWeight: 700, flexShrink: 0,
                   }}>
-                    {getStaffInitials(s.id)}
+                    {getStaffInitials(s.id, staff)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12.5, fontWeight: isActive ? 700 : 500, color: isActive ? '#93c5fd' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {getStaffName(s.id)}
+                      {getStaffName(s.id, staff)}
                     </div>
-                    <div style={{ fontSize: 10, color: '#475569' }}>{getStaffRole(s.id)}</div>
+                    <div style={{ fontSize: 10, color: '#475569' }}>{getStaffRole(s.id, staff)}</div>
                   </div>
-                  {count > 0 && (
-                    <span style={{ fontSize: 10, color: '#475569', background: 'rgba(255,255,255,0.06)', padding: '1px 6px', borderRadius: 10 }}>
-                      {count}
+                  {unread > 0 && (
+                    <span style={{ fontSize: 10, color: 'white', background: '#3b82f6', padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>
+                      {unread}
                     </span>
                   )}
                 </div>
@@ -330,7 +362,7 @@ export default function StaffMessaging() {
           {/* Current user */}
           <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{
-              width: 28, height: 28, borderRadius: '50%', background: getAvatarColor(currentUser?.id),
+              width: 28, height: 28, borderRadius: '50%', background: getAvatarColor(currentUser?.id, staff),
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'white', fontSize: 10, fontWeight: 700,
             }}>
@@ -358,10 +390,10 @@ export default function StaffMessaging() {
               <div style={{ fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
                 {activeDM ? (
                   <div style={{
-                    width: 24, height: 24, borderRadius: '50%', background: getAvatarColor(activeDM),
+                    width: 24, height: 24, borderRadius: '50%', background: getAvatarColor(activeDM, staff),
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     color: 'white', fontSize: 9, fontWeight: 700,
-                  }}>{getStaffInitials(activeDM)}</div>
+                  }}>{getStaffInitials(activeDM, staff)}</div>
                 ) : (
                   <span>{channelInfo?.icon}</span>
                 )}
@@ -391,7 +423,12 @@ export default function StaffMessaging() {
 
           {/* Messages area */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-            {filteredMessages.length === 0 && (
+            {loadingMsgs && (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
+                <div style={{ fontSize: 13 }}>Loading messages…</div>
+              </div>
+            )}
+            {!loadingMsgs && filteredMessages.length === 0 && (
               <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
                 <div style={{ fontSize: 36, marginBottom: 8, opacity: 0.3 }}>💬</div>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>
@@ -419,11 +456,11 @@ export default function StaffMessaging() {
                     alignItems: 'flex-start',
                   }}>
                     {showAvatar ? (
-                      <div title={getStaffName(msg.from)} style={{
-                        width: 32, height: 32, borderRadius: '50%', background: getAvatarColor(msg.from),
+                      <div title={getStaffName(msg.from, staff)} style={{
+                        width: 32, height: 32, borderRadius: '50%', background: getAvatarColor(msg.from, staff),
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         color: 'white', fontSize: 10, fontWeight: 700, flexShrink: 0,
-                      }}>{getStaffInitials(msg.from)}</div>
+                      }}>{getStaffInitials(msg.from, staff)}</div>
                     ) : (
                       <div style={{ width: 32, flexShrink: 0 }} />
                     )}
@@ -431,9 +468,9 @@ export default function StaffMessaging() {
                       {showAvatar && (
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 2 }}>
                           <span style={{ fontSize: 12.5, fontWeight: 700, color: isMe ? 'var(--primary)' : 'var(--text-primary)' }}>
-                            {isMe ? 'You' : getStaffName(msg.from)}
+                            {isMe ? 'You' : getStaffName(msg.from, staff)}
                           </span>
-                          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{getStaffRole(msg.from)}</span>
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{getStaffRole(msg.from, staff)}</span>
                           <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{formatTime(msg.time)}</span>
                         </div>
                       )}
@@ -514,7 +551,7 @@ export default function StaffMessaging() {
               <textarea
                 ref={inputRef}
                 rows={1}
-                placeholder={`Message ${activeDM ? getStaffName(activeDM) : `#${channelInfo?.name || ''}`}...`}
+                placeholder={`Message ${activeDM ? getStaffName(activeDM, staff) : `#${channelInfo?.name || ''}`}...`}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}

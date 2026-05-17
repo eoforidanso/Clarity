@@ -874,6 +874,7 @@ export default function HealthAdminToolkit() {
                   { icon: '🔓', label: 'BTG Audit Log',    action: () => navigate('/btg-audit') },
                   { icon: '📋', label: 'Forms & Outreach', action: () => setActiveTab('forms') },
                   { icon: '📊', label: 'Staff Report',     action: () => setActiveTab('reports') },
+                  { icon: '🩺', label: 'Provider NPI/DEA', action: () => navigate('/provider-management') },
                 ].map((a) => (
                   <button
                     key={a.label}

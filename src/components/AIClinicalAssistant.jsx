@@ -132,6 +132,11 @@ export default function AIClinicalAssistant() {
                       {m.role === 'assistant' ? (
                         <div style={{ fontSize: 13, lineHeight: 1.6 }}
                           dangerouslySetInnerHTML={{ __html: m.content
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#039;')
                             .replace(/### (.+)/g, '<h4 style="font-size:14px;font-weight:700;margin:8px 0 4px">$1</h4>')
                             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
                             .replace(/\*(.+?)\*/g, '<em style="color:var(--text-muted);font-size:12px">$1</em>')

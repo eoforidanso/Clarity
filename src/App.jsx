@@ -1,85 +1,84 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import React, { useEffect, Suspense, lazy } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { TrainingProvider } from './contexts/TrainingContext';
-import TrainingBanner from './components/TrainingBanner';
 import { PatientProvider } from './contexts/PatientContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { applyTheme } from './pages/Settings';
 
+// Eagerly loaded — always needed at startup
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
-import Schedule from './pages/Schedule';
-import PatientSearch from './pages/PatientSearch';
-import ChartPage from './pages/ChartPage';
-import EPrescribe from './pages/EPrescribe';
-import Telehealth from './pages/Telehealth';
-import Inbox from './pages/Inbox';
-import SmartPhrases from './pages/SmartPhrases';
-import BTGAuditLog from './pages/BTGAuditLog';
-import HealthAdminToolkit from './pages/HealthAdminToolkit';
-import GoToSession from './pages/GoToSession';
-import PatientChat from './pages/PatientChat';
-import Analytics from './pages/Analytics';
-import CareGaps from './pages/CareGaps';
-import StaffMessaging from './pages/StaffMessaging';
 import PatientPortalLogin from './pages/PatientPortalLogin';
 import PatientPortal from './pages/PatientPortal';
 import Settings from './pages/Settings';
-import BillingDashboard from './pages/BillingDashboard';
-import ClaimsManagement from './pages/ClaimsManagement';
-import DenialManagement from './pages/DenialManagement';
-import TelehealthBilling from './pages/TelehealthBilling';
-import PatientPortalBilling from './pages/PatientPortalBilling';
-import QualityMeasures from './pages/QualityMeasures';
-import DocumentManagement from './pages/DocumentManagement';
-import AuditTrail from './pages/AuditTrail';
-import ReferralManagement from './pages/ReferralManagement';
-import PriorAuthTracking from './pages/PriorAuthTracking';
-import TreatmentPlans from './pages/TreatmentPlans';
-import IntakeForms from './pages/IntakeForms';
-import SuperbillCapture from './pages/SuperbillCapture';
-import EFaxCenter from './pages/EFaxCenter';
-import ProviderPerformance from './pages/ProviderPerformance';
-import PatientWaitlist from './pages/PatientWaitlist';
-import EligibilityVerification from './pages/EligibilityVerification';
-import PatientStatements from './pages/PatientStatements';
-import BatchClaimSubmission from './pages/BatchClaimSubmission';
-import TaskManagement from './pages/TaskManagement';
-import MedicationReconciliation from './pages/MedicationReconciliation';
-import PatientRecall from './pages/PatientRecall';
-import ClinicalDecisionSupport from './pages/ClinicalDecisionSupport';
-import ReportBuilder from './pages/ReportBuilder';
-import ConsentManagement from './pages/ConsentManagement';
-import PatientEducation from './pages/PatientEducation';
-import SecureNotes from './pages/SecureNotes';
-import InsuranceCardCapture from './pages/InsuranceCardCapture';
-import FeeScheduleManager from './pages/FeeScheduleManager';
-import SchedulingTemplates from './pages/SchedulingTemplates';
-import LabOrderTracking from './pages/LabOrderTracking';
-import VitalsTrending from './pages/VitalsTrending';
-import NetworkIntegrations from './pages/NetworkIntegrations';
-import AITriageChat from './pages/AITriageChat';
-import PatientCheckIn from './pages/PatientCheckIn';
-import PatientCostEstimator from './pages/PatientCostEstimator';
-import AppMarketplace from './pages/AppMarketplace';
-import APIDocumentation from './pages/APIDocumentation';
-import OrderSetTemplates from './pages/OrderSetTemplates';
-import AmbientScribe from './pages/AmbientScribe';
-import PopulationHealth from './pages/PopulationHealth';
-import AppointmentReminders from './pages/AppointmentReminders';
-import ChargePosting from './pages/ChargePosting';
-import ImmunizationRegistry from './pages/ImmunizationRegistry';
-import MultiLocationManagement from './pages/MultiLocationManagement';
-import GroupTelehealth from './pages/GroupTelehealth';
-import OperationalSignals from './pages/OperationalSignals';
-import PracticeMarketing from './pages/PracticeMarketing';
-import CareEverywhere from './pages/CareEverywhere';
-import EHRComparison from './pages/EHRComparison';
 
-import ErrorBoundary from './components/ErrorBoundary';
-import { SiteProvider, useSite } from './contexts/SiteContext';
-import { TelehealthProvider } from './contexts/TelehealthContext';
+// Lazy-loaded routes — split into separate chunks
+const Schedule = lazy(() => import('./pages/Schedule'));
+const PatientSearch = lazy(() => import('./pages/PatientSearch'));
+const ChartPage = lazy(() => import('./pages/ChartPage'));
+const EPrescribe = lazy(() => import('./pages/EPrescribe'));
+const Telehealth = lazy(() => import('./pages/Telehealth'));
+const Inbox = lazy(() => import('./pages/Inbox'));
+const SmartPhrases = lazy(() => import('./pages/SmartPhrases'));
+const BTGAuditLog = lazy(() => import('./pages/BTGAuditLog'));
+const HealthAdminToolkit = lazy(() => import('./pages/HealthAdminToolkit'));
+const GoToSession = lazy(() => import('./pages/GoToSession'));
+const PatientChat = lazy(() => import('./pages/PatientChat'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const CareGaps = lazy(() => import('./pages/CareGaps'));
+const StaffMessaging = lazy(() => import('./pages/StaffMessaging'));
+const BillingDashboard = lazy(() => import('./pages/BillingDashboard'));
+const ClaimsManagement = lazy(() => import('./pages/ClaimsManagement'));
+const DenialManagement = lazy(() => import('./pages/DenialManagement'));
+const TelehealthBilling = lazy(() => import('./pages/TelehealthBilling'));
+const PatientPortalBilling = lazy(() => import('./pages/PatientPortalBilling'));
+const QualityMeasures = lazy(() => import('./pages/QualityMeasures'));
+const DocumentManagement = lazy(() => import('./pages/DocumentManagement'));
+const AuditTrail = lazy(() => import('./pages/AuditTrail'));
+const ReferralManagement = lazy(() => import('./pages/ReferralManagement'));
+const PriorAuthTracking = lazy(() => import('./pages/PriorAuthTracking'));
+const TreatmentPlans = lazy(() => import('./pages/TreatmentPlans'));
+const IntakeForms = lazy(() => import('./pages/IntakeForms'));
+const SuperbillCapture = lazy(() => import('./pages/SuperbillCapture'));
+const EFaxCenter = lazy(() => import('./pages/EFaxCenter'));
+const ProviderPerformance = lazy(() => import('./pages/ProviderPerformance'));
+const PatientWaitlist = lazy(() => import('./pages/PatientWaitlist'));
+const EligibilityVerification = lazy(() => import('./pages/EligibilityVerification'));
+const PatientStatements = lazy(() => import('./pages/PatientStatements'));
+const BatchClaimSubmission = lazy(() => import('./pages/BatchClaimSubmission'));
+const TaskManagement = lazy(() => import('./pages/TaskManagement'));
+const MedicationReconciliation = lazy(() => import('./pages/MedicationReconciliation'));
+const PatientRecall = lazy(() => import('./pages/PatientRecall'));
+const ClinicalDecisionSupport = lazy(() => import('./pages/ClinicalDecisionSupport'));
+const ReportBuilder = lazy(() => import('./pages/ReportBuilder'));
+const ConsentManagement = lazy(() => import('./pages/ConsentManagement'));
+const PatientEducation = lazy(() => import('./pages/PatientEducation'));
+const SecureNotes = lazy(() => import('./pages/SecureNotes'));
+const InsuranceCardCapture = lazy(() => import('./pages/InsuranceCardCapture'));
+const FeeScheduleManager = lazy(() => import('./pages/FeeScheduleManager'));
+const SchedulingTemplates = lazy(() => import('./pages/SchedulingTemplates'));
+const LabOrderTracking = lazy(() => import('./pages/LabOrderTracking'));
+const VitalsTrending = lazy(() => import('./pages/VitalsTrending'));
+const NetworkIntegrations = lazy(() => import('./pages/NetworkIntegrations'));
+const AITriageChat = lazy(() => import('./pages/AITriageChat'));
+const PatientCheckIn = lazy(() => import('./pages/PatientCheckIn'));
+const PatientCostEstimator = lazy(() => import('./pages/PatientCostEstimator'));
+const AppMarketplace = lazy(() => import('./pages/AppMarketplace'));
+const APIDocumentation = lazy(() => import('./pages/APIDocumentation'));
+const OrderSetTemplates = lazy(() => import('./pages/OrderSetTemplates'));
+const AmbientScribe = lazy(() => import('./pages/AmbientScribe'));
+const PopulationHealth = lazy(() => import('./pages/PopulationHealth'));
+const AppointmentReminders = lazy(() => import('./pages/AppointmentReminders'));
+const ChargePosting = lazy(() => import('./pages/ChargePosting'));
+const ImmunizationRegistry = lazy(() => import('./pages/ImmunizationRegistry'));
+const MultiLocationManagement = lazy(() => import('./pages/MultiLocationManagement'));
+const GroupTelehealth = lazy(() => import('./pages/GroupTelehealth'));
+const OperationalSignals = lazy(() => import('./pages/OperationalSignals'));
+const PracticeMarketing = lazy(() => import('./pages/PracticeMarketing'));
+const CareEverywhere = lazy(() => import('./pages/CareEverywhere'));
+const UserManagement = lazy(() => import('./pages/UserManagement'));
+const ProviderManagement = lazy(() => import('./pages/ProviderManagement'));
+
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import ToastContainer from './components/ToastContainer';
@@ -90,44 +89,27 @@ import OnboardingTour from './components/OnboardingTour';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
 import AIClinicalAssistant from './components/AIClinicalAssistant';
 import VoiceAssistant from './components/VoiceAssistant';
-import FloatingPiP from './components/FloatingPiP';
-import { getAIFeatures } from './pages/Settings';
-
-function SiteBanner() {
-  const { activeSite, isFiltered, setActiveSite } = useSite();
-  if (!isFiltered) return null;
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      background: '#fffbeb', borderBottom: '1px solid #fcd34d',
-      padding: '6px 20px', fontSize: 12, fontWeight: 600, color: '#92400e',
-      flexShrink: 0,
-    }}>
-      <span>📍 Viewing: <strong>{activeSite.name}</strong> — data is filtered to this site only.</span>
-      <button
-        onClick={() => setActiveSite('all')}
-        style={{
-          background: 'transparent', border: '1px solid #f59e0b', borderRadius: 5,
-          padding: '2px 10px', fontSize: 11, fontWeight: 700, color: '#92400e', cursor: 'pointer',
-        }}
-      >
-        Show All Sites
-      </button>
-    </div>
-  );
-}
+import ForcePasswordChange from './components/ForcePasswordChange';
 
 function ProtectedLayout() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, currentUser } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const location = useLocation();
+
+  // Close mobile menu on route change
+  React.useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (currentUser?.mustChangePassword) return <ForcePasswordChange />;
 
   return (
     <PatientProvider>
       <NotificationProvider>
-        <SiteProvider>
-        <TelehealthProvider>
         <div className="app-layout">
+          {/* Skip to content (accessibility) */}
+          <a href="#main-content" className="skip-to-main">Skip to main content</a>
           {/* Mobile sidebar overlay */}
           <div className={`sidebar-overlay ${mobileMenuOpen ? 'visible' : ''}`} onClick={() => setMobileMenuOpen(false)} />
           <div className={mobileMenuOpen ? 'mobile-open' : ''}>
@@ -135,12 +117,10 @@ function ProtectedLayout() {
           </div>
           <div className="main-area">
             <Header />
-            <main className="main-content">
-              <SiteBanner />
-              <TrainingBanner />
-              <ErrorBoundary>
+            <main id="main-content" className="main-content" role="main">
+              <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: 'var(--text-muted)', fontSize: 14 }}>Loading…</div>}>
                 <Outlet />
-              </ErrorBoundary>
+              </Suspense>
             </main>
           </div>
           {/* Mobile hamburger button */}
@@ -154,11 +134,8 @@ function ProtectedLayout() {
         <SessionTimeout />
         <OnboardingTour />
         <KeyboardShortcuts />
-        <FloatingPiP />
-        {getAIFeatures().aiClinicalAssistant && <AIClinicalAssistant />}
-        {getAIFeatures().voiceAssistant && <VoiceAssistant />}
-        </TelehealthProvider>
-        </SiteProvider>
+        <AIClinicalAssistant />
+        <VoiceAssistant />
       </NotificationProvider>
     </PatientProvider>
   );
@@ -199,10 +176,8 @@ export default function App() {
   }, []);
 
   return (
-    <ErrorBoundary>
-    <BrowserRouter basename="/Clarity/">
+    <BrowserRouter basename="/Clarity">
       <AuthProvider>
-        <TrainingProvider>
         <Routes>
           <Route path="/login" element={<LoginRoute />} />
           <Route path="/patient-portal-login" element={<PatientPortalLoginRoute />} />
@@ -277,15 +252,14 @@ export default function App() {
             <Route path="/operational-signals" element={<OperationalSignals />} />
             <Route path="/practice-marketing" element={<PracticeMarketing />} />
             <Route path="/care-everywhere" element={<CareEverywhere />} />
-            <Route path="/ehr-comparison" element={<EHRComparison />} />
+            <Route path="/user-management" element={<UserManagement />} />
+            <Route path="/provider-management" element={<ProviderManagement />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
-        </TrainingProvider>
       </AuthProvider>
     </BrowserRouter>
-    </ErrorBoundary>
   );
 }

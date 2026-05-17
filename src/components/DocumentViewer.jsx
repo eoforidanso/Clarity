@@ -35,15 +35,25 @@ function Field({ label, value }) {
   );
 }
 
+const PRACTICE = {
+  name: 'Advanced Practice Medical Group',
+  address: '2280 Hicks Rd Suite 508, Rolling Meadows, IL 60008',
+  phone: '(847) 371-5200',
+};
+
 function DocumentHeader({ doc }) {
+  const facilityName    = doc.facility?.name    || PRACTICE.name;
+  const facilityAddress = doc.facility?.address || PRACTICE.address;
+  const facilityPhone   = doc.facility?.phone   || PRACTICE.phone;
+  const facilityFax     = doc.facility?.fax;
   return (
     <div style={{ borderBottom: '3px solid #1e40af', paddingBottom: 12, marginBottom: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1e40af', margin: 0 }}>🧠 Clarity EHR</h1>
-          <p style={{ fontSize: 11, color: '#6b7280', margin: '2px 0 0' }}>{doc.facility?.name}</p>
-          <p style={{ fontSize: 10, color: '#9ca3af', margin: 0 }}>{doc.facility?.address}</p>
-          {doc.facility?.phone && <p style={{ fontSize: 10, color: '#9ca3af', margin: 0 }}>Tel: {doc.facility.phone} {doc.facility?.fax ? `| Fax: ${doc.facility.fax}` : ''}</p>}
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1e40af', margin: 0 }}>🧠 Advanced Practice Medical Group</h1>
+          <p style={{ fontSize: 11, color: '#6b7280', margin: '2px 0 0' }}>{facilityName}</p>
+          <p style={{ fontSize: 10, color: '#9ca3af', margin: 0 }}>{facilityAddress}</p>
+          {facilityPhone && <p style={{ fontSize: 10, color: '#9ca3af', margin: 0 }}>Tel: {facilityPhone} {facilityFax ? `| Fax: ${facilityFax}` : ''}</p>}
         </div>
         <div style={{ textAlign: 'right' }}>
           <h2 style={{ fontSize: 14, fontWeight: 700, color: '#111827', margin: 0 }}>{doc.title}</h2>

@@ -166,6 +166,31 @@ export function PatientProvider({ children }) {
     });
   }, []);
 
+  /* ────── Add patient ────── */
+  const addPatient = useCallback(async (data) => {
+    try {
+      const created = await patientsApi.create(data);
+      setPatients((prev) => [...prev, created]);
+      return created;
+    } catch {
+      // Fallback: add to local state with generated IDs
+      const id = `p-${Date.now()}`;
+      const mrn = `MRN-${String(Date.now()).slice(-5)}`;
+      const newPt = { id, mrn, ...data, flags: data.flags || [], isBTG: false, isActive: true };
+      setPatients((prev) => [...prev, newPt]);
+      return newPt;
+    }
+  }, []);
+
+  /* ────── Update patient demographics ────── */
+  const updatePatient = useCallback(async (patientId, updates) => {
+    const updated = await patientsApi.update(patientId, updates);
+    const merged = { ...updated };
+    setPatients((prev) => prev.map((p) => (p.id === patientId ? merged : p)));
+    setSelectedPatient((cur) => (cur?.id === patientId ? merged : cur));
+    return merged;
+  }, []);
+
   /* ────── Allergies ────── */
   const addAllergy = useCallback(async (patientId, allergy) => {
     try {
@@ -480,6 +505,7 @@ export function PatientProvider({ children }) {
         patients,
         selectedPatient,
         selectPatient,
+        addPatient,
         updatePatient,
         openCharts,
         openChart,

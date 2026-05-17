@@ -1,4 +1,4 @@
-import initSqlJs from 'sql.js';
+import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,121 +11,30 @@ const dbPath = path.resolve(__dirname, '..', config.dbPath);
 const dbDir = path.dirname(dbPath);
 if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
-let SQL;
-let rawDb;
-let inTransaction = false;
+const db = new Database(dbPath);
 
-// Save database to disk
-function save() {
-  const data = rawDb.export();
-  fs.writeFileSync(dbPath, Buffer.from(data));
-}
-
-// Auto-save on process exit
-process.on('exit', () => { if (rawDb) save(); });
-process.on('SIGINT', () => { if (rawDb) save(); process.exit(); });
-process.on('SIGTERM', () => { if (rawDb) save(); process.exit(); });
-
-// ─── better-sqlite3 compatible wrapper ───────────────
-class PreparedStatement {
-  constructor(database, sql) {
-    this._db = database;
-    this._sql = sql;
-  }
-
-  _bindParams(params) {
-    // better-sqlite3 passes params as spread args: .get(a, b, c)
-    // sql.js expects an array: stmt.bind([a, b, c])
-    return params;
-  }
-
-  all(...params) {
-    const stmt = this._db.prepare(this._sql);
-    if (params.length > 0) stmt.bind(this._bindParams(params));
-    const results = [];
-    while (stmt.step()) {
-      const cols = stmt.getColumnNames();
-      const vals = stmt.get();
-      const row = {};
-      for (let i = 0; i < cols.length; i++) row[cols[i]] = vals[i];
-      results.push(row);
-    }
-    stmt.free();
-    return results;
-  }
-
-  get(...params) {
-    const stmt = this._db.prepare(this._sql);
-    if (params.length > 0) stmt.bind(this._bindParams(params));
-    let row = undefined;
-    if (stmt.step()) {
-      const cols = stmt.getColumnNames();
-      const vals = stmt.get();
-      row = {};
-      for (let i = 0; i < cols.length; i++) row[cols[i]] = vals[i];
-    }
-    stmt.free();
-    return row;
-  }
-
-  run(...params) {
-    this._db.run(this._sql, this._bindParams(params));
-    if (!inTransaction) save();
-    return {
-      changes: this._db.getRowsModified(),
-      lastInsertRowid: 0,
-    };
-  }
-}
-
-// Wrapper object that mimics better-sqlite3 database
-const db = {
-  prepare(sql) {
-    return new PreparedStatement(rawDb, sql);
-  },
-
-  exec(sql) {
-    rawDb.run(sql);
-    save();
-  },
-
-  pragma(expr) {
-    rawDb.run(`PRAGMA ${expr}`);
-  },
-
-  transaction(fn) {
-    return (...args) => {
-      inTransaction = true;
-      rawDb.run('BEGIN');
-      try {
-        const result = fn(...args);
-        rawDb.run('COMMIT');
-        inTransaction = false;
-        save();
-        return result;
-      } catch (e) {
-        try { rawDb.run('ROLLBACK'); } catch (_) { /* no active txn */ }
-        inTransaction = false;
-        throw e;
-      }
-    };
-  },
-};
+// WAL mode: crash-safe (no data loss on hard crash), concurrent reads, ~3x faster writes
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
+db.pragma('synchronous = NORMAL');
+db.pragma('busy_timeout = 5000');
 
 export async function initializeDatabase() {
-  SQL = await initSqlJs();
-
-  // Load existing DB from disk, or create fresh
-  if (fs.existsSync(dbPath)) {
-    const buffer = fs.readFileSync(dbPath);
-    rawDb = new SQL.Database(buffer);
-  } else {
-    rawDb = new SQL.Database();
+  // ── Schema migration: add columns added after initial release ──────────────
+  // SQLite ALTER TABLE only supports ADD COLUMN; we use try/catch so it is safe
+  // to run on an existing DB (the column already exists → no-op error).
+  const migrations = [
+    `ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN totp_secret TEXT DEFAULT NULL`,
+    `ALTER TABLE users ADD COLUMN email_otp TEXT DEFAULT NULL`,
+    `ALTER TABLE users ADD COLUMN email_otp_expires TEXT DEFAULT NULL`,
+    `ALTER TABLE users ADD COLUMN email_otp_attempts INTEGER DEFAULT 0`,
+  ];
+  for (const m of migrations) {
+    try { db.exec(m); } catch { /* column already exists — ok */ }
   }
 
-  rawDb.run('PRAGMA foreign_keys = ON');
-
-  rawDb.run(`
+  db.exec(`
     -- Users table
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -141,6 +50,7 @@ export async function initializeDatabase() {
       email TEXT NOT NULL,
       epcs_pin_hash TEXT,
       two_factor_enabled INTEGER DEFAULT 0,
+      must_change_password INTEGER DEFAULT 0,
       patient_id TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
@@ -903,6 +813,22 @@ export async function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_appointments_provider ON appointments(provider);
     CREATE INDEX IF NOT EXISTS idx_inbox_to_user ON inbox_messages(to_user);
     CREATE INDEX IF NOT EXISTS idx_staff_messages_channel ON staff_messages(channel_id);
+
+    -- Direct Messages
+    CREATE TABLE IF NOT EXISTS direct_messages (
+      id TEXT PRIMARY KEY,
+      sender_id TEXT NOT NULL,
+      recipient_id TEXT NOT NULL,
+      sender_name TEXT DEFAULT '',
+      content TEXT NOT NULL,
+      timestamp TEXT DEFAULT (datetime('now')),
+      reactions TEXT DEFAULT '{}',
+      read INTEGER DEFAULT 0,
+      FOREIGN KEY (sender_id) REFERENCES users(id),
+      FOREIGN KEY (recipient_id) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_dm_participants ON direct_messages(sender_id, recipient_id);
+    CREATE INDEX IF NOT EXISTS idx_dm_timestamp ON direct_messages(timestamp);
     CREATE INDEX IF NOT EXISTS idx_btg_audit_patient ON btg_audit_log(patient_id);
     CREATE INDEX IF NOT EXISTS idx_rx_history_med ON medication_rx_history(medication_id);
     CREATE INDEX IF NOT EXISTS idx_lab_tests_result ON lab_result_tests(lab_result_id);
@@ -977,9 +903,37 @@ export async function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_billing_rules_type ON billing_rules(rule_type);
     CREATE INDEX IF NOT EXISTS idx_billing_rules_enabled ON billing_rules(enabled);
     CREATE INDEX IF NOT EXISTS idx_billing_rules_priority ON billing_rules(priority);
+
+    -- ========== CLINIC LOCATIONS ==========
+    CREATE TABLE IF NOT EXISTS locations (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      short_name TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      phone TEXT NOT NULL DEFAULT '',
+      fax TEXT NOT NULL DEFAULT '',
+      hours TEXT NOT NULL DEFAULT '',
+      type TEXT NOT NULL DEFAULT 'Satellite' CHECK(type IN ('Primary','Satellite','Virtual')),
+      status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active','Inactive')),
+      npi TEXT NOT NULL DEFAULT '',
+      tax_id TEXT NOT NULL DEFAULT '',
+      place_of_service TEXT NOT NULL DEFAULT '11 — Office',
+      rooms INTEGER NOT NULL DEFAULT 0,
+      telehealth INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Seed default locations if none exist
+    INSERT OR IGNORE INTO locations (id, name, short_name, address, phone, fax, hours, type, status, npi, tax_id, place_of_service, rooms, telehealth, sort_order) VALUES
+      ('loc-apmg', 'Advanced Practice Medical Group', 'Rolling Meadows', '2280 Hicks Rd Suite 508, Rolling Meadows, IL 60008', '', '', '', 'Primary',   'Active', '', '', '11 — Office', 0, 1, 0),
+      ('loc1', 'Clarity — Main Office',      'Main Office',   '200 N Michigan Ave, Suite 1500, Chicago, IL 60601', '(312) 555-0199', '(312) 555-0200', 'Mon–Fri 8:00 AM – 6:00 PM',          'Primary',  'Active', '1234567890', '12-3456789', '11 — Office',       8, 1, 1),
+      ('loc2', 'Clarity — West Loop',         'West Loop',     '311 W Randolph St, Suite 800, Chicago, IL 60606',   '(312) 555-0210', '(312) 555-0211', 'Mon, Wed, Fri 9:00 AM – 5:00 PM',    'Satellite', 'Active', '1234567891', '12-3456789', '11 — Office',       5, 1, 2),
+      ('loc3', 'Clarity — Evanston',          'Evanston',      '1603 Orrington Ave, Suite 300, Evanston, IL 60201', '(847) 555-0130', '(847) 555-0131', 'Tue, Thu 9:00 AM – 5:00 PM',         'Satellite', 'Active', '1234567892', '12-3456790', '11 — Office',       3, 1, 3),
+      ('loc4', 'Clarity — Telehealth Only',   'Telehealth',    'Virtual — No Physical Location',                    '(312) 555-0250', '—',              'Mon–Sat 7:00 AM – 9:00 PM',          'Virtual',  'Active', '',           '12-3456789', '02 — Telehealth',   0, 1, 4);
   `);
 
-  save();
   console.log('Database schema initialized');
 }
 

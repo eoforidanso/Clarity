@@ -1,24 +1,21 @@
-const API_BASE = '/api';
+// In production set VITE_API_URL to your backend domain (e.g. https://api.example.com/api)
+const API_BASE = import.meta.env?.VITE_API_URL || '/api';
 
-function getToken() {
-  return localStorage.getItem('ehr_token');
-}
-
-export function setToken(token) {
-  if (token) localStorage.setItem('ehr_token', token);
-  else localStorage.removeItem('ehr_token');
-}
+// No-op — token is now managed as an httpOnly cookie set by the server
+export function setToken(_token) {}
 
 async function request(path, options = {}) {
-  const token = getToken();
   const headers = { 'Content-Type': 'application/json', ...options.headers };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+    credentials: 'include', // send/receive httpOnly cookies cross-origin
+  });
 
   if (res.status === 401) {
-    setToken(null);
-    window.location.href = '/login';
+    // Throw so callers can handle unauthenticated state — do NOT redirect here
+    // (the /auth/me call on startup legitimately returns 401 when not logged in)
     throw new Error('Session expired');
   }
 
@@ -41,9 +38,13 @@ export const auth = {
   login: (username, password) => post('/auth/login', { username, password }),
   logout: () => post('/auth/logout', {}),
   me: () => get('/auth/me'),
+  changePassword: (currentPassword, newPassword) => post('/auth/change-password', { currentPassword, newPassword }),
   verifyEpcsPin: (pin) => post('/auth/verify-epcs-pin', { pin }),
   generateEpcsOtp: () => post('/auth/generate-epcs-otp', {}),
   verifyEpcsOtp: (otp) => post('/auth/verify-epcs-otp', { otp }),
+  verify2FA: (tempToken, code) => post('/auth/2fa/verify', { tempToken, code }),
+  setup2FA: () => post('/auth/2fa/setup', {}),
+  enable2FA: (secret, code) => post('/auth/2fa/enable', { secret, code }),
 };
 
 // ─── Patients ────────────────────────────────────────
@@ -140,6 +141,12 @@ export const messaging = {
   messages: (channelId) => get(`/messaging/channels/${channelId}/messages`),
   send: (channelId, data) => post(`/messaging/channels/${channelId}/messages`, data),
   react: (messageId, data) => put(`/messaging/messages/${messageId}/reactions`, data),
+  dm: {
+    messages: (userId) => get(`/messaging/dm/${userId}/messages`),
+    send: (userId, data) => post(`/messaging/dm/${userId}/messages`, data),
+    react: (messageId, data) => put(`/messaging/dm/messages/${messageId}/reactions`, data),
+    unreadCounts: () => get('/messaging/dm/unread-counts'),
+  },
 };
 
 // ─── BTG ─────────────────────────────────────────────
@@ -223,6 +230,24 @@ export const icd10 = {
 
 export const openfda = {
   drugLabel: (search) => get(`/external/openfda/drug-label?search=${encodeURIComponent(search)}`),
+};
+
+// ─── Locations ───────────────────────────────────────
+export const locations = {
+  list: () => get('/locations'),
+  create: (data) => post('/locations', data),
+  update: (id, data) => put(`/locations/${id}`, data),
+  remove: (id) => del(`/locations/${id}`),
+};
+
+// ─── Users (admin) ─────────────────────────────────
+export const users = {
+  list: () => get('/users'),
+  directory: () => get('/users/directory'),
+  create: (data) => post('/users', data),
+  update: (id, data) => put(`/users/${id}`, data),
+  remove: (id) => del(`/users/${id}`),
+  resetPassword: (id, newPassword) => post(`/users/${id}/reset-password`, { newPassword }),
 };
 
 // ─── Audit Log ───────────────────────────────────────

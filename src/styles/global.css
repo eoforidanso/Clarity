@@ -4277,3 +4277,376 @@ img { max-width: 100%; }
   .voice-assistant-fab { bottom: 80px; right: 16px; }
   .checkin-container { padding: 0 8px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   COMPREHENSIVE MOBILE RESPONSIVE OVERRIDES
+═══════════════════════════════════════════════════════════════ */
+
+/* ── Dashboard responsive classes ─────────────────────────── */
+.dashboard-greeting {
+  margin-bottom: 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.dashboard-greeting-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.dashboard-stats-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 14px; margin-bottom: 24px; }
+.dashboard-main-grid { display: grid; grid-template-columns: 1fr 340px; gap: 18px; align-items: start; }
+
+/* ── Skip to main content (accessibility) ─────────────────── */
+.skip-to-main {
+  position: absolute;
+  top: -100px;
+  left: 16px;
+  background: var(--primary);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  z-index: 9999;
+  font-weight: 700;
+  font-size: 13px;
+  transition: top 0.2s;
+}
+.skip-to-main:focus { top: 8px; }
+
+/* ── Focus visible ring (keyboard accessibility) ──────────── */
+*:focus-visible {
+  outline: 2px solid var(--primary) !important;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.sidebar nav li a:focus-visible { outline-offset: -2px; }
+
+/* ── Reduced motion preference ────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .sidebar { transition: none !important; }
+}
+
+/* ── Page transition animation ────────────────────────────── */
+.fade-in {
+  animation: fadeSlideUp 0.3s var(--ease) both;
+}
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Smooth card hover micro-interaction ──────────────────── */
+.card-hover { transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease); }
+.card-hover:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+/* ── Stat card pulse on change ────────────────────────────── */
+.stat-card { transition: transform 0.15s var(--ease); }
+.stat-card:active { transform: scale(0.97); }
+
+/* ── Empty state improvement ──────────────────────────────── */
+.empty-state { text-align: center; padding: 32px 16px; }
+.empty-state .icon { font-size: 36px; display: block; margin-bottom: 10px; opacity: 0.6; }
+.empty-state h3 { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+.empty-state p { font-size: 12px; color: var(--text-muted); }
+
+/* ── Better button press feedback ─────────────────────────── */
+.btn { transition: all 0.15s var(--ease); }
+.btn:active { transform: scale(0.96); }
+.btn-primary:active { box-shadow: 0 0 0 3px var(--primary-ring); }
+
+/* ── Appointment row hover glow ───────────────────────────── */
+.appt-row { transition: background 0.15s, box-shadow 0.15s; }
+.appt-row:hover { box-shadow: inset 3px 0 0 var(--primary); }
+
+/* ── Badge pulse for urgent items ─────────────────────────── */
+.badge-danger { animation: badgePulse 2s ease-in-out infinite; }
+@keyframes badgePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
+  50% { box-shadow: 0 0 0 4px rgba(220,38,38,0.12); }
+}
+
+/* ── Sidebar nav hover reveal effect ──────────────────────── */
+.sidebar-nav li a {
+  position: relative;
+  overflow: hidden;
+}
+.sidebar-nav li a::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: #3b82f6;
+  transform: scaleY(0);
+  transition: transform 0.2s var(--ease);
+  border-radius: 0 2px 2px 0;
+}
+.sidebar-nav li a:hover::before,
+.sidebar-nav li a.active::before { transform: scaleY(1); }
+
+/* ── Scrollbar fade on sidebar ────────────────────────────── */
+.sidebar::-webkit-scrollbar-thumb { background: transparent; transition: background 0.3s; }
+.sidebar:hover::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
+
+/* ── Better search focus animation ────────────────────────── */
+.header-search input { transition: all 0.25s var(--ease); }
+.header-search input:focus {
+  border-color: var(--border-focus);
+  background: var(--bg-white);
+  box-shadow: 0 0 0 3px var(--primary-ring), 0 4px 12px rgba(0,102,204,0.08);
+}
+
+/* ── Print styles ─────────────────────────────────────────── */
+@media print {
+  .sidebar, .header, .mobile-menu-btn, .sidebar-overlay { display: none !important; }
+  .main-area { margin-left: 0 !important; }
+  .main-content { padding: 0 !important; overflow: visible !important; }
+  body { overflow: visible !important; }
+  .card { break-inside: avoid; box-shadow: none !important; border: 1px solid #ccc; }
+}
+
+/* ── Tablet (≤1024px) ─────────────────────────────────────── */
+@media (max-width: 1024px) {
+  /* Dashboard */
+  .dashboard-greeting { flex-direction: column; }
+  .dashboard-greeting-actions { width: 100%; overflow-x: auto; }
+  .dashboard-stats-grid { grid-template-columns: repeat(3, 1fr) !important; }
+  .dashboard-main-grid { grid-template-columns: 1fr !important; }
+
+  /* Header: stack search below title row */
+  .header { flex-wrap: wrap; height: auto; min-height: var(--header-height); padding: 8px 14px !important; gap: 6px; }
+  .header-search { order: 10; flex: 0 0 100%; max-width: 100%; }
+  .header-search input { font-size: 14px; padding: 10px 70px 10px 36px; }
+  .header-actions { gap: 2px; }
+  .header-patient-chip { max-width: 160px; }
+  .search-kbd { display: none; }
+
+  /* Grids collapse */
+  .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .athena-vitals-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* Inbox: single-column */
+  .inbox-layout { grid-template-columns: 1fr !important; height: auto !important; min-height: unset; }
+  .inbox-list { max-height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
+
+  /* Telehealth: stack video + chat */
+  .telehealth-container { grid-template-columns: 1fr !important; height: auto !important; }
+
+  /* Tables: horizontal scroll */
+  .data-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Schedule: let content scroll */
+  .athena-chart-layout { height: auto; min-height: calc(100vh - var(--header-height)); }
+}
+
+/* ── Phone (≤768px) ───────────────────────────────────────── */
+@media (max-width: 768px) {
+  :root { --header-height: 48px; }
+  html { font-size: 13px; }
+
+  /* Dashboard */
+  .dashboard-stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+  .dashboard-main-grid { grid-template-columns: 1fr !important; }
+  .dashboard-greeting-actions { flex-wrap: wrap; }
+  .dashboard-export-btn { display: none; }
+
+  /* Layout: full-width main */
+  .main-area { margin-left: 0 !important; }
+  .main-content { padding: 10px 12px !important; }
+
+  /* Header: compact */
+  .header { padding: 6px 10px !important; gap: 4px; }
+  .header-search input { font-size: 16px; /* prevent iOS zoom */ }
+  .header-patient-chip { display: none; }
+  .header-divider { display: none; }
+  .header-btn { width: 32px; height: 32px; font-size: 14px; }
+  .header-actions .header-btn:not(:first-child):not(:last-child) { display: none; }
+
+  /* Sidebar: off-canvas with smooth slide */
+  .sidebar {
+    position: fixed !important;
+    left: -280px !important;
+    width: 280px !important;
+    top: 0 !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    z-index: 1000 !important;
+    transition: left 0.3s var(--ease) !important;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.2);
+  }
+  .mobile-open .sidebar { left: 0 !important; }
+  .sidebar-overlay.visible { display: block; backdrop-filter: blur(2px); }
+
+  /* Mobile menu button */
+  .mobile-menu-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    bottom: 16px;
+    right: 16px;
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+  }
+
+  /* Grids: 1-2 columns max */
+  .grid-4 { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+  .athena-summary-row-2,
+  .athena-summary-row-3 { grid-template-columns: 1fr !important; gap: 10px !important; }
+  .athena-vitals-grid { grid-template-columns: repeat(2, 1fr); gap: 3px; }
+
+  /* Patient banner: compact */
+  .athena-patient-banner { padding: 8px 10px !important; }
+  .athena-banner-avatar { width: 36px !important; height: 36px !important; font-size: 13px !important; }
+  .athena-banner-identity h2 { font-size: 14px !important; }
+  .athena-banner-details { font-size: 10px !important; flex-wrap: wrap; gap: 4px !important; }
+  .athena-banner-actions { flex-wrap: wrap; gap: 4px; }
+  .athena-banner-actions .btn { font-size: 11px; padding: 4px 8px; }
+  .athena-banner-expanded { grid-template-columns: 1fr !important; }
+
+  /* Chart tabs: scrollable with touch */
+  .athena-chart-toolbar { padding: 0 8px; min-height: 38px; }
+  .athena-chart-tabs { gap: 0; }
+  .athena-tab { font-size: 11px !important; padding: 0 10px !important; white-space: nowrap; }
+  .athena-chart-content { padding: 10px 12px 20px !important; }
+  .athena-chart-actions-bar { flex-wrap: wrap; gap: 4px; padding: 6px 8px; }
+
+  /* Cards */
+  .card { border-radius: var(--radius-md); }
+  .card-header { flex-direction: column; gap: 6px; align-items: flex-start !important; padding: 10px 12px; }
+  .stat-card { padding: 10px 12px !important; }
+
+  /* Inbox: stacked */
+  .inbox-layout { grid-template-columns: 1fr !important; height: auto !important; }
+  .inbox-list { max-height: 35vh; border-right: none !important; border-bottom: 1px solid var(--border); }
+  .inbox-item { padding: 8px 10px; }
+
+  /* Telehealth */
+  .telehealth-container { grid-template-columns: 1fr !important; height: auto !important; gap: 10px !important; }
+  .video-main { min-height: 50vw; }
+
+  /* Buttons & forms */
+  .btn { font-size: 12px !important; padding: 7px 14px !important; }
+  .form-row { flex-direction: column !important; }
+  .form-row > * { width: 100% !important; }
+  input, select, textarea { font-size: 16px !important; /* prevent iOS zoom */ }
+
+  /* Page headers */
+  .page-header { flex-direction: column !important; gap: 8px; align-items: flex-start !important; }
+
+  /* Modals: full-width on mobile */
+  .modal-overlay .modal,
+  .modal-content { width: calc(100vw - 24px) !important; max-width: 100% !important; max-height: 85vh !important; margin: auto; }
+
+  /* Ambient / AI panels */
+  .ai-assistant-panel { width: calc(100vw - 16px) !important; right: 8px !important; bottom: 72px !important; max-height: 70vh !important; }
+
+  /* E-Prescribe / two-column layouts */
+  .eprescribe-layout,
+  .messaging-layout,
+  .staff-messaging-layout { grid-template-columns: 1fr !important; }
+
+  /* Billing grids */
+  .mips-submission-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── Small phone (≤480px) ─────────────────────────────────── */
+@media (max-width: 480px) {
+  html { font-size: 12.5px; }
+
+  .main-content { padding: 6px 8px !important; }
+  .header { padding: 4px 8px !important; }
+
+  /* Dashboard: single column stats */
+  .dashboard-stats-grid { grid-template-columns: 1fr 1fr !important; }
+
+  h1 { font-size: 17px !important; }
+  h2 { font-size: 15px !important; }
+  h3 { font-size: 13px !important; }
+
+  /* Patient banner ultra-compact */
+  .athena-patient-banner { padding: 6px 8px !important; }
+  .athena-banner-avatar { width: 30px !important; height: 30px !important; font-size: 11px !important; }
+  .athena-banner-identity h2 { font-size: 13px !important; }
+  .athena-banner-details { display: none; }
+  .athena-allergy-bar { font-size: 10px !important; padding: 3px 8px !important; }
+
+  /* Chart tabs: minimal */
+  .athena-tab { font-size: 10px !important; padding: 0 6px !important; }
+  .athena-tab .tab-icon { display: none; }
+
+  /* Grid: single column */
+  .grid-4,
+  .athena-summary-row-2,
+  .athena-summary-row-3,
+  .athena-field-grid { grid-template-columns: 1fr !important; }
+  .athena-vitals-grid { grid-template-columns: 1fr 1fr; }
+
+  /* Table: smaller text */
+  .data-table { font-size: 11px !important; }
+  .data-table th, .data-table td { padding: 5px 6px !important; }
+
+  /* Cards: tighter */
+  .card { border-radius: var(--radius) !important; }
+  .athena-panel { border-radius: var(--radius) !important; }
+  .athena-panel-header { padding: 7px 10px; }
+
+  /* Mobile menu button: smaller */
+  .mobile-menu-btn { width: 44px; height: 44px; font-size: 18px; bottom: 12px; right: 12px; }
+
+  /* Sidebar: narrower */
+  .sidebar { width: 260px !important; left: -260px !important; }
+
+  /* Stat cards */
+  .stat-card { padding: 8px 10px !important; }
+  .stat-card h3 { font-size: 18px !important; }
+
+  /* Buttons */
+  .btn { font-size: 11px !important; padding: 6px 10px !important; }
+  .athena-toolbar-btn { font-size: 10px !important; padding: 3px 6px !important; }
+}
+
+/* ── Touch-friendly enhancements ──────────────────────────── */
+@media (hover: none) and (pointer: coarse) {
+  /* Larger tap targets */
+  .sidebar nav li a { min-height: 44px; display: flex; align-items: center; }
+  .inbox-item { min-height: 56px; }
+  .athena-tab { min-height: 40px; }
+  .header-btn { min-width: 40px; min-height: 40px; }
+  .btn { min-height: 40px; }
+
+  /* Remove hover effects (they stick on touch) */
+  .sidebar nav li a:hover { background: transparent; }
+  .sidebar nav li a.active:hover { background: var(--bg-sidebar-active); }
+  .inbox-item:hover { background: transparent; }
+  .inbox-item.active:hover { background: var(--primary-light); }
+
+  /* Smoother scrolling */
+  .main-content,
+  .sidebar,
+  .inbox-list,
+  .athena-chart-content,
+  .athena-chart-tabs {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+/* ── Safe area insets (notch phones) ──────────────────────── */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .mobile-menu-btn { bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .main-content { padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important; }
+  .sidebar { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* ── Landscape phone ──────────────────────────────────────── */
+@media (max-height: 500px) and (orientation: landscape) {
+  .sidebar-logo { padding: 6px 12px !important; }
+  .sidebar-logo-inner { padding: 6px 10px; }
+  .logo-mark { width: 28px; height: 28px; font-size: 13px; }
+  .sidebar-section-title { padding: 4px 14px !important; font-size: 9px !important; }
+  .sidebar nav li a { padding: 5px 14px !important; font-size: 11px !important; }
+  .mobile-menu-btn { bottom: 8px; right: 8px; width: 40px; height: 40px; font-size: 16px; }
+}

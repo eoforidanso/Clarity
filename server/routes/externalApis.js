@@ -1,7 +1,8 @@
 import { Router } from 'express';
+import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
-// No auth required — these proxy to free public NIH/NLM/FDA APIs
+router.use(authenticate);
 
 // ── RxNorm Drug Search (NLM — free, no API key) ──────────────────────────────
 // Docs: https://rxnav.nlm.nih.gov/REST

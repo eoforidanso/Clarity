@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { usePatient } from '../../contexts/PatientContext';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -14,6 +14,13 @@ export default function LabResults({ patientId }) {
     testName: '', priority: 'Routine', diagnosis: '', notes: '', fasting: false,
   });
   const [orderSaved, setOrderSaved] = useState(false);
+  const orderTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (orderTimerRef.current) clearTimeout(orderTimerRef.current);
+    };
+  }, []);
 
   const commonLabTests = [
     'CBC with Differential', 'CMP (Comprehensive Metabolic Panel)', 'BMP (Basic Metabolic Panel)',
@@ -37,7 +44,8 @@ export default function LabResults({ patientId }) {
       orderedBy: `${currentUser.firstName} ${currentUser.lastName}`,
     });
     setOrderSaved(true);
-    setTimeout(() => {
+    if (orderTimerRef.current) clearTimeout(orderTimerRef.current);
+    orderTimerRef.current = setTimeout(() => {
       setOrderSaved(false);
       setShowNewOrder(false);
       setOrderForm({ testName: '', priority: 'Routine', diagnosis: '', notes: '', fasting: false });
@@ -46,12 +54,21 @@ export default function LabResults({ patientId }) {
 
   // ── Print handler ────────────────────────────────────────
   const printRef = useRef(null);
+  const escHtml = (str) => String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
   const handlePrint = () => {
     const printContent = printRef.current;
     if (!printContent) return;
     const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) {
+      alert('Print window was blocked. Please allow popups for this site and try again.');
+      return;
+    }
     printWindow.document.write(`
-      <html><head><title>Lab Results — Patient ${patientId}</title>
+      <html><head><title>Lab Results — Patient ${escHtml(patientId)}</title>
       <style>
         body { font-family: Arial, sans-serif; padding: 24px; color: #1e293b; }
         h1 { font-size: 18px; margin-bottom: 4px; }
@@ -66,21 +83,21 @@ export default function LabResults({ patientId }) {
         @media print { body { padding: 0; } }
       </style></head><body>
       <h1>🔬 Lab Results Report</h1>
-      <div class="meta">Printed: ${new Date().toLocaleString()} | Patient MRN: ${patientId}</div>
+      <div class="meta">Printed: ${escHtml(new Date().toLocaleString())} | Patient MRN: ${escHtml(patientId)}</div>
       ${patientLabs.map(lab => `
-        <h2>Lab Panel — ${lab.resultDate} (${lab.status})</h2>
-        <div class="meta">Ordered: ${lab.orderDate} by ${lab.orderedBy}</div>
+        <h2>Lab Panel — ${escHtml(lab.resultDate)} (${escHtml(lab.status)})</h2>
+        <div class="meta">Ordered: ${escHtml(lab.orderDate)} by ${escHtml(lab.orderedBy)}</div>
         ${lab.tests.map(test => `
-          <div><strong>${test.name}</strong></div>
+          <div><strong>${escHtml(test.name)}</strong></div>
           <table>
             <thead><tr><th>Component</th><th>Value</th><th>Unit</th><th>Reference Range</th><th>Flag</th></tr></thead>
             <tbody>${test.results.map(r => `
               <tr>
-                <td>${r.component}</td>
-                <td class="flag-${r.flag || ''}">${r.value}</td>
-                <td>${r.unit}</td>
-                <td>${r.range}</td>
-                <td class="flag-${r.flag || ''}">${r.flag === 'H' ? '↑ High' : r.flag === 'L' ? '↓ Low' : r.flag === 'A' ? '⚠ Abnormal' : r.flag || '—'}</td>
+                <td>${escHtml(r.component)}</td>
+                <td class="flag-${escHtml(r.flag || '')}">${escHtml(r.value)}</td>
+                <td>${escHtml(r.unit)}</td>
+                <td>${escHtml(r.range)}</td>
+                <td class="flag-${escHtml(r.flag || '')}">${r.flag === 'H' ? '↑ High' : r.flag === 'L' ? '↓ Low' : r.flag === 'A' ? '⚠ Abnormal' : escHtml(r.flag) || '—'}</td>
               </tr>`).join('')}
             </tbody>
           </table>

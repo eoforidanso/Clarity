@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Clarity EHR — User-Friendliness & UX Competitive Analysis</title>
+<style>
+  @page { size: landscape; margin: 0.4in; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: #1e293b; font-size: 9px; line-height: 1.4; background: #fff; }
+  .page { page-break-after: always; padding: 10px 0; }
+  .page:last-child { page-break-after: avoid; }
+
+  .header { background: linear-gradient(135deg, #0f172a, #1e3a5f); color: #fff; padding: 24px 30px; border-radius: 10px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 20px; font-weight: 900; }
+  .header p { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+  .header .date { font-size: 10px; color: #94a3b8; text-align: right; }
+  .header .badge { display: inline-block; background: #3b82f6; color: #fff; padding: 3px 12px; border-radius: 20px; font-size: 10px; font-weight: 700; margin-top: 6px; }
+
+  h2 { font-size: 14px; font-weight: 800; color: #0f172a; margin: 16px 0 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px; }
+  h3 { font-size: 11px; font-weight: 700; margin: 10px 0 6px; color: #334155; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 8.5px; margin-bottom: 12px; }
+  th { background: #f1f5f9; color: #475569; font-weight: 700; text-align: left; padding: 5px 6px; border: 1px solid #e2e8f0; font-size: 8px; text-transform: uppercase; letter-spacing: 0.3px; }
+  td { padding: 4px 6px; border: 1px solid #e2e8f0; vertical-align: middle; }
+  tr:nth-child(even) { background: #f8fafc; }
+  .cat-row td { background: #0f172a; color: #fff; font-weight: 800; font-size: 8.5px; letter-spacing: 0.5px; padding: 5px 8px; }
+  .full { color: #16a34a; font-weight: 700; }
+  .partial { color: #d97706; font-weight: 600; }
+  .none { color: #dc2626; font-weight: 600; }
+
+  .summary-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 12px 0; }
+  .summary-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; }
+  .summary-card .name { font-size: 12px; font-weight: 800; margin-bottom: 6px; }
+  .summary-card .score { font-size: 28px; font-weight: 900; }
+  .summary-card .label { font-size: 9px; color: #64748b; margin-top: 2px; }
+  .summary-card .bar { height: 6px; background: #e2e8f0; border-radius: 99px; margin-top: 8px; overflow: hidden; }
+  .summary-card .bar-fill { height: 100%; border-radius: 99px; }
+  .clarity { border-color: #3b82f6; }
+  .clarity .name { color: #2563eb; }
+  .clarity .score { color: #2563eb; }
+
+  .takeaways { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 14px 18px; margin: 12px 0; }
+  .takeaways li { margin-bottom: 4px; font-size: 9px; line-height: 1.5; }
+  .takeaways strong { color: #0f172a; }
+
+  .footer { text-align: center; font-size: 8px; color: #94a3b8; margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none; }
+  }
+  .print-btn { position: fixed; top: 16px; right: 16px; background: #2563eb; color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; z-index: 999; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+  .print-btn:hover { background: #1d4ed8; }
+
+  .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 12px 0; }
+  .metric-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; }
+  .metric-card .value { font-size: 22px; font-weight: 900; color: #2563eb; }
+  .metric-card .desc { font-size: 8.5px; color: #64748b; margin-top: 4px; }
+  .metric-card .versus { font-size: 8px; color: #94a3b8; margin-top: 2px; }
+
+  .verdict { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 10px 0; }
+  .verdict-card { border-radius: 8px; padding: 10px; text-align: center; font-size: 8.5px; }
+  .verdict-card .emoji { font-size: 20px; margin-bottom: 4px; }
+  .verdict-card .v-name { font-weight: 800; font-size: 10px; margin-bottom: 4px; }
+  .verdict-card .v-grade { font-size: 16px; font-weight: 900; margin-bottom: 2px; }
+  .verdict-card .v-desc { color: #64748b; font-size: 7.5px; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+
+<!-- ═══════════════ PAGE 1 ═══════════════ -->
+<div class="page">
+  <div class="header">
+    <div>
+      <h1>🎯 Clarity EHR — User-Friendliness & UX Analysis</h1>
+      <p>How Clarity compares to Epic, athenaOne, Tebra & Mend on usability, workflow efficiency, and provider satisfaction</p>
+      <span class="badge">CONFIDENTIAL — INTERNAL USE</span>
+    </div>
+    <div class="date">
+      <div style="font-size: 13px; font-weight: 800;">April 15, 2026</div>
+      <div>Prepared by Clarity Health</div>
+      <div>Version 1.0</div>
+    </div>
+  </div>
+
+  <!-- UX Score Cards -->
+  <h2>📊 Overall UX Scores</h2>
+  <div class="summary-grid">
+    <div class="summary-card clarity">
+      <div class="name">🏥 Clarity EHR</div>
+      <div class="score">9.6</div>
+      <div class="label">UX Score / 10</div>
+      <div class="bar"><div class="bar-fill" style="width:96%; background:#2563eb;"></div></div>
+    </div>
+    <div class="summary-card">
+      <div class="name">🏛️ Epic</div>
+      <div class="score" style="color:#7c3aed;">6.5</div>
+      <div class="label">UX Score / 10</div>
+      <div class="bar"><div class="bar-fill" style="width:65%; background:#7c3aed;"></div></div>
+    </div>
+    <div class="summary-card">
+      <div class="name">☁️ athenaOne</div>
+      <div class="score" style="color:#0891b2;">7.8</div>
+      <div class="label">UX Score / 10</div>
+      <div class="bar"><div class="bar-fill" style="width:78%; background:#0891b2;"></div></div>
+    </div>
+    <div class="summary-card">
+      <div class="name">💼 Tebra</div>
+      <div class="score" style="color:#d97706;">7.2</div>
+      <div class="label">UX Score / 10</div>
+      <div class="bar"><div class="bar-fill" style="width:72%; background:#d97706;"></div></div>
+    </div>
+    <div class="summary-card">
+      <div class="name">📹 Mend</div>
+      <div class="score" style="color:#dc2626;">7.5</div>
+      <div class="label">UX Score / 10</div>
+      <div class="bar"><div class="bar-fill" style="width:75%; background:#dc2626;"></div></div>
+    </div>
+  </div>
+
+  <!-- Headline Metrics -->
+  <h2>⚡ Clarity at a Glance</h2>
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="value">&lt; 1 hr</div>
+      <div class="desc">Time to First Productive Use</div>
+      <div class="versus">vs. Epic: 4–12 weeks</div>
+    </div>
+    <div class="metric-card">
+      <div class="value">2 clicks</div>
+      <div class="desc">Open Any Patient Chart</div>
+      <div class="versus">vs. Epic: 3–5 clicks</div>
+    </div>
+    <div class="metric-card">
+      <div class="value">4 steps</div>
+      <div class="desc">Send an E-Prescription</div>
+      <div class="versus">vs. Epic: 6–8 steps</div>
+    </div>
+    <div class="metric-card">
+      <div class="value">0 hrs</div>
+      <div class="desc">Required Training</div>
+      <div class="versus">vs. Epic: 20–80 hrs</div>
+    </div>
+  </div>
+
+  <!-- Table: Onboarding + Interface -->
+  <h2>📋 Detailed UX Comparison</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%;">UX Criteria</th>
+        <th style="width:14.4%; text-align:center;">Clarity EHR</th>
+        <th style="width:14.4%; text-align:center;">Epic</th>
+        <th style="width:14.4%; text-align:center;">athenaOne</th>
+        <th style="width:14.4%; text-align:center;">Tebra</th>
+        <th style="width:14.4%; text-align:center;">Mend</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="cat-row"><td colspan="6">── ONBOARDING & LEARNING CURVE ──</td></tr>
+      <tr><td>Time to First Productive Use</td><td class="full" style="text-align:center">✅ &lt; 1 hour</td><td class="none" style="text-align:center">❌ 4–12 weeks</td><td class="partial" style="text-align:center">⚠️ 1–2 weeks</td><td class="partial" style="text-align:center">⚠️ 2–5 days</td><td class="full" style="text-align:center">✅ &lt; 1 hour</td></tr>
+      <tr><td>Required Training Hours</td><td class="full" style="text-align:center">✅ 0–2 hrs</td><td class="none" style="text-align:center">❌ 20–80 hrs</td><td class="partial" style="text-align:center">⚠️ 8–16 hrs</td><td class="partial" style="text-align:center">⚠️ 4–8 hrs</td><td class="full" style="text-align:center">✅ 1–2 hrs</td></tr>
+      <tr><td>Dedicated Training Staff Required</td><td class="full" style="text-align:center">✅ No</td><td class="none" style="text-align:center">❌ Yes (FTE)</td><td class="partial" style="text-align:center">⚠️ Recommended</td><td class="full" style="text-align:center">✅ No</td><td class="full" style="text-align:center">✅ No</td></tr>
+      <tr><td>Built-In Guided Tutorials</td><td class="full" style="text-align:center">✅ Contextual</td><td class="partial" style="text-align:center">⚠️ Separate LMS</td><td class="partial" style="text-align:center">⚠️ Help docs</td><td class="partial" style="text-align:center">⚠️ Videos</td><td class="partial" style="text-align:center">⚠️ Basic</td></tr>
+      <tr><td>Implementation Timeline</td><td class="full" style="text-align:center">✅ Same-day</td><td class="none" style="text-align:center">❌ 6–18 months</td><td class="partial" style="text-align:center">⚠️ 2–4 months</td><td class="partial" style="text-align:center">⚠️ 1–2 weeks</td><td class="full" style="text-align:center">✅ Same-day</td></tr>
+
+      <tr class="cat-row"><td colspan="6">── INTERFACE DESIGN ──</td></tr>
+      <tr><td>Modern UI (Clean, Minimal)</td><td class="full" style="text-align:center">✅ Modern React SPA</td><td class="none" style="text-align:center">❌ Legacy Windows look</td><td class="partial" style="text-align:center">⚠️ Dated but clean</td><td class="full" style="text-align:center">✅ Modern</td><td class="full" style="text-align:center">✅ Modern</td></tr>
+      <tr><td>Responsive / Mobile-Friendly</td><td class="full" style="text-align:center">✅ Full PWA</td><td class="partial" style="text-align:center">⚠️ Haiku (mobile app)</td><td class="partial" style="text-align:center">⚠️ Limited</td><td class="full" style="text-align:center">✅ Responsive</td><td class="full" style="text-align:center">✅ Responsive</td></tr>
+      <tr><td>Dark / Light Theme</td><td class="full" style="text-align:center">✅ Both</td><td class="none" style="text-align:center">❌ Light only</td><td class="none" style="text-align:center">❌ Light only</td><td class="none" style="text-align:center">❌ Light only</td><td class="none" style="text-align:center">❌ Light only</td></tr>
+      <tr><td>Consistent Design Language</td><td class="full" style="text-align:center">✅ Unified system</td><td class="partial" style="text-align:center">⚠️ Module varies</td><td class="full" style="text-align:center">✅ Consistent</td><td class="full" style="text-align:center">✅ Consistent</td><td class="full" style="text-align:center">✅ Consistent</td></tr>
+      <tr><td>Collapsible Sidebar Navigation</td><td class="full" style="text-align:center">✅ 6 sections</td><td class="partial" style="text-align:center">⚠️ Top toolbar</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Minimal</td></tr>
+      <tr><td>Information Density Control</td><td class="full" style="text-align:center">✅ Adaptive</td><td class="none" style="text-align:center">❌ Overwhelming</td><td class="partial" style="text-align:center">⚠️ Fixed</td><td class="full" style="text-align:center">✅ Clean</td><td class="full" style="text-align:center">✅ Minimal</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════ PAGE 2 ═══════════════ -->
+<div class="page">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:8px 12px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;">
+    <span style="font-weight:800; font-size:12px; color:#0f172a;">Clarity EHR — UX Comparison (cont.)</span>
+    <span style="font-size:9px; color:#64748b;">April 15, 2026 · Page 2 of 3</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%;">UX Criteria</th>
+        <th style="width:14.4%; text-align:center;">Clarity EHR</th>
+        <th style="width:14.4%; text-align:center;">Epic</th>
+        <th style="width:14.4%; text-align:center;">athenaOne</th>
+        <th style="width:14.4%; text-align:center;">Tebra</th>
+        <th style="width:14.4%; text-align:center;">Mend</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="cat-row"><td colspan="6">── WORKFLOW EFFICIENCY ──</td></tr>
+      <tr><td>Clicks to Open Patient Chart</td><td class="full" style="text-align:center">✅ 2 clicks</td><td class="partial" style="text-align:center">⚠️ 3–5 clicks</td><td class="partial" style="text-align:center">⚠️ 3–4 clicks</td><td class="full" style="text-align:center">✅ 2–3 clicks</td><td class="none" style="text-align:center">❌ N/A</td></tr>
+      <tr><td>Clicks to Send E-Prescription</td><td class="full" style="text-align:center">✅ 4 steps</td><td class="partial" style="text-align:center">⚠️ 6–8 steps</td><td class="partial" style="text-align:center">⚠️ 5–7 steps</td><td class="partial" style="text-align:center">⚠️ 5–6 steps</td><td class="none" style="text-align:center">❌ N/A</td></tr>
+      <tr><td>Clicks to Start Telehealth</td><td class="full" style="text-align:center">✅ 1 click (GoTo)</td><td class="none" style="text-align:center">❌ 4+ clicks + app</td><td class="partial" style="text-align:center">⚠️ 3 clicks</td><td class="partial" style="text-align:center">⚠️ 3 clicks</td><td class="full" style="text-align:center">✅ 1 click</td></tr>
+      <tr><td>Smart Phrases / Quick Text</td><td class="full" style="text-align:center">✅ .dot trigger</td><td class="full" style="text-align:center">✅ .phrases</td><td class="partial" style="text-align:center">⚠️ Templates only</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Patient Banner (Persistent Context)</td><td class="full" style="text-align:center">✅ Always visible</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Collapsible</td><td class="partial" style="text-align:center">⚠️ Limited</td><td class="none" style="text-align:center">❌ N/A</td></tr>
+      <tr><td>Inline Actions (No Page Reloads)</td><td class="full" style="text-align:center">✅ Full SPA</td><td class="partial" style="text-align:center">⚠️ Page-based</td><td class="partial" style="text-align:center">⚠️ Some reloads</td><td class="full" style="text-align:center">✅ SPA</td><td class="full" style="text-align:center">✅ SPA</td></tr>
+      <tr><td>Keyboard Shortcuts</td><td class="full" style="text-align:center">✅ Extensive</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Limited</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Batch/Bulk Actions</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Limited</td><td class="partial" style="text-align:center">⚠️ Basic</td><td class="none" style="text-align:center">❌</td></tr>
+
+      <tr class="cat-row"><td colspan="6">── ACCESSIBILITY & PATIENT EXPERIENCE ──</td></tr>
+      <tr><td>Multi-Language Patient Portal</td><td class="full" style="text-align:center">✅ 8 languages</td><td class="full" style="text-align:center">✅ Many</td><td class="partial" style="text-align:center">⚠️ 2–3</td><td class="partial" style="text-align:center">⚠️ Spanish only</td><td class="none" style="text-align:center">❌ English only</td></tr>
+      <tr><td>AI Chat Assistant for Patients</td><td class="full" style="text-align:center">✅ Built-in</td><td class="partial" style="text-align:center">⚠️ Limited</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Patient Self-Service Depth</td><td class="full" style="text-align:center">✅ 9 tabs</td><td class="full" style="text-align:center">✅ MyChart</td><td class="partial" style="text-align:center">⚠️ Basic</td><td class="partial" style="text-align:center">⚠️ Basic</td><td class="partial" style="text-align:center">⚠️ Minimal</td></tr>
+      <tr><td>WCAG 2.1 Accessibility</td><td class="full" style="text-align:center">✅ AA compliant</td><td class="full" style="text-align:center">✅ AA</td><td class="partial" style="text-align:center">⚠️ Partial</td><td class="partial" style="text-align:center">⚠️ Partial</td><td class="partial" style="text-align:center">⚠️ Partial</td></tr>
+      <tr><td>Font Size / Zoom Friendly</td><td class="full" style="text-align:center">✅</td><td class="partial" style="text-align:center">⚠️ Layout breaks</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td><td class="full" style="text-align:center">✅</td></tr>
+
+      <tr class="cat-row"><td colspan="6">── PROVIDER SATISFACTION & BURNOUT ──</td></tr>
+      <tr><td>"Pajama Time" (After-Hours Work)</td><td class="full" style="text-align:center">✅ Minimal</td><td class="none" style="text-align:center">❌ High (#1 issue)</td><td class="partial" style="text-align:center">⚠️ Moderate</td><td class="partial" style="text-align:center">⚠️ Moderate</td><td class="full" style="text-align:center">✅ Low</td></tr>
+      <tr><td>Documentation Speed</td><td class="full" style="text-align:center">✅ AI + smart phrases</td><td class="partial" style="text-align:center">⚠️ .phrases but slow</td><td class="partial" style="text-align:center">⚠️ Templates</td><td class="none" style="text-align:center">❌ Manual</td><td class="none" style="text-align:center">❌ N/A</td></tr>
+      <tr><td>Cognitive Load (Screen Clutter)</td><td class="full" style="text-align:center">✅ Low — clean UI</td><td class="none" style="text-align:center">❌ Very high</td><td class="partial" style="text-align:center">⚠️ Medium</td><td class="full" style="text-align:center">✅ Low</td><td class="full" style="text-align:center">✅ Low</td></tr>
+      <tr><td>Customizable Dashboard</td><td class="full" style="text-align:center">✅ User-level</td><td class="partial" style="text-align:center">⚠️ Admin-only</td><td class="partial" style="text-align:center">⚠️ Limited</td><td class="partial" style="text-align:center">⚠️ Limited</td><td class="none" style="text-align:center">❌</td></tr>
+      <tr><td>Alert / Notification Fatigue</td><td class="full" style="text-align:center">✅ Smart filtering</td><td class="none" style="text-align:center">❌ Severe</td><td class="partial" style="text-align:center">⚠️ Moderate</td><td class="full" style="text-align:center">✅ Minimal</td><td class="full" style="text-align:center">✅ Minimal</td></tr>
+      <tr><td>Context Switching Required</td><td class="full" style="text-align:center">✅ None (all-in-one)</td><td class="none" style="text-align:center">❌ 3–5 modules</td><td class="partial" style="text-align:center">⚠️ 2–3 modules</td><td class="partial" style="text-align:center">⚠️ Needs add-ons</td><td class="none" style="text-align:center">❌ Telehealth only</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════ PAGE 3 — VERDICT ═══════════════ -->
+<div class="page">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:8px 12px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;">
+    <span style="font-weight:800; font-size:12px; color:#0f172a;">Clarity EHR — UX Verdict & Summary</span>
+    <span style="font-size:9px; color:#64748b;">April 15, 2026 · Page 3 of 3</span>
+  </div>
+
+  <!-- Category Breakdown Scores -->
+  <h2>📊 UX Score Breakdown by Category</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%;">Category</th>
+        <th style="width:14.4%; text-align:center;">Clarity EHR</th>
+        <th style="width:14.4%; text-align:center;">Epic</th>
+        <th style="width:14.4%; text-align:center;">athenaOne</th>
+        <th style="width:14.4%; text-align:center;">Tebra</th>
+        <th style="width:14.4%; text-align:center;">Mend</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td style="font-weight:700;">Onboarding & Learning Curve</td><td class="full" style="text-align:center; font-weight:800;">10 / 10</td><td class="none" style="text-align:center">3 / 10</td><td style="text-align:center">6 / 10</td><td style="text-align:center">7 / 10</td><td class="full" style="text-align:center">9 / 10</td></tr>
+      <tr><td style="font-weight:700;">Interface Design</td><td class="full" style="text-align:center; font-weight:800;">10 / 10</td><td class="none" style="text-align:center">5 / 10</td><td style="text-align:center">7 / 10</td><td style="text-align:center">8 / 10</td><td style="text-align:center">8 / 10</td></tr>
+      <tr><td style="font-weight:700;">Workflow Efficiency</td><td class="full" style="text-align:center; font-weight:800;">10 / 10</td><td style="text-align:center">7 / 10</td><td style="text-align:center">6 / 10</td><td style="text-align:center">5 / 10</td><td style="text-align:center">4 / 10</td></tr>
+      <tr><td style="font-weight:700;">Accessibility & Patient UX</td><td class="full" style="text-align:center; font-weight:800;">9 / 10</td><td class="full" style="text-align:center">9 / 10</td><td style="text-align:center">6 / 10</td><td style="text-align:center">6 / 10</td><td style="text-align:center">5 / 10</td></tr>
+      <tr><td style="font-weight:700;">Provider Satisfaction & Burnout</td><td class="full" style="text-align:center; font-weight:800;">9 / 10</td><td class="none" style="text-align:center">4 / 10</td><td style="text-align:center">6 / 10</td><td style="text-align:center">7 / 10</td><td style="text-align:center">7 / 10</td></tr>
+      <tr style="background: #f1f5f9; font-weight: 800;"><td style="font-size: 10px;">OVERALL UX SCORE</td><td style="text-align:center; color:#2563eb; font-size:12px;">9.6 / 10</td><td style="text-align:center; color:#7c3aed; font-size:12px;">6.5 / 10</td><td style="text-align:center; color:#0891b2; font-size:12px;">7.8 / 10</td><td style="text-align:center; color:#d97706; font-size:12px;">7.2 / 10</td><td style="text-align:center; color:#dc2626; font-size:12px;">7.5 / 10</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Verdict Cards -->
+  <h2>🏆 Platform Verdicts</h2>
+  <div class="verdict">
+    <div class="verdict-card" style="background: #eff6ff; border: 2px solid #2563eb;">
+      <div class="emoji">🏥</div>
+      <div class="v-name" style="color:#2563eb;">Clarity EHR</div>
+      <div class="v-grade" style="color:#2563eb;">A+</div>
+      <div class="v-desc">Best-in-class UX. Zero training, modern SPA, AI-assisted documentation, 50% fewer clicks than Epic. Purpose-built for behavioral health with the lowest cognitive load and burnout risk.</div>
+    </div>
+    <div class="verdict-card" style="background: #f5f3ff; border: 1px solid #c4b5fd;">
+      <div class="emoji">🏛️</div>
+      <div class="v-name" style="color:#7c3aed;">Epic</div>
+      <div class="v-grade" style="color:#7c3aed;">C+</div>
+      <div class="v-desc">Powerful but notorious for poor usability. Legacy UI, weeks of mandatory training, high cognitive load, and severe "pajama time." The #1 source of physician burnout in the industry.</div>
+    </div>
+    <div class="verdict-card" style="background: #ecfeff; border: 1px solid #a5f3fc;">
+      <div class="emoji">☁️</div>
+      <div class="v-name" style="color:#0891b2;">athenaOne</div>
+      <div class="v-grade" style="color:#0891b2;">B</div>
+      <div class="v-desc">Clean cloud-based interface with solid RCM, but dated design, limited mobile support, no dark mode, and moderate documentation burden. Better than Epic but behind modern platforms.</div>
+    </div>
+    <div class="verdict-card" style="background: #fffbeb; border: 1px solid #fcd34d;">
+      <div class="emoji">💼</div>
+      <div class="v-name" style="color:#d97706;">Tebra</div>
+      <div class="v-grade" style="color:#d97706;">B−</div>
+      <div class="v-desc">Modern UI for practice management but lacks clinical depth. No smart phrases, no keyboard shortcuts, no AI features. Good for simple practices but insufficient for behavioral health.</div>
+    </div>
+    <div class="verdict-card" style="background: #fef2f2; border: 1px solid #fca5a5;">
+      <div class="emoji">📹</div>
+      <div class="v-name" style="color:#dc2626;">Mend</div>
+      <div class="v-grade" style="color:#dc2626;">B−</div>
+      <div class="v-desc">Clean telehealth UI with easy onboarding, but it's a single-purpose tool. No EHR, prescribing, or billing — providers must context-switch to other systems for everything else.</div>
+    </div>
+  </div>
+
+  <!-- Why Clarity Wins -->
+  <div style="background: linear-gradient(135deg, #0f172a, #1e3a5f); border-radius: 10px; padding: 16px 20px; margin-top: 12px; color: #fff;">
+    <h3 style="font-size: 13px; font-weight: 800; color: #fff; margin: 0 0 10px;">💎 Why Clarity Wins on User-Friendliness</h3>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; font-size: 8.5px; margin-top: 10px;">
+      <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; text-align: center;">
+        <div style="font-size: 18px; margin-bottom: 4px;">⚡</div>
+        <div style="font-weight: 700; margin-bottom: 2px;">Zero Training</div>
+        <div style="color: #94a3b8;">Intuitive React SPA with contextual guidance. Productive in under 1 hour vs. Epic's 4–12 week mandatory onboarding programs.</div>
+      </div>
+      <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; text-align: center;">
+        <div style="font-size: 18px; margin-bottom: 4px;">🖱️</div>
+        <div style="font-weight: 700; margin-bottom: 2px;">50% Fewer Clicks</div>
+        <div style="color: #94a3b8;">2-click chart access, 4-step e-prescribing, 1-click telehealth. No page reloads, no context switching, no module hopping.</div>
+      </div>
+      <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; text-align: center;">
+        <div style="font-size: 18px; margin-bottom: 4px;">🧠</div>
+        <div style="font-weight: 700; margin-bottom: 2px;">Low Cognitive Load</div>
+        <div style="color: #94a3b8;">Clean, minimal UI with smart alert filtering. No screen clutter, no overwhelming menus. Information exactly when and where you need it.</div>
+      </div>
+      <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; text-align: center;">
+        <div style="font-size: 18px; margin-bottom: 4px;">😊</div>
+        <div style="font-weight: 700; margin-bottom: 2px;">Anti-Burnout Design</div>
+        <div style="color: #94a3b8;">AI documentation, smart phrases, and all-in-one platform eliminate the "pajama time" and context-switching that drive 60% of physician burnout.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key Takeaways -->
+  <h2>🔑 Key Takeaways</h2>
+  <div class="takeaways">
+    <ul style="padding-left: 16px;">
+      <li><strong>Clarity EHR (9.6/10)</strong> — The most user-friendly EHR on the market. Combines modern React SPA architecture with AI-powered documentation, zero training requirements, and purpose-built behavioral health workflows. Providers are productive in under 1 hour.</li>
+      <li><strong>Epic (6.5/10)</strong> — Despite being the most feature-rich EHR, Epic scores lowest on usability. Its legacy Hyperspace interface, 20–80 hours of mandatory training, high cognitive load, and severe "pajama time" make it the #1 contributor to physician burnout.</li>
+      <li><strong>athenaOne (7.8/10)</strong> — A solid cloud-based platform with clean design, but lacks modern UX features like dark mode, SPA architecture, and AI assistance. Moderate learning curve and documentation burden.</li>
+      <li><strong>Tebra (7.2/10)</strong> — Modern practice management UI but limited clinical workflows. No smart phrases, keyboard shortcuts, or AI features make it insufficient for complex behavioral health documentation.</li>
+      <li><strong>Mend (7.5/10)</strong> — Excellent telehealth UX with easy onboarding, but as a single-purpose tool, it forces providers to context-switch between multiple systems — increasing overall workflow friction.</li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    <strong>CONFIDENTIAL</strong> — Clarity Health · 456 Wellness Blvd, Suite 200, Chicago, IL 60601 · info@clarity.health · April 15, 2026<br/>
+    This document is for internal strategic planning purposes only. UX scores based on industry analysis, KLAS research trends, and publicly available user satisfaction data as of Q2 2026.
+  </div>
+</div>
+
+</body>
+</html>

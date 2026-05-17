@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState, useCallback, useEffect } from "react";
+﻿import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { usePatient } from "../contexts/PatientContext";
@@ -721,10 +721,13 @@ function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, a
   const [checkoutApt, setCheckoutApt] = useState(null);
   const [rescheduleApt, setRescheduleApt] = useState(null);
   const [toast, setToast] = useState(null);
+  const toastTimerFD = useRef(null);
+  useEffect(() => { return () => { if (toastTimerFD.current) clearTimeout(toastTimerFD.current); }; }, []);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
+    if (toastTimerFD.current) clearTimeout(toastTimerFD.current);
+    toastTimerFD.current = setTimeout(() => setToast(null), 3500);
   };
 
   const todayApts = useMemo(() =>
@@ -1093,8 +1096,14 @@ function CloseEncounterModal({ apt, show, onClose, onConfirm }) {
 function CheckoutTab({ allAppts, patients, todayKey, updateAppointmentStatus }) {
   const [checkoutApt, setCheckoutApt] = useState(null);
   const [toast, setToast]             = useState(null);
+  const toastTimerCO = useRef(null);
+  useEffect(() => { return () => { if (toastTimerCO.current) clearTimeout(toastTimerCO.current); }; }, []);
 
-  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    if (toastTimerCO.current) clearTimeout(toastTimerCO.current);
+    toastTimerCO.current = setTimeout(() => setToast(null), 3000);
+  };
 
   const todayApts    = useMemo(() => allAppts.filter(a => a.date === todayKey).sort((a,b) => a.time.localeCompare(b.time)), [allAppts, todayKey]);
   const inProgress   = useMemo(() => todayApts.filter(a => a.status === "In Progress"),  [todayApts]);
@@ -1258,8 +1267,14 @@ function CheckoutTab({ allAppts, patients, todayKey, updateAppointmentStatus }) 
 function CloseEncounterTab({ allAppts, patients, currentUser, todayKey, updateAppointmentStatus }) {
   const [closeApt, setCloseApt] = useState(null);
   const [toast, setToast]       = useState(null);
+  const toastTimerCE = useRef(null);
+  useEffect(() => { return () => { if (toastTimerCE.current) clearTimeout(toastTimerCE.current); }; }, []);
 
-  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    if (toastTimerCE.current) clearTimeout(toastTimerCE.current);
+    toastTimerCE.current = setTimeout(() => setToast(null), 3000);
+  };
 
   // Provider only sees their own patients
   const myApts    = useMemo(() => allAppts.filter(a => a.date === todayKey && a.provider === currentUser?.id)
@@ -1447,6 +1462,8 @@ export default function Schedule() {
   const [blockReason, setBlockReason] = useState("");
   const [blockType, setBlockType] = useState("full");
   const [blockSaved, setBlockSaved] = useState(false);
+  const blockSavedTimerRef = useRef(null);
+  useEffect(() => { return () => { if (blockSavedTimerRef.current) clearTimeout(blockSavedTimerRef.current); }; }, []);
 
   const blockedByDate = useMemo(() => {
     const map = {};
@@ -1519,7 +1536,9 @@ export default function Schedule() {
     addBlockedDay({ providerId:blockProvider, providerName:prov?`${prov.firstName} ${prov.lastName}`.trim():blockProvider,
       dateFrom:blockDateFrom, dateTo:blockDateTo, type:blockType, reason:blockReason.trim() });
     setBlockDateFrom(""); setBlockDateTo(""); setBlockReason(""); setBlockType("full");
-    setBlockSaved(true); setTimeout(()=>setBlockSaved(false),3000);
+    setBlockSaved(true);
+    if (blockSavedTimerRef.current) clearTimeout(blockSavedTimerRef.current);
+    blockSavedTimerRef.current = setTimeout(()=>setBlockSaved(false),3000);
   };
 
   const selDateObj   = new Date(activeDate+"T00:00:00");

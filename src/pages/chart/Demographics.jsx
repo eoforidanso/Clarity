@@ -1,15 +1,127 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePatient } from '../../contexts/PatientContext';
+import { useAuth } from '../../contexts/AuthContext';
+
+const GENDERS = ['Male', 'Female', 'Non-binary', 'Transgender Male', 'Transgender Female', 'Other', 'Prefer not to say'];
+const PRONOUNS = ['He/Him', 'She/Her', 'They/Them', 'Other'];
+const MARITAL = ['Single', 'Married', 'Divorced', 'Widowed', 'Separated', 'Domestic Partner'];
+const RACES = ['White', 'Black or African American', 'Asian', 'American Indian or Alaska Native', 'Native Hawaiian or Other Pacific Islander', 'Two or More Races', 'Unknown', 'Other'];
+const ETHNICITIES = ['Hispanic or Latino', 'Not Hispanic or Latino', 'Unknown'];
+const LANGUAGES = ['English', 'Spanish', 'French', 'Mandarin', 'Cantonese', 'Vietnamese', 'Arabic', 'Tagalog', 'Korean', 'Other'];
+
+function toForm(p) {
+  return {
+    firstName: p.firstName || '',
+    lastName: p.lastName || '',
+    dob: p.dob || '',
+    gender: p.gender || '',
+    pronouns: p.pronouns || '',
+    maritalStatus: p.maritalStatus || '',
+    race: p.race || '',
+    ethnicity: p.ethnicity || '',
+    language: p.language || '',
+    ssn: p.ssn || '',
+    phone: p.phone || '',
+    cellPhone: p.cellPhone || '',
+    email: p.email || '',
+    addressStreet: p.address?.street || '',
+    addressCity: p.address?.city || '',
+    addressState: p.address?.state || '',
+    addressZip: p.address?.zip || '',
+    emergencyName: p.emergencyContact?.name || '',
+    emergencyRelationship: p.emergencyContact?.relationship || '',
+    emergencyPhone: p.emergencyContact?.phone || '',
+    insurancePrimaryName: p.insurance?.primary?.name || '',
+    insurancePrimaryMemberId: p.insurance?.primary?.memberId || '',
+    insurancePrimaryGroupNumber: p.insurance?.primary?.groupNumber || '',
+    insurancePrimaryCopay: p.insurance?.primary?.copay || '',
+    insuranceSecondaryName: p.insurance?.secondary?.name || '',
+    insuranceSecondaryMemberId: p.insurance?.secondary?.memberId || '',
+    pcp: p.pcp || '',
+  };
+}
 
 export default function Demographics({ patientId }) {
   const { selectedPatient, updatePatient } = usePatient();
-  const [editing, setEditing] = useState(null); // 'contact' | 'emergency' | 'insurance'
-  const [draft, setDraft] = useState({});
-  const [saved, setSaved] = useState(false);
+  const { currentUser } = useAuth();
+  const canEdit = ['prescriber', 'front_desk', 'nurse'].includes(currentUser?.role);
+
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    if (selectedPatient) setForm(toForm(selectedPatient));
+  }, [selectedPatient]);
 
   if (!selectedPatient) return null;
   const p = selectedPatient;
 
+  const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError('');
+    setSaveSuccess(false);
+    try {
+      await updatePatient(selectedPatient.id, {
+        firstName: form.firstName,
+        lastName: form.lastName,
+        dob: form.dob,
+        gender: form.gender,
+        pronouns: form.pronouns,
+        maritalStatus: form.maritalStatus,
+        race: form.race,
+        ethnicity: form.ethnicity,
+        language: form.language,
+        phone: form.phone,
+        cellPhone: form.cellPhone,
+        email: form.email,
+        address: {
+          street: form.addressStreet,
+          city: form.addressCity,
+          state: form.addressState,
+          zip: form.addressZip,
+        },
+        emergencyContact: {
+          name: form.emergencyName,
+          relationship: form.emergencyRelationship,
+          phone: form.emergencyPhone,
+        },
+        insurance: {
+          primary: {
+            name: form.insurancePrimaryName,
+            memberId: form.insurancePrimaryMemberId,
+            groupNumber: form.insurancePrimaryGroupNumber,
+            copay: form.insurancePrimaryCopay,
+          },
+          secondary: form.insuranceSecondaryName ? {
+            name: form.insuranceSecondaryName,
+            memberId: form.insuranceSecondaryMemberId,
+          } : null,
+        },
+        pcp: form.pcp,
+      });
+      setSaveSuccess(true);
+      setEditing(false);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      setSaveError(err.message || 'Failed to save. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setForm(toForm(p));
+    setEditing(false);
+    setSaveError('');
+  };
+
+  /* ── Read-only field ── */
   const Field = ({ label, value }) => (
     <div className="athena-field">
       <div className="athena-field-label">{label}</div>
@@ -17,200 +129,184 @@ export default function Demographics({ patientId }) {
     </div>
   );
 
-  const startEdit = (section) => {
-    if (section === 'contact') {
-      setDraft({
-        phone: p.phone || '',
-        cellPhone: p.cellPhone || '',
-        email: p.email || '',
-        street: p.address?.street || '',
-        city: p.address?.city || '',
-        state: p.address?.state || '',
-        zip: p.address?.zip || '',
-      });
-    } else if (section === 'emergency') {
-      setDraft({
-        ecName: p.emergencyContact?.name || '',
-        ecRelationship: p.emergencyContact?.relationship || '',
-        ecPhone: p.emergencyContact?.phone || '',
-      });
-    } else if (section === 'insurance') {
-      setDraft({
-        insName: p.insurance?.primary?.name || '',
-        insMemberId: p.insurance?.primary?.memberId || '',
-        insGroup: p.insurance?.primary?.groupNumber || '',
-        insCopay: p.insurance?.primary?.copay || '',
-      });
-    }
-    setEditing(section);
-    setSaved(false);
-  };
-
-  const cancelEdit = () => { setEditing(null); setDraft({}); };
-
-  const saveEdit = () => {
-    if (editing === 'contact') {
-      updatePatient(patientId, {
-        phone: draft.phone,
-        cellPhone: draft.cellPhone,
-        email: draft.email,
-        address: { ...p.address, street: draft.street, city: draft.city, state: draft.state, zip: draft.zip },
-      });
-    } else if (editing === 'emergency') {
-      updatePatient(patientId, {
-        emergencyContact: { ...p.emergencyContact, name: draft.ecName, relationship: draft.ecRelationship, phone: draft.ecPhone },
-      });
-    } else if (editing === 'insurance') {
-      updatePatient(patientId, {
-        insurance: {
-          ...p.insurance,
-          primary: { ...p.insurance.primary, name: draft.insName, memberId: draft.insMemberId, groupNumber: draft.insGroup, copay: draft.insCopay },
-        },
-      });
-    }
-    setSaved(true);
-    setEditing(null);
-    setDraft({});
-  };
-
-  const inp = (key, placeholder, type = 'text') => (
-    <input
-      type={type}
-      className="form-input"
-      style={{ fontSize: 12 }}
-      value={draft[key] || ''}
-      placeholder={placeholder}
-      onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
-    />
+  /* ── Editable text field ── */
+  const EField = ({ label, field, type = 'text', span = false }) => (
+    <div className="athena-field" style={span ? { gridColumn: '1/-1' } : {}}>
+      <div className="athena-field-label">{label}</div>
+      <input
+        type={type}
+        value={form[field] || ''}
+        onChange={set(field)}
+        style={{
+          width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)',
+          background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: 13,
+        }}
+      />
+    </div>
   );
 
-  const EditBar = ({ section }) => (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-      {editing === section ? (
-        <>
-          <button className="btn btn-sm btn-primary" onClick={saveEdit}>💾 Save</button>
-          <button className="btn btn-sm btn-secondary" onClick={cancelEdit}>Cancel</button>
-        </>
-      ) : (
-        <button className="btn btn-sm btn-secondary" style={{ fontSize: 11 }} onClick={() => startEdit(section)}>✏️ Edit</button>
-      )}
+  /* ── Editable select field ── */
+  const ESelect = ({ label, field, options }) => (
+    <div className="athena-field">
+      <div className="athena-field-label">{label}</div>
+      <select
+        value={form[field] || ''}
+        onChange={set(field)}
+        style={{
+          width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)',
+          background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: 13,
+        }}
+      >
+        <option value="">— Select —</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
     </div>
   );
 
   return (
     <div className="athena-demographics">
-      {saved && (
-        <div style={{ marginBottom: 12, padding: '8px 14px', background: '#dcfce7', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#166534' }}>
-          ✅ Demographics updated successfully.
+
+      {/* ── Edit / Save toolbar ── */}
+      {canEdit && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, padding: '10px 16px', background: editing ? 'var(--bg-surface)' : 'transparent', border: editing ? '1px solid var(--border)' : 'none', borderRadius: 10 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+            {editing ? '✏️ Editing patient demographics — changes will be saved to the chart.' : ''}
+            {saveSuccess && <span style={{ color: '#10b981', fontWeight: 700 }}>✅ Saved successfully</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {!editing ? (
+              <button className="btn btn-secondary" style={{ fontSize: 13, padding: '6px 16px' }} onClick={() => setEditing(true)}>
+                ✏️ Edit Demographics
+              </button>
+            ) : (
+              <>
+                <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: '6px 14px' }} onClick={handleCancel} disabled={saving}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-primary" style={{ fontSize: 13, padding: '6px 18px' }} onClick={handleSave} disabled={saving}>
+                  {saving ? 'Saving…' : '💾 Save Changes'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {saveError && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '9px 14px', color: '#dc2626', fontSize: 13, marginBottom: 12 }}>
+          ⚠️ {saveError}
         </div>
       )}
 
       <div className="athena-summary-row-2">
-        {/* Personal Information — read-only (DOB, MRN, SSN are system fields) */}
+        {/* Personal Information */}
         <div className="athena-panel">
           <div className="athena-panel-header">
             <div className="athena-panel-title"><span className="athena-panel-icon">👤</span>Personal Information</div>
           </div>
           <div className="athena-panel-body">
             <div className="athena-field-grid">
-              <Field label="First Name" value={p.firstName} />
-              <Field label="Last Name" value={p.lastName} />
-              <Field label="Date of Birth" value={`${p.dob} (Age ${p.age})`} />
-              <Field label="Gender" value={p.gender} />
-              <Field label="Pronouns" value={p.pronouns} />
-              <Field label="Marital Status" value={p.maritalStatus} />
-              <Field label="Race" value={p.race} />
-              <Field label="Ethnicity" value={p.ethnicity} />
-              <Field label="Preferred Language" value={p.language} />
-              <Field label="SSN" value={p.ssn} />
+              {editing ? <>
+                <EField label="First Name" field="firstName" />
+                <EField label="Last Name" field="lastName" />
+                <EField label="Date of Birth" field="dob" type="date" />
+                <ESelect label="Gender" field="gender" options={GENDERS} />
+                <ESelect label="Pronouns" field="pronouns" options={PRONOUNS} />
+                <ESelect label="Marital Status" field="maritalStatus" options={MARITAL} />
+                <ESelect label="Race" field="race" options={RACES} />
+                <ESelect label="Ethnicity" field="ethnicity" options={ETHNICITIES} />
+                <ESelect label="Preferred Language" field="language" options={LANGUAGES} />
+              </> : <>
+                <Field label="First Name" value={p.firstName} />
+                <Field label="Last Name" value={p.lastName} />
+                <Field label="Date of Birth" value={`${p.dob} (Age ${p.age})`} />
+                <Field label="Gender" value={p.gender} />
+                <Field label="Pronouns" value={p.pronouns} />
+                <Field label="Marital Status" value={p.maritalStatus} />
+                <Field label="Race" value={p.race} />
+                <Field label="Ethnicity" value={p.ethnicity} />
+                <Field label="Preferred Language" value={p.language} />
+                <Field label="SSN" value={p.ssn} />
+              </>}
             </div>
           </div>
         </div>
 
-        {/* Contact Information — editable */}
+        {/* Contact Information */}
         <div className="athena-panel">
           <div className="athena-panel-header">
             <div className="athena-panel-title"><span className="athena-panel-icon">📞</span>Contact Information</div>
-            <EditBar section="contact" />
           </div>
           <div className="athena-panel-body">
-            {editing === 'contact' ? (
-              <div className="athena-field-grid">
-                <div className="athena-field"><div className="athena-field-label">Home Phone</div>{inp('phone', '(555) 000-0000', 'tel')}</div>
-                <div className="athena-field"><div className="athena-field-label">Cell Phone</div>{inp('cellPhone', '(555) 000-0000', 'tel')}</div>
-                <div className="athena-field"><div className="athena-field-label">Email</div>{inp('email', 'email@example.com', 'email')}</div>
-                <div className="athena-field"><div className="athena-field-label">Street</div>{inp('street', '123 Main St')}</div>
-                <div className="athena-field"><div className="athena-field-label">City</div>{inp('city', 'Chicago')}</div>
-                <div className="athena-field"><div className="athena-field-label">State</div>{inp('state', 'IL')}</div>
-                <div className="athena-field"><div className="athena-field-label">ZIP</div>{inp('zip', '60601')}</div>
-              </div>
-            ) : (
-              <div className="athena-field-grid">
+            <div className="athena-field-grid">
+              {editing ? <>
+                <EField label="Home Phone" field="phone" type="tel" />
+                <EField label="Cell Phone" field="cellPhone" type="tel" />
+                <EField label="Email" field="email" type="email" />
+                <EField label="Street Address" field="addressStreet" />
+                <EField label="City" field="addressCity" />
+                <EField label="State" field="addressState" />
+                <EField label="ZIP" field="addressZip" />
+              </> : <>
                 <Field label="Home Phone" value={p.phone} />
                 <Field label="Cell Phone" value={p.cellPhone} />
                 <Field label="Email" value={p.email} />
-                <Field label="Address" value={p.address ? `${p.address.street}, ${p.address.city}, ${p.address.state} ${p.address.zip}` : '—'} />
-              </div>
-            )}
+                <Field label="Address" value={`${p.address?.street}, ${p.address?.city}, ${p.address?.state} ${p.address?.zip}`} />
+              </>}
+            </div>
 
             <div className="athena-section-divider">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div className="athena-section-label">🆘 Emergency Contact</div>
-                <EditBar section="emergency" />
-              </div>
-              {editing === 'emergency' ? (
-                <div className="athena-field-grid" style={{ marginTop: 8 }}>
-                  <div className="athena-field"><div className="athena-field-label">Name</div>{inp('ecName', 'Full name')}</div>
-                  <div className="athena-field"><div className="athena-field-label">Relationship</div>{inp('ecRelationship', 'Spouse, Parent…')}</div>
-                  <div className="athena-field"><div className="athena-field-label">Phone</div>{inp('ecPhone', '(555) 000-0000', 'tel')}</div>
-                </div>
-              ) : (
-                <div className="athena-field-grid">
+              <div className="athena-section-label">🆘 Emergency Contact</div>
+              <div className="athena-field-grid">
+                {editing ? <>
+                  <EField label="Name" field="emergencyName" />
+                  <EField label="Relationship" field="emergencyRelationship" />
+                  <EField label="Phone" field="emergencyPhone" type="tel" />
+                </> : <>
                   <Field label="Name" value={p.emergencyContact?.name} />
                   <Field label="Relationship" value={p.emergencyContact?.relationship} />
                   <Field label="Phone" value={p.emergencyContact?.phone} />
-                </div>
-              )}
+                </>}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       <div className="athena-summary-row-2" style={{ marginTop: 16 }}>
-        {/* Insurance — editable */}
+        {/* Insurance */}
         <div className="athena-panel">
           <div className="athena-panel-header">
             <div className="athena-panel-title"><span className="athena-panel-icon">🏥</span>Insurance Information</div>
-            <EditBar section="insurance" />
           </div>
           <div className="athena-panel-body">
             <div className="athena-insurance-label">Primary Insurance</div>
-            {editing === 'insurance' ? (
-              <div className="athena-field-grid">
-                <div className="athena-field"><div className="athena-field-label">Plan Name</div>{inp('insName', 'BlueCross PPO')}</div>
-                <div className="athena-field"><div className="athena-field-label">Member ID</div>{inp('insMemberId', 'BCB123456')}</div>
-                <div className="athena-field"><div className="athena-field-label">Group Number</div>{inp('insGroup', 'GRP-001')}</div>
-                <div className="athena-field"><div className="athena-field-label">Copay ($)</div>{inp('insCopay', '30', 'number')}</div>
-              </div>
-            ) : (
-              <div className="athena-field-grid">
+            <div className="athena-field-grid">
+              {editing ? <>
+                <EField label="Plan Name" field="insurancePrimaryName" />
+                <EField label="Member ID" field="insurancePrimaryMemberId" />
+                <EField label="Group Number" field="insurancePrimaryGroupNumber" />
+                <EField label="Copay ($)" field="insurancePrimaryCopay" />
+              </> : <>
                 <Field label="Plan" value={p.insurance?.primary?.name} />
                 <Field label="Member ID" value={p.insurance?.primary?.memberId} />
                 <Field label="Group Number" value={p.insurance?.primary?.groupNumber} />
-                <Field label="Copay" value={p.insurance?.primary?.copay != null ? `$${p.insurance.primary.copay}` : '—'} />
-              </div>
-            )}
+                <Field label="Copay" value={p.insurance?.primary?.copay ? `$${p.insurance.primary.copay}` : '—'} />
+              </>}
+            </div>
 
-            {p.insurance?.secondary && (
-              <div className="athena-section-divider">
-                <div className="athena-insurance-label secondary">Secondary Insurance</div>
-                <div className="athena-field-grid">
-                  <Field label="Plan" value={p.insurance.secondary.name} />
-                  <Field label="Member ID" value={p.insurance.secondary.memberId} />
-                  {p.insurance.secondary.groupNumber && <Field label="Group Number" value={p.insurance.secondary.groupNumber} />}
-                </div>
+            <div className="athena-section-divider">
+              <div className="athena-insurance-label secondary">Secondary Insurance</div>
+              <div className="athena-field-grid">
+                {editing ? <>
+                  <EField label="Plan Name" field="insuranceSecondaryName" />
+                  <EField label="Member ID" field="insuranceSecondaryMemberId" />
+                </> : <>
+                  <Field label="Plan" value={p.insurance?.secondary?.name} />
+                  <Field label="Member ID" value={p.insurance?.secondary?.memberId} />
+                </>}
               </div>
-            )}
+            </div>
           </div>
         </div>
 
@@ -221,7 +317,11 @@ export default function Demographics({ patientId }) {
           </div>
           <div className="athena-panel-body">
             <div className="athena-field-grid">
-              <Field label="Primary Care Provider" value={p.pcp} />
+              {editing ? (
+                <EField label="Primary Care Provider" field="pcp" />
+              ) : (
+                <Field label="Primary Care Provider" value={p.pcp} />
+              )}
               <Field label="MRN" value={p.mrn} />
               <Field label="Last Visit" value={p.lastVisit} />
               <Field label="Next Appointment" value={p.nextAppointment} />

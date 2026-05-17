@@ -1,5 +1,5 @@
 // Clarity EHR — PWA Service Worker
-const CACHE_NAME = 'clarity-v2';
+const CACHE_NAME = 'clarity-v3';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

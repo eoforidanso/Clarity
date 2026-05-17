@@ -73,6 +73,23 @@ export const users = [
   },
 
   {
+    id: 'u9',
+    username: 'dr.emmanuel',
+    password: 'Pass123!',
+    firstName: 'Emmanuel',
+    lastName: '',
+    role: 'prescriber',
+    credentials: 'NP',
+    specialty: 'Psychiatry',
+    npi: '9876543210',
+    deaNumber: 'FE9876543',
+    email: 'eoforid@gmail.com',
+    epcsPin: '4412',
+    twoFactorEnabled: true,
+    mustChangePassword: true,
+  },
+
+  {
     id: 'u8',
     username: 'april.t',
     password: 'Pass123!',

@@ -28,7 +28,7 @@ const ROLE_COLORS = {
 const CERTS = ['HIPAA', 'EPCS', 'ONC', '42 CFR Part 2'];
 
 export default function LoginPage() {
-  const { login, loginError } = useAuth();
+  const { login, completeTwoFactor, changePassword: authChangePassword, loginError } = useAuth();
   const { enableTraining } = useTraining();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
@@ -40,7 +40,43 @@ export default function LoginPage() {
   const [forgotSent, setForgotSent] = useState(false);
   const [show2FA, setShow2FA] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState('');
-  const [pending2FALogin, setPending2FALogin] = useState(null);
+  const [twoFAError, setTwoFAError] = useState('');
+  const [pendingTempToken, setPendingTempToken] = useState(null);
+  const [emailHint, setEmailHint] = useState('');
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNext, setPwNext] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwError, setPwError] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwDone, setPwDone] = useState(false);
+
+  const pwRules = [
+    { test: (p) => p.length >= 8,           label: 'At least 8 characters' },
+    { test: (p) => /[A-Z]/.test(p),         label: 'One uppercase letter' },
+    { test: (p) => /[0-9]/.test(p),         label: 'One number' },
+    { test: (p) => /[^A-Za-z0-9]/.test(p), label: 'One special character (recommended)' },
+  ];
+  const pwValid = pwRules.slice(0, 3).every(r => r.test(pwNext));
+  const pwMatches = pwNext === pwConfirm;
+
+  const handlePasswordChangeSubmit = async (e) => {
+    e.preventDefault();
+    setPwError('');
+    if (!pwValid)             return setPwError('Password does not meet the requirements below.');
+    if (!pwMatches)           return setPwError('New passwords do not match.');
+    if (pwNext === pwCurrent) return setPwError('New password must be different from your current password.');
+    setPwSaving(true);
+    try {
+      await authChangePassword(pwCurrent, pwNext);
+      setPwDone(true);
+      setTimeout(() => navigate('/dashboard'), 1800);
+    } catch (err) {
+      setPwError(err.message || 'Failed to change password');
+    } finally {
+      setPwSaving(false);
+    }
+  };
 
   /* Derive selected role from username match */
   const matchedUser = users.find(u => u.username === username);
@@ -49,16 +85,18 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      // Simulate 2FA for users with twoFactorEnabled
-      const matchedUser2FA = users.find(u => u.username === username && u.twoFactorEnabled);
-      if (matchedUser2FA && !show2FA) {
-        setPending2FALogin({ username, password });
+      const result = await login(username, password);
+      if (result?.requiresTwoFactor) {
+        setPendingTempToken(result.tempToken);
+        setEmailHint(result.emailHint || '');
         setShow2FA(true);
         setLoading(false);
         return;
       }
-      const success = await login(username, password);
-      if (success) navigate('/dashboard');
+      if (result?.ok) {
+        if (result.mustChangePassword) { setShowPasswordChange(true); }
+        else { navigate('/dashboard'); }
+      }
     } catch (err) {
       console.error('Login error:', err);
     }
@@ -67,15 +105,18 @@ export default function LoginPage() {
 
   const handle2FAVerify = async () => {
     setLoading(true);
-    // 2FA verification — code must be 121314
-    if (twoFactorCode === '121314') {
-      const success = await login(pending2FALogin.username, pending2FALogin.password);
-      if (success) navigate('/dashboard');
-    }
+    setTwoFAError('');
+    const result = await completeTwoFactor(pendingTempToken, twoFactorCode);
     setLoading(false);
-    setShow2FA(false);
-    setTwoFactorCode('');
-    setPending2FALogin(null);
+    if (result?.ok) {
+      setShow2FA(false);
+      setTwoFactorCode('');
+      setPendingTempToken(null);
+      if (result.mustChangePassword) { setShowPasswordChange(true); }
+      else { navigate('/dashboard'); }
+    } else {
+      setTwoFAError(result?.error || 'Invalid code. Please try again.');
+    }
   };
 
   const handleDemoLogin = (u) => {
@@ -155,9 +196,6 @@ export default function LoginPage() {
                   onChange={(e) => {
                     const val = e.target.value;
                     setUsername(val);
-                    const matched = users.find(u => u.username === val);
-                    if (matched) setPassword(matched.password);
-                    else setPassword('');
                   }}
                   placeholder="Enter your username"
                   autoComplete="username"
@@ -338,24 +376,24 @@ export default function LoginPage() {
 
       {/* ── 2FA Verification Modal ── */}
       {show2FA && (
-        <div className="login-modal-overlay" onClick={() => { setShow2FA(false); setPending2FALogin(null); }}>
+        <div className="login-modal-overlay" onClick={() => { setShow2FA(false); setPendingTempToken(null); setTwoFAError(''); setEmailHint(''); }}>
           <div className="login-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400, textAlign: 'center' }}>
-            <button className="login-modal-close" onClick={() => { setShow2FA(false); setPending2FALogin(null); }}>✕</button>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🔐</div>
-            <h2 style={{ fontSize: 20, marginBottom: 8 }}>Two-Factor Authentication</h2>
+            <button className="login-modal-close" onClick={() => { setShow2FA(false); setPendingTempToken(null); setTwoFAError(''); setEmailHint(''); }}>✕</button>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📧</div>
+            <h2 style={{ fontSize: 20, marginBottom: 8 }}>Check Your Email</h2>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-              A 6-digit code has been sent to your registered device. Enter it below to continue.
+              We sent a 6-digit code to <strong>{emailHint || 'your registered email'}</strong>. Enter it below.
             </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
               <input
                 type="text"
                 maxLength={6}
                 value={twoFactorCode}
-                onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
+                onChange={(e) => { setTwoFactorCode(e.target.value.replace(/\D/g, '')); setTwoFAError(''); }}
                 placeholder="000000"
                 style={{
                   width: 200, textAlign: 'center', fontSize: 28, letterSpacing: 8,
-                  padding: '10px 16px', borderRadius: 10, border: '2px solid var(--border)',
+                  padding: '10px 16px', borderRadius: 10, border: `2px solid ${twoFAError ? '#ef4444' : 'var(--border)'}`,
                   fontFamily: 'var(--font-mono)', fontWeight: 700,
                   outline: 'none',
                 }}
@@ -363,6 +401,9 @@ export default function LoginPage() {
                 onKeyDown={(e) => { if (e.key === 'Enter' && twoFactorCode.length === 6) handle2FAVerify(); }}
               />
             </div>
+            {twoFAError && (
+              <p style={{ fontSize: 12, color: '#ef4444', marginBottom: 12 }}>{twoFAError}</p>
+            )}
             <button
               className="btn btn-primary"
               disabled={twoFactorCode.length !== 6 || loading}
@@ -372,8 +413,70 @@ export default function LoginPage() {
               {loading ? 'Verifying...' : 'Verify & Sign In'}
             </button>
             <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              💡 Demo: Enter code <strong>121314</strong>
+              Didn't receive it? Check your spam folder or contact your administrator.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Force Password Change Step ── */}
+      {showPasswordChange && (
+        <div className="login-modal-overlay">
+          <div className="login-modal" style={{ maxWidth: 440, padding: 0, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+            <div style={{
+              background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+              padding: '20px 24px',
+            }}>
+              <div style={{ fontSize: 28, marginBottom: 4 }}>🔒</div>
+              <h2 style={{ margin: 0, color: '#fff', fontSize: 17, fontWeight: 800 }}>Password Change Required</h2>
+              <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, margin: '4px 0 0' }}>
+                Your account is using a temporary password. Set a new one to continue.
+              </p>
+            </div>
+            {pwDone ? (
+              <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+                <h3 style={{ margin: 0 }}>Password Changed</h3>
+                <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Taking you to your dashboard…</p>
+              </div>
+            ) : (
+              <form onSubmit={handlePasswordChangeSubmit} style={{ padding: '22px 24px' }}>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Current Password</label>
+                  <input type="password" className="form-input" style={{ marginTop: 4 }} value={pwCurrent} autoComplete="current-password" onChange={e => setPwCurrent(e.target.value)} required />
+                </div>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>New Password</label>
+                  <input type="password" className="form-input" style={{ marginTop: 4 }} value={pwNext} autoComplete="new-password" onChange={e => setPwNext(e.target.value)} required />
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Confirm New Password</label>
+                  <input type="password" className="form-input" style={{ marginTop: 4, borderColor: pwConfirm && !pwMatches ? '#ef4444' : undefined }} value={pwConfirm} autoComplete="new-password" onChange={e => setPwConfirm(e.target.value)} required />
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  {pwRules.map(r => {
+                    const ok = r.test(pwNext);
+                    return (
+                      <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                        <span style={{ fontSize: 12, color: ok ? '#10b981' : (pwNext ? '#ef4444' : 'var(--text-muted)') }}>{ok ? '✓' : '○'}</span>
+                        <span style={{ fontSize: 12, color: ok ? '#10b981' : 'var(--text-muted)' }}>{r.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {pwError && (
+                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '9px 12px', color: '#dc2626', fontSize: 13, marginBottom: 14 }}>
+                    {pwError}
+                  </div>
+                )}
+                <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={pwSaving || !pwCurrent || !pwNext || !pwConfirm}>
+                  {pwSaving ? 'Saving…' : 'Set New Password'}
+                </button>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 12, marginBottom: 0 }}>
+                  Logged in as <strong>{username}</strong>
+                </p>
+              </form>
+            )}
           </div>
         </div>
       )}

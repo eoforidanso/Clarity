@@ -15,6 +15,7 @@ export default function Orders({ patientId }) {
   const [labFacilityFocused, setLabFacilityFocused] = useState(false);
   const [forwardTo, setForwardTo] = useState('');
   const [expandedOrder, setExpandedOrder] = useState(null);
+  const [formError, setFormError] = useState('');
 
   const isFrontDesk  = currentUser?.role === 'front_desk';
   const isTherapist  = currentUser?.role === 'therapist';
@@ -86,8 +87,15 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
     : labOrderDatabase;
 
   const handleAdd = () => {
-    if (!form.description.trim()) return;
-    if (mustForward && !forwardTo) return;
+    if (!form.description.trim()) {
+      setFormError('Order description is required.');
+      return;
+    }
+    if (mustForward && !forwardTo) {
+      setFormError('Please select a provider to forward this order to.');
+      return;
+    }
+    setFormError('');
 
     const forwardProvider = mustForward ? providers.find(p => p.id === forwardTo) : null;
 
@@ -106,6 +114,7 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
       addInboxMessage({
         type: 'Order Forward',
         from: `${currentUser.firstName} ${currentUser.lastName} (${isFrontDesk ? 'Front Desk' : currentUser.role})`,
+        to: forwardProvider.id,
         subject: `Order Forwarded: ${form.type} — ${form.description}`,
         body: `${currentUser.firstName} ${currentUser.lastName} has forwarded a ${form.priority} ${form.type} order for your review and signature.\n\nOrder: ${form.description}\nPriority: ${form.priority}\nNotes: ${form.notes || 'None'}\n\nPlease review and sign this order in the patient's chart.`,
         patient: patientId,
@@ -119,6 +128,7 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
     setSelectedLabFacility(null);
     setLabFacilitySearch('');
     setForwardTo('');
+    setFormError('');
     setShowAdd(false);
   };
 
@@ -363,11 +373,16 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
                 )}
               </div>
             )}
+            {formError && (
+              <div style={{ color: 'var(--danger)', fontSize: 12, marginBottom: 8, padding: '6px 10px', background: 'rgba(220,38,38,0.07)', borderRadius: 'var(--radius)', border: '1px solid rgba(220,38,38,0.2)' }}>
+                ⚠️ {formError}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-sm btn-primary" onClick={handleAdd} disabled={mustForward && !forwardTo}>
+              <button className="btn btn-sm btn-primary" onClick={handleAdd} disabled={!form.description.trim() || (mustForward && !forwardTo)}>
                 {mustForward ? '📨 Forward to Provider' : 'Place Order'}
               </button>
-              <button className="btn btn-sm btn-secondary" onClick={() => setShowAdd(false)}>Cancel</button>
+              <button className="btn btn-sm btn-secondary" onClick={() => { setShowAdd(false); setFormError(''); }}>Cancel</button>
             </div>
           </div>
         )}

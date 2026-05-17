@@ -1,10 +1,32 @@
+import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
 import config from './config.js';
 import { initializeDatabase } from './db/database.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import logger from './middleware/logger.js';
+
+// ── Startup env validation ────────────────────────────────────────────────────
+const REQUIRED_IN_PROD = ['JWT_SECRET', 'ALLOWED_ORIGINS'];
+if (config.nodeEnv === 'production') {
+  const missing = REQUIRED_IN_PROD.filter(k => !process.env[k]);
+  if (missing.length) {
+    console.error(`FATAL: Missing required env vars: ${missing.join(', ')}. Refusing to start.`);
+    process.exit(1);
+  }
+}
+
+// ── Sentry (server-side) ─────────────────────────────────────────────────────
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: config.nodeEnv,
+    tracesSampleRate: config.nodeEnv === 'production' ? 0.1 : 1.0,
+  });
+}
 
 // Route imports
 import authRoutes from './routes/auth.js';
@@ -27,19 +49,45 @@ import auditLogRoutes from './routes/auditLog.js';
 import documentRoutes from './routes/documents.js';
 import fhirRoutes from './routes/fhir.js';
 import billingRoutes from './routes/billing.js';
+import userRoutes from './routes/users.js';
+import locationRoutes from './routes/locations.js';
 
 const app = express();
 
+// Trust the first proxy hop (needed for correct req.ip in rate limiters behind nginx/load balancer)
+app.set('trust proxy', 1);
+
 // Security middleware
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // allow API use from frontend dev server
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow cross-origin reads (app.clarity-ehr.com → api.clarity-ehr.com)
+  crossOriginOpenerPolicy: false,
+}));
 app.use(cors({
   origin: config.nodeEnv === 'production'
-    ? process.env.ALLOWED_ORIGINS?.split(',') || []
+    ? (process.env.ALLOWED_ORIGINS?.split(',').filter(Boolean) || (() => {
+        console.error('FATAL: ALLOWED_ORIGINS env var is not set. All cross-origin requests will be rejected.');
+        return [];
+      })())
     : ['http://localhost:3000', 'http://localhost:5173'],
-  credentials: true,
+  credentials: true, // required for httpOnly cookies
 }));
 
-// Rate limiting
+// Rate limiting — general
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 1000,
@@ -48,9 +96,32 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
+// Rate limiting — strict for auth endpoints (brute-force protection)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts. Please try again later.' },
+  skipSuccessfulRequests: true, // only count failed attempts
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/2fa/verify', authLimiter);
+app.use('/api/auth/verify-epcs-pin', authLimiter);
+app.use('/api/auth/verify-epcs-otp', authLimiter);
+
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// HTTP request logging (skip health checks to avoid log noise)
+app.use((req, _res, next) => {
+  if (req.path !== '/api/health') {
+    logger.info({ method: req.method, path: req.path, ip: req.ip });
+  }
+  next();
+});
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -78,6 +149,8 @@ app.use('/api/audit-log', auditLogRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/fhir', fhirRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/locations', locationRoutes);
 
 // Error handling
 app.use(errorHandler);
@@ -85,13 +158,26 @@ app.use(errorHandler);
 // Initialize DB and start
 async function start() {
   await initializeDatabase();
+
+  // Warn if default seed credentials are still present in production
+  if (config.nodeEnv === 'production') {
+    try {
+      const { default: db } = await import('./db/database.js');
+      const { default: bcrypt } = await import('bcryptjs');
+      const admin = db.prepare('SELECT password_hash FROM users WHERE username = ?').get('admin');
+      if (admin && bcrypt.compareSync('Admin1234!', admin.password_hash)) {
+        logger.warn('SECURITY: Default seed password still active for user "admin" — change it immediately!');
+      }
+    } catch { /* non-fatal */ }
+  }
+
   app.listen(config.port, () => {
-    console.log(`EHR Backend running on port ${config.port} [${config.nodeEnv}]`);
+    logger.info(`EHR Backend running on port ${config.port} [${config.nodeEnv}]`);
   });
 }
 
 start().catch((err) => {
-  console.error('Failed to start server:', err);
+  logger.error('Failed to start server', { error: err.message, stack: err.stack });
   process.exit(1);
 });
 

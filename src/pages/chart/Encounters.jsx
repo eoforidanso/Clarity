@@ -4045,7 +4045,15 @@ export default function Encounters({ patientId }) {
   const [expandedPrevEnc, setExpandedPrevEnc] = useState(null);
   const [sidebarSection, setSidebarSection] = useState('history'); // history | allergies | demographics | problems | vitals | medications | orders | assessments
 
-  const flash = () => { setSaved(true); setTimeout(() => setSaved(false), 3000); };
+  const flashTimerRef = useRef(null);
+  useEffect(() => {
+    return () => { if (flashTimerRef.current) clearTimeout(flashTimerRef.current); };
+  }, []);
+  const flash = () => {
+    setSaved(true);
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = setTimeout(() => setSaved(false), 3000);
+  };
 
   const startNew = () => {
     setDraft(blankEncounter(currentUser));

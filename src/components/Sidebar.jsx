@@ -86,7 +86,7 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" role="navigation" aria-label="Main navigation">
       {/* Logo */}
       <div className="sidebar-logo">
         <div className="sidebar-logo-inner">
@@ -321,6 +321,8 @@ export default function Sidebar() {
           {navItem('/scheduling-templates', '📅', 'Schedule Templates')}
           {isFrontDesk && navItem('/audit-trail', '📜', 'Audit Trail')}
           {isFrontDesk && navItem('/btg-audit', '🔓', 'BTG Audit Log')}
+          {isFrontDesk && navItem('/user-management', '👥', 'User Management')}
+          {isFrontDesk && navItem('/provider-management', '🩺', 'Provider NPI/DEA')}
           {navItem('/marketplace', '🏪', 'App Marketplace')}
           {navItem('/api-docs', '🔧', 'API Documentation')}
           {navPrefs.showApptReminders && navItem('/appointment-reminders', '📣', 'Appt Reminders')}

@@ -11,7 +11,7 @@ const VISIT_TYPES = [
 ];
 
 export default function PatientSearch() {
-  const { patients, selectPatient, addEncounter } = usePatient();
+  const { patients, selectPatient, addEncounter, addPatient } = usePatient();
   const { currentUser } = useAuth();
   const { activeSiteId, isFiltered } = useSite();
   const [search, setSearch] = useState('');
@@ -23,6 +23,21 @@ export default function PatientSearch() {
   const today = new Date().toISOString().slice(0, 10);
   const nowTime = new Date().toTimeString().slice(0, 5);
   const [encForm, setEncForm] = useState({});
+
+  // Add Patient modal state
+  const EMPTY_PT = {
+    firstName: '', lastName: '', dob: '', gender: 'Female', pronouns: '',
+    phone: '', cellPhone: '', email: '',
+    address: { street: '', city: '', state: '', zip: '' },
+    emergencyContact: { name: '', relationship: '', phone: '' },
+    insurance: { primary: { name: '', memberId: '', groupNumber: '', copay: '' } },
+    pcp: '', assignedProvider: '', language: 'English', race: '', ethnicity: '',
+    maritalStatus: '', ssn: '',
+  };
+  const [addModal, setAddModal] = useState(false);
+  const [ptForm, setPtForm] = useState(EMPTY_PT);
+  const [ptSaving, setPtSaving] = useState(false);
+  const [ptError, setPtError] = useState('');
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -73,11 +88,47 @@ export default function PatientSearch() {
     setEncounterModal(null);
   };
 
+  const saveNewPatient = async () => {
+    if (!ptForm.firstName.trim() || !ptForm.lastName.trim() || !ptForm.dob || !ptForm.gender) {
+      setPtError('First name, last name, date of birth, and gender are required.');
+      return;
+    }
+    setPtSaving(true);
+    setPtError('');
+    try {
+      const created = await addPatient({
+        ...ptForm,
+        insurance: {
+          ...ptForm.insurance,
+          primary: {
+            ...ptForm.insurance.primary,
+            copay: ptForm.insurance.primary.copay ? Number(ptForm.insurance.primary.copay) : 0,
+          },
+        },
+      });
+      setAddModal(false);
+      setPtForm(EMPTY_PT);
+      selectPatient(created.id);
+      navigate(`/chart/${created.id}/summary`);
+    } catch (err) {
+      setPtError(err?.message || 'Failed to create patient. Please try again.');
+    } finally {
+      setPtSaving(false);
+    }
+  };
+
+  const cancelAddPatient = () => { setAddModal(false); setPtForm(EMPTY_PT); setPtError(''); };
+
   return (
     <div className="fade-in">
       <div className="page-header">
-        <h1>🔍 Patient Search</h1>
-        <p>Search and select a patient to open their chart · <strong>{patients.length}</strong> patients in system</p>
+        <div>
+          <h1>🔍 Patient Search</h1>
+          <p>Search and select a patient to open their chart · <strong>{patients.length}</strong> patients in system</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => { setPtForm(EMPTY_PT); setPtError(''); setAddModal(true); }}>
+          + Add Patient
+        </button>
       </div>
 
       <div className="card mb-4" style={{ overflow: 'visible' }}>
@@ -286,6 +337,201 @@ export default function PatientSearch() {
               <button className="btn btn-primary" onClick={saveEncounter}
                 disabled={!encForm.chiefComplaint?.trim()}>
                 💾 Save &amp; Open Encounter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Add Patient Modal */}
+      {addModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: 24,
+        }}>
+          <div style={{
+            background: 'var(--surface)', borderRadius: 14, width: '100%', maxWidth: 760,
+            maxHeight: '92vh', overflow: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '16px 20px', borderBottom: '1px solid var(--border)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1,
+            }}>
+              <div style={{ fontWeight: 800, fontSize: 17 }}>👤 Add New Patient</div>
+              <button onClick={cancelAddPatient}
+                style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+            </div>
+
+            <div style={{ padding: 20 }}>
+              {ptError && (
+                <div style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+                  ⚠️ {ptError}
+                </div>
+              )}
+
+              {/* Demographics */}
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Demographics</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label className="form-label">First Name <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <input className="form-input" value={ptForm.firstName}
+                    onChange={e => setPtForm(p => ({ ...p, firstName: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="form-label">Last Name <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <input className="form-input" value={ptForm.lastName}
+                    onChange={e => setPtForm(p => ({ ...p, lastName: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="form-label">Date of Birth <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <input className="form-input" type="date" value={ptForm.dob}
+                    onChange={e => setPtForm(p => ({ ...p, dob: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="form-label">Gender <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <select className="form-input" value={ptForm.gender}
+                    onChange={e => setPtForm(p => ({ ...p, gender: e.target.value }))}>
+                    {['Female','Male','Non-binary','Transgender Female','Transgender Male','Other','Prefer not to say'].map(g => <option key={g}>{g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Pronouns</label>
+                  <input className="form-input" placeholder="e.g., She/Her" value={ptForm.pronouns}
+                    onChange={e => setPtForm(p => ({ ...p, pronouns: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="form-label">Language</label>
+                  <select className="form-input" value={ptForm.language}
+                    onChange={e => setPtForm(p => ({ ...p, language: e.target.value }))}>
+                    {['English','Spanish','French','Mandarin','Arabic','Portuguese','Russian','Other'].map(l => <option key={l}>{l}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Race</label>
+                  <input className="form-input" value={ptForm.race}
+                    onChange={e => setPtForm(p => ({ ...p, race: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="form-label">Ethnicity</label>
+                  <input className="form-input" value={ptForm.ethnicity}
+                    onChange={e => setPtForm(p => ({ ...p, ethnicity: e.target.value }))} />
+                </div>
+              </div>
+
+              {/* Contact */}
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Contact</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label className="form-label">Phone</label>
+                  <input className="form-input" placeholder="(555) 000-0000" value={ptForm.phone}
+                    onChange={e => setPtForm(p => ({ ...p, phone: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="form-label">Cell Phone</label>
+                  <input className="form-input" placeholder="(555) 000-0000" value={ptForm.cellPhone}
+                    onChange={e => setPtForm(p => ({ ...p, cellPhone: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="form-label">Email</label>
+                  <input className="form-input" type="email" value={ptForm.email}
+                    onChange={e => setPtForm(p => ({ ...p, email: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="form-label">Street</label>
+                  <input className="form-input" value={ptForm.address.street}
+                    onChange={e => setPtForm(p => ({ ...p, address: { ...p.address, street: e.target.value } }))} />
+                </div>
+                <div>
+                  <label className="form-label">City</label>
+                  <input className="form-input" value={ptForm.address.city}
+                    onChange={e => setPtForm(p => ({ ...p, address: { ...p.address, city: e.target.value } }))} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div>
+                    <label className="form-label">State</label>
+                    <input className="form-input" maxLength={2} value={ptForm.address.state}
+                      onChange={e => setPtForm(p => ({ ...p, address: { ...p.address, state: e.target.value.toUpperCase() } }))} />
+                  </div>
+                  <div>
+                    <label className="form-label">ZIP</label>
+                    <input className="form-input" maxLength={10} value={ptForm.address.zip}
+                      onChange={e => setPtForm(p => ({ ...p, address: { ...p.address, zip: e.target.value } }))} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Emergency Contact */}
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Emergency Contact</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label className="form-label">Name</label>
+                  <input className="form-input" value={ptForm.emergencyContact.name}
+                    onChange={e => setPtForm(p => ({ ...p, emergencyContact: { ...p.emergencyContact, name: e.target.value } }))} />
+                </div>
+                <div>
+                  <label className="form-label">Relationship</label>
+                  <input className="form-input" placeholder="e.g., Spouse" value={ptForm.emergencyContact.relationship}
+                    onChange={e => setPtForm(p => ({ ...p, emergencyContact: { ...p.emergencyContact, relationship: e.target.value } }))} />
+                </div>
+                <div>
+                  <label className="form-label">Phone</label>
+                  <input className="form-input" value={ptForm.emergencyContact.phone}
+                    onChange={e => setPtForm(p => ({ ...p, emergencyContact: { ...p.emergencyContact, phone: e.target.value } }))} />
+                </div>
+              </div>
+
+              {/* Insurance */}
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Primary Insurance</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label className="form-label">Insurance Name</label>
+                  <input className="form-input" placeholder="e.g., Blue Cross Blue Shield" value={ptForm.insurance.primary.name}
+                    onChange={e => setPtForm(p => ({ ...p, insurance: { ...p.insurance, primary: { ...p.insurance.primary, name: e.target.value } } }))} />
+                </div>
+                <div>
+                  <label className="form-label">Member ID</label>
+                  <input className="form-input" value={ptForm.insurance.primary.memberId}
+                    onChange={e => setPtForm(p => ({ ...p, insurance: { ...p.insurance, primary: { ...p.insurance.primary, memberId: e.target.value } } }))} />
+                </div>
+                <div>
+                  <label className="form-label">Group #</label>
+                  <input className="form-input" value={ptForm.insurance.primary.groupNumber}
+                    onChange={e => setPtForm(p => ({ ...p, insurance: { ...p.insurance, primary: { ...p.insurance.primary, groupNumber: e.target.value } } }))} />
+                </div>
+                <div>
+                  <label className="form-label">Copay ($)</label>
+                  <input className="form-input" type="number" min="0" value={ptForm.insurance.primary.copay}
+                    onChange={e => setPtForm(p => ({ ...p, insurance: { ...p.insurance, primary: { ...p.insurance.primary, copay: e.target.value } } }))} />
+                </div>
+              </div>
+
+              {/* Care Team */}
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Care Team</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label className="form-label">Primary Care Provider (PCP)</label>
+                  <input className="form-input" placeholder="e.g., Dr. Jane Smith" value={ptForm.pcp}
+                    onChange={e => setPtForm(p => ({ ...p, pcp: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="form-label">Assigned Provider</label>
+                  <input className="form-input" placeholder="e.g., Dr. Chris L." value={ptForm.assignedProvider}
+                    onChange={e => setPtForm(p => ({ ...p, assignedProvider: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '14px 20px', borderTop: '1px solid var(--border)',
+              display: 'flex', justifyContent: 'flex-end', gap: 10,
+              position: 'sticky', bottom: 0, background: 'var(--surface)',
+            }}>
+              <button className="btn" onClick={cancelAddPatient} disabled={ptSaving}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveNewPatient} disabled={ptSaving}>
+                {ptSaving ? 'Saving…' : '💾 Create Patient'}
               </button>
             </div>
           </div>

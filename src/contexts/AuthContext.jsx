@@ -14,6 +14,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [authMode, setAuthMode] = useState('unknown'); // 'backend' | 'mock'
   const epcsOTPRef = useRef(null);
+  const mockTwoFactorRef = useRef(null); // { username, code } for mock 2FA
   const lastActivityRef = useRef(Date.now());
 
   // ── Session Timeout Management ────────────────────────
@@ -23,9 +24,7 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
-      if (localStorage.getItem('ehr_token')) {
-        await authApi.logout?.().catch(() => {});
-      }
+      await authApi.logout?.().catch(() => {});
     } catch { /* ok */ }
     setToken(null);
     setCurrentUser(null);
@@ -52,8 +51,6 @@ export function AuthProvider({ children }) {
   // ── Restore Session on Mount ──────────────────────────
   useEffect(() => {
     const restoreSession = async () => {
-      const token = localStorage.getItem('ehr_token');
-      if (!token) { setLoading(false); return; }
       try {
         const data = await authApi.me();
         const user = data.user;
@@ -80,8 +77,71 @@ export function AuthProvider({ children }) {
     setLoginError('');
     // Try backend auth first
     try {
-      const data = await authApi.login(username, password);
-      setToken(data.token);
+      const data = await authApi.login(username, password);      // Server requires TOTP before issuing session
+      if (data.requiresTwoFactor) {
+        return { ok: false, requiresTwoFactor: true, tempToken: data.tempToken, emailHint: data.emailHint };
+      }      const user = data.user;
+      const mockUser = mockUsers.find(u => u.id === user.id || u.username === user.username);
+      const enriched = {
+        ...user,
+        name: user.name || `${user.firstName} ${user.lastName || ''}`.trim(),
+        epcsPin: mockUser?.epcsPin || null,
+        photo: mockUser?.photo || null,
+      };
+      setCurrentUser(enriched);
+      setIsAuthenticated(true);
+      setAuthMode('backend');
+      lastActivityRef.current = Date.now();
+      return { ok: true, mustChangePassword: !!enriched.mustChangePassword };
+    } catch (backendErr) {
+      console.warn('Backend auth failed, trying mock fallback:', backendErr.message);
+    }
+    // Fallback to mock data (development only)
+    const user = mockUsers.find(
+      (u) => u.username === username && u.password === password
+    );
+    if (user) {
+      if (user.twoFactorEnabled) {
+        const code = String(Math.floor(100000 + Math.random() * 900000));
+        mockTwoFactorRef.current = { username: user.username, code };
+        console.info(`[Mock 2FA] Code for ${user.username}: ${code}`);
+        const masked = user.email ? user.email.replace(/(.{2}).+(@.+)/, '$1***$2') : 'your email';
+        return {
+          ok: false,
+          requiresTwoFactor: true,
+          tempToken: `mock:${user.username}`,
+          emailHint: masked,
+        };
+      }
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+      setAuthMode('mock');
+      lastActivityRef.current = Date.now();
+      return { ok: true, mustChangePassword: !!user.mustChangePassword };
+    }
+    setLoginError('Invalid username or password');
+    return { ok: false };
+  }, []);
+
+  // ── Complete Two-Factor Login ─────────────────────────
+  const completeTwoFactor = useCallback(async (tempToken, code) => {
+    // Mock 2FA path
+    if (tempToken?.startsWith('mock:')) {
+      const record = mockTwoFactorRef.current;
+      const username = tempToken.slice(5);
+      if (!record || record.username !== username || record.code !== String(code).trim()) {
+        return { ok: false, error: 'Invalid code. Please try again.' };
+      }
+      mockTwoFactorRef.current = null;
+      const user = mockUsers.find(u => u.username === username);
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+      setAuthMode('mock');
+      lastActivityRef.current = Date.now();
+      return { ok: true, mustChangePassword: !!user.mustChangePassword };
+    }
+    try {
+      const data = await authApi.verify2FA(tempToken, code);
       const user = data.user;
       const mockUser = mockUsers.find(u => u.id === user.id || u.username === user.username);
       const enriched = {
@@ -94,23 +154,10 @@ export function AuthProvider({ children }) {
       setIsAuthenticated(true);
       setAuthMode('backend');
       lastActivityRef.current = Date.now();
-      return true;
-    } catch (backendErr) {
-      console.warn('Backend auth failed, trying mock fallback:', backendErr.message);
+      return { ok: true, mustChangePassword: !!enriched.mustChangePassword };
+    } catch (err) {
+      return { ok: false, error: err.message };
     }
-    // Fallback to mock data (development only)
-    const user = mockUsers.find(
-      (u) => u.username === username && u.password === password
-    );
-    if (user) {
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      setAuthMode('mock');
-      lastActivityRef.current = Date.now();
-      return true;
-    }
-    setLoginError('Invalid username or password');
-    return false;
   }, []);
 
   // ── EPCS PIN Verification ─────────────────────────────
@@ -121,7 +168,9 @@ export function AuthProvider({ children }) {
         try {
           const result = await authApi.verifyEpcsPin(pin);
           return result.valid;
-        } catch { /* fall through */ }
+        } catch {
+          return false; // Don't fall back to mock on backend failure
+        }
       }
       return currentUser.epcsPin === pin;
     },
@@ -145,7 +194,9 @@ export function AuthProvider({ children }) {
       try {
         const result = await authApi.verifyEpcsOtp(input);
         return result.valid;
-      } catch { /* fall through */ }
+      } catch {
+        return false; // Don't fall back to mock on backend failure
+      }
     }
     const record = epcsOTPRef.current;
     if (!record) return false;
@@ -154,6 +205,31 @@ export function AuthProvider({ children }) {
     if (ok) epcsOTPRef.current = null;
     return ok;
   }, [authMode]);
+
+  // ── Change Password ────────────────────────────────────
+  const changePassword = useCallback(async (currentPw, newPw) => {
+    if (authMode === 'backend') {
+      await authApi.changePassword(currentPw, newPw);
+      setCurrentUser(prev => ({ ...prev, mustChangePassword: false }));
+      return;
+    }
+    // Mock mode — validate current password against mock user
+    const match = mockUsers.find(u => u.username === currentUser?.username && u.password === currentPw);
+    if (!match) throw new Error('Current password is incorrect.');
+    match.password = newPw;
+    match.mustChangePassword = false;
+    setCurrentUser(prev => ({ ...prev, password: newPw, mustChangePassword: false }));
+  }, [authMode, currentUser]);
+
+  // ── Refresh current user (called after password change) ──
+  const refreshUser = useCallback(async () => {
+    try {
+      const data = await authApi.me();
+      if (data.user) {
+        setCurrentUser(prev => ({ ...prev, ...data.user, mustChangePassword: !!data.user.mustChangePassword }));
+      }
+    } catch { /* session expired — logout will handle it */ }
+  }, []);
 
   if (loading) {
     return (
@@ -175,6 +251,9 @@ export function AuthProvider({ children }) {
         authMode,
         login,
         logout,
+        refreshUser,
+        changePassword,
+        completeTwoFactor,
         verifyEPCS,
         generateEPCSOTP,
         verifyEPCSOTP,
