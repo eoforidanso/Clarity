@@ -177,7 +177,7 @@ export default function App() {
   }, []);
 
   return (
-    <BrowserRouter basename="/Clarity">
+    <BrowserRouter>
       <TrainingProvider>
       <AuthProvider>
         <Routes>
