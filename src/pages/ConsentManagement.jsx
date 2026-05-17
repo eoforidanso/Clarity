@@ -253,7 +253,6 @@ export default function ConsentManagement() {
                     📤 Last sent to portal: {selectedConsent.portalSentDate} at {selectedConsent.portalSentTime}
                   </div>
                 )}
-              )}
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {selectedConsent.status === 'Pending' && (
