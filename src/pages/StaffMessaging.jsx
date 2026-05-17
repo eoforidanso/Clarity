@@ -75,7 +75,6 @@ export default function StaffMessaging() {
   const [messages, setMessages] = useState({});
   const [dmMessages, setDmMessages] = useState({});
   const [loadingMsgs, setLoadingMsgs] = useState(false);
-  const [unreadCounts, setUnreadCounts] = useState({});
   const [input, setInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
