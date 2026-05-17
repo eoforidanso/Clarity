@@ -92,7 +92,7 @@ export default function PatientCheckIn() {
       setDobError('Date of birth cannot be in the future.');
       return;
     }
-    const match = patients.find(
+    const match = (patients || []).find(
       p => p.lastName.toLowerCase() === enteredLast && p.dob === enteredDob
     );
     if (!match) {

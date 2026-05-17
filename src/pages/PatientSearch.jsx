@@ -41,7 +41,7 @@ export default function PatientSearch() {
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  const filtered = patients.filter((p) => {
+  const filtered = (patients || []).filter((p) => {
     // Site filter: if a specific site is active, only show patients at that location
     if (isFiltered && p.locationId && p.locationId !== activeSiteId) return false;
     if (!search) return true;

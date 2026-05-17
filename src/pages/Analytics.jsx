@@ -86,14 +86,17 @@ export default function Analytics() {
   const [period, setPeriod] = useState('month'); // week | month | quarter | year
 
   // ── Derived metrics ──────────────────────────────────────────────────
-  const totalPatients = patients.length;
-  const activePatients = patients.filter(p => p.isActive).length;
+  const safePatients = patients || [];
+  const safeAppts = appointments || [];
+
+  const totalPatients = safePatients.length;
+  const activePatients = safePatients.filter(p => p.isActive).length;
 
   // Appointment metrics
-  const totalAppts = appointments.length;
-  const completedAppts = appointments.filter(a => a.status === 'Completed').length;
-  const noShowAppts = appointments.filter(a => a.status === 'No Show').length;
-  const telehealthAppts = appointments.filter(a => a.visitType === 'Telehealth').length;
+  const totalAppts = safeAppts.length;
+  const completedAppts = safeAppts.filter(a => a.status === 'Completed').length;
+  const noShowAppts = safeAppts.filter(a => a.status === 'No Show').length;
+  const telehealthAppts = safeAppts.filter(a => a.visitType === 'Telehealth').length;
   const inPersonAppts = totalAppts - telehealthAppts;
   const completionRate = totalAppts ? Math.round((completedAppts / totalAppts) * 100) : 0;
   const noShowRate = totalAppts ? Math.round((noShowAppts / totalAppts) * 100) : 0;
@@ -120,7 +123,7 @@ export default function Analytics() {
   // Encounter volume (by type)
   const encounterByType = useMemo(() => {
     const map = {};
-    Object.values(encounters).flat().forEach(e => {
+    Object.values(encounters || {}).flat().forEach(e => {
       const t = e.type || 'Office Visit';
       map[t] = (map[t] || 0) + 1;
     });
@@ -130,7 +133,7 @@ export default function Analytics() {
   // Inbox volume by type
   const inboxByType = useMemo(() => {
     const map = {};
-    inboxMessages.forEach(m => {
+    (inboxMessages || []).forEach(m => {
       const t = m.type || 'General';
       map[t] = (map[t] || 0) + 1;
     });
@@ -138,13 +141,13 @@ export default function Analytics() {
   }, [inboxMessages]);
 
   // Total meds prescribed across all patients
-  const totalMedCount = Object.values(meds).flat().length;
-  const controlledMeds = Object.values(meds).flat().filter(m => m.isControlled).length;
+  const totalMedCount = Object.values(meds || {}).flat().length;
+  const controlledMeds = Object.values(meds || {}).flat().filter(m => m.isControlled).length;
 
   // Med class breakdown
   const medClasses = useMemo(() => {
     const map = {};
-    Object.values(meds).flat().forEach(m => {
+    Object.values(meds || {}).flat().forEach(m => {
       const c = m.class || 'Other';
       map[c] = (map[c] || 0) + 1;
     });
@@ -152,18 +155,18 @@ export default function Analytics() {
   }, [meds]);
 
   // Order volume
-  const totalOrders = Object.values(orders).flat().length;
-  const pendingOrders = Object.values(orders).flat().filter(o => o.status === 'Pending').length;
-  const completedOrders = Object.values(orders).flat().filter(o => o.status === 'Completed' || o.status === 'Resulted').length;
+  const totalOrders = Object.values(orders || {}).flat().length;
+  const pendingOrders = Object.values(orders || {}).flat().filter(o => o.status === 'Pending').length;
+  const completedOrders = Object.values(orders || {}).flat().filter(o => o.status === 'Completed' || o.status === 'Resulted').length;
 
   // Lab turnaround
-  const totalLabs = Object.values(labResults).flat().length;
-  const abnormalLabs = Object.values(labResults).flat().filter(l => l.flag === 'H' || l.flag === 'L' || l.flag === 'Critical' || l.abnormal).length;
+  const totalLabs = Object.values(labResults || {}).flat().length;
+  const abnormalLabs = Object.values(labResults || {}).flat().filter(l => l.flag === 'H' || l.flag === 'L' || l.flag === 'Critical' || l.abnormal).length;
 
   // Assessment scores distribution
   const assessmentTypes = useMemo(() => {
     const map = {};
-    Object.values(assessmentScores).flat().forEach(a => {
+    Object.values(assessmentScores || {}).flat().forEach(a => {
       const t = a.tool || a.name || 'Other';
       map[t] = (map[t] || 0) + 1;
     });
@@ -173,13 +176,13 @@ export default function Analytics() {
   // Patient demographics
   const genderDist = useMemo(() => {
     const map = {};
-    patients.forEach(p => { map[p.gender] = (map[p.gender] || 0) + 1; });
+    safePatients.forEach(p => { map[p.gender] = (map[p.gender] || 0) + 1; });
     return map;
-  }, [patients]);
+  }, [safePatients]);
 
   const ageBuckets = useMemo(() => {
     const buckets = { '18-25': 0, '26-35': 0, '36-45': 0, '46-55': 0, '56-65': 0, '65+': 0 };
-    patients.forEach(p => {
+    safePatients.forEach(p => {
       const a = p.age;
       if (a <= 25) buckets['18-25']++;
       else if (a <= 35) buckets['26-35']++;
@@ -189,16 +192,16 @@ export default function Analytics() {
       else buckets['65+']++;
     });
     return buckets;
-  }, [patients]);
+  }, [safePatients]);
 
   const insuranceDist = useMemo(() => {
     const map = {};
-    patients.forEach(p => {
+    safePatients.forEach(p => {
       const ins = p.insurance?.primary?.name || 'Unknown';
       map[ins] = (map[ins] || 0) + 1;
     });
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
-  }, [patients]);
+  }, [safePatients]);
 
   // Fake sparkline data for trend cards (12 months)
   const apptTrend = [18, 22, 19, 25, 28, 24, 30, 27, 31, 35, 33, totalAppts];

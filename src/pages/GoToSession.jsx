@@ -10,12 +10,13 @@ export default function GoToSession() {
   const [patient, setPatient] = useState(null);
 
   useEffect(() => {
-    const found = appointments.find((a) => a.id === aptId);
+    if (!aptId) { navigate('/schedule', { replace: true }); return; }
+    const found = (appointments || []).find((a) => a.id === aptId);
     if (!found) { navigate('/schedule', { replace: true }); return; }
     setApt(found);
-    const p = patients.find(p => p.id === found.patientId);
+    const p = (patients || []).find(p => p.id === found.patientId);
     setPatient(p || null);
-    selectPatient(found.patientId);
+    if (found.patientId) selectPatient(found.patientId);
   }, [aptId, appointments, patients, selectPatient, navigate]);
 
   if (!apt) {

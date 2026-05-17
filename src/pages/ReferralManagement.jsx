@@ -143,7 +143,7 @@ ${ref.attachments?.length ? `<div class="section"><div class="section-title">Att
   };
 
   const submitReferral = () => {
-    const patient = patients.find(p => p.id === newForm.patientId);
+    const patient = (patients || []).find(p => p.id === newForm.patientId);
     if (!patient || !newForm.reason.trim() || !newForm.specialty) return;
     const ref = {
       id: `ref-${Date.now()}`,
@@ -399,7 +399,7 @@ faxedIds.has(selectedRef.id) ? '✅ Faxed' : '📠 Fax'}</button>
                 <label style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, display: 'block', marginBottom: 6 }}>Patient *</label>
                 <select className="form-input" value={newForm.patientId} onChange={e => setNewForm(f => ({ ...f, patientId: e.target.value }))}>
                   <option value="">Select patient...</option>
-                  {patients.map(p => <option key={p.id} value={p.id}>{p.lastName}, {p.firstName} — MRN {p.mrn}</option>)}
+                  {(patients || []).map(p => <option key={p.id} value={p.id}>{p.lastName}, {p.firstName} — MRN {p.mrn}</option>)}
                 </select>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>

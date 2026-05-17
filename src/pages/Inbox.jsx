@@ -38,7 +38,7 @@ export default function Inbox() {
   const patientList = useMemo(() => {
     const ptMap = new Map();
     
-    inboxMessages.forEach((msg) => {
+    (inboxMessages || []).forEach((msg) => {
       // Skip non-patient messages
       if (!msg.patient || !msg.patientName) return;
       
@@ -98,9 +98,9 @@ export default function Inbox() {
     });
   }, [inboxMessages, filterType, filterStatus, currentUser, selectedPatientId]);
 
-  const selectedMessage = inboxMessages.find(m => m.id === selectedId);
-  const unreadCount = inboxMessages.filter(m => m.status === 'Unread').length;
-  const messageTypes = [...new Set(inboxMessages.map(m => m.type))];
+  const selectedMessage = (inboxMessages || []).find(m => m.id === selectedId);
+  const unreadCount = (inboxMessages || []).filter(m => m.status === 'Unread').length;
+  const messageTypes = [...new Set((inboxMessages || []).map(m => m.type))];
 
   // Auto-populate: select first patient with unread messages on mount
   useEffect(() => {

@@ -41,16 +41,16 @@ function StaffRefillRequest() {
   }, [selectedPatient?.id]);
 
   // Pending refill requests not yet assigned by staff
-  const pendingRefills = inboxMessages.filter(
+  const pendingRefills = (inboxMessages || []).filter(
     m => m.type === 'Rx Refill Request' && m.status !== 'Forwarded' && !assignedIds[m.id]
   );
 
   const filteredPts = patientSearch.length > 1
-    ? patients.filter(p =>
+    ? (patients || []).filter(p =>
         `${p.firstName} ${p.lastName}`.toLowerCase().includes(patientSearch.toLowerCase()) ||
         p.mrn.toLowerCase().includes(patientSearch.toLowerCase())
       )
-    : patients;
+    : (patients || []);
 
   const patientMeds = reqPatient ? (meds[reqPatient.id] || []).filter(m => m.status === 'Active') : [];
 
@@ -535,11 +535,11 @@ export default function EPrescribe() {
     : medicationDatabase;
 
   const filteredPatients = patientSearch.length > 1
-    ? patients.filter(p =>
+    ? (patients || []).filter(p =>
         `${p.firstName} ${p.lastName}`.toLowerCase().includes(patientSearch.toLowerCase()) ||
         p.mrn.toLowerCase().includes(patientSearch.toLowerCase())
       )
-    : patients;
+    : (patients || []);
 
   const handleSelectMed = (med) => {
     setSelectedMed(med);

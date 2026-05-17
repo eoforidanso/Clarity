@@ -5,6 +5,8 @@ import { PatientProvider } from './contexts/PatientContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { TrainingProvider } from './contexts/TrainingContext';
 import { SiteProvider } from './contexts/SiteContext';
+import { TelehealthProvider } from './contexts/TelehealthContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import { applyTheme } from './pages/Settings';
 
 // Eagerly loaded — always needed at startup
@@ -108,6 +110,7 @@ function ProtectedLayout() {
 
   return (
     <SiteProvider>
+    <TelehealthProvider>
     <PatientProvider>
       <NotificationProvider>
         <div className="app-layout">
@@ -121,9 +124,11 @@ function ProtectedLayout() {
           <div className="main-area">
             <Header />
             <main id="main-content" className="main-content" role="main">
+              <ErrorBoundary>
               <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: 'var(--text-muted)', fontSize: 14 }}>Loading…</div>}>
                 <Outlet />
               </Suspense>
+              </ErrorBoundary>
             </main>
           </div>
           {/* Mobile hamburger button */}
@@ -141,6 +146,7 @@ function ProtectedLayout() {
         <VoiceAssistant />
       </NotificationProvider>
     </PatientProvider>
+    </TelehealthProvider>
     </SiteProvider>
   );
 }

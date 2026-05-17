@@ -1478,7 +1478,7 @@ export default function Schedule() {
   }, [blockedDays]);
 
   const allAppts = useMemo(() => {
-    const byRole = appointments.filter(a => a.provider===currentUser?.id || isFrontDesk);
+    const byRole = (appointments || []).filter(a => a.provider===currentUser?.id || isFrontDesk);
     if (!isFiltered) return byRole;
     return byRole.filter(a => appointmentSiteId(a) === activeSiteId);
   }, [appointments, currentUser, isFrontDesk, activeSiteId, isFiltered]);

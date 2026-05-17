@@ -11,11 +11,11 @@ export default function Dashboard() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
-  const todayAppts = useMemo(() => appointments.filter(
+  const todayAppts = useMemo(() => (appointments || []).filter(
     (a) => a.provider === currentUser?.id || currentUser?.role === 'front_desk'
   ), [appointments, currentUser]);
 
-  const myUnread = useMemo(() => inboxMessages.filter(
+  const myUnread = useMemo(() => (inboxMessages || []).filter(
     (m) => !m.read && (m.to === currentUser?.id || currentUser?.role === 'front_desk')
   ), [inboxMessages, currentUser]);
 

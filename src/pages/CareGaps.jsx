@@ -64,15 +64,15 @@ export default function CareGaps() {
     const oneYearAgo = new Date(today);
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
-    return patients.filter(p => p.isActive).map(patient => {
+    return (patients || []).filter(p => p.isActive).map(patient => {
       const pid = patient.id;
       const gaps = [];
-      const patMeds = meds[pid] || [];
-      const patLabs = labResults[pid] || [];
-      const patImmunizations = immunizations[pid] || [];
-      const patAssessments = assessmentScores[pid] || [];
-      const patVitals = vitalSigns[pid] || [];
-      const patAppts = appointments.filter(a => a.patientId === pid);
+      const patMeds = (meds || {})[pid] || [];
+      const patLabs = (labResults || {})[pid] || [];
+      const patImmunizations = (immunizations || {})[pid] || [];
+      const patAssessments = (assessmentScores || {})[pid] || [];
+      const patVitals = (vitalSigns || {})[pid] || [];
+      const patAppts = (appointments || []).filter(a => a.patientId === pid);
       const age = patient.age || 0;
 
       // ── Screening / Assessment ─────────────────────────────────
