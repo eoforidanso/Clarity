@@ -5,16 +5,16 @@ import { medicationDatabase, pharmacies, users } from '../data/mockData';
 import { rxnorm as rxnormApi, openfda as openfdaApi } from '../services/api';
 import { generateILPmpReport } from '../utils/pmpMock';
 
-// ── MD-only helper: only licensed MDs may authorize / receive refills ──
-const isMD = (user) => /\bMD\b/i.test(user?.credentials || '');
+// ── Prescriber authorization: MDs, NPs, and PAs may authorize / receive refills ──
+const canApproveRefills = (user) => /\b(MD|NP|PA)\b/i.test(user?.credentials || '');
 
 // ── Staff Refill Request (non-prescriber) ────────────────────────
 function StaffRefillRequest() {
   const { currentUser } = useAuth();
   const { patients, selectedPatient, selectPatient, meds, inboxMessages, addInboxMessage, updateMessageStatus } = usePatient();
 
-  // Only MDs can authorize refills — NPs, PAs, and therapists are excluded
-  const providers = users.filter(u => u.role === 'prescriber' && isMD(u));
+  // MDs, NPs, and PAs are authorized to approve refills
+  const providers = users.filter(u => u.role === 'prescriber' && canApproveRefills(u));
 
   const [activeTab, setActiveTab] = useState('assign'); // 'assign' | 'new'
 
@@ -140,7 +140,7 @@ function StaffRefillRequest() {
             <div style={{ fontWeight: 800, fontSize: 14, color: '#92400e', marginBottom: 4 }}>Therapist — No Prescribing Authority</div>
             <div style={{ fontSize: 12, color: '#78350f', lineHeight: 1.6 }}>
               Licensed therapists (LCSW / LPC / LMFT) <strong>cannot prescribe, authorize refills, or send prescriptions to pharmacies</strong>.
-              You may use this page to assign pending refill requests or submit new refill requests to a licensed MD for review and authorization.
+              You may use this page to assign pending refill requests or submit new refill requests to a licensed prescriber (MD, NP, or PA) for review and authorization.
             </div>
             <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {['Prescribe', 'Authorize Refills', 'Send to Pharmacy', 'Order Labs'].map(action => (
@@ -163,10 +163,10 @@ function StaffRefillRequest() {
         </div>
       )}
 
-      {/* MD-only notice */}
-      <div style={{ background: '#fef9c3', border: '1px solid #fde047', borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* Authorized prescribers notice */}
+      <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 16 }}>⚕️</span>
-        <span><strong>MD Authorization Only:</strong> Refill requests may only be routed to and authorized by a licensed <strong>Medical Doctor (MD)</strong>. Nurse Practitioners (NP) and Physician Assistants (PA) are not authorized to approve refills in this system.</span>
+        <span><strong>Authorized Prescribers:</strong> Refill requests may be routed to and authorized by licensed <strong>Medical Doctors (MD)</strong>, <strong>Nurse Practitioners (NP)</strong>, and <strong>Physician Assistants (PA)</strong>.</span>
       </div>
 
       {/* ── Toggle tabs ── */}
@@ -251,7 +251,7 @@ function StaffRefillRequest() {
                           style={{ fontSize: 12 }}
                         >
                           {providers.length === 0 && (
-                          <option value="">No MD prescribers available</option>
+                          <option value="">No authorized prescribers available</option>
                         )}
                         {providers.map(p => (
                             <option key={p.id} value={p.id}>
@@ -259,7 +259,7 @@ function StaffRefillRequest() {
                             </option>
                           ))}
                         </select>
-                        <div style={{ fontSize: 9, color: '#92400e', fontWeight: 600, marginTop: 2 }}>MD only</div>
+                        <div style={{ fontSize: 9, color: '#166534', fontWeight: 600, marginTop: 2 }}>MD / NP / PA</div>
                         {alreadyAssigned ? (
                           <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#065f46', background: '#dcfce7', borderRadius: 6, padding: '7px 0' }}>
                             ✅ Assigned
@@ -489,8 +489,8 @@ export default function EPrescribe() {
     }
   }, [step, selectedMed?.isControlled, prescriptionPatient?.id]);
 
-  // Only MDs get full e-prescribe. NPs, PAs, or any non-MD prescriber → staff form.
-  if (currentUser?.role !== 'prescriber' || !isMD(currentUser)) {
+  // Only prescribers with valid credentials (MD, NP, PA) get full e-prescribe. Therapists/staff → staff form.
+  if (currentUser?.role !== 'prescriber') {
     return <StaffRefillRequest />;
   }
 
