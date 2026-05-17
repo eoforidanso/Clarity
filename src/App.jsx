@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'rea
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PatientProvider } from './contexts/PatientContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { TrainingProvider } from './contexts/TrainingContext';
 import { applyTheme } from './pages/Settings';
 
 // Eagerly loaded — always needed at startup
@@ -177,6 +178,7 @@ export default function App() {
 
   return (
     <BrowserRouter basename="/Clarity">
+      <TrainingProvider>
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginRoute />} />
@@ -260,6 +262,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </AuthProvider>
+      </TrainingProvider>
     </BrowserRouter>
   );
 }

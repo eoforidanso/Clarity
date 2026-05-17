@@ -208,12 +208,6 @@ export function PatientProvider({ children }) {
     }
   }, []);
 
-  /* ────── Patients ────── */
-  const updatePatient = useCallback((patientId, updates) => {
-    setPatients((prev) => prev.map((p) => p.id === patientId ? { ...p, ...updates } : p));
-    setSelectedPatient((prev) => prev?.id === patientId ? { ...prev, ...updates } : prev);
-  }, []);
-
   /* ────── Allergies (update / remove) ────── */
   const updateAllergy = useCallback((patientId, allergyId, updates) => {
     setAllergies((prev) => ({
