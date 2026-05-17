@@ -43,6 +43,7 @@ export default function LoginPage() {
   const [twoFAError, setTwoFAError] = useState('');
   const [pendingTempToken, setPendingTempToken] = useState(null);
   const [emailHint, setEmailHint] = useState('');
+  const [mockCode, setMockCode] = useState(null);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [pwCurrent, setPwCurrent] = useState('');
   const [pwNext, setPwNext] = useState('');
@@ -89,6 +90,7 @@ export default function LoginPage() {
       if (result?.requiresTwoFactor) {
         setPendingTempToken(result.tempToken);
         setEmailHint(result.emailHint || '');
+        setMockCode(result.mockCode || null);
         setShow2FA(true);
         setLoading(false);
         return;
@@ -376,9 +378,9 @@ export default function LoginPage() {
 
       {/* ── 2FA Verification Modal ── */}
       {show2FA && (
-        <div className="login-modal-overlay" onClick={() => { setShow2FA(false); setPendingTempToken(null); setTwoFAError(''); setEmailHint(''); }}>
+        <div className="login-modal-overlay" onClick={() => { setShow2FA(false); setPendingTempToken(null); setTwoFAError(''); setEmailHint(''); setMockCode(null); }}>
           <div className="login-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400, textAlign: 'center' }}>
-            <button className="login-modal-close" onClick={() => { setShow2FA(false); setPendingTempToken(null); setTwoFAError(''); setEmailHint(''); }}>✕</button>
+            <button className="login-modal-close" onClick={() => { setShow2FA(false); setPendingTempToken(null); setTwoFAError(''); setEmailHint(''); setMockCode(null); }}>✕</button>
             <div style={{ fontSize: 48, marginBottom: 12 }}>📧</div>
             <h2 style={{ fontSize: 20, marginBottom: 8 }}>Check Your Email</h2>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
@@ -412,9 +414,16 @@ export default function LoginPage() {
             >
               {loading ? 'Verifying...' : 'Verify & Sign In'}
             </button>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              Didn't receive it? Check your spam folder or contact your administrator.
-            </p>
+            {mockCode ? (
+              <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 8, background: '#fefce8', border: '1px solid #fbbf24', fontSize: 13 }}>
+                <span style={{ color: '#92400e', fontWeight: 600 }}>🔧 Demo mode — your code: </span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 18, letterSpacing: 4, color: '#1d4ed8' }}>{mockCode}</span>
+              </div>
+            ) : (
+              <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                Didn't receive it? Check your spam folder or contact your administrator.
+              </p>
+            )}
           </div>
         </div>
       )}

@@ -111,6 +111,7 @@ export function AuthProvider({ children }) {
           requiresTwoFactor: true,
           tempToken: `mock:${user.username}`,
           emailHint: masked,
+          mockCode: code,
         };
       }
       setCurrentUser(user);
