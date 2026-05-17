@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PatientProvider } from './contexts/PatientContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { TrainingProvider } from './contexts/TrainingContext';
+import { SiteProvider } from './contexts/SiteContext';
 import { applyTheme } from './pages/Settings';
 
 // Eagerly loaded — always needed at startup
@@ -106,6 +107,7 @@ function ProtectedLayout() {
   if (currentUser?.mustChangePassword) return <ForcePasswordChange />;
 
   return (
+    <SiteProvider>
     <PatientProvider>
       <NotificationProvider>
         <div className="app-layout">
@@ -139,6 +141,7 @@ function ProtectedLayout() {
         <VoiceAssistant />
       </NotificationProvider>
     </PatientProvider>
+    </SiteProvider>
   );
 }
 
