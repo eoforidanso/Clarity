@@ -455,22 +455,15 @@ export default function EPrescribe() {
     }).catch(() => {});
   }, [activeSite]);
 
-  // Map site IDs to nearby cities for pharmacy sorting
-  const SITE_CITIES = {
-    'loc1':     ['Chicago'],
-    'loc2':     ['Chicago'],
-    'loc3':     ['Evanston', 'Wilmette', 'Chicago'],
-    'loc-apmg': ['Rolling Meadows', 'Arlington Heights', 'Schaumburg', 'Elk Grove Village'],
-    'loc4':     ['Chicago'],
-  };
-  const nearbyCities = SITE_CITIES[activeSite?.id] || ['Chicago'];
+  // Sort pharmacies by the patient's city first, then alphabetically
+  const patientCity = prescriptionPatient?.address?.city?.toLowerCase() || '';
 
   const sortedPharmacies = [...pharmacies].sort((a, b) => {
-    const aLocal = nearbyCities.some(c => a.city.toLowerCase() === c.toLowerCase());
-    const bLocal = nearbyCities.some(c => b.city.toLowerCase() === c.toLowerCase());
+    const aLocal = patientCity && a.city.toLowerCase() === patientCity;
+    const bLocal = patientCity && b.city.toLowerCase() === patientCity;
     if (aLocal && !bLocal) return -1;
     if (!aLocal && bLocal) return 1;
-    return 0;
+    return a.city.localeCompare(b.city);
   });
 
   // ── Live RxNorm search state ─────────────────────────────
