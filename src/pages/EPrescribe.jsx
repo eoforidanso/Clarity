@@ -473,6 +473,59 @@ export default function EPrescribe() {
   const [searchMode, setSearchMode] = useState('local'); // 'local' or 'rxnorm'
   const rxnormTimer = useRef(null);
 
+  // ── Live NPPES pharmacy search state ────────────────────
+  const [nppesResults, setNppesResults] = useState([]);
+  const [nppesLoading, setNppesLoading] = useState(false);
+  const nppesTimer = useRef(null);
+
+  // Debounced NPPES search — fires when pharmacySearch has 3+ chars
+  useEffect(() => {
+    if (pharmacySearch.length < 3) { setNppesResults([]); return; }
+    clearTimeout(nppesTimer.current);
+    nppesTimer.current = setTimeout(async () => {
+      setNppesLoading(true);
+      try {
+        // Build query: search by organization name OR city (if not numeric) OR zip (if numeric)
+        const isZip = /^\d+$/.test(pharmacySearch);
+        const params = new URLSearchParams({
+          enumeration_type: 'NPI-2',
+          taxonomy_description: 'Pharmacy',
+          state: 'IL',
+          limit: '20',
+          skip: '0',
+        });
+        if (isZip) {
+          params.set('postal_code', pharmacySearch + '*');
+        } else {
+          params.set('organization_name', pharmacySearch + '*');
+          params.set('city', pharmacySearch);
+        }
+        const res = await fetch(`https://npiregistry.cms.hhs.gov/api/?${params}`, { signal: AbortSignal.timeout(5000) });
+        const data = await res.json();
+        const results = (data.results || []).map(r => {
+          const addr = r.addresses?.find(a => a.address_purpose === 'LOCATION') || r.addresses?.[0] || {};
+          return {
+            id: `nppes-${r.number}`,
+            name: r.basic?.organization_name || r.basic?.name || 'Unknown Pharmacy',
+            chain: 'NPPES',
+            address: [addr.address_1, addr.address_2].filter(Boolean).join(' '),
+            city: addr.city || '',
+            state: addr.state || 'IL',
+            zip: addr.postal_code?.slice(0, 5) || '',
+            phone: addr.telephone_number || '',
+            fax: addr.fax_number || '',
+            npi: r.number,
+          };
+        }).filter(r => r.address && r.city);
+        setNppesResults(results);
+      } catch {
+        setNppesResults([]);
+      }
+      setNppesLoading(false);
+    }, 500);
+    return () => clearTimeout(nppesTimer.current);
+  }, [pharmacySearch]);
+
   // Debounced RxNorm live search
   useEffect(() => {
     if (searchMode !== 'rxnorm' || medSearch.length < 2) { setRxnormResults([]); return; }
@@ -1220,21 +1273,45 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                       onFocus={() => setShowPharmacyDropdown(true)}
                       placeholder="Search by name, chain, city, or zip code..." />
                     {showPharmacyDropdown && (
-                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-white)', boxShadow: 'var(--shadow-md)' }}>
-                        {sortedPharmacies.filter(p =>
-                          !pharmacySearch || p.name.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.chain.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.city.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.zip.includes(pharmacySearch) || p.address.toLowerCase().includes(pharmacySearch.toLowerCase())
-                        ).slice(0, 15).map(p => (
-                          <div key={p.id} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
-                            onMouseLeave={e => e.currentTarget.style.background = ''}
-                            onClick={() => { setRx({ ...rx, pharmacy: `${p.name} — ${p.address}, ${p.city}` }); setPharmacySearch(''); setShowPharmacyDropdown(false); }}>
-                            <div style={{ fontWeight: 600 }}>{p.name}</div>
-                            <div style={{ color: 'var(--text-muted)' }}>{p.address}, {p.city}, {p.state} {p.zip} · {p.phone}</div>
-                          </div>
-                        ))}
-                        {sortedPharmacies.filter(p => !pharmacySearch || p.name.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.chain.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.city.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.zip.includes(pharmacySearch)).length === 0 && (
-                          <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>No pharmacies found</div>
-                        )}
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-white)', boxShadow: 'var(--shadow-md)' }}>
+                        {(() => {
+                          const q = pharmacySearch.toLowerCase();
+                          const localMatches = sortedPharmacies.filter(p =>
+                            !pharmacySearch || p.name.toLowerCase().includes(q) || p.chain.toLowerCase().includes(q) || p.city.toLowerCase().includes(q) || p.zip.includes(pharmacySearch) || p.address.toLowerCase().includes(q)
+                          ).slice(0, 10);
+                          // Deduplicate NPPES results against local list by NPI
+                          const localNpis = new Set(localMatches.map(p => p.npi).filter(Boolean));
+                          const liveMatches = nppesResults.filter(p => !localNpis.has(p.npi));
+                          const allResults = [...localMatches, ...liveMatches];
+                          if (allResults.length === 0 && !nppesLoading) {
+                            return <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>{pharmacySearch.length >= 3 ? 'No pharmacies found in Illinois' : 'Type at least 3 characters to search all IL pharmacies'}</div>;
+                          }
+                          return (
+                            <>
+                              {localMatches.length > 0 && pharmacySearch && <div style={{ padding: '4px 12px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, background: 'var(--bg)' }}>Local directory</div>}
+                              {localMatches.map(p => (
+                                <div key={p.id} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = ''}
+                                  onClick={() => { setRx({ ...rx, pharmacy: `${p.name} — ${p.address}, ${p.city}` }); setPharmacySearch(''); setShowPharmacyDropdown(false); setNppesResults([]); }}>
+                                  <div style={{ fontWeight: 600 }}>{p.name}</div>
+                                  <div style={{ color: 'var(--text-muted)' }}>{p.address}, {p.city}, {p.state} {p.zip} · {p.phone}</div>
+                                </div>
+                              ))}
+                              {nppesLoading && <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>🔍 Searching all Illinois pharmacies...</div>}
+                              {liveMatches.length > 0 && <div style={{ padding: '4px 12px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, background: 'var(--bg)' }}>Live — NPPES registry</div>}
+                              {liveMatches.map(p => (
+                                <div key={p.id} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = ''}
+                                  onClick={() => { setRx({ ...rx, pharmacy: `${p.name} — ${p.address}, ${p.city}` }); setPharmacySearch(''); setShowPharmacyDropdown(false); setNppesResults([]); }}>
+                                  <div style={{ fontWeight: 600 }}>{p.name} <span style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 400 }}>NPI {p.npi}</span></div>
+                                  <div style={{ color: 'var(--text-muted)' }}>{p.address}, {p.city}, {p.state} {p.zip}{p.phone ? ' · ' + p.phone : ''}</div>
+                                </div>
+                              ))}
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
                   </>
