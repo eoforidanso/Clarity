@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { medicationDatabase, pharmacies, users } from '../data/mockData';
 import { rxnorm as rxnormApi, openfda as openfdaApi } from '../services/api';
+import { useSite } from '../contexts/SiteContext';
 import { generateILPmpReport } from '../utils/pmpMock';
 
 // ── Prescriber authorization: MDs, NPs, and PAs may authorize / receive refills ──
@@ -436,6 +437,25 @@ export default function EPrescribe() {
   });
   const [pharmacySearch, setPharmacySearch] = useState('');
   const [showPharmacyDropdown, setShowPharmacyDropdown] = useState(false);
+  const { activeSite } = useSite();
+
+  // Map site IDs to nearby cities for pharmacy sorting
+  const SITE_CITIES = {
+    'loc1':     ['Chicago'],
+    'loc2':     ['Chicago'],
+    'loc3':     ['Evanston', 'Wilmette', 'Chicago'],
+    'loc-apmg': ['Rolling Meadows', 'Arlington Heights', 'Schaumburg', 'Elk Grove Village'],
+    'loc4':     ['Chicago'],
+  };
+  const nearbyCities = SITE_CITIES[activeSite?.id] || ['Chicago'];
+
+  const sortedPharmacies = [...pharmacies].sort((a, b) => {
+    const aLocal = nearbyCities.some(c => a.city.toLowerCase() === c.toLowerCase());
+    const bLocal = nearbyCities.some(c => b.city.toLowerCase() === c.toLowerCase());
+    if (aLocal && !bLocal) return -1;
+    if (!aLocal && bLocal) return 1;
+    return 0;
+  });
 
   // ── Live RxNorm search state ─────────────────────────────
   const [rxnormResults, setRxnormResults] = useState([]);
@@ -1184,7 +1204,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                       placeholder="Search pharmacy by name, chain, or city..." />
                     {showPharmacyDropdown && (
                       <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-white)', boxShadow: 'var(--shadow-md)' }}>
-                        {pharmacies.filter(p =>
+                        {sortedPharmacies.filter(p =>
                           !pharmacySearch || p.name.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.chain.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.city.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.address.toLowerCase().includes(pharmacySearch.toLowerCase())
                         ).slice(0, 15).map(p => (
                           <div key={p.id} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}
@@ -1195,7 +1215,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                             <div style={{ color: 'var(--text-muted)' }}>{p.address}, {p.city}, {p.state} {p.zip} · {p.phone}</div>
                           </div>
                         ))}
-                        {pharmacies.filter(p => !pharmacySearch || p.name.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.chain.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.city.toLowerCase().includes(pharmacySearch.toLowerCase())).length === 0 && (
+                        {sortedPharmacies.filter(p => !pharmacySearch || p.name.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.chain.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.city.toLowerCase().includes(pharmacySearch.toLowerCase())).length === 0 && (
                           <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>No pharmacies found</div>
                         )}
                       </div>
