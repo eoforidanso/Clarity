@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
-import { medicationDatabase, pharmacies, users } from '../data/mockData';
+import { medicationDatabase, pharmacies, users, problems } from '../data/mockData';
 import { rxnorm as rxnormApi, openfda as openfdaApi } from '../services/api';
 import { useSite } from '../contexts/SiteContext';
 import { generateILPmpReport } from '../utils/pmpMock';
@@ -434,6 +434,8 @@ export default function EPrescribe() {
     pharmacy: '',
     notes: '',
     daw: false,
+    diagnosis: '',
+    diagnosisCode: '',
   });
   const [pharmacySearch, setPharmacySearch] = useState('');
   const [showPharmacyDropdown, setShowPharmacyDropdown] = useState(false);
@@ -676,6 +678,8 @@ export default function EPrescribe() {
       pharmacy: rx.pharmacy || 'Default Pharmacy',
       lastFilled: '',
       sig: rx.sig || `Take ${rx.dose} by ${selectedMed.routes[0].toLowerCase()} ${rx.frequency.toLowerCase()}`,
+      diagnosis: rx.diagnosis,
+      diagnosisCode: rx.diagnosisCode,
     };
 
     addMedication(prescriptionPatient.id, newMed);
@@ -697,7 +701,7 @@ export default function EPrescribe() {
     setStep(1);
     setSelectedMed(null);
     setMedSearch('');
-    setRx({ dose: '', frequency: 'Once daily', quantity: '30', refills: '0', sig: '', pharmacy: '', notes: '', daw: false });
+    setRx({ dose: '', frequency: 'Once daily', quantity: '30', refills: '0', sig: '', pharmacy: '', notes: '', daw: false, diagnosis: '', diagnosisCode: '' });
     setPharmacySearch('');
     setShowPharmacyDropdown(false);
     setEpcsPin(['', '', '', '']);
@@ -758,6 +762,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
 </table></div>
 <div class="section"><div class="section-title">Prescription</div><table>
   <tr><td class="lbl">Medication</td><td><strong>${selectedMed.name}</strong>${rx.dose ? ` &nbsp;${rx.dose}` : ''}</td></tr>
+  <tr><td class="lbl">Diagnosis / Indication</td><td><strong>${rx.diagnosisCode ? rx.diagnosisCode + ' — ' : ''}${rx.diagnosis || '—'}</strong></td></tr>
   <tr><td class="lbl">SIG</td><td>${sigText}</td></tr>
   <tr><td class="lbl">Quantity</td><td>${rx.quantity || '—'}</td></tr>
   <tr><td class="lbl">Refills</td><td>${rx.refills !== '' ? rx.refills : '—'}</td></tr>
@@ -1237,6 +1242,49 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
             </div>
 
             <div className="form-group">
+              <label className="form-label">Diagnosis / Indication <span style={{ color: 'var(--danger)' }}>*</span></label>
+              {prescriptionPatient && (problems[prescriptionPatient.id] || []).filter(p => p.status === 'Active').length > 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  <span className="text-xs text-muted" style={{ display: 'block', marginBottom: 4 }}>Quick-select from active problem list:</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {(problems[prescriptionPatient.id] || []).filter(p => p.status === 'Active').map(p => (
+                      <button key={p.id} type="button"
+                        onClick={() => setRx({ ...rx, diagnosis: p.description, diagnosisCode: p.code })}
+                        style={{
+                          padding: '4px 10px', fontSize: 12, borderRadius: 20, cursor: 'pointer', border: '1px solid',
+                          background: rx.diagnosisCode === p.code ? 'var(--primary)' : 'var(--bg)',
+                          color: rx.diagnosisCode === p.code ? '#fff' : 'var(--text)',
+                          borderColor: rx.diagnosisCode === p.code ? 'var(--primary)' : 'var(--border)',
+                        }}>
+                        {p.code} — {p.description}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  className="form-input"
+                  style={{ width: 110, flexShrink: 0 }}
+                  value={rx.diagnosisCode}
+                  onChange={(e) => setRx({ ...rx, diagnosisCode: e.target.value.toUpperCase() })}
+                  placeholder="ICD-10"
+                  maxLength={10}
+                />
+                <input
+                  className="form-input"
+                  style={{ flex: 1 }}
+                  value={rx.diagnosis}
+                  onChange={(e) => setRx({ ...rx, diagnosis: e.target.value })}
+                  placeholder="e.g. Major Depressive Disorder"
+                />
+              </div>
+              {!rx.diagnosis.trim() && (
+                <span style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4, display: 'block' }}>Required — enter or select a diagnosis above</span>
+              )}
+            </div>
+
+            <div className="form-group">
               <label className="form-label">Notes</label>
               <textarea className="form-textarea" rows={2} value={rx.notes} onChange={(e) => setRx({ ...rx, notes: e.target.value })} placeholder="Additional notes..." />
             </div>
@@ -1256,6 +1304,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                 <div><span className="text-muted text-xs">Patient:</span><div className="font-bold">{prescriptionPatient?.lastName}, {prescriptionPatient?.firstName}</div></div>
                 <div><span className="text-muted text-xs">SIG:</span><div>{rx.sig || `Take ${rx.dose} by ${selectedMed.routes[0].toLowerCase()} ${rx.frequency.toLowerCase()}`}</div></div>
                 <div><span className="text-muted text-xs">Qty / Refills:</span><div>{rx.quantity} / {rx.refills}</div></div>
+                <div><span className="text-muted text-xs">Diagnosis:</span><div className={rx.diagnosis ? 'font-bold' : 'text-muted'}>{rx.diagnosis ? `${rx.diagnosisCode ? rx.diagnosisCode + ' — ' : ''}${rx.diagnosis}` : '⚠ Required'}</div></div>
                 <div><span className="text-muted text-xs">Prescriber:</span><div>{currentUser?.credentials} {currentUser?.firstName} {currentUser?.lastName} | NPI: {currentUser?.npi}</div></div>
                 <div><span className="text-muted text-xs">DEA:</span><div>{currentUser?.deaNumber}</div></div>
               </div>
@@ -1266,8 +1315,8 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
               <button
                 className="btn btn-primary btn-lg"
                 onClick={() => handleSubmitPrescription()}
-                disabled={!prescriptionPatient || (selectedMed.isControlled && !hasDea)}
-                title={!prescriptionPatient ? 'Select a patient above first' : (selectedMed.isControlled && !hasDea) ? 'DEA number required to prescribe controlled substances' : ''}
+                disabled={!prescriptionPatient || !rx.diagnosis.trim() || (selectedMed.isControlled && !hasDea)}
+                title={!prescriptionPatient ? 'Select a patient above first' : !rx.diagnosis.trim() ? 'A diagnosis is required before sending' : (selectedMed.isControlled && !hasDea) ? 'DEA number required to prescribe controlled substances' : ''}
               >
                 {selectedMed.isControlled ? '🔒 Proceed to EPCS Authentication' : '📤 Send to Pharmacy'}
               </button>
