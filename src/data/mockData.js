@@ -17,6 +17,7 @@ export const users = [
     email: 'chris.l@clarity.health',
     epcsPin: '9921',
     twoFactorEnabled: true,
+    locationId: 'loc-apmg',
   },
   {
     id: 'u4',
@@ -87,6 +88,7 @@ export const users = [
     epcsPin: '4412',
     twoFactorEnabled: true,
     mustChangePassword: true,
+    locationId: 'loc-apmg',
   },
 
   {
