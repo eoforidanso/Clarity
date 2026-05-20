@@ -1218,11 +1218,11 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                     <input className="form-input" value={pharmacySearch}
                       onChange={(e) => { setPharmacySearch(e.target.value); setShowPharmacyDropdown(true); }}
                       onFocus={() => setShowPharmacyDropdown(true)}
-                      placeholder="Search pharmacy by name, chain, or city..." />
+                      placeholder="Search by name, chain, city, or zip code..." />
                     {showPharmacyDropdown && (
                       <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-white)', boxShadow: 'var(--shadow-md)' }}>
                         {sortedPharmacies.filter(p =>
-                          !pharmacySearch || p.name.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.chain.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.city.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.address.toLowerCase().includes(pharmacySearch.toLowerCase())
+                          !pharmacySearch || p.name.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.chain.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.city.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.zip.includes(pharmacySearch) || p.address.toLowerCase().includes(pharmacySearch.toLowerCase())
                         ).slice(0, 15).map(p => (
                           <div key={p.id} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
@@ -1232,7 +1232,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                             <div style={{ color: 'var(--text-muted)' }}>{p.address}, {p.city}, {p.state} {p.zip} · {p.phone}</div>
                           </div>
                         ))}
-                        {sortedPharmacies.filter(p => !pharmacySearch || p.name.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.chain.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.city.toLowerCase().includes(pharmacySearch.toLowerCase())).length === 0 && (
+                        {sortedPharmacies.filter(p => !pharmacySearch || p.name.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.chain.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.city.toLowerCase().includes(pharmacySearch.toLowerCase()) || p.zip.includes(pharmacySearch)).length === 0 && (
                           <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>No pharmacies found</div>
                         )}
                       </div>

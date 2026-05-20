@@ -2419,7 +2419,13 @@ export const pharmacies = [
   { id: 'ph_w173', name: 'Walgreens #7903', chain: 'Walgreens', address: '1300 W Jefferson St', city: 'Joliet', state: 'IL', zip: '60435', phone: '(815) 744-7030', fax: '(815) 744-7031', npi: '1710900173' },
   { id: 'ph_w174', name: 'Walgreens #4501', chain: 'Walgreens', address: '1400 W Lincoln Hwy', city: 'DeKalb', state: 'IL', zip: '60115', phone: '(815) 748-0440', fax: '(815) 748-0441', npi: '1710900174' },
   { id: 'ph_w175', name: 'Walgreens #8102', chain: 'Walgreens', address: '2500 Sycamore Rd', city: 'DeKalb', state: 'IL', zip: '60115', phone: '(815) 758-2990', fax: '(815) 758-2991', npi: '1710900175' },
-  { id: 'ph72', name: 'CVS Pharmacy #8432', chain: 'CVS', address: '205 W Randolph St', city: 'Chicago', state: 'IL', zip: '60606', phone: '(312) 782-8820', fax: '(312) 782-8821', npi: '0010200073' },
+  // ── Walgreens — Huntley, IL ────────────────────────────────────────────────
+  { id: 'ph_w176', name: 'Walgreens #11865', chain: 'Walgreens', address: '11120 Haligus Rd', city: 'Huntley', state: 'IL', zip: '60142', phone: '(847) 515-0244', fax: '(847) 515-0245', npi: '1710900176' },
+  { id: 'ph_w177', name: 'Walgreens #5923', chain: 'Walgreens', address: '13004 IL Route 47', city: 'Huntley', state: 'IL', zip: '60142', phone: '(847) 515-8810', fax: '(847) 515-8811', npi: '1710900177' },
+  // ── Walgreens — nearby Huntley area (Algonquin, Lake in the Hills, Carpentersville) ──
+  { id: 'ph_w178', name: 'Walgreens #9240', chain: 'Walgreens', address: '1400 S Randall Rd', city: 'Algonquin', state: 'IL', zip: '60102', phone: '(847) 854-1020', fax: '(847) 854-1021', npi: '1710900178' },
+  { id: 'ph_w179', name: 'Walgreens #7614', chain: 'Walgreens', address: '300 S Randall Rd', city: 'Lake in the Hills', state: 'IL', zip: '60156', phone: '(847) 658-0340', fax: '(847) 658-0341', npi: '1710900179' },
+  { id: 'ph_w180', name: 'Walgreens #8831', chain: 'Walgreens', address: '1430 Huntley Rd', city: 'Carpentersville', state: 'IL', zip: '60110', phone: '(847) 428-0562', fax: '(847) 428-0563', npi: '1710900180' },, chain: 'CVS', address: '205 W Randolph St', city: 'Chicago', state: 'IL', zip: '60606', phone: '(312) 782-8820', fax: '(312) 782-8821', npi: '0010200073' },
   { id: 'ph73', name: 'CVS Pharmacy #8205', chain: 'CVS', address: '600 W Diversey Pkwy', city: 'Chicago', state: 'IL', zip: '60614', phone: '(773) 525-2500', fax: '(773) 525-2501', npi: '0010200074' },
   { id: 'ph74', name: 'CVS Pharmacy #8671', chain: 'CVS', address: '4051 N Broadway', city: 'Chicago', state: 'IL', zip: '60613', phone: '(773) 477-2350', fax: '(773) 477-2351', npi: '0010200075' },
   { id: 'ph75', name: 'CVS Pharmacy #8310', chain: 'CVS', address: '6150 N Lincoln Ave', city: 'Chicago', state: 'IL', zip: '60659', phone: '(773) 267-1210', fax: '(773) 267-1211', npi: '0010200076' },
