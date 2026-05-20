@@ -237,7 +237,6 @@ export default function ClinicalDecisionSupport() {
           </div>
         </div>
       )}
-      )}
 
       {/* Configure Rules Modal */}
       {showConfig && (

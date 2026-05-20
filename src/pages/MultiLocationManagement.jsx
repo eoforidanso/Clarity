@@ -149,7 +149,7 @@ function DeleteConfirm({ loc, onConfirm, onClose, loading }) {
 
 export default function MultiLocationManagement() {
   const { currentUser } = useAuth();
-  const isAdmin = currentUser?.role === 'front_desk';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'front_desk';
 
   const [locationData, setLocationData] = useState([]);
   const [loading, setLoading] = useState(true);

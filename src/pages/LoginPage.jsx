@@ -1,35 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useTraining } from '../contexts/TrainingContext';
-import { users } from '../data/mockData';
-
-const ROLE_ICONS = {
-  prescriber: '🩺',
-  front_desk: '🏥',
-  nurse: '💉',
-  therapist: '🧠',
-};
-
-const ROLE_LABELS = {
-  prescriber: 'Provider',
-  front_desk: 'Front Desk Staff',
-  nurse: 'Nurse / MA',
-  therapist: 'Therapist',
-};
-
-const ROLE_COLORS = {
-  prescriber: 'linear-gradient(135deg,#3b82f6,#6366f1)',
-  nurse: 'linear-gradient(135deg,#10b981,#059669)',
-  front_desk: 'linear-gradient(135deg,#f59e0b,#d97706)',
-  therapist: 'linear-gradient(135deg,#8b5cf6,#7c3aed)',
-};
 
 const CERTS = ['HIPAA', 'EPCS', 'ONC', '42 CFR Part 2'];
 
 export default function LoginPage() {
   const { login, completeTwoFactor, changePassword: authChangePassword, loginError } = useAuth();
-  const { enableTraining } = useTraining();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -79,9 +55,6 @@ export default function LoginPage() {
     }
   };
 
-  /* Derive selected role from username match */
-  const matchedUser = users.find(u => u.username === username);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -119,28 +92,6 @@ export default function LoginPage() {
     } else {
       setTwoFAError(result?.error || 'Invalid code. Please try again.');
     }
-  };
-
-  const handleDemoLogin = (u) => {
-    setUsername(u.username);
-    setPassword(u.password);
-  };
-
-  const handleEnterTrainingMode = async () => {
-    // Auto-login as demo provider
-    const demoUser = users.find(u => u.role === 'prescriber');
-    if (!demoUser) return;
-    setLoading(true);
-    try {
-      const success = await login(demoUser.username, demoUser.password);
-      if (success) {
-        enableTraining();
-        navigate('/dashboard');
-      }
-    } catch (err) {
-      console.error('Training login error:', err);
-    }
-    setLoading(false);
   };
 
   const handleForgotSubmit = (e) => {
@@ -223,25 +174,10 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* Selected-role preview chip */}
-              {matchedUser && (
-                <div className="login-role-chip">
-                  <span className="login-role-chip-dot" style={{ background: ROLE_COLORS[matchedUser.role] || ROLE_COLORS.front_desk }} />
-                  Signing in as <strong>{matchedUser.firstName} {matchedUser.lastName}</strong>
-                  {matchedUser.credentials && <span className="login-role-chip-cred">{matchedUser.credentials}</span>}
-                  <span className="login-role-chip-tag">{ROLE_LABELS[matchedUser.role] || matchedUser.role}</span>
-                  {matchedUser.twoFactorEnabled && <span style={{ marginLeft: 6, fontSize: 11, color: '#10b981', fontWeight: 600 }}>🔐 2FA</span>}
-                </div>
-              )}
-
               <button type="submit" className="btn btn-primary login-submit-btn" disabled={loading}>
                 {loading ? '⏳ Signing In…' : 'Sign In'}
               </button>
             </form>
-
-            <p className="login-demo-hint">
-              Demo password for all accounts: <code>Pass123!</code>
-            </p>
 
             <div className="login-hipaa-footer">
               <span>🛡️</span>
@@ -250,67 +186,33 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* RIGHT — Demo Accounts */}
+        {/* RIGHT — System Info */}
         <div className="login-col login-col-demo">
           <div className="glass-card glass-card-demo">
-            <h2 className="glass-card-title">Quick Access — Demo Accounts</h2>
-            <p className="glass-card-subtitle">Select an account to auto-fill credentials</p>
+            <h2 className="glass-card-title">🧠 Clarity EHR</h2>
+            <p className="glass-card-subtitle">Secure, HIPAA-compliant electronic health records</p>
 
-            <div className="login-demo-grid">
-              {users.filter(u => u.role !== 'patient').map((u, idx) => (
-                <div
-                  key={u.id}
-                  className={`login-demo-account${username === u.username ? ' active' : ''}`}
-                  onClick={() => handleDemoLogin(u)}
-                  style={{ animationDelay: `${0.15 + idx * 0.05}s` }}
-                >
-                  <span className="login-demo-avatar" style={{ background: ROLE_COLORS[u.role] || ROLE_COLORS.front_desk }}>
-                    {ROLE_ICONS[u.role] || '🏥'}
-                  </span>
-                  <span className="login-demo-info">
-                    <span className="login-demo-name">
-                      {u.firstName} {u.lastName}
-                      {u.credentials && <span className="login-demo-cred">{u.credentials}</span>}
-                    </span>
-                    <span className="login-demo-role">
-                      {u.role === 'prescriber' ? u.specialty : ROLE_LABELS[u.role] || u.role}
-                      {u.twoFactorEnabled && <span style={{ marginLeft: 6, fontSize: 10, color: '#10b981', fontWeight: 600 }}>🔐 2FA</span>}
-                    </span>
-                  </span>
-                  <span className="login-demo-arrow">→</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+              {[
+                { icon: '🔐', title: 'Multi-Factor Authentication', desc: 'Every login protected by 2FA with email verification' },
+                { icon: '🛡️', title: 'HIPAA & 42 CFR Part 2', desc: 'Full compliance with federal privacy and substance use protections' },
+                { icon: '📋', title: 'Complete Audit Trail', desc: 'Every access and change is logged and time-stamped' },
+                { icon: '💊', title: 'DEA-Compliant EPCS', desc: 'Electronic prescribing for controlled substances with dual-factor auth' },
+              ].map(f => (
+                <div key={f.title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <span style={{ fontSize: 20, flexShrink: 0 }}>{f.icon}</span>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: '#f1f5f9' }}>{f.title}</div>
+                    <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{f.desc}</div>
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* Training Mode CTA */}
-          <div style={{
-            background: 'linear-gradient(135deg,rgba(124,45,18,0.85),rgba(194,65,12,0.85))',
-            backdropFilter: 'blur(12px)', borderRadius: 14,
-            border: '1px solid rgba(234,88,12,0.4)', padding: '16px 20px',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            gap: 14, marginBottom: 8,
-          }}>
-            <div>
-              <div style={{ fontWeight: 800, color: '#fff', fontSize: 14, marginBottom: 3 }}>
-                🎓 Staff Training Mode
-              </div>
-              <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
-                Safe sandbox with mock data — auto-logs in as demo provider
-              </div>
+            <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', fontSize: 12, color: '#94a3b8' }}>
+              <strong style={{ color: '#e2e8f0' }}>IT Support</strong><br />
+              Contact your system administrator if you need help accessing your account.
             </div>
-            <button
-              type="button"
-              onClick={handleEnterTrainingMode}
-              style={{
-                background: '#fff', color: '#c2410c',
-                border: 'none', borderRadius: 8,
-                padding: '7px 16px', fontSize: 12, fontWeight: 800,
-                cursor: 'pointer', flexShrink: 0,
-              }}
-            >
-              Enter Training Mode
-            </button>
           </div>
 
           {/* Patient Portal CTA */}
@@ -416,7 +318,7 @@ export default function LoginPage() {
             </button>
             {mockCode ? (
               <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 8, background: '#fefce8', border: '1px solid #fbbf24', fontSize: 13 }}>
-                <span style={{ color: '#92400e', fontWeight: 600 }}>🔧 Demo mode — your code: </span>
+                <span style={{ color: '#92400e', fontWeight: 600 }}>🔧 Dev mode — verification code: </span>
                 <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 18, letterSpacing: 4, color: '#1d4ed8' }}>{mockCode}</span>
               </div>
             ) : (

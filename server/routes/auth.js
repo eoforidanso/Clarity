@@ -144,17 +144,35 @@ router.post('/login', (req, res) => {
 
     const masked = user.email.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '*'.repeat(Math.max(1, b.length)) + c);
 
+    // Always log OTP to server console so admin can retrieve it from server logs if email fails
+    console.log(`[2FA] OTP for ${user.username} (${masked}): ${otp}`);
+
     // Send email (non-blocking — don't fail login if email has a transient error)
-    sendOtpEmail(user.email, otp).catch((err) => {
-      console.error('[2FA] Failed to send OTP email:', err.message);
-    });
+    if (process.env.RESEND_API_KEY) {
+      sendOtpEmail(user.email, otp).catch((err) => {
+        console.error('[2FA] Failed to send OTP email:', err.message);
+      });
+    } else {
+      console.warn('[2FA] RESEND_API_KEY not set — email not sent');
+    }
 
     const tempToken = jwt.sign(
       { userId: user.id, type: '2fa_pending' },
       config.jwtSecret,
       { expiresIn: '10m' }
     );
-    return res.json({ requiresTwoFactor: true, tempToken, emailHint: masked });
+
+    // In non-production environments expose the code in the response so the UI can display it.
+    // This covers dev servers (NODE_ENV=development) and demo environments where email
+    // delivery may not be reliable. In production (NODE_ENV=production) the code is NEVER
+    // returned in the response — only delivered by email.
+    const exposeCode = config.nodeEnv !== 'production';
+    return res.json({
+      requiresTwoFactor: true,
+      tempToken,
+      emailHint: masked,
+      ...(exposeCode ? { mockCode: otp } : {}),
+    });
   }
 
   // No 2FA configured — issue full session immediately
@@ -188,6 +206,7 @@ router.get('/me', authenticate, (req, res) => {
       twoFactorEnabled: !!req.user.two_factor_enabled,
       mustChangePassword: !!req.user.must_change_password,
       patientId: req.user.patient_id,
+      locationId: req.user.location_id || 'loc1',
     },
   });
 });

@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { auth as authApi, setToken } from '../services/api';
-// Fallback to mock data if backend is unavailable
-import { users as mockUsers } from '../data/mockData';
 
 const AuthContext = createContext(null);
 
@@ -14,7 +12,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [authMode, setAuthMode] = useState('unknown'); // 'backend' | 'mock'
   const epcsOTPRef = useRef(null);
-  const mockTwoFactorRef = useRef(null); // { username, code } for mock 2FA
   const lastActivityRef = useRef(Date.now());
 
   // ── Session Timeout Management ────────────────────────
@@ -54,12 +51,9 @@ export function AuthProvider({ children }) {
       try {
         const data = await authApi.me();
         const user = data.user;
-        const mockUser = mockUsers.find(u => u.id === user.id || u.username === user.username);
         const enriched = {
           ...user,
           name: user.name || `${user.firstName} ${user.lastName || ''}`.trim(),
-          epcsPin: mockUser?.epcsPin || null,
-          photo: mockUser?.photo || null,
         };
         setCurrentUser(enriched);
         setIsAuthenticated(true);
@@ -77,16 +71,14 @@ export function AuthProvider({ children }) {
     setLoginError('');
     // Try backend auth first
     try {
-      const data = await authApi.login(username, password);      // Server requires TOTP before issuing session
+      const data = await authApi.login(username, password);
       if (data.requiresTwoFactor) {
         return { ok: false, requiresTwoFactor: true, tempToken: data.tempToken, emailHint: data.emailHint };
-      }      const user = data.user;
-      const mockUser = mockUsers.find(u => u.id === user.id || u.username === user.username);
+      }
+      const user = data.user;
       const enriched = {
         ...user,
         name: user.name || `${user.firstName} ${user.lastName || ''}`.trim(),
-        epcsPin: mockUser?.epcsPin || null,
-        photo: mockUser?.photo || null,
       };
       setCurrentUser(enriched);
       setIsAuthenticated(true);
@@ -94,62 +86,19 @@ export function AuthProvider({ children }) {
       lastActivityRef.current = Date.now();
       return { ok: true, mustChangePassword: !!enriched.mustChangePassword };
     } catch (backendErr) {
-      console.warn('Backend auth failed, trying mock fallback:', backendErr.message);
+      setLoginError(backendErr.message || 'Invalid username or password');
+      return { ok: false };
     }
-    // Fallback to mock data (development only)
-    const user = mockUsers.find(
-      (u) => u.username === username && u.password === password
-    );
-    if (user) {
-      if (user.twoFactorEnabled) {
-        const code = String(Math.floor(100000 + Math.random() * 900000));
-        mockTwoFactorRef.current = { username: user.username, code };
-        console.info(`[Mock 2FA] Code for ${user.username}: ${code}`);
-        const masked = user.email ? user.email.replace(/(.{2}).+(@.+)/, '$1***$2') : 'your email';
-        return {
-          ok: false,
-          requiresTwoFactor: true,
-          tempToken: `mock:${user.username}`,
-          emailHint: masked,
-          mockCode: code,
-        };
-      }
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      setAuthMode('mock');
-      lastActivityRef.current = Date.now();
-      return { ok: true, mustChangePassword: !!user.mustChangePassword };
-    }
-    setLoginError('Invalid username or password');
-    return { ok: false };
   }, []);
 
   // ── Complete Two-Factor Login ─────────────────────────
   const completeTwoFactor = useCallback(async (tempToken, code) => {
-    // Mock 2FA path
-    if (tempToken?.startsWith('mock:')) {
-      const record = mockTwoFactorRef.current;
-      const username = tempToken.slice(5);
-      if (!record || record.username !== username || record.code !== String(code).trim()) {
-        return { ok: false, error: 'Invalid code. Please try again.' };
-      }
-      mockTwoFactorRef.current = null;
-      const user = mockUsers.find(u => u.username === username);
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      setAuthMode('mock');
-      lastActivityRef.current = Date.now();
-      return { ok: true, mustChangePassword: !!user.mustChangePassword };
-    }
     try {
       const data = await authApi.verify2FA(tempToken, code);
       const user = data.user;
-      const mockUser = mockUsers.find(u => u.id === user.id || u.username === user.username);
       const enriched = {
         ...user,
         name: user.name || `${user.firstName} ${user.lastName || ''}`.trim(),
-        epcsPin: mockUser?.epcsPin || null,
-        photo: mockUser?.photo || null,
       };
       setCurrentUser(enriched);
       setIsAuthenticated(true);
@@ -173,7 +122,7 @@ export function AuthProvider({ children }) {
           return false; // Don't fall back to mock on backend failure
         }
       }
-      return currentUser.epcsPin === pin;
+      return false;
     },
     [currentUser, authMode]
   );
@@ -209,18 +158,9 @@ export function AuthProvider({ children }) {
 
   // ── Change Password ────────────────────────────────────
   const changePassword = useCallback(async (currentPw, newPw) => {
-    if (authMode === 'backend') {
-      await authApi.changePassword(currentPw, newPw);
-      setCurrentUser(prev => ({ ...prev, mustChangePassword: false }));
-      return;
-    }
-    // Mock mode — validate current password against mock user
-    const match = mockUsers.find(u => u.username === currentUser?.username && u.password === currentPw);
-    if (!match) throw new Error('Current password is incorrect.');
-    match.password = newPw;
-    match.mustChangePassword = false;
-    setCurrentUser(prev => ({ ...prev, password: newPw, mustChangePassword: false }));
-  }, [authMode, currentUser]);
+    await authApi.changePassword(currentPw, newPw);
+    setCurrentUser(prev => ({ ...prev, mustChangePassword: false }));
+  }, []);
 
   // ── Refresh current user (called after password change) ──
   const refreshUser = useCallback(async () => {

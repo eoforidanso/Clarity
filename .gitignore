@@ -2,4 +2,7 @@ node_modules
 dist
 server/.env
 server/db/ehr.db
+server/db/ehr.db-shm
+server/db/ehr.db-wal
 *.sqlite
+server-spring/target/

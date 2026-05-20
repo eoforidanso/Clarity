@@ -1,20 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import {
-  patients as patientsData,
-  allergies as allergiesData,
-  problems as problemsData,
-  vitals as vitalsData,
-  medications as medsData,
-  immunizations as immunData,
-  labResults as labData,
-  assessmentScores as assessData,
-  orders as ordersData,
-  inboxMessages as inboxData,
-  appointments as aptsData,
-  btgAuditLog as btgData,
-  encounters as encountersData,
-} from '../data/mockData';
-import {
   patients as patientsApi,
   allergies as allergiesApi,
   problems as problemsApi,
@@ -32,44 +17,34 @@ import {
 
 const PatientContext = createContext(null);
 
-/* ── Helper: try API first, fall back to mock ── */
-async function tryApi(apiFn, fallback) {
-  try {
-    return await apiFn();
-  } catch {
-    return typeof fallback === 'function' ? fallback() : fallback;
-  }
-}
-
 /* ── Helper: convert flat array API responses to keyed-by-patient maps ── */
 function arrayToMap(patientId, arr, existing) {
   return { ...existing, [patientId]: arr };
 }
 
 export function PatientProvider({ children }) {
-  /* ────── Core state (initialise from mock, overwrite from API) ────── */
-  const [patients, setPatients] = useState(patientsData);
+  /* ────── Core state ────── */
+  const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const MAX_OPEN_CHARTS = 4;
   const [openCharts, setOpenCharts] = useState([]);
-  const [allergies, setAllergies] = useState(allergiesData);
-  const [problemList, setProblemList] = useState(problemsData);
-  const [vitalSigns, setVitalSigns] = useState(vitalsData);
-  const [meds, setMeds] = useState(medsData);
-  const [immunizations, setImmunizations] = useState(immunData);
-  const [labResults, setLabResults] = useState(labData);
-  const [assessmentScores, setAssessmentScores] = useState(assessData);
-  const [orders, setOrders] = useState(ordersData);
-  const [inboxMessages, setInboxMessages] = useState(inboxData);
-  const [appointments, setAppointments] = useState(aptsData);
-  const [btgAuditLog, setBtgAuditLog] = useState(btgData);
+  const [allergies, setAllergies] = useState({});
+  const [problemList, setProblemList] = useState({});
+  const [vitalSigns, setVitalSigns] = useState({});
+  const [meds, setMeds] = useState({});
+  const [immunizations, setImmunizations] = useState({});
+  const [labResults, setLabResults] = useState({});
+  const [assessmentScores, setAssessmentScores] = useState({});
+  const [orders, setOrders] = useState({});
+  const [inboxMessages, setInboxMessages] = useState([]);
+  const [appointments, setAppointments] = useState([]);
+  const [btgAuditLog, setBtgAuditLog] = useState([]);
   const [btgAccessGranted, setBtgAccessGranted] = useState({});
-  const [encounters, setEncounters] = useState(encountersData);
+  const [encounters, setEncounters] = useState({});
   const [blockedDays, setBlockedDays] = useState([]);
-  const [useBackend, setUseBackend] = useState(false);
-  const backendChecked = useRef(false);
 
   /* ────── On mount: try to load patients from backend ────── */
+  const backendChecked = useRef(false);
   useEffect(() => {
     if (backendChecked.current) return;
     backendChecked.current = true;
@@ -77,29 +52,23 @@ export function PatientProvider({ children }) {
     (async () => {
       try {
         const apiPatients = await patientsApi.list({});
-        if (Array.isArray(apiPatients) && apiPatients.length > 0) {
-          setPatients(apiPatients);
-          setUseBackend(true);
-        }
-      } catch {
-        // Backend not available — stay on mock data
-      }
+        if (Array.isArray(apiPatients)) setPatients(apiPatients);
+      } catch { /* backend unavailable */ }
 
-      // Also try to load appointments & inbox (global, not per-patient)
       try {
         const apiApts = await appointmentsApi.list({});
         if (Array.isArray(apiApts)) setAppointments(apiApts);
-      } catch { /* use mock */ }
+      } catch { /* ignore */ }
 
       try {
         const apiInbox = await inboxApi.list({});
         if (Array.isArray(apiInbox)) setInboxMessages(apiInbox);
-      } catch { /* use mock */ }
+      } catch { /* ignore */ }
 
       try {
         const apiBlocked = await appointmentsApi.blockedDays();
         if (Array.isArray(apiBlocked)) setBlockedDays(apiBlocked);
-      } catch { /* use mock */ }
+      } catch { /* ignore */ }
     })();
   }, []);
 
@@ -136,8 +105,8 @@ export function PatientProvider({ children }) {
   const selectPatient = useCallback((patientId) => {
     const p = patients.find((pt) => pt.id === patientId);
     setSelectedPatient(p || null);
-    if (useBackend && p) loadPatientClinical(patientId);
-  }, [patients, useBackend, loadPatientClinical]);
+    if (p) loadPatientClinical(patientId);
+  }, [patients, loadPatientClinical]);
 
   const openChart = useCallback((patientId) => {
     const p = patients.find((pt) => pt.id === patientId);
@@ -149,8 +118,8 @@ export function PatientProvider({ children }) {
       if (next.length > MAX_OPEN_CHARTS) next.shift();
       return next;
     });
-    if (useBackend) loadPatientClinical(patientId);
-  }, [patients, useBackend, loadPatientClinical]);
+    loadPatientClinical(patientId);
+  }, [patients, loadPatientClinical]);
 
   const closeChart = useCallback((patientId) => {
     let remaining;
@@ -168,18 +137,9 @@ export function PatientProvider({ children }) {
 
   /* ────── Add patient ────── */
   const addPatient = useCallback(async (data) => {
-    try {
-      const created = await patientsApi.create(data);
-      setPatients((prev) => [...prev, created]);
-      return created;
-    } catch {
-      // Fallback: add to local state with generated IDs
-      const id = `p-${Date.now()}`;
-      const mrn = `MRN-${String(Date.now()).slice(-5)}`;
-      const newPt = { id, mrn, ...data, flags: data.flags || [], isBTG: false, isActive: true };
-      setPatients((prev) => [...prev, newPt]);
-      return newPt;
-    }
+    const created = await patientsApi.create(data);
+    setPatients((prev) => [...prev, created]);
+    return created;
   }, []);
 
   /* ────── Update patient demographics ────── */
@@ -539,7 +499,6 @@ export function PatientProvider({ children }) {
         btgAuditLog,
         requestBTGAccess,
         hasBTGAccess,
-        useBackend,
         loadPatientClinical,
       }}
     >

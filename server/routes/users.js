@@ -59,7 +59,7 @@ router.get('/', authenticate, authorize(...ADMIN_ROLES), (_req, res) => {
   const rows = db
     .prepare(
       `SELECT id, username, first_name, last_name, role, credentials, specialty,
-              npi, dea_number, email, two_factor_enabled, created_at, updated_at
+              npi, dea_number, email, two_factor_enabled, location_id, created_at, updated_at
        FROM users
        WHERE role != 'patient'
        ORDER BY last_name ASC, first_name ASC`
@@ -78,6 +78,7 @@ router.get('/', authenticate, authorize(...ADMIN_ROLES), (_req, res) => {
     deaNumber: u.dea_number || '',
     email: u.email,
     twoFactorEnabled: !!u.two_factor_enabled,
+    locationId: u.location_id || 'loc1',
     createdAt: u.created_at,
     updatedAt: u.updated_at,
   })));
@@ -86,7 +87,7 @@ router.get('/', authenticate, authorize(...ADMIN_ROLES), (_req, res) => {
 // ── POST /api/users ─────────────────────────────────────────────────────
 // Create a new staff user. Admin/front_desk only.
 router.post('/', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
-  const { username, password, firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled } = req.body;
+  const { username, password, firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled, locationId } = req.body;
 
   // Validate required fields
   const cleanUsername = sanitizeUsername(username);
@@ -116,8 +117,8 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
   const passwordHash = bcrypt.hashSync(password, SALT_ROUNDS);
 
   db.prepare(
-    `INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, must_change_password)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
+    `INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, must_change_password, location_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
   ).run(
     id,
     cleanUsername,
@@ -128,6 +129,10 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
     (credentials || '').trim(),
     (specialty || '').trim(),
     (npi || '').trim(),
+    (deaNumber || '').trim(),
+    email.trim().toLowerCase(),
+    twoFactorEnabled ? 1 : 0,
+    locationId || 'loc1'
     (deaNumber || '').trim(),
     email.trim().toLowerCase(),
     twoFactorEnabled ? 1 : 0
@@ -152,7 +157,7 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
 // Update a user's profile (not password). Admin/front_desk only.
 router.put('/:id', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
   const { id } = req.params;
-  const { firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled } = req.body;
+  const { firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled, locationId } = req.body;
 
   const user = db.prepare('SELECT id, role FROM users WHERE id = ? AND role != ?').get(id, 'patient');
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -179,6 +184,7 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
        dea_number = COALESCE(?, dea_number),
        email = COALESCE(?, email),
        two_factor_enabled = COALESCE(?, two_factor_enabled),
+       location_id = COALESCE(?, location_id),
        updated_at = datetime('now')
      WHERE id = ?`
   ).run(
@@ -191,6 +197,7 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
     deaNumber?.trim() ?? null,
     email ? email.trim().toLowerCase() : null,
     twoFactorEnabled != null ? (twoFactorEnabled ? 1 : 0) : null,
+    locationId ?? null,
     id
   );
 

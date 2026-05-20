@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { users as usersApi } from '../services/api';
+import { SITES } from '../contexts/SiteContext';
+
+const LOCATION_OPTIONS = SITES.filter(s => s.id !== 'all');
 
 const ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist'];
 const ROLE_LABELS = {
@@ -19,7 +22,7 @@ const ROLE_COLORS = {
 const EMPTY_FORM = {
   firstName: '', lastName: '', username: '', email: '',
   password: '', role: 'front_desk', credentials: '',
-  specialty: '', npi: '', deaNumber: '', twoFactorEnabled: true,
+  specialty: '', npi: '', deaNumber: '', twoFactorEnabled: true, locationId: 'loc1',
 };
 
 function RoleBadge({ role }) {
@@ -176,14 +179,22 @@ function UserForm({ initial, onSave, onCancel, loading, error }) {
         </Field>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
-        <Field label="NPI">
-          <input style={inputStyle} value={form.npi} onChange={e => set('npi', e.target.value)} placeholder="10-digit NPI" maxLength={10} />
-        </Field>
-        <Field label="DEA Number">
-          <input style={inputStyle} value={form.deaNumber} onChange={e => set('deaNumber', e.target.value)} placeholder="Required for prescribers" />
-        </Field>
-      </div>
+      {form.role === 'prescriber' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
+          <Field label="NPI *" required>
+            <input style={inputStyle} value={form.npi} onChange={e => set('npi', e.target.value)} placeholder="10-digit NPI" maxLength={10} required />
+          </Field>
+          <Field label="DEA Number">
+            <input style={inputStyle} value={form.deaNumber} onChange={e => set('deaNumber', e.target.value)} placeholder="e.g. AB1234563" />
+          </Field>
+        </div>
+      )}
+
+      <Field label="Primary Location">
+        <select style={inputStyle} value={form.locationId} onChange={e => set('locationId', e.target.value)}>
+          {LOCATION_OPTIONS.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+      </Field>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
         <input
@@ -577,7 +588,18 @@ export default function UserManagement() {
                     {u.credentials && <span style={{ fontWeight: 600 }}>{u.credentials}</span>}
                     {u.credentials && u.specialty && <span style={{ opacity: 0.5 }}> · </span>}
                     {u.specialty && <span>{u.specialty}</span>}
-                    {!u.credentials && !u.specialty && <span style={{ opacity: 0.35 }}>—</span>}
+                    {u.role === 'prescriber' && (
+                      <div style={{ marginTop: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {u.npi && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>NPI: <span style={{ fontFamily: 'monospace' }}>{u.npi}</span></span>}
+                        {u.deaNumber && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>DEA: <span style={{ fontFamily: 'monospace' }}>{u.deaNumber}</span></span>}
+                      </div>
+                    )}
+                    {u.locationId && u.locationId !== 'loc1' && (
+                      <div style={{ marginTop: 3 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>📍 {LOCATION_OPTIONS.find(l => l.id === u.locationId)?.shortName || u.locationId}</span>
+                      </div>
+                    )}
+                    {!u.credentials && !u.specialty && u.role !== 'prescriber' && <span style={{ opacity: 0.35 }}>—</span>}
                   </td>
                   <td style={{ padding: '11px 14px', color: 'var(--text-muted)', fontSize: 12 }}>{u.email}</td>
                   <td style={{ padding: '11px 14px', textAlign: 'center' }}>
@@ -645,6 +667,7 @@ export default function UserManagement() {
               npi: selectedUser.npi || '',
               deaNumber: selectedUser.deaNumber || '',
               twoFactorEnabled: selectedUser.twoFactorEnabled,
+              locationId: selectedUser.locationId || 'loc1',
             }}
             onSave={handleUpdate}
             onCancel={closeModal}

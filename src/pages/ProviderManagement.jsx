@@ -44,7 +44,7 @@ export default function ProviderManagement() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
 
-  const isAdmin = currentUser?.role === 'front_desk';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'front_desk';
 
   const load = useCallback(async () => {
     setLoading(true);

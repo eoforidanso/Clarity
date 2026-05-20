@@ -31,6 +31,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 // PWA Service Worker registration
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/Clarity/sw.js').catch(() => {});
+    // Unregister any stale service workers from the old /Clarity/ path
+    navigator.serviceWorker.getRegistrations().then((regs) => {
+      regs.forEach((reg) => {
+        if (reg.scope.includes('/Clarity/') || (reg.active && reg.active.scriptURL.includes('/Clarity/'))) {
+          reg.unregister();
+        }
+      });
+    }).catch(() => {});
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
 }

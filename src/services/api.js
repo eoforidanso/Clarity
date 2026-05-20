@@ -13,15 +13,14 @@ async function request(path, options = {}) {
     credentials: 'include', // send/receive httpOnly cookies cross-origin
   });
 
-  if (res.status === 401) {
-    // Throw so callers can handle unauthenticated state — do NOT redirect here
-    // (the /auth/me call on startup legitimately returns 401 when not logged in)
-    throw new Error('Session expired');
-  }
-
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Request failed: ${res.status}`);
+    // For 401s on unauthenticated probes (e.g. /auth/me on startup), callers
+    // should swallow the error. We still surface the server's message when
+    // available so login failures show "Invalid username or password" rather
+    // than a generic "Session expired".
+    const message = body.error || (res.status === 401 ? 'Not authenticated' : `Request failed: ${res.status}`);
+    throw new Error(message);
   }
 
   if (res.status === 204) return null;

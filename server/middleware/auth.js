@@ -15,7 +15,7 @@ export function authenticate(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, config.jwtSecret);
-    const user = db.prepare('SELECT id, username, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, must_change_password, patient_id FROM users WHERE id = ?').get(decoded.userId);
+    const user = db.prepare('SELECT id, username, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, must_change_password, patient_id, location_id FROM users WHERE id = ?').get(decoded.userId);
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
     }

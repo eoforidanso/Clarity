@@ -78,12 +78,14 @@ app.use(helmet({
   crossOriginOpenerPolicy: false,
 }));
 app.use(cors({
-  origin: config.nodeEnv === 'production'
-    ? (process.env.ALLOWED_ORIGINS?.split(',').filter(Boolean) || (() => {
-        console.error('FATAL: ALLOWED_ORIGINS env var is not set. All cross-origin requests will be rejected.');
-        return [];
-      })())
-    : ['http://localhost:3000', 'http://localhost:5173'],
+  origin: process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').filter(Boolean)
+    : config.nodeEnv === 'production'
+      ? (() => {
+          console.error('FATAL: ALLOWED_ORIGINS env var is not set. All cross-origin requests will be rejected.');
+          return [];
+        })()
+      : ['http://localhost:3000', 'http://localhost:5173'],
   credentials: true, // required for httpOnly cookies
 }));
 

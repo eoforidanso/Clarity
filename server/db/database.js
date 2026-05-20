@@ -29,6 +29,7 @@ export async function initializeDatabase() {
     `ALTER TABLE users ADD COLUMN email_otp TEXT DEFAULT NULL`,
     `ALTER TABLE users ADD COLUMN email_otp_expires TEXT DEFAULT NULL`,
     `ALTER TABLE users ADD COLUMN email_otp_attempts INTEGER DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN location_id TEXT DEFAULT 'loc1'`,
   ];
   for (const m of migrations) {
     try { db.exec(m); } catch { /* column already exists — ok */ }
@@ -52,6 +53,7 @@ export async function initializeDatabase() {
       two_factor_enabled INTEGER DEFAULT 0,
       must_change_password INTEGER DEFAULT 0,
       patient_id TEXT,
+      location_id TEXT DEFAULT 'loc1',
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -927,7 +929,7 @@ export async function initializeDatabase() {
 
     -- Seed default locations if none exist
     INSERT OR IGNORE INTO locations (id, name, short_name, address, phone, fax, hours, type, status, npi, tax_id, place_of_service, rooms, telehealth, sort_order) VALUES
-      ('loc-apmg', 'Advanced Practice Medical Group', 'Rolling Meadows', '2280 Hicks Rd Suite 508, Rolling Meadows, IL 60008', '', '', '', 'Primary',   'Active', '', '', '11 — Office', 0, 1, 0),
+      ('loc-apmg', 'Advanced Practice Medical Group', 'Rolling Meadows', '2280 Hicks Rd Suite 508, Rolling Meadows, IL 60008', '(847) 371-5200', '', '', 'Primary',   'Active', '', '', '11 — Office', 0, 1, 0),
       ('loc1', 'Clarity — Main Office',      'Main Office',   '200 N Michigan Ave, Suite 1500, Chicago, IL 60601', '(312) 555-0199', '(312) 555-0200', 'Mon–Fri 8:00 AM – 6:00 PM',          'Primary',  'Active', '1234567890', '12-3456789', '11 — Office',       8, 1, 1),
       ('loc2', 'Clarity — West Loop',         'West Loop',     '311 W Randolph St, Suite 800, Chicago, IL 60606',   '(312) 555-0210', '(312) 555-0211', 'Mon, Wed, Fri 9:00 AM – 5:00 PM',    'Satellite', 'Active', '1234567891', '12-3456789', '11 — Office',       5, 1, 2),
       ('loc3', 'Clarity — Evanston',          'Evanston',      '1603 Orrington Ave, Suite 300, Evanston, IL 60201', '(847) 555-0130', '(847) 555-0131', 'Tue, Thu 9:00 AM – 5:00 PM',         'Satellite', 'Active', '1234567892', '12-3456790', '11 — Office',       3, 1, 3),

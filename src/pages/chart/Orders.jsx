@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePatient } from '../../contexts/PatientContext';
 import { labOrderDatabase, labFacilities, users, orderInsurance } from '../../data/mockData';
+import { locations as locationsApi } from '../../services/api';
 
 export default function Orders({ patientId }) {
   const { currentUser } = useAuth();
@@ -16,6 +17,16 @@ export default function Orders({ patientId }) {
   const [forwardTo, setForwardTo] = useState('');
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [formError, setFormError] = useState('');
+  const [officeLocation, setOfficeLocation] = useState(null);
+
+  useEffect(() => {
+    locationsApi.list().then(locs => {
+      if (!locs?.length) return;
+      const userLocId = currentUser?.locationId;
+      const matched = userLocId ? locs.find(l => l.id === userLocId) : null;
+      setOfficeLocation(matched || locs[0]);
+    }).catch(() => {});
+  }, [currentUser?.locationId]);
 
   const isFrontDesk  = currentUser?.role === 'front_desk';
   const isTherapist  = currentUser?.role === 'therapist';
@@ -30,6 +41,10 @@ export default function Orders({ patientId }) {
     const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const patientName = patient ? `${patient.firstName} ${patient.lastName}` : patientId;
+    const officeName = officeLocation?.name || 'Clarity Behavioral Health';
+    const officeAddress = officeLocation?.address || '200 N Michigan Ave, Suite 1400, Chicago, IL 60601';
+    const officePhone = officeLocation?.phone ? `Phone: ${officeLocation.phone}` : 'Phone: (312) 555-0200';
+    const officeFax = officeLocation?.fax ? ` | Fax: ${officeLocation.fax}` : '';
     const win = window.open('', '_blank', 'width=700,height=600');
     if (!win) return;
     win.document.write(`<!DOCTYPE html>
@@ -50,8 +65,8 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
 @media print { body { padding:10px 16px; } }
 </style></head><body>
 <div class="header"><div>
-  <div class="facility-name">Clarity Behavioral Health</div>
-  <div class="facility-sub">200 N Michigan Ave, Suite 1400, Chicago, IL 60601<br/>Phone: (312) 555-0200 &nbsp;|&nbsp; Fax: (312) 555-0201</div>
+  <div class="facility-name">${officeName}</div>
+  <div class="facility-sub">${officeAddress}<br/>${officePhone}${officeFax}</div>
 </div><div class="header-right">
   <span class="badge">${order.type} Order</span>
   <div style="margin-top:8px">Date: <strong>${dateStr}</strong></div>
@@ -71,6 +86,8 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
   <tr><td class="lbl">Ordered By</td><td>${order.orderedBy}</td></tr>
   ${order.labFacility ? `<tr><td class="lbl">Lab Facility</td><td>${order.labFacility}</td></tr>` : ''}
   ${order.forwardedTo ? `<tr><td class="lbl">Forwarded To</td><td>${order.forwardedTo}</td></tr>` : ''}
+  ${order.orderedByNpi ? `<tr><td class="lbl">Prescriber NPI</td><td>${order.orderedByNpi}</td></tr>` : ''}
+  ${order.orderedByDea ? `<tr><td class="lbl">Prescriber DEA</td><td>${order.orderedByDea}</td></tr>` : ''}
   ${order.notes ? `<tr><td class="lbl">Clinical Notes</td><td>${order.notes}</td></tr>` : ''}
 </table></div>
 <div class="footer">Printed ${dateStr} at ${timeStr} · Clarity EHR · Confidential — For authorized use only</div>
@@ -99,6 +116,7 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
 
     const forwardProvider = mustForward ? providers.find(p => p.id === forwardTo) : null;
 
+    const isPrescriber = currentUser?.role === 'prescriber';
     addOrder(patientId, {
       ...form,
       labFacility: form.type === 'Lab' && selectedLabFacility ? `${selectedLabFacility.name} — ${selectedLabFacility.city}` : '',
@@ -108,6 +126,8 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
         ? `${currentUser.firstName} ${currentUser.lastName} → ${forwardProvider.firstName} ${forwardProvider.lastName}`
         : `${currentUser.firstName} ${currentUser.lastName}`,
       forwardedTo: forwardProvider ? `${forwardProvider.firstName} ${forwardProvider.lastName}` : null,
+      orderedByNpi: isPrescriber ? (currentUser.npi || '') : '',
+      orderedByDea: isPrescriber ? (currentUser.deaNumber || '') : '',
     });
 
     if (mustForward && forwardProvider) {
@@ -230,6 +250,12 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
                             {ins.coverageNotes && (
                               <div style={{ padding: '0 20px 12px', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                                 <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Notes:</span> {ins.coverageNotes}
+                              </div>
+                            )}
+                            {(o.orderedByNpi || o.orderedByDea) && (
+                              <div style={{ padding: '0 20px 10px', display: 'flex', gap: 20, fontSize: 12 }}>
+                                {o.orderedByNpi && <div><span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>NPI:</span> <span style={{ fontFamily: 'monospace' }}>{o.orderedByNpi}</span></div>}
+                                {o.orderedByDea && <div><span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>DEA:</span> <span style={{ fontFamily: 'monospace' }}>{o.orderedByDea}</span></div>}
                               </div>
                             )}
                           </td>
@@ -444,6 +470,12 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
                       {ins.coverageNotes && (
                         <div style={{ padding: '0 20px 12px', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                           <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Notes:</span> {ins.coverageNotes}
+                        </div>
+                      )}
+                      {(o.orderedByNpi || o.orderedByDea) && (
+                        <div style={{ padding: '0 20px 10px', display: 'flex', gap: 20, fontSize: 12 }}>
+                          {o.orderedByNpi && <div><span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>NPI:</span> <span style={{ fontFamily: 'monospace' }}>{o.orderedByNpi}</span></div>}
+                          {o.orderedByDea && <div><span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>DEA:</span> <span style={{ fontFamily: 'monospace' }}>{o.orderedByDea}</span></div>}
                         </div>
                       )}
                     </td>

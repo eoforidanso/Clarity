@@ -4,20 +4,22 @@ import { useAuth } from './AuthContext';
 // ─── Site Definitions ─────────────────────────────────────────────────────────
 // Canonical list — used by Header, Schedule, MultiLocationManagement, etc.
 export const SITES = [
-  { id: 'all',  name: 'All Sites',                shortName: 'All Sites',   type: 'Meta',      icon: '🌐' },
-  { id: 'loc1', name: 'Clarity — Main Office',     shortName: 'Main Office', type: 'Primary',   icon: '🏥' },
-  { id: 'loc2', name: 'Clarity — West Loop',       shortName: 'West Loop',   type: 'Satellite', icon: '📍' },
-  { id: 'loc3', name: 'Clarity — Evanston',        shortName: 'Evanston',    type: 'Satellite', icon: '📍' },
-  { id: 'loc4', name: 'Clarity — Telehealth Only', shortName: 'Telehealth',  type: 'Virtual',   icon: '💻' },
+  { id: 'all',      name: 'All Sites',                          shortName: 'All Sites',        type: 'Meta',      icon: '🌐' },
+  { id: 'loc-apmg', name: 'Advanced Practice Medical Group',    shortName: 'Rolling Meadows',  type: 'Primary',   icon: '🏥' },
+  { id: 'loc1',     name: 'Clarity — Main Office',              shortName: 'Main Office',      type: 'Primary',   icon: '🏥' },
+  { id: 'loc2',     name: 'Clarity — West Loop',                shortName: 'West Loop',        type: 'Satellite', icon: '📍' },
+  { id: 'loc3',     name: 'Clarity — Evanston',                 shortName: 'Evanston',         type: 'Satellite', icon: '📍' },
+  { id: 'loc4',     name: 'Clarity — Telehealth Only',          shortName: 'Telehealth',       type: 'Virtual',   icon: '💻' },
 ];
 
 // ─── Role → accessible site IDs ───────────────────────────────────────────────
 // 'all' in the array means the role sees every site and may select 'All Sites'.
+// prescriber/therapist are restricted to their assigned locationId (set per-user by admin).
 const ROLE_SITE_ACCESS = {
   front_desk: ['all'],
   nurse:      ['all'],
-  prescriber: ['loc1', 'loc2', 'loc4'],
-  therapist:  ['loc1', 'loc2', 'loc4'],
+  prescriber: null, // resolved per-user from currentUser.locationId
+  therapist:  null, // resolved per-user from currentUser.locationId
   patient:    [],
 };
 
@@ -42,7 +44,14 @@ export function SiteProvider({ children }) {
   const role = currentUser?.role;
 
   // Which site IDs this role may access
-  const allowedIds = useMemo(() => ROLE_SITE_ACCESS[role] || ['loc1'], [role]);
+  // prescribers/therapists are restricted to their assigned location
+  const allowedIds = useMemo(() => {
+    const base = ROLE_SITE_ACCESS[role];
+    if (base !== null && base !== undefined) return base;
+    // Per-user location: use assigned locationId, fall back to loc1
+    const userLocId = currentUser?.locationId || 'loc1';
+    return [userLocId];
+  }, [role, currentUser?.locationId]);
   const canSeeAll  = allowedIds.includes('all');
 
   // Sites the current user may choose from (always includes 'all' when canSeeAll)

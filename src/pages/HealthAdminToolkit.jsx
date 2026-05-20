@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { users } from '../data/mockData';
+import { users as usersApi } from '../services/api';
 
 // ── US States list for license/DEA registration ──────────────────────────────
 const US_STATES = [
@@ -59,6 +60,8 @@ function StaffRegistrationModal({ onClose, onSave }) {
   const [errors, setErrors] = useState({});
   const [step, setStep] = useState(1); // 1=Basic, 2=Credentials, 3=Account
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [apiError, setApiError] = useState('');
 
   const isPrescriber = PRESCRIBER_ROLES.includes(form.role);
   const needsNpi = REQUIRES_NPI_ROLES.includes(form.role);
@@ -94,18 +97,32 @@ function StaffRegistrationModal({ onClose, onSave }) {
     return errs;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); setStep(Object.keys(errs).some(k => ['npi','deaNumber','deaState','licenseNumber','licenseState'].includes(k)) ? 2 : Object.keys(errs).some(k => ['email','username','password','epcsPin'].includes(k)) ? 3 : 1); return; }
-    const newUser = {
-      id: `u_reg_${Date.now()}`,
-      ...form,
-      deaNumber: form.deaNumber.toUpperCase(),
-      npi: form.npi.trim(),
-      epcsPin: form.epcsPin || null,
-    };
-    onSave(newUser);
-    setSaved(true);
+    setApiError('');
+    setSaving(true);
+    try {
+      const created = await usersApi.create({
+        username: form.username.trim(),
+        password: form.password,
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        role: form.role,
+        credentials: form.credentials.trim(),
+        specialty: form.specialty.trim(),
+        npi: form.npi.trim(),
+        deaNumber: form.deaNumber.toUpperCase().trim(),
+        email: form.email.trim(),
+        twoFactorEnabled: form.twoFactorEnabled,
+      });
+      onSave({ ...form, id: created.id, deaNumber: form.deaNumber.toUpperCase(), epcsPin: form.epcsPin || null });
+      setSaved(true);
+    } catch (err) {
+      setApiError(err.message || 'Failed to register provider. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const inputStyle = (k) => ({
@@ -438,10 +455,14 @@ function StaffRegistrationModal({ onClose, onSave }) {
           <div style={{ fontSize: 11.5, color: '#64748b' }}>Step {step} of 3</div>
           {step < 3
             ? <button className="btn btn-primary" onClick={() => setStep(s => s + 1)}>Continue →</button>
-            : <button className="btn btn-primary" onClick={handleSave} style={{ background: '#16a34a', borderColor: '#16a34a' }}>
-                ✓ Register Provider
-              </button>
-          }
+            : <>
+                {apiError && (
+                  <div style={{ color: '#dc2626', fontSize: 12, maxWidth: 260, textAlign: 'right' }}>⚠️ {apiError}</div>
+                )}
+                <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ background: '#16a34a', borderColor: '#16a34a', opacity: saving ? 0.7 : 1 }}>
+                  {saving ? 'Registering…' : '✓ Register Provider'}
+                </button>
+              </>
         </div>
       </div>
     </div>
