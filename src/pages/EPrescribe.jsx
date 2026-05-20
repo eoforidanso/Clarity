@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { medicationDatabase, pharmacies, users, problems } from '../data/mockData';
-import { rxnorm as rxnormApi, openfda as openfdaApi } from '../services/api';
+import { rxnorm as rxnormApi, openfda as openfdaApi, locations as locationsApi } from '../services/api';
 import { useSite } from '../contexts/SiteContext';
 import { generateILPmpReport } from '../utils/pmpMock';
 
@@ -440,6 +440,20 @@ export default function EPrescribe() {
   const [pharmacySearch, setPharmacySearch] = useState('');
   const [showPharmacyDropdown, setShowPharmacyDropdown] = useState(false);
   const { activeSite } = useSite();
+  const [facilityInfo, setFacilityInfo] = useState(null);
+
+  // Fetch backend location record that matches the active site (for print receipt)
+  useEffect(() => {
+    locationsApi.list().then(locs => {
+      if (!Array.isArray(locs) || !activeSite) return;
+      const match = locs.find(l =>
+        l.name === activeSite.name ||
+        (l.shortName && l.shortName === activeSite.shortName) ||
+        l.name?.includes(activeSite.shortName)
+      );
+      setFacilityInfo(match || null);
+    }).catch(() => {});
+  }, [activeSite]);
 
   // Map site IDs to nearby cities for pharmacy sorting
   const SITE_CITIES = {
@@ -719,6 +733,11 @@ export default function EPrescribe() {
     const patientName = `${prescriptionPatient.firstName} ${prescriptionPatient.lastName}`;
     const isControlled = selectedMed.isControlled;
     const sigText = rx.sig || `Take ${rx.dose} by ${(selectedMed.routes?.[0] || '').toLowerCase()} ${rx.frequency.toLowerCase()}`;
+    const facilityName = facilityInfo?.name || activeSite?.name || 'Clarity Behavioral Health';
+    const facilityAddress = facilityInfo?.address || '';
+    const facilityPhone = facilityInfo?.phone || '';
+    const facilityFax = facilityInfo?.fax || '';
+    const facilityNpi = facilityInfo?.npi || '';
     const win = window.open('', '_blank', 'width=780,height=700');
     if (!win) return;
     win.document.write(`<!DOCTYPE html>
@@ -742,8 +761,8 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
 @media print { body { padding:10px 16px; } }
 </style></head><body>
 <div class="header"><div>
-  <div class="facility-name">Clarity Behavioral Health</div>
-  <div class="facility-sub">200 N Michigan Ave, Suite 1400, Chicago, IL 60601<br/>Phone: (312) 555-0200 &nbsp;|&nbsp; Fax: (312) 555-0201</div>
+  <div class="facility-name">${facilityName}</div>
+  <div class="facility-sub">${facilityAddress ? facilityAddress + '<br/>' : ''}${facilityPhone ? 'Phone: ' + facilityPhone : ''}${facilityFax ? ' &nbsp;|&nbsp; Fax: ' + facilityFax : ''}${facilityNpi ? '<br/>Facility NPI: ' + facilityNpi : ''}</div>
 </div><div class="header-right">
   <span class="badge">${isControlled ? '🔒 Controlled Substance Rx' : '💊 Prescription'}</span>
   <div style="margin-top:8px">Date: <strong>${dateStr}</strong></div>
