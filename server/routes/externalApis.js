@@ -43,8 +43,8 @@ router.get('/nppes/pharmacies', async (req, res) => {
       queries.push({ ...base(), city: raw });
       queries.push({ ...base(), organization_name: raw + '*' });
     } else {
-      // State only — return any pharmacies in that state (wildcard org name)
-      queries.push({ ...base(), organization_name: '*' });
+      // State only — taxonomy + state are enough for NPPES
+      queries.push({ ...base() });
     }
 
     const responses = await Promise.all(
