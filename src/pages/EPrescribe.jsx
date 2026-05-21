@@ -439,6 +439,32 @@ export default function EPrescribe() {
   });
   const [pharmacySearch, setPharmacySearch] = useState('');
   const [showPharmacyDropdown, setShowPharmacyDropdown] = useState(false);
+
+  // ── ICD-10 autopopulate ──────────────────────────────────
+  const [icdSuggestions, setIcdSuggestions] = useState([]);
+  const [icdSuggestFor, setIcdSuggestFor] = useState(null); // 'code' | 'desc'
+  const icdTimer = useRef(null);
+
+  const lookupIcd = (term, mode) => {
+    clearTimeout(icdTimer.current);
+    if (!term || term.length < 2) { setIcdSuggestions([]); return; }
+    icdTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://clinicaltables.nlm.nih.gov/api/icd10cm/v3/search?sf=code,name&terms=${encodeURIComponent(term)}&maxList=10`);
+        const data = await res.json();
+        // data[3] = [[code, name], ...]
+        const hits = (data[3] || []).map(([code, name]) => ({ code, name }));
+        setIcdSuggestions(hits);
+        setIcdSuggestFor(mode);
+        // If code field typed and first result is an exact match, silently fill description
+        if (mode === 'code' && hits.length > 0 && hits[0].code.toLowerCase() === term.trim().toLowerCase()) {
+          setRx(prev => ({ ...prev, diagnosis: hits[0].name }));
+          setIcdSuggestions([]);
+        }
+      } catch { setIcdSuggestions([]); }
+    }, 350);
+  };
+
   const { activeSite } = useSite();
   const [facilityInfo, setFacilityInfo] = useState(null);
 
@@ -1367,22 +1393,53 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                   </div>
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  className="form-input"
-                  style={{ width: 110, flexShrink: 0 }}
-                  value={rx.diagnosisCode}
-                  onChange={(e) => setRx({ ...rx, diagnosisCode: e.target.value.toUpperCase() })}
-                  placeholder="ICD-10"
-                  maxLength={10}
-                />
-                <input
-                  className="form-input"
-                  style={{ flex: 1 }}
-                  value={rx.diagnosis}
-                  onChange={(e) => setRx({ ...rx, diagnosis: e.target.value })}
-                  placeholder="e.g. Major Depressive Disorder"
-                />
+              <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
+                <div style={{ position: 'relative', width: 110, flexShrink: 0 }}>
+                  <input
+                    className="form-input"
+                    style={{ width: '100%', textTransform: 'uppercase' }}
+                    value={rx.diagnosisCode}
+                    onChange={(e) => {
+                      const val = e.target.value.toUpperCase();
+                      setRx({ ...rx, diagnosisCode: val });
+                      lookupIcd(val, 'code');
+                    }}
+                    onFocus={() => { if (rx.diagnosisCode.length >= 2) lookupIcd(rx.diagnosisCode, 'code'); }}
+                    onBlur={() => setTimeout(() => setIcdSuggestions([]), 200)}
+                    placeholder="ICD-10"
+                    maxLength={10}
+                  />
+                </div>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <input
+                    className="form-input"
+                    style={{ width: '100%' }}
+                    value={rx.diagnosis}
+                    onChange={(e) => {
+                      setRx({ ...rx, diagnosis: e.target.value });
+                      lookupIcd(e.target.value, 'desc');
+                    }}
+                    onFocus={() => { if (rx.diagnosis.length >= 2) lookupIcd(rx.diagnosis, 'desc'); }}
+                    onBlur={() => setTimeout(() => setIcdSuggestions([]), 200)}
+                    placeholder="Diagnosis — type name or ICD-10 code"
+                  />
+                  {icdSuggestions.length > 0 && (
+                    <div style={{ position: 'absolute', top: '100%', left: icdSuggestFor === 'code' ? '-118px' : 0, right: 0, zIndex: 60, border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-white)', boxShadow: 'var(--shadow-md)', marginTop: 2, maxHeight: 260, overflowY: 'auto' }}>
+                      {icdSuggestions.map(s => (
+                        <div key={s.code} style={{ padding: '7px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid var(--border-light)', display: 'flex', gap: 8 }}
+                          onMouseDown={() => {
+                            setRx(prev => ({ ...prev, diagnosisCode: s.code, diagnosis: s.name }));
+                            setIcdSuggestions([]);
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
+                          onMouseLeave={e => e.currentTarget.style.background = ''}>
+                          <span style={{ fontWeight: 700, color: 'var(--primary)', minWidth: 60 }}>{s.code}</span>
+                          <span>{s.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               {!rx.diagnosis.trim() && (
                 <span style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4, display: 'block' }}>Required — enter or select a diagnosis above</span>
