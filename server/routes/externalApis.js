@@ -2,6 +2,81 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
+
+// ── NPPES Pharmacy Search (CMS — free, no key, proxied for CORS) ─────────────
+// Public route — no auth needed (NPPES is a public registry)
+// Docs: https://npiregistry.cms.hhs.gov/api-page
+router.get('/nppes/pharmacies', async (req, res) => {
+  try {
+    const { search } = req.query;
+    if (!search || search.length < 3) return res.json([]);
+
+    const raw = String(search).trim();
+    const digits = raw.replace(/\D/g, '');
+    const isAllDigits = /^\d+$/.test(raw);
+
+    const base = () => ({
+      version: '2.1',
+      enumeration_type: 'NPI-2',
+      taxonomy_description: 'Pharmacy',
+      limit: '25',
+      skip: '0',
+    });
+
+    const queries = [];
+    if (digits.length === 10) {
+      queries.push({ ...base(), number: digits });
+    } else if (isAllDigits && raw.length === 5) {
+      queries.push({ ...base(), postal_code: raw });
+    } else if (isAllDigits && raw.length >= 3 && raw.length < 5) {
+      queries.push({ ...base(), postal_code: raw + '*' });
+    } else {
+      queries.push({ ...base(), city: raw });
+      queries.push({ ...base(), organization_name: raw + '*' });
+    }
+
+    const responses = await Promise.all(
+      queries.map(q =>
+        fetch(`https://npiregistry.cms.hhs.gov/api/?${new URLSearchParams(q)}`)
+          .then(r => r.json())
+          .catch(() => ({ results: [] }))
+      )
+    );
+
+    const seen = new Set();
+    const merged = [];
+    const titleCase = (s) => s ? String(s).toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : '';
+
+    responses.forEach(data => {
+      (data.results || []).forEach(r => {
+        if (seen.has(r.number)) return;
+        seen.add(r.number);
+        const addr = r.addresses?.find(a => a.address_purpose === 'LOCATION') || r.addresses?.[0] || {};
+        const dbaName = r.other_names?.find(n => n.code === '3')?.organization_name;
+        const displayName = dbaName || r.basic?.organization_name || r.basic?.name || 'Unknown Pharmacy';
+        merged.push({
+          id: `nppes-${r.number}`,
+          name: titleCase(displayName),
+          chain: 'NPPES',
+          address: titleCase([addr.address_1, addr.address_2].filter(Boolean).join(' ')),
+          city: titleCase(addr.city || ''),
+          state: addr.state || '',
+          zip: addr.postal_code?.slice(0, 5) || '',
+          phone: addr.telephone_number || '',
+          fax: addr.fax_number || '',
+          npi: r.number,
+        });
+      });
+    });
+
+    res.json(merged.filter(r => r.address && r.city).slice(0, 30));
+  } catch (err) {
+    console.error('NPPES search error:', err.message);
+    res.status(502).json({ error: 'NPPES API unavailable' });
+  }
+});
+
+// All routes below require a valid JWT
 router.use(authenticate);
 
 // ── RxNorm Drug Search (NLM — free, no API key) ──────────────────────────────
@@ -173,78 +248,6 @@ router.get('/openfda/drug-label', async (req, res) => {
   } catch (err) {
     console.error('OpenFDA search error:', err.message);
     res.status(502).json({ error: 'OpenFDA API unavailable' });
-  }
-});
-
-// ── NPPES Pharmacy Search (CMS — free, no key, proxied for CORS) ─────────────
-// Docs: https://npiregistry.cms.hhs.gov/api-page
-router.get('/nppes/pharmacies', async (req, res) => {
-  try {
-    const { search } = req.query;
-    if (!search || search.length < 3) return res.json([]);
-
-    const raw = String(search).trim();
-    const digits = raw.replace(/\D/g, '');
-    const isAllDigits = /^\d+$/.test(raw);
-
-    const base = () => ({
-      version: '2.1',
-      enumeration_type: 'NPI-2',
-      taxonomy_description: 'Pharmacy',
-      limit: '25',
-      skip: '0',
-    });
-
-    const queries = [];
-    if (digits.length === 10) {
-      queries.push({ ...base(), number: digits });
-    } else if (isAllDigits && raw.length === 5) {
-      queries.push({ ...base(), postal_code: raw });
-    } else if (isAllDigits && raw.length >= 3 && raw.length < 5) {
-      queries.push({ ...base(), postal_code: raw + '*' });
-    } else {
-      queries.push({ ...base(), city: raw });
-      queries.push({ ...base(), organization_name: raw + '*' });
-    }
-
-    const responses = await Promise.all(
-      queries.map(q =>
-        fetch(`https://npiregistry.cms.hhs.gov/api/?${new URLSearchParams(q)}`)
-          .then(r => r.json())
-          .catch(() => ({ results: [] }))
-      )
-    );
-
-    const seen = new Set();
-    const merged = [];
-    const titleCase = (s) => s ? String(s).toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : '';
-
-    responses.forEach(data => {
-      (data.results || []).forEach(r => {
-        if (seen.has(r.number)) return;
-        seen.add(r.number);
-        const addr = r.addresses?.find(a => a.address_purpose === 'LOCATION') || r.addresses?.[0] || {};
-        const dbaName = r.other_names?.find(n => n.code === '3')?.organization_name;
-        const displayName = dbaName || r.basic?.organization_name || r.basic?.name || 'Unknown Pharmacy';
-        merged.push({
-          id: `nppes-${r.number}`,
-          name: titleCase(displayName),
-          chain: 'NPPES',
-          address: titleCase([addr.address_1, addr.address_2].filter(Boolean).join(' ')),
-          city: titleCase(addr.city || ''),
-          state: addr.state || '',
-          zip: addr.postal_code?.slice(0, 5) || '',
-          phone: addr.telephone_number || '',
-          fax: addr.fax_number || '',
-          npi: r.number,
-        });
-      });
-    });
-
-    res.json(merged.filter(r => r.address && r.city).slice(0, 30));
-  } catch (err) {
-    console.error('NPPES search error:', err.message);
-    res.status(502).json({ error: 'NPPES API unavailable' });
   }
 });
 
