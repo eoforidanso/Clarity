@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { medicationDatabase, pharmacies, users, problems } from '../data/mockData';
-import { rxnorm as rxnormApi, openfda as openfdaApi, locations as locationsApi } from '../services/api';
+import { rxnorm as rxnormApi, openfda as openfdaApi, locations as locationsApi, nppes as nppesApi } from '../services/api';
 import { useSite } from '../contexts/SiteContext';
 import { generateILPmpReport } from '../utils/pmpMock';
 
@@ -478,86 +478,15 @@ export default function EPrescribe() {
   const [nppesLoading, setNppesLoading] = useState(false);
   const nppesTimer = useRef(null);
 
-  // Debounced NPPES search — searches by NPI / zip / phone / city / name
+  // Debounced NPPES search via backend proxy (with public CORS fallback)
   useEffect(() => {
     if (pharmacySearch.length < 3) { setNppesResults([]); setNppesLoading(false); return; }
     setNppesLoading(true);
     clearTimeout(nppesTimer.current);
     nppesTimer.current = setTimeout(async () => {
       try {
-        const raw = pharmacySearch.trim();
-        const digits = raw.replace(/\D/g, '');
-        const isAllDigits = /^\d+$/.test(raw);
-        // Detect search type
-        const queries = [];
-        const baseParams = () => {
-          const p = new URLSearchParams({
-            enumeration_type: 'NPI-2',
-            taxonomy_description: 'Pharmacy',
-            limit: '25',
-            skip: '0',
-          });
-          return p;
-        };
-        if (digits.length === 10 && (isAllDigits || raw.length > 10)) {
-          // 10-digit NPI lookup (most specific)
-          const p = baseParams();
-          p.set('number', digits);
-          queries.push(p);
-        } else if (isAllDigits && raw.length === 5) {
-          // ZIP code
-          const p = baseParams();
-          p.set('postal_code', raw);
-          queries.push(p);
-        } else if (isAllDigits && raw.length >= 3 && raw.length < 5) {
-          // ZIP prefix
-          const p = baseParams();
-          p.set('postal_code', raw + '*');
-          queries.push(p);
-        } else {
-          // Text search — try both city and organization name in parallel
-          const pCity = baseParams();
-          pCity.set('city', raw);
-          queries.push(pCity);
-          const pName = baseParams();
-          pName.set('organization_name', raw + '*');
-          queries.push(pName);
-        }
-
-        const responses = await Promise.all(
-          queries.map(p =>
-            fetch(`https://npiregistry.cms.hhs.gov/api/?${p}`, { signal: AbortSignal.timeout(6000) })
-              .then(r => r.json())
-              .catch(() => ({ results: [] }))
-          )
-        );
-
-        const seen = new Set();
-        const merged = [];
-        responses.forEach(data => {
-          (data.results || []).forEach(r => {
-            if (seen.has(r.number)) return;
-            seen.add(r.number);
-            const addr = r.addresses?.find(a => a.address_purpose === 'LOCATION') || r.addresses?.[0] || {};
-            const dbaName = r.other_names?.find(n => n.code === '3')?.organization_name;
-            const displayName = dbaName || r.basic?.organization_name || r.basic?.name || 'Unknown Pharmacy';
-            const titleCase = (s) => s ? s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : '';
-            merged.push({
-              id: `nppes-${r.number}`,
-              name: titleCase(displayName),
-              chain: 'NPPES',
-              address: titleCase([addr.address_1, addr.address_2].filter(Boolean).join(' ')),
-              city: titleCase(addr.city || ''),
-              state: addr.state || '',
-              zip: addr.postal_code?.slice(0, 5) || '',
-              phone: addr.telephone_number || '',
-              fax: addr.fax_number || '',
-              npi: r.number,
-            });
-          });
-        });
-        const filtered = merged.filter(r => r.address && r.city);
-        setNppesResults(filtered.slice(0, 30));
+        const results = await nppesApi.searchPharmacies(pharmacySearch);
+        setNppesResults(results || []);
       } catch {
         setNppesResults([]);
       }

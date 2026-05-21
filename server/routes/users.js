@@ -233,7 +233,7 @@ router.post('/:id/reset-password', authenticate, authorize(...ADMIN_ROLES), (req
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const hash = bcrypt.hashSync(newPassword, SALT_ROUNDS);
-  db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?").run(hash, id);
+  db.prepare("UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = datetime('now') WHERE id = ?").run(hash, id);
 
   // Invalidate all active sessions for this user
   try {
