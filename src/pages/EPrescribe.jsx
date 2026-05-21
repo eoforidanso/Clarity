@@ -480,10 +480,10 @@ export default function EPrescribe() {
 
   // Debounced NPPES search — fires when pharmacySearch has 3+ chars
   useEffect(() => {
-    if (pharmacySearch.length < 3) { setNppesResults([]); return; }
+    if (pharmacySearch.length < 3) { setNppesResults([]); setNppesLoading(false); return; }
+    setNppesLoading(true);
     clearTimeout(nppesTimer.current);
     nppesTimer.current = setTimeout(async () => {
-      setNppesLoading(true);
       try {
         // Build query: search by organization name (text) or zip code (numeric)
         // No state filter — allows national pharmacies including mail order/delivery
@@ -1287,7 +1287,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                           const liveMatches = nppesResults.filter(p => !localNpis.has(p.npi));
                           const allResults = [...localMatches, ...liveMatches];
                           if (allResults.length === 0 && !nppesLoading) {
-                            return <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>{pharmacySearch.length >= 3 ? 'No pharmacies found in Illinois' : 'Type at least 3 characters to search all IL pharmacies'}</div>;
+                            return <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>{pharmacySearch.length >= 3 ? 'No pharmacies found' : 'Type at least 3 characters to search all US pharmacies'}</div>;
                           }
                           return (
                             <>
@@ -1301,7 +1301,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                                   <div style={{ color: 'var(--text-muted)' }}>{p.address}, {p.city}, {p.state} {p.zip} · {p.phone}</div>
                                 </div>
                               ))}
-                              {nppesLoading && <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>🔍 Searching all Illinois pharmacies...</div>}
+                              {nppesLoading && <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>🔍 Searching all US pharmacies...</div>}
                               {liveMatches.length > 0 && <div style={{ padding: '4px 12px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, background: 'var(--bg)' }}>Live — NPPES registry</div>}
                               {liveMatches.map(p => (
                                 <div key={p.id} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}
