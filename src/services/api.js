@@ -234,9 +234,10 @@ export const openfda = {
 // NPPES pharmacy search — backend proxy (CMS blocks browser CORS).
 // Returns { results, total, hasMore, skip }
 export const nppes = {
-  searchPharmacies: async ({ search = '', state = '', skip = 0 } = {}) => {
+  searchPharmacies: async ({ search = '', city = '', state = '', skip = 0 } = {}) => {
     const params = new URLSearchParams();
     if (search) params.set('search', search);
+    if (city) params.set('city', city);
     if (state) params.set('state', state);
     if (skip) params.set('skip', String(skip));
     try {

@@ -479,13 +479,15 @@ export default function EPrescribe() {
   const [nppesHasMore, setNppesHasMore] = useState(false);
   const [nppesTotal, setNppesTotal] = useState(0);
   const [pharmacyStateFilter, setPharmacyStateFilter] = useState('');
+  const [pharmacyCityFilter, setPharmacyCityFilter] = useState('');
   const nppesTimer = useRef(null);
 
   // Debounced NPPES search via backend proxy
   useEffect(() => {
     const hasSearch = pharmacySearch.length >= 2;
+    const hasCity = pharmacyCityFilter.trim().length >= 2;
     const hasState = pharmacyStateFilter.length === 2;
-    if (!hasSearch && !hasState) {
+    if (!hasSearch && !hasCity && !hasState) {
       setNppesResults([]); setNppesLoading(false); setNppesHasMore(false); setNppesTotal(0);
       return;
     }
@@ -493,7 +495,7 @@ export default function EPrescribe() {
     clearTimeout(nppesTimer.current);
     nppesTimer.current = setTimeout(async () => {
       try {
-        const data = await nppesApi.searchPharmacies({ search: pharmacySearch, state: pharmacyStateFilter, skip: 0 });
+        const data = await nppesApi.searchPharmacies({ search: pharmacySearch, city: pharmacyCityFilter, state: pharmacyStateFilter, skip: 0 });
         setNppesResults(data.results || []);
         setNppesHasMore(!!data.hasMore);
         setNppesTotal(data.total || (data.results || []).length);
@@ -503,12 +505,12 @@ export default function EPrescribe() {
       setNppesLoading(false);
     }, 400);
     return () => clearTimeout(nppesTimer.current);
-  }, [pharmacySearch, pharmacyStateFilter]);
+  }, [pharmacySearch, pharmacyCityFilter, pharmacyStateFilter]);
 
   const loadMoreNppes = async () => {
     setNppesLoading(true);
     try {
-      const data = await nppesApi.searchPharmacies({ search: pharmacySearch, state: pharmacyStateFilter, skip: nppesResults.length });
+      const data = await nppesApi.searchPharmacies({ search: pharmacySearch, city: pharmacyCityFilter, state: pharmacyStateFilter, skip: nppesResults.length });
       const newOnes = (data.results || []).filter(r => !nppesResults.some(x => x.npi === r.npi));
       setNppesResults([...nppesResults, ...newOnes]);
       setNppesHasMore(!!data.hasMore);
@@ -1259,11 +1261,15 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                   </div>
                 ) : (
                   <>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <input className="form-input" style={{ flex: 1 }} value={pharmacySearch}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <input className="form-input" style={{ flex: '2 1 200px', minWidth: 160 }} value={pharmacySearch}
                         onChange={(e) => { setPharmacySearch(e.target.value); setShowPharmacyDropdown(true); }}
                         onFocus={() => setShowPharmacyDropdown(true)}
-                        placeholder="Pharmacy name, city, zip, or NPI..." />
+                        placeholder="Pharmacy name, zip, or NPI..." />
+                      <input className="form-input" style={{ flex: '1 1 140px', minWidth: 120 }} value={pharmacyCityFilter}
+                        onChange={(e) => { setPharmacyCityFilter(e.target.value); setShowPharmacyDropdown(true); }}
+                        onFocus={() => setShowPharmacyDropdown(true)}
+                        placeholder="City" />
                       <select className="form-select" style={{ width: 90, flex: '0 0 90px' }}
                         value={pharmacyStateFilter}
                         onChange={(e) => { setPharmacyStateFilter(e.target.value); setShowPharmacyDropdown(true); }}
@@ -1278,16 +1284,18 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                       <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, maxHeight: 500, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-white)', boxShadow: 'var(--shadow-md)', marginTop: 4 }}>
                         {(() => {
                           const q = pharmacySearch.toLowerCase();
+                          const cityQ = pharmacyCityFilter.trim().toLowerCase();
                           const localMatches = sortedPharmacies.filter(p =>
                             (!pharmacyStateFilter || p.state === pharmacyStateFilter) &&
-                            (!pharmacySearch || p.name.toLowerCase().includes(q) || p.chain.toLowerCase().includes(q) || p.city.toLowerCase().includes(q) || p.zip.includes(pharmacySearch) || p.address.toLowerCase().includes(q))
-                          ).slice(0, pharmacySearch || pharmacyStateFilter ? 20 : 15);
+                            (!cityQ || p.city.toLowerCase().includes(cityQ)) &&
+                            (!pharmacySearch || p.name.toLowerCase().includes(q) || p.chain.toLowerCase().includes(q) || p.zip.includes(pharmacySearch) || p.address.toLowerCase().includes(q))
+                          ).slice(0, pharmacySearch || cityQ || pharmacyStateFilter ? 20 : 15);
                           const localNpis = new Set(localMatches.map(p => p.npi).filter(Boolean));
                           const liveMatches = nppesResults.filter(p => !localNpis.has(p.npi));
                           const allResults = [...localMatches, ...liveMatches];
-                          const hasQuery = pharmacySearch.length >= 2 || pharmacyStateFilter;
+                          const hasQuery = pharmacySearch.length >= 2 || cityQ.length >= 2 || pharmacyStateFilter;
                           if (allResults.length === 0 && !nppesLoading) {
-                            return <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>{hasQuery ? 'No pharmacies found — try a different name, city, or state' : 'Type a name, city, zip, or NPI — optionally narrow by state'}</div>;
+                            return <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>{hasQuery ? 'No pharmacies found — try a different name, city, or state' : 'Type a name, city, or pick a state to browse'}</div>;
                           }
                           return (
                             <>
@@ -1296,18 +1304,18 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                                 <div key={p.id} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}
                                   onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
                                   onMouseLeave={e => e.currentTarget.style.background = ''}
-                                  onClick={() => { setRx({ ...rx, pharmacy: `${p.name} — ${p.address}, ${p.city}, ${p.state} ${p.zip}` }); setPharmacySearch(''); setPharmacyStateFilter(''); setShowPharmacyDropdown(false); setNppesResults([]); }}>
+                                  onClick={() => { setRx({ ...rx, pharmacy: `${p.name} — ${p.address}, ${p.city}, ${p.state} ${p.zip}` }); setPharmacySearch(''); setPharmacyCityFilter(''); setPharmacyStateFilter(''); setShowPharmacyDropdown(false); setNppesResults([]); }}>
                                   <div style={{ fontWeight: 600 }}>{p.name}</div>
                                   <div style={{ color: 'var(--text-muted)' }}>{p.address}, {p.city}, {p.state} {p.zip}{p.phone ? ' · ' + p.phone : ''}</div>
                                 </div>
                               ))}
                               {nppesLoading && <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>🔍 Searching NPPES registry...</div>}
-                              {liveMatches.length > 0 && <div style={{ padding: '4px 12px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, background: 'var(--bg)' }}>NPPES — Live registry ({liveMatches.length}{nppesTotal > liveMatches.length ? ` of ${nppesTotal}+` : ''}{pharmacyStateFilter ? ` · ${pharmacyStateFilter}` : ' · All US'})</div>}
+                              {liveMatches.length > 0 && <div style={{ padding: '4px 12px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, background: 'var(--bg)' }}>NPPES — Live registry ({liveMatches.length}{nppesTotal > liveMatches.length ? ` of ${nppesTotal}+` : ''}{[pharmacyCityFilter, pharmacyStateFilter].filter(Boolean).length ? ` · ${[pharmacyCityFilter, pharmacyStateFilter].filter(Boolean).join(', ')}` : ' · All US'})</div>}
                               {liveMatches.map(p => (
                                 <div key={p.id} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}
                                   onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
                                   onMouseLeave={e => e.currentTarget.style.background = ''}
-                                  onClick={() => { setRx({ ...rx, pharmacy: `${p.name} — ${p.address}, ${p.city}, ${p.state} ${p.zip}` }); setPharmacySearch(''); setPharmacyStateFilter(''); setShowPharmacyDropdown(false); setNppesResults([]); }}>
+                                  onClick={() => { setRx({ ...rx, pharmacy: `${p.name} — ${p.address}, ${p.city}, ${p.state} ${p.zip}` }); setPharmacySearch(''); setPharmacyCityFilter(''); setPharmacyStateFilter(''); setShowPharmacyDropdown(false); setNppesResults([]); }}>
                                   <div style={{ fontWeight: 600 }}>{p.name} <span style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 400 }}>NPI {p.npi}</span></div>
                                   <div style={{ color: 'var(--text-muted)' }}>{p.address}, {p.city}, {p.state} {p.zip}{p.phone ? ' · ' + p.phone : ''}</div>
                                 </div>

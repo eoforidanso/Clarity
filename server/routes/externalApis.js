@@ -6,17 +6,19 @@ const router = Router();
 // ── NPPES Pharmacy Search (CMS — free, no key, proxied for CORS) ─────────────
 // Public route — no auth needed (NPPES is a public registry)
 // Docs: https://npiregistry.cms.hhs.gov/api-page
-// Supports: ?search=<name|city|zip|npi>  &state=<2-letter>  &skip=<offset>
+// Supports: ?search=<name|zip|npi>  &city=<city>  &state=<2-letter>  &skip=<offset>
 router.get('/nppes/pharmacies', async (req, res) => {
   try {
-    const { search, state, skip } = req.query;
-    if (!search && !state) return res.json({ results: [], total: 0 });
+    const { search, city, state, skip } = req.query;
     const raw = String(search || '').trim();
-    if (raw && raw.length < 2 && !state) return res.json({ results: [], total: 0 });
+    const cityRaw = String(city || '').trim();
+    const stateCode = state ? String(state).trim().toUpperCase().slice(0, 2) : '';
+    if (!raw && !cityRaw && !stateCode) return res.json({ results: [], total: 0 });
+    if (raw && raw.length < 2 && !cityRaw && !stateCode) return res.json({ results: [], total: 0 });
+    if (cityRaw && cityRaw.length < 2 && !raw && !stateCode) return res.json({ results: [], total: 0 });
 
     const digits = raw.replace(/\D/g, '');
     const isAllDigits = raw && /^\d+$/.test(raw);
-    const stateCode = state ? String(state).trim().toUpperCase().slice(0, 2) : '';
     const skipN = Math.min(Math.max(parseInt(skip, 10) || 0, 0), 1000);
 
     const base = () => {
@@ -28,6 +30,7 @@ router.get('/nppes/pharmacies', async (req, res) => {
         skip: String(skipN),
       };
       if (stateCode) p.state = stateCode;
+      if (cityRaw) p.city = cityRaw;
       return p;
     };
 
@@ -39,11 +42,12 @@ router.get('/nppes/pharmacies', async (req, res) => {
     } else if (isAllDigits && raw.length >= 3 && raw.length < 5) {
       queries.push({ ...base(), postal_code: raw + '*' });
     } else if (raw) {
-      // Text: try city AND organization_name in parallel
-      queries.push({ ...base(), city: raw });
+      // Name search — wildcard match on organization_name, narrowed by city/state if present
       queries.push({ ...base(), organization_name: raw + '*' });
+      // If no city specified, also try the search term as a city (loose match)
+      if (!cityRaw) queries.push({ ...base(), city: raw });
     } else {
-      // State only — taxonomy + state are enough for NPPES
+      // No name — city and/or state are enough
       queries.push({ ...base() });
     }
 
