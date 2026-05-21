@@ -231,60 +231,21 @@ export const openfda = {
   drugLabel: (search) => get(`/external/openfda/drug-label?search=${encodeURIComponent(search)}`),
 };
 
-// NPPES pharmacy search — backend proxy preferred (CMS blocks browser CORS).
-// Public CORS proxy used as fallback if backend isn't deployed.
+// NPPES pharmacy search — backend proxy (CMS blocks browser CORS).
+// Returns { results, total, hasMore, skip }
 export const nppes = {
-  searchPharmacies: async (search) => {
-    if (!search || search.length < 3) return [];
+  searchPharmacies: async ({ search = '', state = '', skip = 0 } = {}) => {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (state) params.set('state', state);
+    if (skip) params.set('skip', String(skip));
     try {
-      return await get(`/external/nppes/pharmacies?search=${encodeURIComponent(search)}`);
+      const data = await get(`/external/nppes/pharmacies?${params}`);
+      // Backward compat: backend may return array OR { results, total, hasMore }
+      if (Array.isArray(data)) return { results: data, total: data.length, hasMore: false, skip: 0 };
+      return data || { results: [], total: 0, hasMore: false, skip: 0 };
     } catch {
-      // Fallback: public CORS proxy → NPPES
-      try {
-        const raw = String(search).trim();
-        const digits = raw.replace(/\D/g, '');
-        const isAllDigits = /^\d+$/.test(raw);
-        const base = { version: '2.1', enumeration_type: 'NPI-2', taxonomy_description: 'Pharmacy', limit: '25', skip: '0' };
-        const queries = [];
-        if (digits.length === 10) queries.push({ ...base, number: digits });
-        else if (isAllDigits && raw.length === 5) queries.push({ ...base, postal_code: raw });
-        else if (isAllDigits && raw.length >= 3 && raw.length < 5) queries.push({ ...base, postal_code: raw + '*' });
-        else { queries.push({ ...base, city: raw }); queries.push({ ...base, organization_name: raw + '*' }); }
-
-        const proxy = 'https://corsproxy.io/?';
-        const responses = await Promise.all(queries.map(q =>
-          fetch(proxy + encodeURIComponent(`https://npiregistry.cms.hhs.gov/api/?${new URLSearchParams(q)}`))
-            .then(r => r.json()).catch(() => ({ results: [] }))
-        ));
-
-        const seen = new Set();
-        const merged = [];
-        const titleCase = (s) => s ? String(s).toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : '';
-        responses.forEach(data => {
-          (data.results || []).forEach(r => {
-            if (seen.has(r.number)) return;
-            seen.add(r.number);
-            const addr = r.addresses?.find(a => a.address_purpose === 'LOCATION') || r.addresses?.[0] || {};
-            const dbaName = r.other_names?.find(n => n.code === '3')?.organization_name;
-            const displayName = dbaName || r.basic?.organization_name || r.basic?.name || 'Unknown Pharmacy';
-            merged.push({
-              id: `nppes-${r.number}`,
-              name: titleCase(displayName),
-              chain: 'NPPES',
-              address: titleCase([addr.address_1, addr.address_2].filter(Boolean).join(' ')),
-              city: titleCase(addr.city || ''),
-              state: addr.state || '',
-              zip: addr.postal_code?.slice(0, 5) || '',
-              phone: addr.telephone_number || '',
-              fax: addr.fax_number || '',
-              npi: r.number,
-            });
-          });
-        });
-        return merged.filter(r => r.address && r.city).slice(0, 30);
-      } catch {
-        return [];
-      }
+      return { results: [], total: 0, hasMore: false, skip: 0 };
     }
   },
 };

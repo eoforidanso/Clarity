@@ -6,22 +6,30 @@ const router = Router();
 // ── NPPES Pharmacy Search (CMS — free, no key, proxied for CORS) ─────────────
 // Public route — no auth needed (NPPES is a public registry)
 // Docs: https://npiregistry.cms.hhs.gov/api-page
+// Supports: ?search=<name|city|zip|npi>  &state=<2-letter>  &skip=<offset>
 router.get('/nppes/pharmacies', async (req, res) => {
   try {
-    const { search } = req.query;
-    if (!search || search.length < 3) return res.json([]);
+    const { search, state, skip } = req.query;
+    if (!search && !state) return res.json({ results: [], total: 0 });
+    const raw = String(search || '').trim();
+    if (raw && raw.length < 2 && !state) return res.json({ results: [], total: 0 });
 
-    const raw = String(search).trim();
     const digits = raw.replace(/\D/g, '');
-    const isAllDigits = /^\d+$/.test(raw);
+    const isAllDigits = raw && /^\d+$/.test(raw);
+    const stateCode = state ? String(state).trim().toUpperCase().slice(0, 2) : '';
+    const skipN = Math.min(Math.max(parseInt(skip, 10) || 0, 0), 1000);
 
-    const base = () => ({
-      version: '2.1',
-      enumeration_type: 'NPI-2',
-      taxonomy_description: 'Pharmacy',
-      limit: '200',
-      skip: '0',
-    });
+    const base = () => {
+      const p = {
+        version: '2.1',
+        enumeration_type: 'NPI-2',
+        taxonomy_description: 'Pharmacy',
+        limit: '200',
+        skip: String(skipN),
+      };
+      if (stateCode) p.state = stateCode;
+      return p;
+    };
 
     const queries = [];
     if (digits.length === 10) {
@@ -30,9 +38,13 @@ router.get('/nppes/pharmacies', async (req, res) => {
       queries.push({ ...base(), postal_code: raw });
     } else if (isAllDigits && raw.length >= 3 && raw.length < 5) {
       queries.push({ ...base(), postal_code: raw + '*' });
-    } else {
+    } else if (raw) {
+      // Text: try city AND organization_name in parallel
       queries.push({ ...base(), city: raw });
       queries.push({ ...base(), organization_name: raw + '*' });
+    } else {
+      // State only — return any pharmacies in that state
+      queries.push({ ...base(), city: '*' });
     }
 
     const responses = await Promise.all(
@@ -69,7 +81,8 @@ router.get('/nppes/pharmacies', async (req, res) => {
       });
     });
 
-    res.json(merged.filter(r => r.address && r.city).slice(0, 200));
+    const filtered = merged.filter(r => r.address && r.city);
+    res.json({ results: filtered.slice(0, 200), total: filtered.length, skip: skipN, hasMore: filtered.length >= 200 });
   } catch (err) {
     console.error('NPPES search error:', err.message);
     res.status(502).json({ error: 'NPPES API unavailable' });
