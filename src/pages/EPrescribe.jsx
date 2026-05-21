@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { medicationDatabase, pharmacies, users, problems } from '../data/mockData';
-import { rxnorm as rxnormApi, openfda as openfdaApi, locations as locationsApi, nppes as nppesApi } from '../services/api';
+import { rxnorm as rxnormApi, openfda as openfdaApi, locations as locationsApi, nppes as nppesApi, dosespot as dosespotApi } from '../services/api';
 import { useSite } from '../contexts/SiteContext';
 import { generateILPmpReport } from '../utils/pmpMock';
 
@@ -411,6 +411,34 @@ function StaffRefillRequest() {
 export default function EPrescribe() {
   const { currentUser, verifyEPCS, generateEPCSOTP, verifyEPCSOTP } = useAuth();
   const { patients, selectedPatient, selectPatient, addMedication, addOrder } = usePatient();
+
+  // ── DoseSpot integration state ───────────────────────────
+  const [dsConfigured, setDsConfigured] = useState(false);
+  const [dsEnrolled, setDsEnrolled] = useState(false);
+  const [dsLoading, setDsLoading] = useState(false);
+  const [dsError, setDsError] = useState('');
+  const [dsIframeUrl, setDsIframeUrl] = useState('');
+  const [showDsModal, setShowDsModal] = useState(false);
+
+  useEffect(() => {
+    if (currentUser?.role === 'prescriber') {
+      dosespotApi.status().then(d => setDsConfigured(!!d?.configured)).catch(() => {});
+      dosespotApi.prescriberStatus().then(d => setDsEnrolled(!!d?.enrolled)).catch(() => {});
+    }
+  }, [currentUser?.id]);
+
+  const launchDoseSpot = async (patientId) => {
+    setDsLoading(true); setDsError('');
+    try {
+      const d = await dosespotApi.getSsoUrl(patientId);
+      if (!d?.url) throw new Error('No SSO URL returned from server.');
+      setDsIframeUrl(d.url);
+      setShowDsModal(true);
+    } catch (err) {
+      setDsError(err?.message || 'DoseSpot launch failed.');
+    }
+    setDsLoading(false);
+  };
 
   const [step, setStep] = useState(1);
   const [selectedMed, setSelectedMed] = useState(null);
@@ -889,6 +917,55 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
         <h1>💊 E-Prescribe</h1>
         <p>Electronic prescribing with EPCS authentication for controlled substances</p>
       </div>
+
+      {/* DoseSpot launch banner */}
+      {dsConfigured && (
+        <div style={{ marginBottom: 20, padding: '14px 20px', background: dsEnrolled ? '#eff6ff' : '#fffbeb', border: `1px solid ${dsEnrolled ? '#93c5fd' : '#fcd34d'}`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <img src="https://dosespot.com/wp-content/uploads/2025/01/DoseSpot%E2%84%A2_Logo_Color.png" alt="DoseSpot" style={{ height: 22, objectFit: 'contain' }} onError={e => { e.target.style.display = 'none'; }} />
+          {dsEnrolled ? (
+            <>
+              <span style={{ flex: 1, fontSize: 13, color: '#1e40af' }}>
+                <strong>DoseSpot connected</strong> — Send prescriptions directly to any US pharmacy via Surescripts.
+              </span>
+              {dsError && <span style={{ fontSize: 12, color: '#dc2626' }}>⚠ {dsError}</span>}
+              <button className="btn btn-primary btn-sm" disabled={dsLoading}
+                onClick={() => launchDoseSpot(prescriptionPatient?.id)}>
+                {dsLoading ? '⏳ Launching…' : '🚀 Launch DoseSpot'}
+              </button>
+            </>
+          ) : (
+            <span style={{ flex: 1, fontSize: 13, color: '#92400e' }}>
+              <strong>DoseSpot is configured</strong> but your provider account is not yet enrolled.
+              Contact your administrator to complete DoseSpot provider enrollment.
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* DoseSpot iframe modal */}
+      {showDsModal && dsIframeUrl && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 1100, height: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <img src="https://dosespot.com/wp-content/uploads/2025/01/DoseSpot%E2%84%A2_Logo_Color.png" alt="DoseSpot" style={{ height: 20 }} onError={e => { e.target.style.display = 'none'; }} />
+                <span style={{ fontWeight: 600, fontSize: 14, color: '#1e293b' }}>DoseSpot ePrescribing</span>
+                {prescriptionPatient && <span style={{ fontSize: 12, color: '#64748b' }}>— {prescriptionPatient.firstName} {prescriptionPatient.lastName}</span>}
+              </div>
+              <button onClick={() => { setShowDsModal(false); setDsIframeUrl(''); }}
+                style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 13, color: '#64748b' }}>
+                ✕ Close
+              </button>
+            </div>
+            <iframe
+              src={dsIframeUrl}
+              title="DoseSpot ePrescribing"
+              style={{ flex: 1, border: 'none', width: '100%' }}
+              allow="camera; microphone"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Step Indicator */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 24 }}>

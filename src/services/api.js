@@ -259,6 +259,13 @@ export const locations = {
   remove: (id) => del(`/locations/${id}`),
 };
 
+// ─── DoseSpot ePrescribing ────────────────────────────
+export const dosespot = {
+  status: () => get('/dosespot/status'),
+  prescriberStatus: () => get('/dosespot/prescriber-status'),
+  getSsoUrl: (patientId) => get(`/dosespot/sso${patientId ? `?patientId=${patientId}` : ''}`),
+};
+
 // ─── Users (admin) ─────────────────────────────────
 export const users = {
   list: () => get('/users'),

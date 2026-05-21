@@ -51,6 +51,7 @@ import fhirRoutes from './routes/fhir.js';
 import billingRoutes from './routes/billing.js';
 import userRoutes from './routes/users.js';
 import locationRoutes from './routes/locations.js';
+import dosespotRoutes from './routes/dosespot.js';
 
 const app = express();
 
@@ -153,6 +154,7 @@ app.use('/api/fhir', fhirRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/locations', locationRoutes);
+app.use('/api/dosespot', dosespotRoutes);
 
 // Error handling
 app.use(errorHandler);

@@ -30,6 +30,8 @@ export async function initializeDatabase() {
     `ALTER TABLE users ADD COLUMN email_otp_expires TEXT DEFAULT NULL`,
     `ALTER TABLE users ADD COLUMN email_otp_attempts INTEGER DEFAULT 0`,
     `ALTER TABLE users ADD COLUMN location_id TEXT DEFAULT 'loc1'`,
+    `ALTER TABLE users ADD COLUMN dosespot_user_id TEXT DEFAULT NULL`,
+    `ALTER TABLE patients ADD COLUMN dosespot_patient_id TEXT DEFAULT NULL`,
   ];
   for (const m of migrations) {
     try { db.exec(m); } catch { /* column already exists — ok */ }
