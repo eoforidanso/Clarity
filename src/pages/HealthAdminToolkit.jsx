@@ -463,6 +463,7 @@ function StaffRegistrationModal({ onClose, onSave }) {
                   {saving ? 'Registering…' : '✓ Register Provider'}
                 </button>
               </>
+          }
         </div>
       </div>
     </div>
