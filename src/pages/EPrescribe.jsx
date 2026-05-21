@@ -1276,12 +1276,12 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                       onFocus={() => setShowPharmacyDropdown(true)}
                       placeholder="Search by name, chain, city, or zip code..." />
                     {showPharmacyDropdown && (
-                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-white)', boxShadow: 'var(--shadow-md)' }}>
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, maxHeight: 400, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-white)', boxShadow: 'var(--shadow-md)' }}>
                         {(() => {
                           const q = pharmacySearch.toLowerCase();
                           const localMatches = sortedPharmacies.filter(p =>
                             !pharmacySearch || p.name.toLowerCase().includes(q) || p.chain.toLowerCase().includes(q) || p.city.toLowerCase().includes(q) || p.zip.includes(pharmacySearch) || p.address.toLowerCase().includes(q)
-                          ).slice(0, 10);
+                          ).slice(0, pharmacySearch ? 5 : 10);
                           // Deduplicate NPPES results against local list by NPI
                           const localNpis = new Set(localMatches.map(p => p.npi).filter(Boolean));
                           const liveMatches = nppesResults.filter(p => !localNpis.has(p.npi));
