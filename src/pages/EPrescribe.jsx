@@ -504,19 +504,22 @@ export default function EPrescribe() {
         const data = await res.json();
         const results = (data.results || []).map(r => {
           const addr = r.addresses?.find(a => a.address_purpose === 'LOCATION') || r.addresses?.[0] || {};
+          // Prefer DBA "Doing Business As" name (code 3) over legal entity name
+          const dbaName = r.other_names?.find(n => n.code === '3')?.organization_name;
+          const displayName = dbaName || r.basic?.organization_name || r.basic?.name || 'Unknown Pharmacy';
           return {
             id: `nppes-${r.number}`,
-            name: r.basic?.organization_name || r.basic?.name || 'Unknown Pharmacy',
+            name: displayName,
             chain: 'NPPES',
             address: [addr.address_1, addr.address_2].filter(Boolean).join(' '),
-            city: addr.city || '',
+            city: addr.city ? addr.city.charAt(0) + addr.city.slice(1).toLowerCase() : '',
             state: addr.state || 'IL',
             zip: addr.postal_code?.slice(0, 5) || '',
             phone: addr.telephone_number || '',
             fax: addr.fax_number || '',
             npi: r.number,
           };
-        }).filter(r => r.address && r.city);
+        }).filter(r => r.address && r.city && r.state === 'IL');
         setNppesResults(results);
       } catch {
         setNppesResults([]);
