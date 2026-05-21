@@ -19,7 +19,7 @@ router.get('/nppes/pharmacies', async (req, res) => {
       version: '2.1',
       enumeration_type: 'NPI-2',
       taxonomy_description: 'Pharmacy',
-      limit: '25',
+      limit: '200',
       skip: '0',
     });
 
@@ -69,7 +69,7 @@ router.get('/nppes/pharmacies', async (req, res) => {
       });
     });
 
-    res.json(merged.filter(r => r.address && r.city).slice(0, 30));
+    res.json(merged.filter(r => r.address && r.city).slice(0, 200));
   } catch (err) {
     console.error('NPPES search error:', err.message);
     res.status(502).json({ error: 'NPPES API unavailable' });
