@@ -43,8 +43,8 @@ router.get('/nppes/pharmacies', async (req, res) => {
       queries.push({ ...base(), city: raw });
       queries.push({ ...base(), organization_name: raw + '*' });
     } else {
-      // State only — return any pharmacies in that state
-      queries.push({ ...base(), city: '*' });
+      // State only — return any pharmacies in that state (wildcard org name)
+      queries.push({ ...base(), organization_name: '*' });
     }
 
     const responses = await Promise.all(
