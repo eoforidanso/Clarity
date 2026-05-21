@@ -478,54 +478,91 @@ export default function EPrescribe() {
   const [nppesLoading, setNppesLoading] = useState(false);
   const nppesTimer = useRef(null);
 
-  // Debounced NPPES search — fires when pharmacySearch has 3+ chars
+  // Debounced NPPES search — searches by NPI / zip / phone / city / name
   useEffect(() => {
     if (pharmacySearch.length < 3) { setNppesResults([]); setNppesLoading(false); return; }
     setNppesLoading(true);
     clearTimeout(nppesTimer.current);
     nppesTimer.current = setTimeout(async () => {
       try {
-        // Build query: search by organization name (text) or zip code (numeric)
-        // No state filter — allows national pharmacies including mail order/delivery
-        const isZip = /^\d+$/.test(pharmacySearch);
-        const params = new URLSearchParams({
-          enumeration_type: 'NPI-2',
-          taxonomy_description: 'Pharmacy',
-          limit: '20',
-          skip: '0',
-        });
-        if (isZip) {
-          params.set('postal_code', pharmacySearch + '*');
+        const raw = pharmacySearch.trim();
+        const digits = raw.replace(/\D/g, '');
+        const isAllDigits = /^\d+$/.test(raw);
+        // Detect search type
+        const queries = [];
+        const baseParams = () => {
+          const p = new URLSearchParams({
+            enumeration_type: 'NPI-2',
+            taxonomy_description: 'Pharmacy',
+            limit: '25',
+            skip: '0',
+          });
+          return p;
+        };
+        if (digits.length === 10 && (isAllDigits || raw.length > 10)) {
+          // 10-digit NPI lookup (most specific)
+          const p = baseParams();
+          p.set('number', digits);
+          queries.push(p);
+        } else if (isAllDigits && raw.length === 5) {
+          // ZIP code
+          const p = baseParams();
+          p.set('postal_code', raw);
+          queries.push(p);
+        } else if (isAllDigits && raw.length >= 3 && raw.length < 5) {
+          // ZIP prefix
+          const p = baseParams();
+          p.set('postal_code', raw + '*');
+          queries.push(p);
         } else {
-          // Search by name only — setting city to the search term causes zero results
-          params.set('organization_name', pharmacySearch + '*');
+          // Text search — try both city and organization name in parallel
+          const pCity = baseParams();
+          pCity.set('city', raw);
+          queries.push(pCity);
+          const pName = baseParams();
+          pName.set('organization_name', raw + '*');
+          queries.push(pName);
         }
-        const res = await fetch(`https://npiregistry.cms.hhs.gov/api/?${params}`, { signal: AbortSignal.timeout(5000) });
-        const data = await res.json();
-        const results = (data.results || []).map(r => {
-          const addr = r.addresses?.find(a => a.address_purpose === 'LOCATION') || r.addresses?.[0] || {};
-          // Prefer DBA "Doing Business As" name (code 3) over legal entity name
-          const dbaName = r.other_names?.find(n => n.code === '3')?.organization_name;
-          const displayName = dbaName || r.basic?.organization_name || r.basic?.name || 'Unknown Pharmacy';
-          return {
-            id: `nppes-${r.number}`,
-            name: displayName,
-            chain: 'NPPES',
-            address: [addr.address_1, addr.address_2].filter(Boolean).join(' '),
-            city: addr.city ? addr.city.charAt(0) + addr.city.slice(1).toLowerCase() : '',
-            state: addr.state || 'IL',
-            zip: addr.postal_code?.slice(0, 5) || '',
-            phone: addr.telephone_number || '',
-            fax: addr.fax_number || '',
-            npi: r.number,
-          };
-        }).filter(r => r.address && r.city);
-        setNppesResults(results);
+
+        const responses = await Promise.all(
+          queries.map(p =>
+            fetch(`https://npiregistry.cms.hhs.gov/api/?${p}`, { signal: AbortSignal.timeout(6000) })
+              .then(r => r.json())
+              .catch(() => ({ results: [] }))
+          )
+        );
+
+        const seen = new Set();
+        const merged = [];
+        responses.forEach(data => {
+          (data.results || []).forEach(r => {
+            if (seen.has(r.number)) return;
+            seen.add(r.number);
+            const addr = r.addresses?.find(a => a.address_purpose === 'LOCATION') || r.addresses?.[0] || {};
+            const dbaName = r.other_names?.find(n => n.code === '3')?.organization_name;
+            const displayName = dbaName || r.basic?.organization_name || r.basic?.name || 'Unknown Pharmacy';
+            const titleCase = (s) => s ? s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : '';
+            merged.push({
+              id: `nppes-${r.number}`,
+              name: titleCase(displayName),
+              chain: 'NPPES',
+              address: titleCase([addr.address_1, addr.address_2].filter(Boolean).join(' ')),
+              city: titleCase(addr.city || ''),
+              state: addr.state || '',
+              zip: addr.postal_code?.slice(0, 5) || '',
+              phone: addr.telephone_number || '',
+              fax: addr.fax_number || '',
+              npi: r.number,
+            });
+          });
+        });
+        const filtered = merged.filter(r => r.address && r.city);
+        setNppesResults(filtered.slice(0, 30));
       } catch {
         setNppesResults([]);
       }
       setNppesLoading(false);
-    }, 500);
+    }, 400);
     return () => clearTimeout(nppesTimer.current);
   }, [pharmacySearch]);
 
@@ -1274,7 +1311,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                     <input className="form-input" value={pharmacySearch}
                       onChange={(e) => { setPharmacySearch(e.target.value); setShowPharmacyDropdown(true); }}
                       onFocus={() => setShowPharmacyDropdown(true)}
-                      placeholder="Search by name, chain, city, or zip code..." />
+                      placeholder="Search by pharmacy name, city, zip code, or NPI number..." />
                     {showPharmacyDropdown && (
                       <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, maxHeight: 400, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-white)', boxShadow: 'var(--shadow-md)' }}>
                         {(() => {
@@ -1287,7 +1324,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                           const liveMatches = nppesResults.filter(p => !localNpis.has(p.npi));
                           const allResults = [...localMatches, ...liveMatches];
                           if (allResults.length === 0 && !nppesLoading) {
-                            return <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>{pharmacySearch.length >= 3 ? 'No pharmacies found' : 'Type at least 3 characters to search all US pharmacies'}</div>;
+                            return <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>{pharmacySearch.length >= 3 ? 'No pharmacies found — try a city, zip code, or full pharmacy name' : 'Type at least 3 characters — search by name, city, zip, or NPI'}</div>;
                           }
                           return (
                             <>
