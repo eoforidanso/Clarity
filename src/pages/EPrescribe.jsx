@@ -485,12 +485,12 @@ export default function EPrescribe() {
     nppesTimer.current = setTimeout(async () => {
       setNppesLoading(true);
       try {
-        // Build query: search by organization name OR city (if not numeric) OR zip (if numeric)
+        // Build query: search by organization name (text) or zip code (numeric)
+        // No state filter — allows national pharmacies including mail order/delivery
         const isZip = /^\d+$/.test(pharmacySearch);
         const params = new URLSearchParams({
           enumeration_type: 'NPI-2',
           taxonomy_description: 'Pharmacy',
-          state: 'IL',
           limit: '20',
           skip: '0',
         });
@@ -519,7 +519,7 @@ export default function EPrescribe() {
             fax: addr.fax_number || '',
             npi: r.number,
           };
-        }).filter(r => r.address && r.city && r.state === 'IL');
+        }).filter(r => r.address && r.city);
         setNppesResults(results);
       } catch {
         setNppesResults([]);
