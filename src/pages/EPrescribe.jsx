@@ -497,8 +497,8 @@ export default function EPrescribe() {
         if (isZip) {
           params.set('postal_code', pharmacySearch + '*');
         } else {
+          // Search by name only — setting city to the search term causes zero results
           params.set('organization_name', pharmacySearch + '*');
-          params.set('city', pharmacySearch);
         }
         const res = await fetch(`https://npiregistry.cms.hhs.gov/api/?${params}`, { signal: AbortSignal.timeout(5000) });
         const data = await res.json();
