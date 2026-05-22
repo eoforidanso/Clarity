@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import SystemStatus from '../components/SystemStatus';
@@ -18,8 +18,19 @@ function getErrorConfig(msg) {
 }
 
 export default function LoginPage() {
-  const { login, completeTwoFactor, changePassword: authChangePassword, loginError, clearLoginError, serverDown } = useAuth();
+  const { login, completeTwoFactor, changePassword: authChangePassword,
+          loginError, clearLoginError, serverDown,
+          sessionChecking, cancelSessionCheck } = useAuth();
   const navigate = useNavigate();
+
+  // Track how many seconds the session probe has been running
+  const [checkElapsed, setCheckElapsed] = useState(0);
+  useEffect(() => {
+    if (!sessionChecking) { setCheckElapsed(0); return; }
+    const t0 = Date.now();
+    const id = setInterval(() => setCheckElapsed(Math.round((Date.now() - t0) / 1000)), 500);
+    return () => clearInterval(id);
+  }, [sessionChecking]);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -154,6 +165,27 @@ export default function LoginPage() {
             <h1 className="glass-card-title" id="signin-heading">
               <span className="glass-card-lock" aria-hidden="true">🔒</span> Secure Sign In
             </h1>
+
+            {/* Session check — dismissible, never blocks the form */}
+            {sessionChecking && (
+              <div className="session-check-banner" role="status" aria-live="polite" aria-label="Checking for active session">
+                <span className="session-check-spinner" aria-hidden="true" />
+                <span className="session-check-text">
+                  Checking for an active session
+                  {checkElapsed > 0 && (
+                    <span className="session-check-elapsed" aria-label={`${checkElapsed} seconds elapsed`}> · {checkElapsed}s</span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  className="session-check-skip"
+                  onClick={cancelSessionCheck}
+                  aria-label="Skip session check and sign in manually"
+                >
+                  Sign in now →
+                </button>
+              </div>
+            )}
 
             {/* Live region — screen readers announce login errors immediately */}
             <div role="alert" aria-live="assertive" aria-atomic="true">

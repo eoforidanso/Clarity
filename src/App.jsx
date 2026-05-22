@@ -171,30 +171,17 @@ function ProtectedLayout() {
 
 function LoginRoute() {
   const { isAuthenticated, sessionChecking, currentUser } = useAuth();
-  // While session probe is running, show the login page with a top progress bar
-  // (don't redirect prematurely — wait to see if there's a valid session)
-  if (sessionChecking) return (
-    <>
-      <div className="route-loading-bar" aria-hidden="true" />
-      <LoginPage />
-    </>
-  );
-  if (isAuthenticated && currentUser?.role === 'patient') return <Navigate to="/patient-portal" replace />;
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
-  return <LoginPage />;
+  // LoginPage manages its own session-check banner — always render it while checking
+  if (sessionChecking || !isAuthenticated) return <LoginPage />;
+  if (currentUser?.role === 'patient') return <Navigate to="/patient-portal" replace />;
+  return <Navigate to="/dashboard" replace />;
 }
 
 function PatientPortalLoginRoute() {
   const { isAuthenticated, sessionChecking, currentUser } = useAuth();
-  if (sessionChecking) return (
-    <>
-      <div className="route-loading-bar" aria-hidden="true" />
-      <PatientPortalLogin />
-    </>
-  );
-  if (isAuthenticated && currentUser?.role === 'patient') return <Navigate to="/patient-portal" replace />;
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
-  return <PatientPortalLogin />;
+  if (sessionChecking || !isAuthenticated) return <PatientPortalLogin />;
+  if (currentUser?.role === 'patient') return <Navigate to="/patient-portal" replace />;
+  return <Navigate to="/dashboard" replace />;
 }
 
 function PatientPortalRoute() {

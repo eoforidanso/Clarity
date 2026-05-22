@@ -67,6 +67,13 @@ export function AuthProvider({ children }) {
   const [serverDown, setServerDown] = useState(false); // true when API is unreachable at boot
   const epcsOTPRef = useRef(null);
   const lastActivityRef = useRef(Date.now());
+  const sessionControllerRef = useRef(null);   // AbortController for the boot-time /auth/me probe
+
+  // Gives the login page an escape hatch — abort the session probe and go straight to login.
+  const cancelSessionCheck = useCallback(() => {
+    sessionControllerRef.current?.abort();
+    setSessionChecking(false);
+  }, []);
 
   // ── Session Timeout Management ────────────────────────
   const resetSessionTimer = useCallback(() => {
@@ -100,12 +107,16 @@ export function AuthProvider({ children }) {
   }, [isAuthenticated, resetSessionTimer, logout]);
 
   // ── Restore Session on Mount ──────────────────────────
-  // Runs silently in the background — login page renders immediately.
-  // Hard timeout at 2.5 s so a slow server never blocks the user.
+  // Runs in the background — login page is immediately interactive.
+  // Auto-times-out after 2.5 s. User can also cancel via cancelSessionCheck().
   useEffect(() => {
+    const controller = new AbortController();
+    sessionControllerRef.current = controller;
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
+
     const restoreSession = async () => {
       try {
-        const data = await authApi.me({ signal: AbortSignal.timeout(2500) });
+        const data = await authApi.me({ signal: controller.signal });
         const user = data.user;
         const enriched = {
           ...user,
@@ -115,19 +126,21 @@ export function AuthProvider({ children }) {
         setIsAuthenticated(true);
         setAuthMode('backend');
       } catch (err) {
-        // AbortError / TimeoutError = server too slow — silently fall through
-        const isTimeout = err.name === 'AbortError' || err.name === 'TimeoutError';
-        if (!isTimeout) {
+        const isAborted = err.name === 'AbortError' || err.name === 'TimeoutError';
+        if (!isAborted) {
           if (err.code === 'network' || (err.status && err.status >= 500)) {
             setServerDown(true);
           }
         }
         setToken(null);
       } finally {
+        clearTimeout(timeoutId);
         setSessionChecking(false);
       }
     };
+
     restoreSession();
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, []);
 
   // ── Login ─────────────────────────────────────────────
@@ -252,6 +265,7 @@ export function AuthProvider({ children }) {
         currentUser,
         isAuthenticated,
         sessionChecking,
+        cancelSessionCheck,
         loginError,
         authMode,
         serverDown,
