@@ -6,7 +6,7 @@ import { authenticate } from '../middleware/auth.js';
 const router = Router();
 router.use(authenticate);
 
-function formatMed(row) {
+async function formatMed(row) {
   const rxHistory = await db.prepare('SELECT * FROM medication_rx_history WHERE medication_id = ? ORDER BY date DESC').all(row.id);
   return {
     id: row.id, name: row.name, dose: row.dose, route: row.route, frequency: row.frequency,
@@ -23,7 +23,7 @@ function formatMed(row) {
 // GET /api/patients/:patientId/medications
 router.get('/:patientId/medications', async (req, res) => {
   const rows = await db.prepare('SELECT * FROM medications WHERE patient_id = ? ORDER BY status ASC, name ASC').all(req.params.patientId);
-  res.json(rows.map(formatMed));
+  res.json(await Promise.all(rows.map(formatMed)));
 });
 
 // POST /api/patients/:patientId/medications
@@ -36,14 +36,15 @@ router.post('/:patientId/medications', async (req, res) => {
 
   // Add initial rx history entry
   if (b.rxHistory && b.rxHistory.length) {
-    const insertRx = await db.prepare('INSERT INTO medication_rx_history (id, medication_id, date, prescribed_by, pharmacy, qty, refill_number, type, note) VALUES (?,?,?,?,?,?,?,?,?)');
     for (const rx of b.rxHistory) {
-      insertRx.run(uuidv4(), id, rx.date, rx.prescribedBy || '', rx.pharmacy || '', rx.qty || 0, rx.refillNumber || 0, rx.type || 'New Prescription', rx.note || '');
+      await db.prepare('INSERT INTO medication_rx_history (id, medication_id, date, prescribed_by, pharmacy, qty, refill_number, type, note) VALUES (?,?,?,?,?,?,?,?,?)').run(
+        uuidv4(), id, rx.date, rx.prescribedBy || '', rx.pharmacy || '', rx.qty || 0, rx.refillNumber || 0, rx.type || 'New Prescription', rx.note || ''
+      );
     }
   }
 
   const row = await db.prepare('SELECT * FROM medications WHERE id = ?').get(id);
-  res.status(201).json(formatMed(row));
+  res.status(201).json(await formatMed(row));
 });
 
 // PUT /api/patients/:patientId/medications/:medId
@@ -57,7 +58,7 @@ router.put('/:patientId/medications/:medId', async (req, res) => {
   );
 
   const row = await db.prepare('SELECT * FROM medications WHERE id = ?').get(req.params.medId);
-  res.json(formatMed(row));
+  res.json(await formatMed(row));
 });
 
 // DELETE /api/patients/:patientId/medications/:medId

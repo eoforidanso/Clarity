@@ -6,37 +6,38 @@ import { authenticate } from '../middleware/auth.js';
 const router = Router();
 router.use(authenticate);
 
-function formatLabResult(row) {
+async function formatLabResult(row) {
   const tests = await db.prepare('SELECT * FROM lab_result_tests WHERE lab_result_id = ?').all(row.id);
+  const testsFormatted = await Promise.all(tests.map(async t => {
+    const components = await db.prepare('SELECT * FROM lab_result_components WHERE test_id = ?').all(t.id);
+    return {
+      name: t.name,
+      results: components.map(c => ({
+        component: c.component, value: c.value, unit: c.unit, range: c.range, flag: c.flag,
+      })),
+    };
+  }));
   return {
     id: row.id,
     orderDate: row.order_date,
     resultDate: row.result_date,
     orderedBy: row.ordered_by,
     status: row.status,
-    tests: tests.map(t => {
-      const components = await db.prepare('SELECT * FROM lab_result_components WHERE test_id = ?').all(t.id);
-      return {
-        name: t.name,
-        results: components.map(c => ({
-          component: c.component, value: c.value, unit: c.unit, range: c.range, flag: c.flag,
-        })),
-      };
-    }),
+    tests: testsFormatted,
   };
 }
 
 // GET /api/patients/:patientId/labs
 router.get('/:patientId/labs', async (req, res) => {
   const rows = await db.prepare('SELECT * FROM lab_results WHERE patient_id = ? ORDER BY order_date DESC').all(req.params.patientId);
-  res.json(rows.map(formatLabResult));
+  res.json(await Promise.all(rows.map(formatLabResult)));
 });
 
 // GET /api/patients/:patientId/labs/:labId
 router.get('/:patientId/labs/:labId', async (req, res) => {
   const row = await db.prepare('SELECT * FROM lab_results WHERE id = ? AND patient_id = ?').get(req.params.labId, req.params.patientId);
   if (!row) return res.status(404).json({ error: 'Lab result not found' });
-  res.json(formatLabResult(row));
+  res.json(await formatLabResult(row));
 });
 
 // POST /api/patients/:patientId/labs

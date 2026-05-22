@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { locations as locationsApi } from '../services/api';
+import { useSite } from '../contexts/SiteContext';
+import { locations as locationsApi, users as usersApi } from '../services/api';
+import { users as mockUsers } from '../data/mockData';
 
 const TYPES = ['Primary', 'Satellite', 'Virtual'];
 const STATUSES = ['Active', 'Inactive'];
@@ -131,6 +133,69 @@ function LocationForm({ initial, onSave, onCancel, loading, error }) {
   );
 }
 
+// ─── Provider helpers ────────────────────────────────────────────────────────
+const ROLES_PROVIDER = ['prescriber', 'therapist', 'nurse'];
+const EMPTY_PROVIDER = { firstName: '', lastName: '', role: 'prescriber', credentials: '', specialty: '', npi: '', deaNumber: '', email: '' };
+
+function ProviderForm({ initial, onSave, onCancel, loading, error }) {
+  const [form, setForm] = useState(initial);
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  const isPrescriber = form.role === 'prescriber';
+  return (
+    <form onSubmit={e => { e.preventDefault(); onSave(form); }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
+        <div><Field label="First Name" required><input style={inputStyle} value={form.firstName} onChange={e => set('firstName', e.target.value)} required placeholder="Jane" /></Field></div>
+        <div><Field label="Last Name" required><input style={inputStyle} value={form.lastName} onChange={e => set('lastName', e.target.value)} required placeholder="Smith" /></Field></div>
+        <div>
+          <Field label="Role" required>
+            <select style={inputStyle} value={form.role} onChange={e => set('role', e.target.value)}>
+              {ROLES_PROVIDER.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
+            </select>
+          </Field>
+        </div>
+        <div><Field label="Credentials"><input style={inputStyle} value={form.credentials} onChange={e => set('credentials', e.target.value)} placeholder="DNP, NP, LCSW, MD…" /></Field></div>
+        <div style={{ gridColumn: 'span 2' }}><Field label="Specialty"><input style={inputStyle} value={form.specialty} onChange={e => set('specialty', e.target.value)} placeholder="Psychiatry, Psychotherapy…" /></Field></div>
+        <div><Field label="NPI"><input style={inputStyle} value={form.npi} onChange={e => set('npi', e.target.value)} placeholder="10-digit NPI" maxLength={10} /></Field></div>
+        {isPrescriber && <div><Field label="DEA Number"><input style={inputStyle} value={form.deaNumber} onChange={e => set('deaNumber', e.target.value)} placeholder="e.g. MO7223857" /></Field></div>}
+        <div style={{ gridColumn: isPrescriber ? 'span 1' : 'span 2' }}>
+          <Field label="Email"><input style={inputStyle} type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="provider@clinic.com" /></Field>
+        </div>
+      </div>
+      {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, padding: '9px 12px', color: '#dc2626', fontSize: 13, marginBottom: 14 }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+        <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={loading}>Cancel</button>
+        <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Saving…' : 'Save Provider'}</button>
+      </div>
+    </form>
+  );
+}
+
+function EditProviderForm({ initial, onSave, onCancel, loading, error }) {
+  const [form, setForm] = useState({
+    credentials: initial.credentials || '',
+    specialty:   initial.specialty   || '',
+    npi:         initial.npi         || '',
+    deaNumber:   initial.deaNumber   || '',
+  });
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  const isPrescriber = initial.role === 'prescriber';
+  return (
+    <form onSubmit={e => { e.preventDefault(); onSave(form); }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
+        <div><Field label="Credentials"><input style={inputStyle} value={form.credentials} onChange={e => set('credentials', e.target.value)} placeholder="DNP, NP, LCSW…" /></Field></div>
+        <div><Field label="Specialty"><input style={inputStyle} value={form.specialty} onChange={e => set('specialty', e.target.value)} /></Field></div>
+        <div><Field label="NPI"><input style={inputStyle} value={form.npi} onChange={e => set('npi', e.target.value)} placeholder="10-digit NPI" maxLength={10} /></Field></div>
+        {isPrescriber && <div><Field label="DEA Number"><input style={inputStyle} value={form.deaNumber} onChange={e => set('deaNumber', e.target.value)} placeholder="e.g. MO7223857" /></Field></div>}
+      </div>
+      {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, padding: '9px 12px', color: '#dc2626', fontSize: 13, marginBottom: 14 }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+        <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={loading}>Cancel</button>
+        <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Saving…' : 'Save Changes'}</button>
+      </div>
+    </form>
+  );
+}
+
 function DeleteConfirm({ loc, onConfirm, onClose, loading }) {
   return (
     <Modal title="Delete Location" onClose={onClose}>
@@ -149,7 +214,8 @@ function DeleteConfirm({ loc, onConfirm, onClose, loading }) {
 
 export default function MultiLocationManagement() {
   const { currentUser } = useAuth();
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'front_desk';
+  const { reloadSites } = useSite();
+  const isAdmin = currentUser?.role === 'admin';
 
   const [locationData, setLocationData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -160,6 +226,15 @@ export default function MultiLocationManagement() {
   const [modal, setModal] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // ─ Provider state ────────────────────────────────────────────────
+  const [allUsers, setAllUsers] = useState([]);
+  const [providerModal, setProviderModal] = useState(null); // null | 'add-new' | 'assign' | 'edit-provider' | 'remove-provider'
+  const [selectedProvider, setSelectedProvider] = useState(null);
+  const [providerLoading, setProviderLoading] = useState(false);
+  const [providerError, setProviderError] = useState('');
+  const [providerForm, setProviderForm] = useState({});
+  const [assignId, setAssignId] = useState('');
 
   const [toast, setToast] = useState('');
   const toastRef = useRef(null);
@@ -177,29 +252,90 @@ export default function MultiLocationManagement() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  const loadUsers = useCallback(async () => {
+    try {
+      const data = await usersApi.list();
+      if (Array.isArray(data)) setAllUsers(data.filter(u => u.role !== 'patient' && u.role !== 'admin'));
+    } catch {
+      setAllUsers(mockUsers.filter(u => u.role !== 'patient' && u.role !== 'admin'));
+    }
+  }, []);
+
+  useEffect(() => { load(); loadUsers(); }, [load, loadUsers]);
 
   const closeModal = () => { setModal(null); setSelected(null); setFormError(''); };
 
   const handleAdd = async (form) => {
     setFormLoading(true); setFormError('');
-    try { await locationsApi.create(form); await load(); closeModal(); showToast('Location added'); }
+    try { await locationsApi.create(form); await load(); reloadSites(); closeModal(); showToast('Location added'); }
     catch (e) { setFormError(e.message); }
     finally { setFormLoading(false); }
   };
 
   const handleUpdate = async (form) => {
     setFormLoading(true); setFormError('');
-    try { await locationsApi.update(selected.id, form); await load(); closeModal(); showToast('Location updated'); }
+    try { await locationsApi.update(selected.id, form); await load(); reloadSites(); closeModal(); showToast('Location updated'); }
     catch (e) { setFormError(e.message); }
     finally { setFormLoading(false); }
   };
 
   const handleDelete = async () => {
     setFormLoading(true);
-    try { await locationsApi.remove(selected.id); await load(); closeModal(); showToast('Location deleted'); }
+    try { await locationsApi.remove(selected.id); await load(); reloadSites(); closeModal(); showToast('Location deleted'); }
     catch (e) { setFormError(e.message); }
     finally { setFormLoading(false); }
+  };
+
+  // ─ Provider handlers ───────────────────────────────────────────────
+  const locationProviders = selected ? allUsers.filter(u => u.locationId === selected.id) : [];
+  const unassignedProviders = selected
+    ? allUsers.filter(u => u.locationId !== selected.id && ['prescriber', 'therapist', 'nurse'].includes(u.role))
+    : [];
+
+  const closeProviderModal = () => {
+    setProviderModal(null); setSelectedProvider(null);
+    setProviderError(''); setProviderForm({}); setAssignId('');
+  };
+
+  const handleAssignProvider = async () => {
+    if (!assignId || !selected) return;
+    setProviderLoading(true); setProviderError('');
+    try {
+      await usersApi.update(assignId, { locationId: selected.id });
+      await loadUsers(); closeProviderModal(); showToast('Provider assigned to location');
+    } catch (e) { setProviderError(e.message || 'Failed to assign provider'); }
+    finally { setProviderLoading(false); }
+  };
+
+  const handleAddNewProvider = async (form) => {
+    if (!selected) return;
+    setProviderLoading(true); setProviderError('');
+    try {
+      const base = (form.firstName + '.' + form.lastName).toLowerCase().replace(/[^a-z0-9._-]/g, '');
+      await usersApi.create({ ...form, username: base || 'provider', password: 'ChangeMe1!', mustChangePassword: true, locationId: selected.id });
+      await loadUsers(); closeProviderModal(); showToast('Provider added');
+    } catch (e) { setProviderError(e.message || 'Failed to add provider'); }
+    finally { setProviderLoading(false); }
+  };
+
+  const handleEditProvider = async (form) => {
+    if (!selectedProvider) return;
+    setProviderLoading(true); setProviderError('');
+    try {
+      await usersApi.update(selectedProvider.id, form);
+      await loadUsers(); closeProviderModal(); showToast('Provider updated');
+    } catch (e) { setProviderError(e.message || 'Failed to update provider'); }
+    finally { setProviderLoading(false); }
+  };
+
+  const handleRemoveProvider = async () => {
+    if (!selectedProvider) return;
+    setProviderLoading(true);
+    try {
+      await usersApi.update(selectedProvider.id, { locationId: '' });
+      await loadUsers(); closeProviderModal(); showToast('Provider removed from location');
+    } catch (e) { setProviderError(e.message || 'Failed to remove provider'); }
+    finally { setProviderLoading(false); }
   };
 
   const byType = (t) => locationData.filter(l => l.type === t).length;
@@ -328,10 +464,81 @@ export default function MultiLocationManagement() {
                   </div>
                   {isAdmin && (
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setFormError(''); setModal('edit'); }}>Edit</button>
+                      <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setFormError(''); setModal('edit'); }}>Edit Location</button>
                       <button className="btn btn-danger" onClick={() => { setFormError(''); setModal('delete'); }}>Delete</button>
                     </div>
                   )}
+
+                  {/* ─── Providers ─── */}
+                  <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <div style={{ fontWeight: 800, fontSize: 14 }}>👩‍⚕️ Providers</div>
+                      {isAdmin && (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-secondary" style={{ padding: '3px 10px', fontSize: 11 }}
+                            onClick={() => { setProviderError(''); setAssignId(''); setProviderModal('assign'); }}>
+                            Assign Existing
+                          </button>
+                          <button className="btn btn-primary" style={{ padding: '3px 10px', fontSize: 11 }}
+                            onClick={() => { setProviderError(''); setProviderForm({ ...EMPTY_PROVIDER }); setProviderModal('add-new'); }}>
+                            + New Provider
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {locationProviders.length === 0 ? (
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: '14px 0' }}>No providers assigned to this location</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {locationProviders.map(p => (
+                          <div key={p.id} style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: 13 }}>
+                                  {p.credentials ? p.credentials + ' ' : ''}{p.firstName} {p.lastName}
+                                </div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                                  {p.role.charAt(0).toUpperCase() + p.role.slice(1)}{p.specialty ? ' · ' + p.specialty : ''}
+                                </div>
+                              </div>
+                              {isAdmin && (
+                                <div style={{ display: 'flex', gap: 4 }}>
+                                  <button
+                                    style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, padding: '2px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--text-primary)' }}
+                                    onClick={() => { setSelectedProvider(p); setProviderError(''); setProviderModal('edit-provider'); }}>
+                                    Edit
+                                  </button>
+                                  <button
+                                    style={{ background: 'none', border: '1px solid #fecaca', borderRadius: 5, padding: '2px 8px', fontSize: 11, cursor: 'pointer', color: '#dc2626' }}
+                                    onClick={() => { setSelectedProvider(p); setProviderError(''); setProviderModal('remove-provider'); }}>
+                                    Remove
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                              {p.npi ? (
+                                <div style={{ background: '#eff6ff', borderRadius: 5, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#3b82f6' }}>NPI</span>
+                                  <span style={{ fontSize: 12, fontWeight: 600 }}>{p.npi}</span>
+                                </div>
+                              ) : null}
+                              {p.deaNumber && p.role === 'prescriber' ? (
+                                <div style={{ background: '#fef3c7', borderRadius: 5, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#d97706' }}>DEA</span>
+                                  <span style={{ fontSize: 12, fontWeight: 600 }}>{p.deaNumber}</span>
+                                </div>
+                              ) : null}
+                              {!p.npi && !(p.deaNumber && p.role === 'prescriber') && (
+                                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>No credentials on file</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -403,6 +610,60 @@ export default function MultiLocationManagement() {
       )}
       {modal === 'delete' && selected && (
         <DeleteConfirm loc={selected} onConfirm={handleDelete} onClose={closeModal} loading={formLoading} />
+      )}
+
+      {/* ─── Provider modals ─── */}
+      {providerModal === 'add-new' && selected && (
+        <Modal title={`Add New Provider — ${selected.name}`} onClose={closeProviderModal}>
+          <ProviderForm initial={providerForm} onSave={handleAddNewProvider} onCancel={closeProviderModal} loading={providerLoading} error={providerError} />
+        </Modal>
+      )}
+      {providerModal === 'assign' && selected && (
+        <Modal title={`Assign Existing Provider — ${selected.name}`} onClose={closeProviderModal}>
+          <Field label="Select Staff Member">
+            <select style={inputStyle} value={assignId} onChange={e => setAssignId(e.target.value)}>
+              <option value="">— choose a staff member —</option>
+              {unassignedProviders.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.credentials ? u.credentials + ' ' : ''}{u.firstName} {u.lastName} ({u.role})
+                  {u.locationId ? ' — currently at another location' : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {providerError && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, padding: '9px 12px', color: '#dc2626', fontSize: 13, margin: '8px 0' }}>{providerError}</div>}
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
+            <button className="btn btn-secondary" onClick={closeProviderModal} disabled={providerLoading}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleAssignProvider} disabled={providerLoading || !assignId}>
+              {providerLoading ? 'Assigning…' : 'Assign to Location'}
+            </button>
+          </div>
+        </Modal>
+      )}
+      {providerModal === 'edit-provider' && selectedProvider && (
+        <Modal title={`Edit — ${selectedProvider.credentials ? selectedProvider.credentials + ' ' : ''}${selectedProvider.firstName} ${selectedProvider.lastName}`} onClose={closeProviderModal}>
+          <EditProviderForm initial={selectedProvider} onSave={handleEditProvider} onCancel={closeProviderModal} loading={providerLoading} error={providerError} />
+        </Modal>
+      )}
+      {providerModal === 'remove-provider' && selectedProvider && selected && (
+        <Modal title="Remove Provider from Location" onClose={closeProviderModal}>
+          <div style={{ textAlign: 'center', padding: '10px 0 20px' }}>
+            <div style={{ fontSize: 36, marginBottom: 14 }}>⚠️</div>
+            <p style={{ fontWeight: 600, fontSize: 15 }}>
+              Remove <strong>{selectedProvider.credentials ? selectedProvider.credentials + ' ' : ''}{selectedProvider.firstName} {selectedProvider.lastName}</strong> from <strong>{selected.name}</strong>?
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 24px' }}>
+              Their account remains active but will no longer be assigned to this location.
+            </p>
+            {providerError && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, padding: '9px 12px', color: '#dc2626', fontSize: 13, marginBottom: 14 }}>{providerError}</div>}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button className="btn btn-secondary" onClick={closeProviderModal} disabled={providerLoading}>Cancel</button>
+              <button className="btn btn-danger" onClick={handleRemoveProvider} disabled={providerLoading}>
+                {providerLoading ? 'Removing…' : 'Remove from Location'}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {toast && (

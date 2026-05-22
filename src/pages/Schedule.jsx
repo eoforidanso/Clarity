@@ -1431,7 +1431,7 @@ export default function Schedule() {
   const { appointments, updateAppointmentStatus, addAppointment, selectPatient, patients, blockedDays, addBlockedDay, removeBlockedDay } = usePatient();
   const { activeSiteId, isFiltered } = useSite();
   const navigate = useNavigate();
-  const isFrontDesk = currentUser?.role === "front_desk";
+  const isFrontDesk = currentUser?.role === "front_desk" || currentUser?.role === "admin";
   const isProvider  = currentUser?.role === "prescriber" || currentUser?.role === "therapist";
 
   // Restrict which providers a user can block days for:
@@ -1554,6 +1554,8 @@ export default function Schedule() {
     ...(isProvider  ? [{ key:"close-encounter", label:"🔒 Close Encounter" }] : []),
   ];
 
+  const canCreateAppointment = isFrontDesk || isProvider;
+
   return (
     <div className="fade-in">
       {/* PAGE HEADER */}
@@ -1573,7 +1575,7 @@ export default function Schedule() {
                     background:showBlockPanel?"#c92b2b":"#fff",
                     color:showBlockPanel?"#fff":"var(--text-secondary)" }}>⛔ Block Days</button>
               )}
-              {isFrontDesk && (
+              {canCreateAppointment && (
                 <button className="btn btn-primary btn-sm" onClick={() => { setModalDate(activeDate); setShowModal(true); }}
                   style={{ fontSize:12, fontWeight:700 }}>＋ New Appointment</button>
               )}

@@ -588,7 +588,7 @@ export default function HealthAdminToolkit() {
   const [sentSuccess, setSentSuccess] = useState(null);
   const [patientDropdown, setPatientDropdown] = useState([]);
 
-  const isFrontDesk = currentUser?.role === 'front_desk';
+  const isFrontDesk = currentUser?.role === 'front_desk' || currentUser?.role === 'admin';
 
   const totalAppts = appointments.length;
   const todayAppts = appointments.filter(

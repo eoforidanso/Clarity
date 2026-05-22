@@ -80,7 +80,7 @@ export function auditMiddleware(action, resourceType) {
 /**
  * Get audit log entries with filters
  */
-export function getAuditLog({ userId, patientId, action, startDate, endDate, limit = 100, offset = 0 }) {
+export async function getAuditLog({ userId, patientId, action, startDate, endDate, limit = 100, offset = 0 }) {
   let sql = 'SELECT * FROM audit_log WHERE 1=1';
   const params = [];
 

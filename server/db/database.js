@@ -1,4 +1,11 @@
 import pg from 'pg';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const { Pool } = pg;
 
@@ -120,7 +127,7 @@ export async function initializeDatabase() {
       password_hash TEXT NOT NULL,
       first_name TEXT NOT NULL,
       last_name TEXT DEFAULT '',
-      role TEXT NOT NULL CHECK(role IN ('prescriber','nurse','front_desk','patient','therapist')),
+      role TEXT NOT NULL CHECK(role IN ('prescriber','nurse','front_desk','patient','therapist','admin')),
       credentials TEXT DEFAULT '',
       specialty TEXT DEFAULT '',
       npi TEXT DEFAULT '',
@@ -809,7 +816,7 @@ export async function initializeDatabase() {
       ip_address TEXT,
       user_agent TEXT,
       session_id TEXT,
-      success BOOLEAN DEFAULT 1,
+      success BOOLEAN DEFAULT TRUE,
       failure_reason TEXT,
       timestamp TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id)
@@ -873,7 +880,7 @@ export async function initializeDatabase() {
       conditions TEXT NOT NULL, -- JSON with rule conditions
       actions TEXT NOT NULL, -- JSON with actions to take
       priority INTEGER DEFAULT 1,
-      enabled BOOLEAN DEFAULT 1,
+      enabled BOOLEAN DEFAULT TRUE,
       created_at TEXT DEFAULT NOW(),
       updated_at TEXT DEFAULT NOW()
     );
@@ -1024,10 +1031,40 @@ export async function initializeDatabase() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS location_id TEXT DEFAULT 'loc1'`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS dosespot_user_id TEXT DEFAULT NULL`,
     `ALTER TABLE patients ADD COLUMN IF NOT EXISTS dosespot_patient_id TEXT DEFAULT NULL`,
+    // Encounter signing — prevents edits after a note is signed/locked
+    `ALTER TABLE encounters ADD COLUMN IF NOT EXISTS is_signed INTEGER DEFAULT 0`,
+    `ALTER TABLE encounters ADD COLUMN IF NOT EXISTS signed_by TEXT DEFAULT ''`,
+    `ALTER TABLE encounters ADD COLUMN IF NOT EXISTS signed_at TEXT DEFAULT NULL`,
+    // Appointment location tracking for multi-site scheduling
+    `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS location_id TEXT DEFAULT 'loc1'`,
   ];
   for (const m of columnMigrations) {
     await pool.query(m);
   }
+
+  // Expand role CHECK constraint to include 'admin' (idempotent)
+  await pool.query(`
+    DO $$ BEGIN
+      ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+      ALTER TABLE users ADD CONSTRAINT users_role_check
+        CHECK(role IN ('prescriber','nurse','front_desk','patient','therapist','admin'));
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$;
+  `);
+
+  // Ensure Harriet (system admin) exists with the correct role
+  await pool.query(`
+    INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, epcs_pin_hash, two_factor_enabled, must_change_password, location_id)
+    VALUES ('u5', 'harriet', '$2a$10$Qq3HXdNpQ2.V5P.IqR8adesFPK9JYYkTBUHCu2gIsMVV6vHJ8Xy8i', 'Harriet', 'Appiah', 'admin', '', '', '', '', 'harriet@clarity.health', NULL, 1, 1, 'loc1')
+    ON CONFLICT (id) DO UPDATE SET role = 'admin', username = EXCLUDED.username, first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name;
+  `);
+
+  // Ensure Emmanuel (APMG prescriber) exists
+  await pool.query(`
+    INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, epcs_pin_hash, two_factor_enabled, must_change_password, location_id)
+    VALUES ('u9', 'dr.emmanuel', '$2a$10$Qq3HXdNpQ2.V5P.IqR8adesFPK9JYYkTBUHCu2gIsMVV6vHJ8Xy8i', 'Emmanuel', 'Oforidanso', 'prescriber', 'NP', 'Psychiatric Mental Health', '1376299933', 'MO7223857', 'emmanuel@clarity.health', NULL, 1, 1, 'loc-apmg')
+    ON CONFLICT (id) DO UPDATE SET location_id = 'loc-apmg';
+  `);
 
   console.log('PostgreSQL schema initialized');
 }

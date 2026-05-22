@@ -6,7 +6,7 @@ import { authenticate, authorize } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
 
 const router = Router();
-const ADMIN_ROLES = ['front_desk'];
+const ADMIN_ROLES = ['admin', 'front_desk'];
 const SALT_ROUNDS = 12;
 
 // Validate password strength at system boundary
@@ -28,13 +28,13 @@ function sanitizeUsername(raw) {
   return cleaned;
 }
 
-const VALID_ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist'];
+const VALID_ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist', 'admin'];
 
 // ── GET /api/users/directory ───────────────────────────────────────────
 // Returns basic name/role info for all staff — accessible by any authenticated user.
 // No sensitive data (email, NPI, DEA) is included.
-router.get('/directory', authenticate, (_req, res) => {
-  const rows = db
+router.get('/directory', authenticate, async (_req, res) => {
+  const rows = await db
     .prepare(
       `SELECT id, first_name, last_name, role, credentials, specialty
        FROM users
@@ -55,8 +55,8 @@ router.get('/directory', authenticate, (_req, res) => {
 
 // ── GET /api/users ─────────────────────────────────────────────────────
 // Returns all staff users (not patients). Admin/front_desk only.
-router.get('/', authenticate, authorize(...ADMIN_ROLES), (_req, res) => {
-  const rows = db
+router.get('/', authenticate, authorize(...ADMIN_ROLES), async (_req, res) => {
+  const rows = await db
     .prepare(
       `SELECT id, username, first_name, last_name, role, credentials, specialty,
               npi, dea_number, email, two_factor_enabled, location_id, created_at, updated_at

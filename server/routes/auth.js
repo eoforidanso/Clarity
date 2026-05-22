@@ -93,6 +93,7 @@ async function issueFullSession(res, req, user) {
       twoFactorEnabled: !!user.two_factor_enabled,
       mustChangePassword: !!user.must_change_password,
       patientId: user.patient_id,
+      locationId: user.location_id || 'loc1',
     },
   };
 }
@@ -116,7 +117,7 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ error: 'Invalid password' });
   }
 
-  const user = await db.prepare('SELECT id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, totp_secret, must_change_password, patient_id FROM users WHERE username = ?').get(sanitizedUsername);
+  const user = await db.prepare('SELECT id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, totp_secret, must_change_password, patient_id, location_id FROM users WHERE username = ?').get(sanitizedUsername);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     // Log failed login attempt
     logAuditEvent({
@@ -181,15 +182,6 @@ router.post('/login', async (req, res) => {
 
 // GET /api/auth/me
 router.get('/me', authenticate, async (req, res) => {
-  logAuditEvent({
-    userId: req.user.id,
-    userName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
-    userRole: req.user.role,
-    action: 'SESSION_VALIDATED',
-    resourceType: 'auth',
-    ipAddress: req.ip || '',
-    userAgent: req.get('User-Agent') || '',
-  });
   res.json({
     user: {
       id: req.user.id,
@@ -293,8 +285,8 @@ router.post('/verify-epcs-pin', authenticate, async (req, res) => {
 
 // POST /api/auth/generate-epcs-otp
 router.post('/generate-epcs-otp', authenticate, async (req, res) => {
-  // Generate 6-digit OTP
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  // Generate cryptographically secure 6-digit OTP
+  const otp = crypto.randomInt(100000, 1000000).toString();
   const otpHash = bcrypt.hashSync(otp, 10);
   const expiresAt = new Date(Date.now() + 30000).toISOString(); // 30 seconds
 

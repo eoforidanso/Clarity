@@ -5,7 +5,7 @@ import { authenticate, authorize } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
 
 const router = Router();
-const ADMIN_ROLES = ['front_desk'];
+const ADMIN_ROLES = ['admin'];
 const VALID_TYPES = ['Primary', 'Satellite', 'Virtual'];
 const VALID_STATUSES = ['Active', 'Inactive'];
 
@@ -33,7 +33,7 @@ function rowToObj(r) {
 
 // ── GET /api/locations ──────────────────────────────────────────────────
 // Public to authenticated users (all roles need to see the location list)
-router.get('/', authenticate, (_req, res) => {
+router.get('/', authenticate, async (_req, res) => {
   const rows = await db.prepare(
     `SELECT * FROM locations ORDER BY sort_order ASC, name ASC`
   ).all();

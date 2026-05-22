@@ -3,34 +3,20 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { useNotifications } from '../contexts/NotificationContext';
-import { locations as locationsApi } from '../services/api';
+import { useSite } from '../contexts/SiteContext';
 
 export default function Header() {
   const { currentUser } = useAuth();
   const { patients, selectPatient, openChart, closeChart, openCharts, selectedPatient, inboxMessages } = usePatient();
   const { unreadCount: notifUnread, togglePanel } = useNotifications();
+  const { activeSiteId, setActiveSite, availableSites } = useSite();
   const [search, setSearch] = useState('');
   const [showResults, setShowResults] = useState(false);
   const [now, setNow] = useState(new Date());
-  const [selectedLocation, setSelectedLocation] = useState('');
-  const [locationList, setLocationList] = useState([]);
   const navigate = useNavigate();
   const location = useLocation();
   const searchRef = useRef(null);
   const inputRef = useRef(null);
-
-  // Fetch locations from API; fall back to empty list gracefully
-  useEffect(() => {
-    locationsApi.list()
-      .then(data => {
-        const active = data.filter(l => l.status === 'Active');
-        setLocationList(active);
-        if (active.length > 0) setSelectedLocation(prev => prev || active[0].id);
-      })
-      .catch(() => {
-        // Backend unavailable — show nothing in dropdown
-      });
-  }, []);
 
   const unreadCount = inboxMessages.filter(
     (m) => !m.read && (m.to === currentUser?.id || currentUser?.role === 'front_desk')
@@ -261,21 +247,28 @@ export default function Header() {
 
       {/* Right actions */}
       <div className="header-actions">
-        {/* Location picker */}
-        <select
-          value={selectedLocation}
-          onChange={e => setSelectedLocation(e.target.value)}
-          style={{
-            padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)',
-            fontSize: 11, fontWeight: 600, background: 'var(--bg)', color: 'var(--text-secondary)',
-            cursor: 'pointer', maxWidth: 140,
-          }}
-          title="Select Location"
-        >
-          {locationList.map(l => (
-            <option key={l.id} value={l.id}>📍 {l.shortName || l.name}</option>
-          ))}
-        </select>
+        {/* Location picker — wired to SiteContext */}
+        {availableSites.length > 1 && (
+          <select
+            value={activeSiteId}
+            onChange={e => setActiveSite(e.target.value)}
+            style={{
+              padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)',
+              fontSize: 11, fontWeight: 600, background: 'var(--bg)', color: 'var(--text-secondary)',
+              cursor: 'pointer', maxWidth: 160,
+            }}
+            title="Select Location"
+          >
+            {availableSites.map(s => (
+              <option key={s.id} value={s.id}>{s.icon} {s.shortName || s.name}</option>
+            ))}
+          </select>
+        )}
+        {availableSites.length === 1 && (
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)' }}>
+            {availableSites[0].icon} {availableSites[0].shortName || availableSites[0].name}
+          </span>
+        )}
 
         <button className="header-btn" title="Settings" onClick={() => navigate('/settings')}>
           ⚙️

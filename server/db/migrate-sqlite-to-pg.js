@@ -17,7 +17,7 @@ import dotenv from 'dotenv';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-const SQLITE_PATH = path.join(__dirname, '../ehr.sqlite');
+const SQLITE_PATH = path.join(__dirname, 'ehr.sqlite');
 const DATABASE_URL = process.env.DATABASE_URL;
 
 if (!DATABASE_URL) {
@@ -102,10 +102,16 @@ async function migrateTable(client, table) {
     const colList = columns.map(c => `"${c}"`).join(', ');
     const sql = `INSERT INTO ${table} (${colList}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`;
     try {
+      await client.query('BEGIN');
       await client.query(sql, values);
+      await client.query('COMMIT');
       inserted++;
     } catch (err) {
-      console.error(`  [error] ${table} row ${row.id ?? '?'}: ${err.message}`);
+      await client.query('ROLLBACK');
+      // Skip FK violations and duplicates silently, log others
+      if (err.code !== '23503' && err.code !== '23505') {
+        console.error(`  [error] ${table} row ${row.id ?? '?'}: ${err.message}`);
+      }
     }
   }
 
@@ -116,24 +122,14 @@ async function migrateTable(client, table) {
 async function run() {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-
-    // Temporarily disable FK checks for migration
-    await client.query('SET session_replication_role = replica');
-
     let total = 0;
     for (const table of TABLES) {
       total += await migrateTable(client, table);
     }
 
-    // Re-enable FK checks
-    await client.query('SET session_replication_role = DEFAULT');
-
-    await client.query('COMMIT');
     console.log(`\nMigration complete. Total rows migrated: ${total}`);
   } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('Migration failed, rolled back:', err);
+    console.error('Migration failed:', err);
     process.exit(1);
   } finally {
     client.release();

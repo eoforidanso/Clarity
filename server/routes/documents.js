@@ -13,7 +13,7 @@ const router = Router();
 
 // ── Utility: Build structured document data ─────────────
 
-function getPatientHeader(patientId) {
+async function getPatientHeader(patientId) {
   const p = await db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId);
   if (!p) return null;
   return {
@@ -28,7 +28,7 @@ function getPatientHeader(patientId) {
   };
 }
 
-function getProviderInfo(userId) {
+async function getProviderInfo(userId) {
   const u = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
   if (!u) return { name: 'Unknown', credentials: '', npi: '', specialty: '' };
   return {
@@ -47,13 +47,13 @@ router.post('/progress-note', authenticate, async (req, res) => {
     return res.status(400).json({ error: 'encounterId and patientId are required' });
   }
 
-  const patient = getPatientHeader(patientId);
+  const patient = await getPatientHeader(patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
   const enc = await db.prepare('SELECT * FROM encounters WHERE id = ? AND patient_id = ?').get(encounterId, patientId);
   if (!enc) return res.status(404).json({ error: 'Encounter not found' });
 
-  const provider = enc.provider ? getProviderInfo(enc.provider) : { name: enc.provider_name || 'Unknown', credentials: enc.credentials || '' };
+  const provider = enc.provider ? await getProviderInfo(enc.provider) : { name: enc.provider_name || 'Unknown', credentials: enc.credentials || '' };
 
   // Get active problems for this patient
   const problems = await db.prepare('SELECT * FROM problems WHERE patient_id = ? AND status = ?').all(patientId, 'Active');
@@ -176,13 +176,13 @@ router.post('/prescription', authenticate, async (req, res) => {
     return res.status(400).json({ error: 'medicationId and patientId are required' });
   }
 
-  const patient = getPatientHeader(patientId);
+  const patient = await getPatientHeader(patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
   const med = await db.prepare('SELECT * FROM medications WHERE id = ? AND patient_id = ?').get(medicationId, patientId);
   if (!med) return res.status(404).json({ error: 'Medication not found' });
 
-  const provider = getProviderInfo(req.user.id);
+  const provider = await getProviderInfo(req.user.id);
   const allergies = await db.prepare('SELECT * FROM allergies WHERE patient_id = ?').all(patientId);
 
   const document = {
@@ -254,7 +254,7 @@ router.post('/patient-summary', authenticate, async (req, res) => {
   const { patientId } = req.body;
   if (!patientId) return res.status(400).json({ error: 'patientId is required' });
 
-  const patient = getPatientHeader(patientId);
+  const patient = await getPatientHeader(patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
   const problems = await db.prepare('SELECT * FROM problems WHERE patient_id = ?').all(patientId);
@@ -307,7 +307,7 @@ router.post('/discharge-summary', authenticate, async (req, res) => {
   const { patientId, encounterId, dischargePlan, followUpInstructions } = req.body;
   if (!patientId) return res.status(400).json({ error: 'patientId is required' });
 
-  const patient = getPatientHeader(patientId);
+  const patient = await getPatientHeader(patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
   const enc = encounterId ? await db.prepare('SELECT * FROM encounters WHERE id = ?').get(encounterId) : null;

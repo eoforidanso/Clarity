@@ -53,6 +53,7 @@ export default function PatientBanner() {
               <span>PCP: {p.pcp || '—'}</span>
               <span className="athena-sep">|</span>
               <span>Ins: {p.insurance?.primary?.name || 'Self-Pay'}</span>
+              {p.lastVisit && <><span className="athena-sep">|</span><span>Last visit: {p.lastVisit}</span></>}
               {p.nextAppointment && <><span className="athena-sep">|</span><span>Next: {p.nextAppointment}</span></>}
             </div>
           </div>

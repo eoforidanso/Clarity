@@ -12,11 +12,11 @@ export default function Dashboard() {
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   const todayAppts = useMemo(() => (appointments || []).filter(
-    (a) => a.provider === currentUser?.id || currentUser?.role === 'front_desk'
+    (a) => a.provider === currentUser?.id || currentUser?.role === 'front_desk' || currentUser?.role === 'admin'
   ), [appointments, currentUser]);
 
   const myUnread = useMemo(() => (inboxMessages || []).filter(
-    (m) => !m.read && (m.to === currentUser?.id || currentUser?.role === 'front_desk')
+    (m) => !m.read && (m.to === currentUser?.id || currentUser?.role === 'front_desk' || currentUser?.role === 'admin')
   ), [inboxMessages, currentUser]);
 
   const checkedIn     = todayAppts.filter((a) => a.status === 'Checked In').length;
@@ -24,6 +24,14 @@ export default function Dashboard() {
   const completed     = todayAppts.filter((a) => a.status === 'Completed').length;
   const telehealthCnt = todayAppts.filter((a) => a.visitType === 'Telehealth').length;
   const remaining     = todayAppts.filter((a) => a.status !== 'Completed').length;
+
+  const fmtTime = (t) => {
+    if (!t) return '';
+    const [hh, mm] = t.split(':').map(Number);
+    const ap = hh < 12 ? 'AM' : 'PM';
+    const h = hh % 12 === 0 ? 12 : hh % 12;
+    return `${h}:${String(mm).padStart(2, '0')} ${ap}`;
+  };
 
   const statusClass = (status) => {
     if (status === 'Checked In')  return 'status-checked-in';
@@ -93,9 +101,7 @@ export default function Dashboard() {
         <div className="dashboard-greeting-actions">
           <button className="btn btn-primary btn-sm" onClick={() => navigate('/patients')}>🔍 Find Patient</button>
           <button className="btn btn-secondary btn-sm" onClick={() => navigate('/schedule')}>📅 Full Schedule</button>
-          <button className="btn btn-secondary btn-sm dashboard-export-btn" onClick={() => {
-            alert('📄 Daily Summary Report exported as PDF.\n\nDate: ' + new Date().toLocaleDateString() + '\nAppointments: ' + todayAppts.length + '\nCompleted: ' + completed);
-          }}>📤 Export</button>
+          <button className="btn btn-secondary btn-sm dashboard-export-btn" onClick={() => navigate('/analytics')}>📤 Export</button>
         </div>
       </div>
 
@@ -151,7 +157,7 @@ export default function Dashboard() {
                   className={`appt-row ${statusClass(apt.status)}`}
                   onClick={() => goToPatient(apt)}
                 >
-                  <div className="appt-time">{apt.time}</div>
+                  <div className="appt-time">{fmtTime(apt.time)}</div>
                   <div className="appt-patient-avatar">
                     {apt.patientName ? apt.patientName.split(' ').map(n => n[0]).join('').slice(0,2) : '?'}
                   </div>
@@ -271,26 +277,36 @@ export default function Dashboard() {
               <h2 style={{ fontSize: 13 }}>📊 Day Progress</h2>
             </div>
             <div className="card-body">
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Patients seen</span>
-                <span style={{ fontSize: 12, fontWeight: 700 }}>{completed}/{todayAppts.length}</span>
-              </div>
-              <div className="score-bar" style={{ height: 8, borderRadius: 4 }}>
-                <div
-                  className="fill"
-                  style={{
-                    width: `${todayAppts.length > 0 ? (completed / todayAppts.length) * 100 : 0}%`,
-                    background: 'var(--primary)',
-                    borderRadius: 4,
-                    transition: 'width 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontSize: 11, color: 'var(--text-muted)' }}>
-                <span>🟢 Checked in: {checkedIn}</span>
-                <span>🟡 In session: {inProgress}</span>
-                <span>✅ Done: {completed}</span>
-              </div>
+              {todayAppts.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--text-muted)', fontSize: 12 }}>
+                  <div style={{ fontSize: 22, marginBottom: 4 }}>☀️</div>
+                  <div style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Ready for the day</div>
+                  <div style={{ marginTop: 3 }}>No appointments scheduled</div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Patients seen</span>
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>{completed}/{todayAppts.length}</span>
+                  </div>
+                  <div className="score-bar" style={{ height: 8, borderRadius: 4 }}>
+                    <div
+                      className="fill"
+                      style={{
+                        width: `${(completed / todayAppts.length) * 100}%`,
+                        background: completed === todayAppts.length ? 'var(--success)' : 'var(--primary)',
+                        borderRadius: 4,
+                        transition: 'width 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontSize: 11, color: 'var(--text-muted)' }}>
+                    <span>🟢 Checked in: {checkedIn}</span>
+                    <span>🟡 In session: {inProgress}</span>
+                    <span>✅ Done: {completed}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

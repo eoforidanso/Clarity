@@ -12,12 +12,13 @@ function formatAppt(r) {
     provider: r.provider, providerName: r.provider_name,
     date: r.date, time: r.time, duration: r.duration, type: r.type,
     status: r.status, reason: r.reason, visitType: r.visit_type, room: r.room,
+    locationId: r.location_id || 'loc1',
   };
 }
 
 // GET /api/appointments
 router.get('/', async (req, res) => {
-  const { date, provider, status, startDate, endDate } = req.query;
+  const { date, provider, status, startDate, endDate, locationId } = req.query;
   let query = 'SELECT * FROM appointments WHERE 1=1';
   const params = [];
 
@@ -26,6 +27,7 @@ router.get('/', async (req, res) => {
   if (status) { query += ' AND status = ?'; params.push(status); }
   if (startDate) { query += ' AND date >= ?'; params.push(startDate); }
   if (endDate) { query += ' AND date <= ?'; params.push(endDate); }
+  if (locationId) { query += ' AND location_id = ?'; params.push(locationId); }
   query += ' ORDER BY date ASC, time ASC';
 
   const rows = await db.prepare(query).all(...params);
@@ -36,8 +38,8 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const b = req.body;
   const id = b.id || uuidv4();
-  await db.prepare('INSERT INTO appointments (id, patient_id, patient_name, provider, provider_name, date, time, duration, type, status, reason, visit_type, room) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(
-    id, b.patientId || null, b.patientName || '', b.provider || '', b.providerName || '', b.date, b.time, b.duration || 30, b.type || 'Office Visit', b.status || 'Scheduled', b.reason || '', b.visitType || 'In-Person', b.room || ''
+  await db.prepare('INSERT INTO appointments (id, patient_id, patient_name, provider, provider_name, date, time, duration, type, status, reason, visit_type, room, location_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(
+    id, b.patientId || null, b.patientName || '', b.provider || '', b.providerName || '', b.date, b.time, b.duration || 30, b.type || 'Office Visit', b.status || 'Scheduled', b.reason || '', b.visitType || 'In-Person', b.room || '', b.locationId || 'loc1'
   );
   const row = await db.prepare('SELECT * FROM appointments WHERE id = ?').get(id);
   res.status(201).json(formatAppt(row));
@@ -49,8 +51,8 @@ router.put('/:id', async (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Appointment not found' });
 
   const b = req.body;
-  await db.prepare(`UPDATE appointments SET patient_id=?, patient_name=?, provider=?, provider_name=?, date=?, time=?, duration=?, type=?, status=?, reason=?, visit_type=?, room=?, updated_at=datetime('now') WHERE id=?`).run(
-    b.patientId ?? existing.patient_id, b.patientName ?? existing.patient_name, b.provider ?? existing.provider, b.providerName ?? existing.provider_name, b.date ?? existing.date, b.time ?? existing.time, b.duration ?? existing.duration, b.type ?? existing.type, b.status ?? existing.status, b.reason ?? existing.reason, b.visitType ?? existing.visit_type, b.room ?? existing.room, req.params.id
+  await db.prepare(`UPDATE appointments SET patient_id=?, patient_name=?, provider=?, provider_name=?, date=?, time=?, duration=?, type=?, status=?, reason=?, visit_type=?, room=?, location_id=?, updated_at=datetime('now') WHERE id=?`).run(
+    b.patientId ?? existing.patient_id, b.patientName ?? existing.patient_name, b.provider ?? existing.provider, b.providerName ?? existing.provider_name, b.date ?? existing.date, b.time ?? existing.time, b.duration ?? existing.duration, b.type ?? existing.type, b.status ?? existing.status, b.reason ?? existing.reason, b.visitType ?? existing.visit_type, b.room ?? existing.room, b.locationId ?? existing.location_id ?? 'loc1', req.params.id
   );
 
   const row = await db.prepare('SELECT * FROM appointments WHERE id = ?').get(req.params.id);

@@ -21,6 +21,9 @@ function formatEncounter(row) {
       safetyNotes: row.safety_notes,
     },
     followUp: row.follow_up, disposition: row.disposition,
+    isSigned: !!row.is_signed,
+    signedBy: row.signed_by || '',
+    signedAt: row.signed_at || null,
   };
 }
 
@@ -56,10 +59,22 @@ router.put('/:patientId/encounters/:encId', async (req, res) => {
   const existing = await db.prepare('SELECT * FROM encounters WHERE id = ? AND patient_id = ?').get(req.params.encId, req.params.patientId);
   if (!existing) return res.status(404).json({ error: 'Encounter not found' });
 
+  // Block editing a signed encounter unless the requesting user is an admin
+  if (existing.is_signed && req.user?.role !== 'admin') {
+    return res.status(403).json({ error: 'This encounter has been signed and locked. Contact an administrator to make corrections.' });
+  }
+
   const b = req.body;
   const safety = b.safety || {};
-  await db.prepare(`UPDATE encounters SET date=?, time=?, provider=?, provider_name=?, credentials=?, visit_type=?, cpt_code=?, icd_code=?, reason=?, duration=?, chief_complaint=?, hpi=?, interval_note=?, mse=?, assessment=?, plan=?, safety_si_level=?, safety_hi_level=?, safety_self_harm=?, safety_substance_use=?, safety_plan_updated=?, safety_crisis_resources=?, safety_notes=?, follow_up=?, disposition=?, updated_at=datetime('now') WHERE id=?`).run(
-    b.date ?? existing.date, b.time ?? existing.time, b.provider ?? existing.provider, b.providerName ?? existing.provider_name, b.credentials ?? existing.credentials, b.visitType ?? existing.visit_type, b.cptCode ?? existing.cpt_code, b.icdCode ?? existing.icd_code, b.reason ?? existing.reason, b.duration ?? existing.duration, b.chiefComplaint ?? existing.chief_complaint, b.hpi ?? existing.hpi, b.intervalNote ?? existing.interval_note, b.mse ?? existing.mse, b.assessment ?? existing.assessment, b.plan ?? existing.plan, safety.siLevel ?? existing.safety_si_level, safety.hiLevel ?? existing.safety_hi_level, safety.selfHarm !== undefined ? (safety.selfHarm ? 1 : 0) : existing.safety_self_harm, safety.substanceUse !== undefined ? (safety.substanceUse ? 1 : 0) : existing.safety_substance_use, safety.safetyPlanUpdated !== undefined ? (safety.safetyPlanUpdated ? 1 : 0) : existing.safety_plan_updated, safety.crisisResources !== undefined ? (safety.crisisResources ? 1 : 0) : existing.safety_crisis_resources, safety.safetyNotes ?? existing.safety_notes, b.followUp ?? existing.follow_up, b.disposition ?? existing.disposition, req.params.encId
+
+  // Determine signing fields — only sign if not already signed
+  const becomingSigned = !existing.is_signed && (b.signedBy || b.isSigned);
+  const newIsSigned = existing.is_signed ? 1 : (becomingSigned ? 1 : 0);
+  const newSignedBy = existing.is_signed ? existing.signed_by : (becomingSigned ? (b.signedBy || '') : (existing.signed_by || ''));
+  const newSignedAt = existing.is_signed ? existing.signed_at : (becomingSigned ? (b.signedAt || new Date().toISOString()) : (existing.signed_at || null));
+
+  await db.prepare(`UPDATE encounters SET date=?, time=?, provider=?, provider_name=?, credentials=?, visit_type=?, cpt_code=?, icd_code=?, reason=?, duration=?, chief_complaint=?, hpi=?, interval_note=?, mse=?, assessment=?, plan=?, safety_si_level=?, safety_hi_level=?, safety_self_harm=?, safety_substance_use=?, safety_plan_updated=?, safety_crisis_resources=?, safety_notes=?, follow_up=?, disposition=?, is_signed=?, signed_by=?, signed_at=?, updated_at=datetime('now') WHERE id=?`).run(
+    b.date ?? existing.date, b.time ?? existing.time, b.provider ?? existing.provider, b.providerName ?? existing.provider_name, b.credentials ?? existing.credentials, b.visitType ?? existing.visit_type, b.cptCode ?? existing.cpt_code, b.icdCode ?? existing.icd_code, b.reason ?? existing.reason, b.duration ?? existing.duration, b.chiefComplaint ?? existing.chief_complaint, b.hpi ?? existing.hpi, b.intervalNote ?? existing.interval_note, b.mse ?? existing.mse, b.assessment ?? existing.assessment, b.plan ?? existing.plan, safety.siLevel ?? existing.safety_si_level, safety.hiLevel ?? existing.safety_hi_level, safety.selfHarm !== undefined ? (safety.selfHarm ? 1 : 0) : existing.safety_self_harm, safety.substanceUse !== undefined ? (safety.substanceUse ? 1 : 0) : existing.safety_substance_use, safety.safetyPlanUpdated !== undefined ? (safety.safetyPlanUpdated ? 1 : 0) : existing.safety_plan_updated, safety.crisisResources !== undefined ? (safety.crisisResources ? 1 : 0) : existing.safety_crisis_resources, safety.safetyNotes ?? existing.safety_notes, b.followUp ?? existing.follow_up, b.disposition ?? existing.disposition, newIsSigned, newSignedBy, newSignedAt, req.params.encId
   );
 
   const row = await db.prepare('SELECT * FROM encounters WHERE id = ?').get(req.params.encId);

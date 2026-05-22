@@ -36,16 +36,18 @@ export default function Sidebar() {
   };
 
   const unreadCount = inboxMessages.filter(
-    (m) => !m.read && (m.to === currentUser?.id || currentUser?.role === 'front_desk')
+    (m) => !m.read && (m.to === currentUser?.id || currentUser?.role === 'front_desk' || currentUser?.role === 'admin')
   ).length;
 
   const todayApptCount = appointments.filter(
-    (a) => (a.provider === currentUser?.id || currentUser?.role === 'front_desk') && a.status !== 'Completed'
+    (a) => (a.provider === currentUser?.id || currentUser?.role === 'front_desk' || currentUser?.role === 'admin') && a.status !== 'Completed'
   ).length;
 
   const isPrescriber = currentUser?.role === 'prescriber';
   const isNurse = currentUser?.role === 'nurse';
   const isFrontDesk = currentUser?.role === 'front_desk';
+  const isAdmin = currentUser?.role === 'admin';
+  const isAdminOrFrontDesk = isFrontDesk || isAdmin;
   const isTherapist = currentUser?.role === 'therapist';
 
   const initials = currentUser
@@ -55,6 +57,7 @@ export default function Sidebar() {
   const roleLabel = {
     prescriber: currentUser?.credentials || 'Prescriber',
     front_desk: 'Front Desk Staff',
+    admin: 'System Administrator',
     nurse: 'Nurse / MA',
     therapist: currentUser?.credentials || 'Therapist',
   };
@@ -319,10 +322,10 @@ export default function Sidebar() {
           {navItem('/patient-checkin', '📱', 'Patient Check-In')}
           {navItem('/tasks', '✅', 'Task Manager')}
           {navItem('/scheduling-templates', '📅', 'Schedule Templates')}
-          {isFrontDesk && navItem('/audit-trail', '📜', 'Audit Trail')}
-          {isFrontDesk && navItem('/btg-audit', '🔓', 'BTG Audit Log')}
-          {isFrontDesk && navItem('/user-management', '👥', 'User Management')}
-          {isFrontDesk && navItem('/provider-management', '🩺', 'Provider NPI/DEA')}
+          {isAdminOrFrontDesk && navItem('/audit-trail', '📜', 'Audit Trail')}
+          {isAdminOrFrontDesk && navItem('/btg-audit', '🔓', 'BTG Audit Log')}
+          {isAdminOrFrontDesk && navItem('/user-management', '👥', 'User Management')}
+          {isAdminOrFrontDesk && navItem('/provider-management', '🩺', 'Provider NPI/DEA')}
           {navItem('/marketplace', '🏪', 'App Marketplace')}
           {navItem('/api-docs', '🔧', 'API Documentation')}
           {navPrefs.showApptReminders && navItem('/appointment-reminders', '📣', 'Appt Reminders')}

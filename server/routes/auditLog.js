@@ -7,7 +7,7 @@ const router = Router();
 // GET /api/audit-log — front_desk only
 router.get('/', authenticate, authorize('front_desk'), async (req, res) => {
   const { userId, patientId, action, startDate, endDate, limit, offset } = req.query;
-  const entries = getAuditLog({
+  const entries = await getAuditLog({
     userId,
     patientId,
     action,
@@ -21,7 +21,7 @@ router.get('/', authenticate, authorize('front_desk'), async (req, res) => {
 
 // GET /api/audit-log/patient/:patientId — who accessed a patient's chart
 router.get('/patient/:patientId', authenticate, async (req, res) => {
-  const entries = getAuditLog({
+  const entries = await getAuditLog({
     patientId: req.params.patientId,
     limit: parseInt(req.query.limit) || 50,
     offset: parseInt(req.query.offset) || 0,
@@ -31,7 +31,7 @@ router.get('/patient/:patientId', authenticate, async (req, res) => {
 
 // GET /api/audit-log/user/:userId — all actions by a user
 router.get('/user/:userId', authenticate, authorize('front_desk'), async (req, res) => {
-  const entries = getAuditLog({
+  const entries = await getAuditLog({
     userId: req.params.userId,
     limit: parseInt(req.query.limit) || 50,
     offset: parseInt(req.query.offset) || 0,

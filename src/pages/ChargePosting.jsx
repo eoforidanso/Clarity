@@ -40,7 +40,7 @@ export default function ChargePosting() {
   const [selectedCharges, setSelectedCharges] = useState(new Set());
   const [postingComplete, setPostingComplete] = useState(false);
 
-  const isFrontDesk = currentUser?.role === 'front_desk';
+  const isFrontDesk = currentUser?.role === 'front_desk' || currentUser?.role === 'admin';
   const isPrescriber = currentUser?.role === 'prescriber';
 
   const toggleCharge = (id) => {
