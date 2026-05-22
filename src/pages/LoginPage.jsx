@@ -290,7 +290,9 @@ export default function LoginPage() {
                   autoFocus
                   enterKeyHint="next"
                 />
-                {fieldErrors.username && <span className="field-error" role="alert">{fieldErrors.username}</span>}
+                {fieldErrors.username
+                  ? <span className="field-error" role="alert">{fieldErrors.username}</span>
+                  : !username && <span className="field-hint" aria-hidden="true">Required</span>}
               </div>
 
               <div className="form-group">
@@ -339,7 +341,9 @@ export default function LoginPage() {
                     )}
                   </button>
                 </div>
-                {fieldErrors.password && <span className="field-error" role="alert">{fieldErrors.password}</span>}
+                {fieldErrors.password
+                  ? <span className="field-error" role="alert">{fieldErrors.password}</span>
+                  : !password && <span className="field-hint" aria-hidden="true">Required</span>}
               </div>
 
               <button

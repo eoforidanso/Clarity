@@ -31,7 +31,7 @@ async function request(path, options = {}) {
   } catch {
     // fetch() itself threw — network failure, DNS error, or server completely down
     throw new ApiError(
-      'Unable to reach server. Check your internet connection.',
+      'Unable to reach the Clarity EHR server. The service may be temporarily unavailable.',
       0,
       'network'
     );

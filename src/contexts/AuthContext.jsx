@@ -165,7 +165,7 @@ export function AuthProvider({ children }) {
     } catch (backendErr) {
       const code = backendErr.code || 'client';
       if (code === 'network') {
-        setLoginError('Unable to reach server. Check your internet connection.');
+        setLoginError('Unable to reach the Clarity EHR server. The service may be temporarily unavailable.');
       } else if (code === 'server') {
         setLoginError(`Server error (${backendErr.status || 500}). Please try again or check system status.`);
       } else {
