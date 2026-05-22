@@ -63,6 +63,7 @@ export function AuthProvider({ children }) {
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(true);
   const [authMode, setAuthMode] = useState('unknown'); // 'backend' | 'mock'
+  const [serverDown, setServerDown] = useState(false); // true when API is unreachable at boot
   const epcsOTPRef = useRef(null);
   const lastActivityRef = useRef(Date.now());
 
@@ -110,7 +111,11 @@ export function AuthProvider({ children }) {
         setCurrentUser(enriched);
         setIsAuthenticated(true);
         setAuthMode('backend');
-      } catch {
+      } catch (err) {
+        // 401 means no active session — expected; anything else means server issue
+        if (err.code === 'network' || (err.status && err.status >= 500)) {
+          setServerDown(true);
+        }
         setToken(null);
       }
       setLoading(false);
@@ -138,8 +143,15 @@ export function AuthProvider({ children }) {
       lastActivityRef.current = Date.now();
       return { ok: true, mustChangePassword: !!enriched.mustChangePassword };
     } catch (backendErr) {
-      setLoginError(backendErr.message || 'Invalid username or password');
-      return { ok: false };
+      const code = backendErr.code || 'client';
+      if (code === 'network') {
+        setLoginError('Unable to reach server. Check your internet connection.');
+      } else if (code === 'server') {
+        setLoginError(`Server error (${backendErr.status || 500}). Please try again or check system status.`);
+      } else {
+        setLoginError(backendErr.message || 'Invalid username or password');
+      }
+      return { ok: false, errorCode: code };
     }
   }, []);
 
@@ -235,6 +247,8 @@ export function AuthProvider({ children }) {
         isAuthenticated,
         loginError,
         authMode,
+        serverDown,
+        clearLoginError: () => setLoginError(''),
         login,
         logout,
         refreshUser,

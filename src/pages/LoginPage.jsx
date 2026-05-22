@@ -1,15 +1,29 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import SystemStatus from '../components/SystemStatus';
 
 const CERTS = ['HIPAA', 'EPCS', 'ONC', '42 CFR Part 2'];
+const MAX_ATTEMPTS = 5;
+
+function getErrorConfig(msg) {
+  if (!msg) return null;
+  if (msg.includes('reach server') || msg.includes('internet connection') || msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+    return { type: 'network', icon: '📡', title: 'Cannot reach server', canRetry: true };
+  }
+  if (msg.includes('Server error') || msg.includes('500') || msg.includes('502') || msg.includes('503')) {
+    return { type: 'server', icon: '⚠️', title: 'Server error', canRetry: true };
+  }
+  return { type: 'credentials', icon: '🔒', title: 'Sign-in failed', canRetry: false };
+}
 
 export default function LoginPage() {
-  const { login, completeTwoFactor, changePassword: authChangePassword, loginError } = useAuth();
+  const { login, completeTwoFactor, changePassword: authChangePassword, loginError, clearLoginError, serverDown } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState(0);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
@@ -60,6 +74,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const result = await login(username, password);
+      if (!result?.ok && !result?.requiresTwoFactor) {
+        setLoginAttempts(a => a + 1);
+      }
       if (result?.requiresTwoFactor) {
         setPendingTempToken(result.tempToken);
         setEmailHint(result.emailHint || '');
@@ -118,10 +135,13 @@ export default function LoginPage() {
           <span className="login-topnav-wordmark" aria-label="Clarity EHR">Clarity<span aria-hidden="true">EHR</span></span>
           <span className="login-version-pill" aria-label="Version 14.2">V14.2</span>
         </div>
-        <div className="login-topnav-badges" aria-label="Compliance certifications">
-          {CERTS.map(c => (
-            <span key={c} className="login-topnav-cert">{c}</span>
-          ))}
+        <div className="login-topnav-right">
+          <SystemStatus />
+          <div className="login-topnav-badges" aria-label="Compliance certifications">
+            {CERTS.map(c => (
+              <span key={c} className="login-topnav-cert">{c}</span>
+            ))}
+          </div>
         </div>
       </nav>
 
@@ -137,11 +157,56 @@ export default function LoginPage() {
 
             {/* Live region — screen readers announce login errors immediately */}
             <div role="alert" aria-live="assertive" aria-atomic="true">
-              {loginError && (
-                <div className="login-error">
-                  <span aria-hidden="true">⚠️ </span>{loginError}
-                </div>
-              )}
+              {(loginError || serverDown) && (() => {
+                const msg = loginError || 'Unable to reach server. Check your internet connection.';
+                const cfg = getErrorConfig(msg);
+                return (
+                  <div className={`login-error login-error--${cfg.type}`}>
+                    <div className="login-error__header">
+                      <span aria-hidden="true">{cfg.icon}</span>
+                      <strong>{cfg.title}</strong>
+                      <button
+                        type="button"
+                        className="login-error__dismiss"
+                        onClick={clearLoginError}
+                        aria-label="Dismiss error"
+                      >✕</button>
+                    </div>
+                    <p className="login-error__msg">{msg}</p>
+                    {loginAttempts > 0 && cfg.type === 'credentials' && (
+                      <p className="login-error__attempts">
+                        {loginAttempts} failed attempt{loginAttempts !== 1 ? 's' : ''}
+                        {loginAttempts >= 3 && ` — account locks after ${MAX_ATTEMPTS}`}
+                      </p>
+                    )}
+                    <div className="login-error__actions">
+                      {cfg.canRetry && (
+                        <button
+                          type="button"
+                          className="login-error__btn"
+                          onClick={() => { clearLoginError(); document.getElementById('login-username')?.focus(); }}
+                        >
+                          ↺ Retry
+                        </button>
+                      )}
+                      <a
+                        href="https://status.clarity-ehr.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="login-error__btn login-error__btn--ghost"
+                      >
+                        System status ↗
+                      </a>
+                      <a
+                        href="mailto:support@clarity-ehr.org"
+                        className="login-error__btn login-error__btn--ghost"
+                      >
+                        Contact IT support
+                      </a>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <form
@@ -204,6 +269,21 @@ export default function LoginPage() {
             <div className="login-hipaa-footer" role="note" aria-label="Security notice">
               <span aria-hidden="true">🛡️</span>
               <span>Protected by 256-bit AES encryption · HIPAA compliant · All access monitored &amp; logged</span>
+            </div>
+
+            <div className="login-support-row">
+              <span>Having trouble?</span>
+              <a href="mailto:support@clarity-ehr.org" className="login-support-link">
+                📧 IT Support
+              </a>
+              <span className="login-support-sep">·</span>
+              <a href="tel:+15554007748" className="login-support-link">
+                📞 (555) 400-7748
+              </a>
+              <span className="login-support-sep">·</span>
+              <a href="https://status.clarity-ehr.com" target="_blank" rel="noopener noreferrer" className="login-support-link">
+                System status
+              </a>
             </div>
           </div>
         </div>

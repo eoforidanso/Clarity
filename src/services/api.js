@@ -4,23 +4,49 @@ const API_BASE = import.meta.env?.VITE_API_URL || '/api';
 // No-op — token is now managed as an httpOnly cookie set by the server
 export function setToken(_token) {}
 
+/**
+ * ApiError — extends Error with a `code` field so callers can branch on
+ * error type without parsing message strings.
+ *   code: 'network' | 'auth' | 'server' | 'client'
+ */
+export class ApiError extends Error {
+  constructor(message, status, code) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
 async function request(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...options.headers };
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-    credentials: 'include', // send/receive httpOnly cookies cross-origin
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      credentials: 'include', // send/receive httpOnly cookies cross-origin
+    });
+  } catch {
+    // fetch() itself threw — network failure, DNS error, or server completely down
+    throw new ApiError(
+      'Unable to reach server. Check your internet connection.',
+      0,
+      'network'
+    );
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    // For 401s on unauthenticated probes (e.g. /auth/me on startup), callers
-    // should swallow the error. We still surface the server's message when
-    // available so login failures show "Invalid username or password" rather
-    // than a generic "Session expired".
-    const message = body.error || (res.status === 401 ? 'Not authenticated' : `Request failed: ${res.status}`);
-    throw new Error(message);
+    const message =
+      body.error ||
+      (res.status === 401 ? 'Not authenticated' : `Request failed (${res.status})`);
+    const code =
+      res.status >= 500 ? 'server' :
+      res.status === 401 || res.status === 403 ? 'auth' :
+      'client';
+    throw new ApiError(message, res.status, code);
   }
 
   if (res.status === 204) return null;
