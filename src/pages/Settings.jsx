@@ -159,10 +159,12 @@ export default function Settings() {
 
   /* Signature state */
   const canvasRef = useRef(null);
+  const uploadInputRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [sigMode, setSigMode] = useState('draw'); // draw | type
+  const [sigMode, setSigMode] = useState('draw'); // draw | type | upload
   const [typedSig, setTypedSig] = useState('');
   const [savedSig, setSavedSig] = useState(null);
+  const [uploadPreview, setUploadPreview] = useState(null);
   const lastPoint = useRef(null);
 
   /* Navigation prefs state */
@@ -237,10 +239,22 @@ export default function Settings() {
 
   const stopDraw = useCallback(() => { setIsDrawing(false); lastPoint.current = null; }, []);
 
+  /* Upload signature image */
+  const handleUploadFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setUploadPreview(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
   /* Save signature */
   const handleSaveSignature = () => {
     let dataUrl = null;
-    if (sigMode === 'draw' && canvasRef.current) {
+    if (sigMode === 'upload' && uploadPreview) {
+      dataUrl = uploadPreview;
+    } else if (sigMode === 'draw' && canvasRef.current) {
       dataUrl = canvasRef.current.toDataURL('image/png');
     } else if (sigMode === 'type' && typedSig.trim()) {
       // Render typed text to a hidden canvas
@@ -266,6 +280,7 @@ export default function Settings() {
     setSavedSig(null);
     clearCanvas();
     setTypedSig('');
+    setUploadPreview(null);
   };
 
   /* ── Render helpers ────────────────── */
@@ -457,12 +472,23 @@ export default function Settings() {
                   onClick={() => setSigMode('type')}
                   style={{
                     padding: '8px 20px', border: '1px solid var(--border)', borderLeft: 'none',
-                    borderRadius: '0 8px 8px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    borderRadius: '0 0 0 0', fontSize: 13, fontWeight: 600, cursor: 'pointer',
                     background: sigMode === 'type' ? 'var(--primary)' : 'var(--bg-white)',
                     color: sigMode === 'type' ? 'white' : 'var(--text-secondary)',
                   }}
                 >
                   ⌨️ Type
+                </button>
+                <button
+                  onClick={() => setSigMode('upload')}
+                  style={{
+                    padding: '8px 20px', border: '1px solid var(--border)', borderLeft: 'none',
+                    borderRadius: '0 8px 8px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    background: sigMode === 'upload' ? 'var(--primary)' : 'var(--bg-white)',
+                    color: sigMode === 'upload' ? 'white' : 'var(--text-secondary)',
+                  }}
+                >
+                  📤 Upload
                 </button>
               </div>
 
@@ -515,6 +541,76 @@ export default function Settings() {
                       Save Signature
                     </button>
                   </div>
+                </div>
+              )}
+
+              {/* Upload mode */}
+              {sigMode === 'upload' && (
+                <div>
+                  <input
+                    ref={uploadInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp"
+                    style={{ display: 'none' }}
+                    onChange={handleUploadFile}
+                  />
+                  {!uploadPreview ? (
+                    <div
+                      onClick={() => uploadInputRef.current?.click()}
+                      style={{
+                        border: '2px dashed var(--border)', borderRadius: 10,
+                        background: '#fafbfc', padding: '32px 24px', textAlign: 'center',
+                        cursor: 'pointer', transition: 'border-color 0.15s',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+                    >
+                      <div style={{ fontSize: 32, marginBottom: 8 }}>📤</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Click to upload signature image</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>PNG, JPG, GIF, or WebP — transparent background recommended</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{
+                        background: '#fafbfc', borderRadius: 10, padding: '20px 24px',
+                        border: '1px dashed var(--border)', textAlign: 'center',
+                      }}>
+                        <img src={uploadPreview} alt="Signature preview" style={{ maxHeight: 100, maxWidth: '100%' }} />
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>Preview</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                        <button
+                          onClick={() => { setUploadPreview(null); uploadInputRef.current && (uploadInputRef.current.value = ''); }}
+                          style={{
+                            padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border)',
+                            background: 'var(--bg-white)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            color: 'var(--text-secondary)',
+                          }}
+                        >
+                          Clear
+                        </button>
+                        <button
+                          onClick={() => uploadInputRef.current?.click()}
+                          style={{
+                            padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border)',
+                            background: 'var(--bg-white)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            color: 'var(--text-secondary)',
+                          }}
+                        >
+                          Change Image
+                        </button>
+                        <button
+                          onClick={handleSaveSignature}
+                          style={{
+                            padding: '7px 16px', borderRadius: 6, border: 'none',
+                            background: 'var(--primary)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                          }}
+                        >
+                          Save Signature
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -831,6 +831,8 @@ export default function EPrescribe() {
     const facilityPhone = facilityInfo?.phone || '';
     const facilityFax = facilityInfo?.fax || '';
     const facilityNpi = facilityInfo?.npi || '';
+    let sigDataUrl = null;
+    try { const all = JSON.parse(localStorage.getItem('clarity_signature') || '{}'); sigDataUrl = currentUser?.id ? (all[currentUser.id] || null) : null; } catch { /* noop */ }
     const win = window.open('', '_blank', 'width=780,height=700');
     if (!win) return;
     win.document.write(`<!DOCTYPE html>
@@ -883,7 +885,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
   <tr><td class="lbl">Pharmacy</td><td>${rx.pharmacy || 'As directed by provider'}</td></tr>
   ${isControlled ? `<tr><td class="lbl">EPCS Status</td><td style="color:#15803d;font-weight:700">✓ EPCS Verified — Two-Factor Authenticated</td></tr>` : ''}
 </table></div>
-<div class="sig-area"><div>Prescriber Signature: _______________________________</div><div>${providerName}</div></div>
+<div class="sig-area"><div>${sigDataUrl ? `<img src="${sigDataUrl}" style="max-height:60px;max-width:200px;display:block;margin-bottom:4px"/>` : 'Prescriber Signature: _______________________________'}</div><div>${providerName}</div></div>
 <div class="footer">Printed ${dateStr} at ${timeStr} · Clarity EHR · Confidential — For authorized use only</div>
 </body></html>`);
     win.document.close();

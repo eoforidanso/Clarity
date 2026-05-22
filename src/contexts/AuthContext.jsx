@@ -174,10 +174,10 @@ export function AuthProvider({ children }) {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--bg, #f8fafc)' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>🧠</div>
-          <p style={{ color: '#64748b', fontSize: 14 }}>Loading Clarity EHR…</p>
+      <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg, #f8fafc)' }}>
+        <div style={{ textAlign: 'center', padding: '0 24px' }}>
+          <div style={{ fontSize: 40, marginBottom: 14 }}>🧠</div>
+          <p style={{ color: '#64748b', fontSize: 15, fontWeight: 500 }}>Loading Clarity EHR…</p>
         </div>
       </div>
     );

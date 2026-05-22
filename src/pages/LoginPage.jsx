@@ -112,13 +112,13 @@ export default function LoginPage() {
       <div className="login-orb login-orb-3" />
 
       {/* ── Sticky Top Nav ── */}
-      <nav className="login-topnav">
+      <nav className="login-topnav" aria-label="Application header">
         <div className="login-topnav-left">
-          <span className="login-topnav-logo">🧠</span>
-          <span className="login-topnav-wordmark">Clarity<span>EHR</span></span>
-          <span className="login-version-pill">V14.2</span>
+          <span className="login-topnav-logo" aria-hidden="true">🧠</span>
+          <span className="login-topnav-wordmark" aria-label="Clarity EHR">Clarity<span aria-hidden="true">EHR</span></span>
+          <span className="login-version-pill" aria-label="Version 14.2">V14.2</span>
         </div>
-        <div className="login-topnav-badges">
+        <div className="login-topnav-badges" aria-label="Compliance certifications">
           {CERTS.map(c => (
             <span key={c} className="login-topnav-cert">{c}</span>
           ))}
@@ -126,44 +126,60 @@ export default function LoginPage() {
       </nav>
 
       {/* ── Two-Column Body ── */}
-      <div className="login-two-col">
+      <div className="login-two-col" id="main-content">
 
         {/* LEFT — Sign-In Card */}
         <div className="login-col login-col-form">
           <div className="glass-card glass-card-sign-in">
-            <h2 className="glass-card-title">
-              <span className="glass-card-lock">🔒</span> Secure Sign In
-            </h2>
+            <h1 className="glass-card-title" id="signin-heading">
+              <span className="glass-card-lock" aria-hidden="true">🔒</span> Secure Sign In
+            </h1>
 
-            {loginError && (
-              <div className="login-error">⚠️ {loginError}</div>
-            )}
+            {/* Live region — screen readers announce login errors immediately */}
+            <div role="alert" aria-live="assertive" aria-atomic="true">
+              {loginError && (
+                <div className="login-error">
+                  <span aria-hidden="true">⚠️ </span>{loginError}
+                </div>
+              )}
+            </div>
 
-            <form onSubmit={handleSubmit} autoComplete="off">
+            <form
+              onSubmit={handleSubmit}
+              autoComplete="on"
+              aria-labelledby="signin-heading"
+              noValidate
+            >
               <div className="form-group">
-                <label className="form-label">Username</label>
+                <label className="form-label" htmlFor="login-username">Username</label>
                 <input
+                  id="login-username"
                   type="text"
                   className="form-input"
                   value={username}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setUsername(val);
-                  }}
+                  onChange={(e) => setUsername(e.target.value)}
                   placeholder="Enter your username"
                   autoComplete="username"
                   required
+                  aria-required="true"
+                  aria-describedby={loginError ? 'login-error-msg' : undefined}
                 />
               </div>
 
               <div className="form-group">
                 <div className="form-label-row">
-                  <label className="form-label">Password</label>
-                  <button type="button" className="forgot-password-link" onClick={() => setShowForgotPassword(true)}>
+                  <label className="form-label" htmlFor="login-password">Password</label>
+                  <button
+                    type="button"
+                    className="forgot-password-link"
+                    onClick={() => setShowForgotPassword(true)}
+                    aria-haspopup="dialog"
+                  >
                     Forgot password?
                   </button>
                 </div>
                 <input
+                  id="login-password"
                   type="password"
                   className="form-input"
                   value={password}
@@ -171,43 +187,51 @@ export default function LoginPage() {
                   placeholder="Enter your password"
                   autoComplete="current-password"
                   required
+                  aria-required="true"
                 />
               </div>
 
-              <button type="submit" className="btn btn-primary login-submit-btn" disabled={loading}>
-                {loading ? '⏳ Signing In…' : 'Sign In'}
+              <button
+                type="submit"
+                className="btn btn-primary login-submit-btn"
+                disabled={loading}
+                aria-busy={loading}
+              >
+                {loading ? 'Signing In…' : 'Sign In'}
               </button>
             </form>
 
-            <div className="login-hipaa-footer">
-              <span>🛡️</span>
+            <div className="login-hipaa-footer" role="note" aria-label="Security notice">
+              <span aria-hidden="true">🛡️</span>
               <span>Protected by 256-bit AES encryption · HIPAA compliant · All access monitored &amp; logged</span>
             </div>
           </div>
         </div>
 
         {/* RIGHT — System Info */}
-        <div className="login-col login-col-demo">
+        <div className="login-col login-col-demo" aria-label="System information">
           <div className="glass-card glass-card-demo">
-            <h2 className="glass-card-title">🧠 Clarity EHR</h2>
+            <h2 className="glass-card-title" id="sysinfo-heading">
+              <span aria-hidden="true">🧠 </span>Clarity EHR
+            </h2>
             <p className="glass-card-subtitle">Secure, HIPAA-compliant electronic health records</p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+            <ul style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8, listStyle: 'none', padding: 0, margin: 0 }} aria-label="Key security features">
               {[
                 { icon: '🔐', title: 'Multi-Factor Authentication', desc: 'Every login protected by 2FA with email verification' },
                 { icon: '🛡️', title: 'HIPAA & 42 CFR Part 2', desc: 'Full compliance with federal privacy and substance use protections' },
                 { icon: '📋', title: 'Complete Audit Trail', desc: 'Every access and change is logged and time-stamped' },
                 { icon: '💊', title: 'DEA-Compliant EPCS', desc: 'Electronic prescribing for controlled substances with dual-factor auth' },
               ].map(f => (
-                <div key={f.title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  <span style={{ fontSize: 20, flexShrink: 0 }}>{f.icon}</span>
+                <li key={f.title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <span style={{ fontSize: 20, flexShrink: 0 }} aria-hidden="true">{f.icon}</span>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 13, color: '#f1f5f9' }}>{f.title}</div>
                     <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{f.desc}</div>
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
 
             <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', fontSize: 12, color: '#94a3b8' }}>
               <strong style={{ color: '#e2e8f0' }}>IT Support</strong><br />
@@ -234,10 +258,16 @@ export default function LoginPage() {
 
       {/* ── Forgot Password Modal ── */}
       {showForgotPassword && (
-        <div className="login-modal-overlay" onClick={closeForgotModal}>
-          <div className="login-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="login-modal-close" onClick={closeForgotModal}>✕</button>
-            <h2>Reset Your Password</h2>
+        <div className="login-modal-overlay" role="presentation" onClick={closeForgotModal}>
+          <div
+            className="login-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="forgot-pw-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button className="login-modal-close" onClick={closeForgotModal} aria-label="Close password reset dialog">✕</button>
+            <h2 id="forgot-pw-title">Reset Your Password</h2>
             {!forgotSent ? (
               <>
                 <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 20 }}>
@@ -245,14 +275,17 @@ export default function LoginPage() {
                 </p>
                 <form onSubmit={handleForgotSubmit}>
                   <div className="form-group">
-                    <label className="form-label">Work Email</label>
+                    <label className="form-label" htmlFor="forgot-email">Work Email</label>
                     <input
+                      id="forgot-email"
                       type="email"
                       className="form-input"
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
                       placeholder="name@clarity.org"
                       required
+                      aria-required="true"
+                      autoFocus
                     />
                   </div>
                   <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
@@ -280,21 +313,34 @@ export default function LoginPage() {
 
       {/* ── 2FA Verification Modal ── */}
       {show2FA && (
-        <div className="login-modal-overlay" onClick={() => { setShow2FA(false); setPendingTempToken(null); setTwoFAError(''); setEmailHint(''); setMockCode(null); }}>
-          <div className="login-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400, textAlign: 'center' }}>
-            <button className="login-modal-close" onClick={() => { setShow2FA(false); setPendingTempToken(null); setTwoFAError(''); setEmailHint(''); setMockCode(null); }}>✕</button>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>📧</div>
-            <h2 style={{ fontSize: 20, marginBottom: 8 }}>Check Your Email</h2>
+        <div className="login-modal-overlay" role="presentation" onClick={() => { setShow2FA(false); setPendingTempToken(null); setTwoFAError(''); setEmailHint(''); setMockCode(null); }}>
+          <div
+            className="login-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="twofa-title"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 400, textAlign: 'center' }}
+          >
+            <button className="login-modal-close" onClick={() => { setShow2FA(false); setPendingTempToken(null); setTwoFAError(''); setEmailHint(''); setMockCode(null); }} aria-label="Close two-factor verification dialog">✕</button>
+            <div style={{ fontSize: 48, marginBottom: 12 }} aria-hidden="true">📧</div>
+            <h2 id="twofa-title" style={{ fontSize: 20, marginBottom: 8 }}>Check Your Email</h2>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
               We sent a 6-digit code to <strong>{emailHint || 'your registered email'}</strong>. Enter it below.
             </p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 maxLength={6}
                 value={twoFactorCode}
                 onChange={(e) => { setTwoFactorCode(e.target.value.replace(/\D/g, '')); setTwoFAError(''); }}
                 placeholder="000000"
+                aria-label="6-digit verification code"
+                aria-required="true"
+                aria-invalid={twoFAError ? 'true' : 'false'}
+                aria-describedby={twoFAError ? 'twofa-error' : undefined}
                 style={{
                   width: 200, textAlign: 'center', fontSize: 28, letterSpacing: 8,
                   padding: '10px 16px', borderRadius: 10, border: `2px solid ${twoFAError ? '#ef4444' : 'var(--border)'}`,
@@ -305,16 +351,19 @@ export default function LoginPage() {
                 onKeyDown={(e) => { if (e.key === 'Enter' && twoFactorCode.length === 6) handle2FAVerify(); }}
               />
             </div>
-            {twoFAError && (
-              <p style={{ fontSize: 12, color: '#ef4444', marginBottom: 12 }}>{twoFAError}</p>
-            )}
+            <div role="alert" aria-live="assertive" aria-atomic="true">
+              {twoFAError && (
+                <p id="twofa-error" style={{ fontSize: 12, color: '#ef4444', marginBottom: 12 }}>{twoFAError}</p>
+              )}
+            </div>
             <button
               className="btn btn-primary"
               disabled={twoFactorCode.length !== 6 || loading}
               onClick={handle2FAVerify}
+              aria-busy={loading}
               style={{ width: '100%', padding: '10px', fontSize: 14, marginBottom: 12 }}
             >
-              {loading ? 'Verifying...' : 'Verify & Sign In'}
+              {loading ? 'Verifying…' : 'Verify & Sign In'}
             </button>
             {mockCode ? (
               <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 8, background: '#fefce8', border: '1px solid #fbbf24', fontSize: 13 }}>
@@ -332,14 +381,21 @@ export default function LoginPage() {
 
       {/* ── Force Password Change Step ── */}
       {showPasswordChange && (
-        <div className="login-modal-overlay">
-          <div className="login-modal" style={{ maxWidth: 440, padding: 0, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+        <div className="login-modal-overlay" role="presentation">
+          <div
+            className="login-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pwchange-title"
+            style={{ maxWidth: 440, padding: 0, overflow: 'hidden' }}
+            onClick={e => e.stopPropagation()}
+          >
             <div style={{
               background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
               padding: '20px 24px',
             }}>
               <div style={{ fontSize: 28, marginBottom: 4 }}>🔒</div>
-              <h2 style={{ margin: 0, color: '#fff', fontSize: 17, fontWeight: 800 }}>Password Change Required</h2>
+              <h2 id="pwchange-title" style={{ margin: 0, color: '#fff', fontSize: 17, fontWeight: 800 }}>Password Change Required</h2>
               <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, margin: '4px 0 0' }}>
                 Your account is using a temporary password. Set a new one to continue.
               </p>
@@ -353,33 +409,37 @@ export default function LoginPage() {
             ) : (
               <form onSubmit={handlePasswordChangeSubmit} style={{ padding: '22px 24px' }}>
                 <div style={{ marginBottom: 14 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Current Password</label>
-                  <input type="password" className="form-input" style={{ marginTop: 4 }} value={pwCurrent} autoComplete="current-password" onChange={e => setPwCurrent(e.target.value)} required />
+                  <label htmlFor="pw-current" style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Current Password</label>
+                  <input id="pw-current" type="password" className="form-input" style={{ marginTop: 4 }} value={pwCurrent} autoComplete="current-password" onChange={e => setPwCurrent(e.target.value)} required aria-required="true" />
                 </div>
                 <div style={{ marginBottom: 14 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>New Password</label>
-                  <input type="password" className="form-input" style={{ marginTop: 4 }} value={pwNext} autoComplete="new-password" onChange={e => setPwNext(e.target.value)} required />
+                  <label htmlFor="pw-new" style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>New Password</label>
+                  <input id="pw-new" type="password" className="form-input" style={{ marginTop: 4 }} value={pwNext} autoComplete="new-password" onChange={e => setPwNext(e.target.value)} required aria-required="true" aria-describedby="pw-rules" />
                 </div>
                 <div style={{ marginBottom: 16 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Confirm New Password</label>
-                  <input type="password" className="form-input" style={{ marginTop: 4, borderColor: pwConfirm && !pwMatches ? '#ef4444' : undefined }} value={pwConfirm} autoComplete="new-password" onChange={e => setPwConfirm(e.target.value)} required />
+                  <label htmlFor="pw-confirm" style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Confirm New Password</label>
+                  <input id="pw-confirm" type="password" className="form-input" style={{ marginTop: 4, borderColor: pwConfirm && !pwMatches ? '#ef4444' : undefined }} value={pwConfirm} autoComplete="new-password" onChange={e => setPwConfirm(e.target.value)} required aria-required="true" aria-invalid={pwConfirm && !pwMatches ? 'true' : 'false'} />
                 </div>
-                <div style={{ marginBottom: 16 }}>
+                <ul id="pw-rules" style={{ marginBottom: 16, listStyle: 'none', padding: 0, margin: '0 0 16px' }} aria-label="Password requirements">
                   {pwRules.map(r => {
                     const ok = r.test(pwNext);
                     return (
-                      <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                        <span style={{ fontSize: 12, color: ok ? '#10b981' : (pwNext ? '#ef4444' : 'var(--text-muted)') }}>{ok ? '✓' : '○'}</span>
-                        <span style={{ fontSize: 12, color: ok ? '#10b981' : 'var(--text-muted)' }}>{r.label}</span>
-                      </div>
+                      <li key={r.label} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                        <span aria-hidden="true" style={{ fontSize: 12, color: ok ? '#10b981' : (pwNext ? '#ef4444' : 'var(--text-muted)') }}>{ok ? '✓' : '○'}</span>
+                        <span style={{ fontSize: 12, color: ok ? '#10b981' : 'var(--text-muted)' }}>
+                          <span className="sr-only">{ok ? 'Met: ' : 'Not met: '}</span>{r.label}
+                        </span>
+                      </li>
                     );
                   })}
+                </ul>
+                <div role="alert" aria-live="assertive" aria-atomic="true">
+                  {pwError && (
+                    <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '9px 12px', color: '#dc2626', fontSize: 13, marginBottom: 14 }}>
+                      {pwError}
+                    </div>
+                  )}
                 </div>
-                {pwError && (
-                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '9px 12px', color: '#dc2626', fontSize: 13, marginBottom: 14 }}>
-                    {pwError}
-                  </div>
-                )}
                 <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={pwSaving || !pwCurrent || !pwNext || !pwConfirm}>
                   {pwSaving ? 'Saving…' : 'Set New Password'}
                 </button>
@@ -394,10 +454,16 @@ export default function LoginPage() {
 
       {/* ── Privacy Policy Modal ── */}
       {showPrivacyPolicy && (
-        <div className="login-modal-overlay" onClick={() => setShowPrivacyPolicy(false)}>
-          <div className="login-modal login-modal-wide" onClick={(e) => e.stopPropagation()}>
-            <button className="login-modal-close" onClick={() => setShowPrivacyPolicy(false)}>✕</button>
-            <h2>Privacy Policy</h2>
+        <div className="login-modal-overlay" role="presentation" onClick={() => setShowPrivacyPolicy(false)}>
+          <div
+            className="login-modal login-modal-wide"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="privacy-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button className="login-modal-close" onClick={() => setShowPrivacyPolicy(false)} aria-label="Close privacy policy dialog">✕</button>
+            <h2 id="privacy-title">Privacy Policy</h2>
             <div className="privacy-policy-content">
               <p className="privacy-updated">Last Updated: January 1, {new Date().getFullYear()}</p>
 

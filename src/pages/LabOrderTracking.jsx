@@ -45,6 +45,8 @@ export default function LabOrderTracking() {
     const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const providerName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}${currentUser.credentials ? ', ' + currentUser.credentials : ''}` : 'Unknown';
+    let sigDataUrl = null;
+    try { const all = JSON.parse(localStorage.getItem('clarity_signature') || '{}'); sigDataUrl = currentUser?.id ? (all[currentUser.id] || null) : null; } catch { /* noop */ }
 
     const rows = list.map(o => `
       <tr>
@@ -77,6 +79,7 @@ export default function LabOrderTracking() {
   th { background: #eff6ff; color: #1e3a8a; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 10px; border: 1px solid #dbeafe; text-align: left; }
   td { padding: 7px 10px; border: 1px solid #e5e7eb; vertical-align: top; font-size: 11.5px; }
   tr:nth-child(even) td { background: #f8fafc; }
+  .sig-area { margin-top: 24px; padding-top: 10px; border-top: 1.5px solid #374151; font-size: 11px; color: #374151; display: flex; justify-content: space-between; align-items: flex-end; }
   .footer { margin-top: 16px; font-size: 10px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 8px; }
   @media print { body { padding: 8px 14px; } }
 </style>
@@ -103,6 +106,10 @@ export default function LabOrderTracking() {
     </thead>
     <tbody>${rows}</tbody>
   </table>
+  <div class="sig-area">
+    <div>${sigDataUrl ? `<img src="${sigDataUrl}" style="max-height:56px;max-width:180px;display:block;margin-bottom:4px"/>` : '<div style="margin-bottom:32px;border-bottom:1.5px solid #374151;width:220px"></div>'}<div>${providerName}</div></div>
+    <div style="text-align:right;font-size:10px;color:#6b7280">Authorized Ordering Provider</div>
+  </div>
   <div class="footer">Printed ${dateStr} at ${timeStr} · Clarity EHR · Confidential — For authorized use only</div>
 </body>
 </html>`);
