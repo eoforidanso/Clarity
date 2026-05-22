@@ -53,16 +53,16 @@ async function request(path, options = {}) {
   return res.json();
 }
 
-const get = (path) => request(path);
+const get = (path, options) => request(path, options);
 const post = (path, data) => request(path, { method: 'POST', body: JSON.stringify(data) });
-const put = (path, data) => request(path, { method: 'PUT', body: JSON.stringify(data) });
-const del = (path) => request(path, { method: 'DELETE' });
+const put  = (path, data) => request(path, { method: 'PUT',  body: JSON.stringify(data) });
+const del  = (path)       => request(path, { method: 'DELETE' });
 
 // ─── Auth ────────────────────────────────────────────
 export const auth = {
   login: (username, password) => post('/auth/login', { username, password }),
   logout: () => post('/auth/logout', {}),
-  me: () => get('/auth/me'),
+  me: (options) => get('/auth/me', options),  // options may include { signal }
   changePassword: (currentPassword, newPassword) => post('/auth/change-password', { currentPassword, newPassword }),
   verifyEpcsPin: (pin) => post('/auth/verify-epcs-pin', { pin }),
   generateEpcsOtp: () => post('/auth/generate-epcs-otp', {}),

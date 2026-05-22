@@ -96,7 +96,7 @@ import VoiceAssistant from './components/VoiceAssistant';
 import ForcePasswordChange from './components/ForcePasswordChange';
 
 function ProtectedLayout() {
-  const { isAuthenticated, currentUser } = useAuth();
+  const { isAuthenticated, sessionChecking, currentUser } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const location = useLocation();
 
@@ -104,6 +104,16 @@ function ProtectedLayout() {
   React.useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
+
+  // Wait for background session probe before deciding whether to redirect.
+  // Shows a slim progress bar — never a full-screen overlay.
+  if (sessionChecking) {
+    return (
+      <div role="status" aria-label="Checking session" aria-live="polite">
+        <div className="route-loading-bar" aria-hidden="true" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (currentUser?.mustChangePassword) return <ForcePasswordChange />;
@@ -160,14 +170,28 @@ function ProtectedLayout() {
 }
 
 function LoginRoute() {
-  const { isAuthenticated, currentUser } = useAuth();
+  const { isAuthenticated, sessionChecking, currentUser } = useAuth();
+  // While session probe is running, show the login page with a top progress bar
+  // (don't redirect prematurely — wait to see if there's a valid session)
+  if (sessionChecking) return (
+    <>
+      <div className="route-loading-bar" aria-hidden="true" />
+      <LoginPage />
+    </>
+  );
   if (isAuthenticated && currentUser?.role === 'patient') return <Navigate to="/patient-portal" replace />;
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
   return <LoginPage />;
 }
 
 function PatientPortalLoginRoute() {
-  const { isAuthenticated, currentUser } = useAuth();
+  const { isAuthenticated, sessionChecking, currentUser } = useAuth();
+  if (sessionChecking) return (
+    <>
+      <div className="route-loading-bar" aria-hidden="true" />
+      <PatientPortalLogin />
+    </>
+  );
   if (isAuthenticated && currentUser?.role === 'patient') return <Navigate to="/patient-portal" replace />;
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
   return <PatientPortalLogin />;

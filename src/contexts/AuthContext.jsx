@@ -61,7 +61,8 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);          // unused blocker — kept for safety
+  const [sessionChecking, setSessionChecking] = useState(true); // background session probe
   const [authMode, setAuthMode] = useState('unknown'); // 'backend' | 'mock'
   const [serverDown, setServerDown] = useState(false); // true when API is unreachable at boot
   const epcsOTPRef = useRef(null);
@@ -99,10 +100,12 @@ export function AuthProvider({ children }) {
   }, [isAuthenticated, resetSessionTimer, logout]);
 
   // ── Restore Session on Mount ──────────────────────────
+  // Runs silently in the background — login page renders immediately.
+  // Hard timeout at 2.5 s so a slow server never blocks the user.
   useEffect(() => {
     const restoreSession = async () => {
       try {
-        const data = await authApi.me();
+        const data = await authApi.me({ signal: AbortSignal.timeout(2500) });
         const user = data.user;
         const enriched = {
           ...user,
@@ -112,13 +115,17 @@ export function AuthProvider({ children }) {
         setIsAuthenticated(true);
         setAuthMode('backend');
       } catch (err) {
-        // 401 means no active session — expected; anything else means server issue
-        if (err.code === 'network' || (err.status && err.status >= 500)) {
-          setServerDown(true);
+        // AbortError / TimeoutError = server too slow — silently fall through
+        const isTimeout = err.name === 'AbortError' || err.name === 'TimeoutError';
+        if (!isTimeout) {
+          if (err.code === 'network' || (err.status && err.status >= 500)) {
+            setServerDown(true);
+          }
         }
         setToken(null);
+      } finally {
+        setSessionChecking(false);
       }
-      setLoading(false);
     };
     restoreSession();
   }, []);
@@ -236,15 +243,15 @@ export function AuthProvider({ children }) {
     } catch { /* session expired — logout will handle it */ }
   }, []);
 
-  if (loading) {
-    return <AppLoadingScreen />;
-  }
+  // Never block the entire render with a full-screen overlay.
+  // Login page renders immediately; ProtectedLayout waits on sessionChecking.
 
   return (
     <AuthContext.Provider
       value={{
         currentUser,
         isAuthenticated,
+        sessionChecking,
         loginError,
         authMode,
         serverDown,
