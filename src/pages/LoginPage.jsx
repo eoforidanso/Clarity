@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import SystemStatus from '../components/SystemStatus';
@@ -35,6 +35,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [loginAttempts, setLoginAttempts] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);  // password visibility toggle
+  const [shakeForm, setShakeForm] = useState(false);        // error shake animation
+  const [fieldErrors, setFieldErrors] = useState({});       // inline empty-field errors
+  const usernameRef = useRef(null);
+
+  // Shake and refocus on failure
+  const triggerErrorShake = (focusId = 'login-username') => {
+    setShakeForm(true);
+    setTimeout(() => setShakeForm(false), 500);
+    setTimeout(() => document.getElementById(focusId)?.focus(), 60);
+  };
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
@@ -82,11 +93,24 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Client-side empty-field validation (Epic/athena pattern: instant inline feedback)
+    const errs = {};
+    if (!username.trim()) errs.username = 'Username is required';
+    if (!password)        errs.password = 'Password is required';
+    if (Object.keys(errs).length) {
+      setFieldErrors(errs);
+      triggerErrorShake(errs.username ? 'login-username' : 'login-password');
+      return;
+    }
+    setFieldErrors({});
+
     setLoading(true);
     try {
       const result = await login(username, password);
       if (!result?.ok && !result?.requiresTwoFactor) {
         setLoginAttempts(a => a + 1);
+        triggerErrorShake();
       }
       if (result?.requiresTwoFactor) {
         setPendingTempToken(result.tempToken);
@@ -246,21 +270,26 @@ export default function LoginPage() {
               autoComplete="on"
               aria-labelledby="signin-heading"
               noValidate
+              className={shakeForm ? 'login-form--shake' : undefined}
             >
               <div className="form-group">
                 <label className="form-label" htmlFor="login-username">Username</label>
                 <input
+                  ref={usernameRef}
                   id="login-username"
                   type="text"
-                  className="form-input"
+                  className={`form-input${fieldErrors.username ? ' form-input--error' : ''}`}
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => { setUsername(e.target.value); if (fieldErrors.username) setFieldErrors(f => ({...f, username: ''})); }}
                   placeholder="Enter your username"
                   autoComplete="username"
                   required
                   aria-required="true"
                   aria-describedby={loginError ? 'login-error-msg' : undefined}
+                  autoFocus
+                  enterKeyHint="next"
                 />
+                {fieldErrors.username && <span className="field-error" role="alert">{fieldErrors.username}</span>}
               </div>
 
               <div className="form-group">
@@ -275,26 +304,55 @@ export default function LoginPage() {
                     Forgot password?
                   </button>
                 </div>
-                <input
-                  id="login-password"
-                  type="password"
-                  className="form-input"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  required
-                  aria-required="true"
-                />
+                <div className="password-field-wrapper">
+                  <input
+                    id="login-password"
+                    type={showPassword ? 'text' : 'password'}
+                    className={`form-input${fieldErrors.password ? ' form-input--error' : ''}`}
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); if (fieldErrors.password) setFieldErrors(f => ({...f, password: ''})); }}
+                    placeholder="Enter your password"
+                    autoComplete="current-password"
+                    required
+                    aria-required="true"
+                    enterKeyHint="go"
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowPassword(v => !v)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    tabIndex={0}
+                  >
+                    {showPassword ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                        <line x1="1" y1="1" x2="23" y2="23"/>
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                {fieldErrors.password && <span className="field-error" role="alert">{fieldErrors.password}</span>}
               </div>
 
               <button
                 type="submit"
                 className="btn btn-primary login-submit-btn"
-                disabled={loading}
+                disabled={loading || loginAttempts >= MAX_ATTEMPTS}
                 aria-busy={loading}
+                aria-live="polite"
               >
-                {loading ? 'Signing In…' : 'Sign In'}
+                {loading ? (
+                  <><span className="btn-spinner" aria-hidden="true" />Signing In…</>
+                ) : loginAttempts >= MAX_ATTEMPTS ? (
+                  '🔒 Account Locked — Contact IT'
+                ) : 'Sign In'}
               </button>
             </form>
 

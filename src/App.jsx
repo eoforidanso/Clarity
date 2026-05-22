@@ -1,5 +1,5 @@
 import React, { useEffect, Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PatientProvider } from './contexts/PatientContext';
 import { NotificationProvider } from './contexts/NotificationContext';
@@ -171,10 +171,42 @@ function ProtectedLayout() {
 
 function LoginRoute() {
   const { isAuthenticated, sessionChecking, currentUser } = useAuth();
-  // LoginPage manages its own session-check banner — always render it while checking
+  const navigate = useNavigate();
+  const [welcomeBack, setWelcomeBack] = React.useState(false);
+
+  // When a valid session is found, flash a welcome-back screen (Epic/athena pattern)
+  // before navigating — confirms the session to the user.
+  React.useEffect(() => {
+    if (!sessionChecking && isAuthenticated) {
+      setWelcomeBack(true);
+      const dest = currentUser?.role === 'patient' ? '/patient-portal' : '/dashboard';
+      const t = setTimeout(() => navigate(dest, { replace: true }), 1100);
+      return () => clearTimeout(t);
+    }
+  }, [sessionChecking, isAuthenticated, currentUser, navigate]);
+
+  if (welcomeBack) {
+    const firstName = currentUser?.name?.split(' ')[0] || currentUser?.firstName || '';
+    return (
+      <div className="login-page" role="status" aria-live="polite" aria-label="Session found, redirecting">
+        <div className="login-orb login-orb-1" />
+        <div className="login-orb login-orb-2" />
+        <div className="login-orb login-orb-3" />
+        <div className="welcome-back-screen">
+          <div className="welcome-back-icon" aria-hidden="true">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+          <div className="welcome-back-name">Welcome back{firstName ? `, ${firstName}` : ''}</div>
+          <div className="welcome-back-sub">Signing you in…</div>
+        </div>
+      </div>
+    );
+  }
+
   if (sessionChecking || !isAuthenticated) return <LoginPage />;
-  if (currentUser?.role === 'patient') return <Navigate to="/patient-portal" replace />;
-  return <Navigate to="/dashboard" replace />;
+  return null; // effect above handles the redirect
 }
 
 function PatientPortalLoginRoute() {
