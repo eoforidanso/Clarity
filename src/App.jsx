@@ -125,7 +125,15 @@ function ProtectedLayout() {
             <Header />
             <main id="main-content" className="main-content" role="main">
               <ErrorBoundary>
-              <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: 'var(--text-muted)', fontSize: 14 }}>Loading…</div>}>
+              <Suspense fallback={
+                <div role="status" aria-label="Loading page" aria-live="polite">
+                  <div className="route-loading-bar" aria-hidden="true" />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '55vh', flexDirection: 'column', gap: 14 }}>
+                    <div className="app-loading-spinner" aria-hidden="true" style={{ width: 32, height: 32 }} />
+                    <span style={{ color: 'var(--text-muted)', fontSize: 13, fontWeight: 500 }}>Loading…</span>
+                  </div>
+                </div>
+              }>
                 <Outlet />
               </Suspense>
               </ErrorBoundary>

@@ -5,6 +5,58 @@ const AuthContext = createContext(null);
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes inactivity timeout
 
+const LOADING_MESSAGES = [
+  'Checking your session…',
+  'Connecting to server…',
+  'Loading your workspace…',
+  'Verifying credentials…',
+  'Almost ready…',
+];
+
+function AppLoadingScreen() {
+  const [msgIndex, setMsgIndex] = useState(0);
+  const [tooLong, setTooLong] = useState(false);
+
+  useEffect(() => {
+    const msgTimer = setInterval(() => {
+      setMsgIndex(i => (i + 1) % LOADING_MESSAGES.length);
+    }, 2200);
+    const slowTimer = setTimeout(() => setTooLong(true), 8000);
+    return () => { clearInterval(msgTimer); clearTimeout(slowTimer); };
+  }, []);
+
+  return (
+    <div className="app-loading-screen" role="status" aria-live="polite" aria-label="Loading Clarity EHR">
+      <div className="app-loading-inner">
+        <div className="app-loading-logo" aria-hidden="true">🧠</div>
+        <div className="app-loading-spinner" aria-hidden="true" />
+        <div className="app-loading-progress-track" aria-hidden="true">
+          <div className="app-loading-progress-bar" />
+        </div>
+        <p className="app-loading-msg" key={msgIndex}>{LOADING_MESSAGES[msgIndex]}</p>
+
+        {tooLong && (
+          <div className="app-loading-slow" role="alert">
+            <strong>⚠️ Taking longer than expected</strong>
+            This may be due to a slow connection or a temporary server issue.
+            {' '}<a href="https://status.clarity-ehr.com" target="_blank" rel="noopener noreferrer">
+              Check system status ↗
+            </a>
+            <div className="app-loading-slow-actions">
+              <button onClick={() => window.location.reload()} className="primary" aria-label="Reload the application">
+                ↺ Reload
+              </button>
+              <button onClick={() => window.location.href = '/patient-portal-login'} aria-label="Go to patient portal instead">
+                Patient Portal
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -173,14 +225,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   if (loading) {
-    return (
-      <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg, #f8fafc)' }}>
-        <div style={{ textAlign: 'center', padding: '0 24px' }}>
-          <div style={{ fontSize: 40, marginBottom: 14 }}>🧠</div>
-          <p style={{ color: '#64748b', fontSize: 15, fontWeight: 500 }}>Loading Clarity EHR…</p>
-        </div>
-      </div>
-    );
+    return <AppLoadingScreen />;
   }
 
   return (

@@ -91,7 +91,15 @@ export default class ErrorBoundary extends React.Component {
             }}
           >
             This page encountered an unexpected error. Your other tabs and data
-            are unaffected.
+            are unaffected. If this keeps happening,{' '}
+            <a
+              href="https://status.clarity-ehr.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--primary, #0066cc)', fontWeight: 600 }}
+            >
+              check system status ↗
+            </a>
           </p>
 
           {isDev && error && (
@@ -130,12 +138,21 @@ export default class ErrorBoundary extends React.Component {
               Try again
             </button>
             <button
-              onClick={() => (window.location.href = '/Clarity/dashboard')}
+              onClick={() => window.location.reload()}
               className="btn btn-secondary"
               style={{ fontSize: 13 }}
             >
-              Go to Dashboard
+              Reload page
             </button>
+            <a
+              href="https://status.clarity-ehr.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary"
+              style={{ fontSize: 13 }}
+            >
+              System status ↗
+            </a>
           </div>
         </div>
       </div>
