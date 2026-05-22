@@ -1,43 +1,118 @@
-import Database from 'better-sqlite3';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import config from '../config.js';
+import pg from 'pg';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.resolve(__dirname, '..', config.dbPath);
+const { Pool } = pg;
 
-// Ensure the db directory exists
-const dbDir = path.dirname(dbPath);
-if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
 
-const db = new Database(dbPath);
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle PostgreSQL client', err);
+});
 
-// WAL mode: crash-safe (no data loss on hard crash), concurrent reads, ~3x faster writes
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-db.pragma('synchronous = NORMAL');
-db.pragma('busy_timeout = 5000');
+// Convert SQLite-style SQL to PostgreSQL
+function convertSql(sql) {
+  let idx = 0;
+  return sql
+    .replace(/\?/g, () => `$${++idx}`)
+    .replace(/datetime\('now'\)/gi, 'NOW()')
+    .replace(/datetime\("now"\)/gi, 'NOW()');
+}
+
+// Normalize args: support both .run(a, b, c) and .run([a, b, c])
+function normalizeArgs(args) {
+  if (args.length === 1 && Array.isArray(args[0])) return args[0];
+  return args;
+}
+
+export const db = {
+  prepare(sql) {
+    const pgSql = convertSql(sql);
+    return {
+      async run(...args) {
+        const params = normalizeArgs(args);
+        let finalSql = pgSql;
+        // Auto-add RETURNING id for INSERT statements so lastInsertRowid works
+        if (/^\s*INSERT/i.test(finalSql) && !/RETURNING/i.test(finalSql)) {
+          finalSql += ' RETURNING id';
+        }
+        const result = await pool.query(finalSql, params);
+        return {
+          changes: result.rowCount,
+          lastInsertRowid: result.rows?.[0]?.id ?? null,
+        };
+      },
+      async get(...args) {
+        const params = normalizeArgs(args);
+        const result = await pool.query(pgSql, params);
+        return result.rows[0] ?? null;
+      },
+      async all(...args) {
+        const params = normalizeArgs(args);
+        const result = await pool.query(pgSql, params);
+        return result.rows;
+      },
+    };
+  },
+
+  async query(sql, params = []) {
+    return pool.query(convertSql(sql), params);
+  },
+
+  async exec(sql) {
+    await pool.query(sql);
+  },
+
+  async transaction(fn) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const txDb = {
+        prepare(sql) {
+          const pgSql = convertSql(sql);
+          return {
+            async run(...args) {
+              const params = normalizeArgs(args);
+              let finalSql = pgSql;
+              if (/^\s*INSERT/i.test(finalSql) && !/RETURNING/i.test(finalSql)) {
+                finalSql += ' RETURNING id';
+              }
+              const r = await client.query(finalSql, params);
+              return { changes: r.rowCount, lastInsertRowid: r.rows?.[0]?.id ?? null };
+            },
+            async get(...args) {
+              const r = await client.query(pgSql, normalizeArgs(args));
+              return r.rows[0] ?? null;
+            },
+            async all(...args) {
+              const r = await client.query(pgSql, normalizeArgs(args));
+              return r.rows;
+            },
+          };
+        },
+        async query(sql, params = []) {
+          return client.query(convertSql(sql), params);
+        },
+      };
+      const result = await fn(txDb);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  pool,
+};
 
 export async function initializeDatabase() {
-  // ── Schema migration: add columns added after initial release ──────────────
-  // SQLite ALTER TABLE only supports ADD COLUMN; we use try/catch so it is safe
-  // to run on an existing DB (the column already exists → no-op error).
-  const migrations = [
-    `ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0`,
-    `ALTER TABLE users ADD COLUMN totp_secret TEXT DEFAULT NULL`,
-    `ALTER TABLE users ADD COLUMN email_otp TEXT DEFAULT NULL`,
-    `ALTER TABLE users ADD COLUMN email_otp_expires TEXT DEFAULT NULL`,
-    `ALTER TABLE users ADD COLUMN email_otp_attempts INTEGER DEFAULT 0`,
-    `ALTER TABLE users ADD COLUMN location_id TEXT DEFAULT 'loc1'`,
-    `ALTER TABLE users ADD COLUMN dosespot_user_id TEXT DEFAULT NULL`,
-    `ALTER TABLE patients ADD COLUMN dosespot_patient_id TEXT DEFAULT NULL`,
-  ];
-  for (const m of migrations) {
-    try { db.exec(m); } catch { /* column already exists — ok */ }
-  }
-
-  db.exec(`
+  await pool.query(`
     -- Users table
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -56,8 +131,8 @@ export async function initializeDatabase() {
       must_change_password INTEGER DEFAULT 0,
       patient_id TEXT,
       location_id TEXT DEFAULT 'loc1',
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW()
     );
 
     -- Patients table
@@ -100,8 +175,8 @@ export async function initializeDatabase() {
       last_visit TEXT,
       next_appointment TEXT,
       flags TEXT DEFAULT '[]',
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW()
     );
 
     -- Allergies
@@ -115,7 +190,7 @@ export async function initializeDatabase() {
       status TEXT DEFAULT 'Active',
       onset_date TEXT DEFAULT '',
       source TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id)
     );
 
@@ -128,7 +203,7 @@ export async function initializeDatabase() {
       status TEXT DEFAULT 'Active',
       onset_date TEXT DEFAULT '',
       diagnosed_by TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id)
     );
 
@@ -148,7 +223,7 @@ export async function initializeDatabase() {
       bmi REAL,
       pain INTEGER,
       taken_by TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id)
     );
 
@@ -169,8 +244,8 @@ export async function initializeDatabase() {
       pharmacy TEXT DEFAULT '',
       last_filled TEXT DEFAULT '',
       sig TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id)
     );
 
@@ -185,7 +260,7 @@ export async function initializeDatabase() {
       refill_number INTEGER DEFAULT 0,
       type TEXT DEFAULT 'New Prescription',
       note TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (medication_id) REFERENCES medications(id) ON DELETE CASCADE
     );
 
@@ -201,8 +276,8 @@ export async function initializeDatabase() {
       priority TEXT DEFAULT 'Routine',
       notes TEXT DEFAULT '',
       lab_facility TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id)
     );
 
@@ -214,7 +289,7 @@ export async function initializeDatabase() {
       result_date TEXT,
       ordered_by TEXT DEFAULT '',
       status TEXT DEFAULT 'Pending',
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id)
     );
 
@@ -223,7 +298,7 @@ export async function initializeDatabase() {
       id TEXT PRIMARY KEY,
       lab_result_id TEXT NOT NULL,
       name TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (lab_result_id) REFERENCES lab_results(id) ON DELETE CASCADE
     );
 
@@ -236,7 +311,7 @@ export async function initializeDatabase() {
       unit TEXT DEFAULT '',
       range TEXT DEFAULT '',
       flag TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (test_id) REFERENCES lab_result_tests(id) ON DELETE CASCADE
     );
 
@@ -269,8 +344,8 @@ export async function initializeDatabase() {
       safety_notes TEXT DEFAULT '',
       follow_up TEXT DEFAULT '',
       disposition TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id)
     );
 
@@ -284,7 +359,7 @@ export async function initializeDatabase() {
       date TEXT NOT NULL,
       administered_by TEXT DEFAULT '',
       answers TEXT DEFAULT '[]',
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id)
     );
 
@@ -300,7 +375,7 @@ export async function initializeDatabase() {
       manufacturer TEXT DEFAULT '',
       administered_by TEXT DEFAULT '',
       next_due TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id)
     );
 
@@ -319,8 +394,8 @@ export async function initializeDatabase() {
       reason TEXT DEFAULT '',
       visit_type TEXT DEFAULT 'In-Person',
       room TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW()
     );
 
     -- Blocked Days
@@ -330,7 +405,7 @@ export async function initializeDatabase() {
       date TEXT NOT NULL,
       block_type TEXT DEFAULT 'full',
       reason TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT NOW()
     );
 
     -- Inbox Messages
@@ -349,8 +424,8 @@ export async function initializeDatabase() {
       priority TEXT DEFAULT 'Normal',
       status TEXT DEFAULT 'Unread',
       urgent INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW()
     );
 
     -- Staff Messaging Channels
@@ -358,7 +433,7 @@ export async function initializeDatabase() {
       id TEXT PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
       type TEXT DEFAULT 'channel',
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT NOW()
     );
 
     -- Staff Messages
@@ -368,7 +443,7 @@ export async function initializeDatabase() {
       user_id TEXT NOT NULL,
       user_name TEXT DEFAULT '',
       content TEXT NOT NULL,
-      timestamp TEXT DEFAULT (datetime('now')),
+      timestamp TEXT DEFAULT NOW(),
       reactions TEXT DEFAULT '{}',
       FOREIGN KEY (channel_id) REFERENCES staff_channels(id),
       FOREIGN KEY (user_id) REFERENCES users(id)
@@ -382,7 +457,7 @@ export async function initializeDatabase() {
       accessed_by TEXT NOT NULL,
       accessed_by_name TEXT DEFAULT '',
       reason TEXT NOT NULL,
-      timestamp TEXT DEFAULT (datetime('now')),
+      timestamp TEXT DEFAULT NOW(),
       approved INTEGER DEFAULT 1,
       FOREIGN KEY (patient_id) REFERENCES patients(id)
     );
@@ -392,7 +467,7 @@ export async function initializeDatabase() {
       id TEXT PRIMARY KEY,
       patient_id TEXT NOT NULL,
       user_id TEXT NOT NULL,
-      granted_at TEXT DEFAULT (datetime('now')),
+      granted_at TEXT DEFAULT NOW(),
       expires_at TEXT
     );
 
@@ -404,8 +479,8 @@ export async function initializeDatabase() {
       category TEXT DEFAULT 'Clinical',
       content TEXT NOT NULL,
       created_by TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW()
     );
 
     -- Medication Database (reference)
@@ -426,14 +501,14 @@ export async function initializeDatabase() {
       otp_hash TEXT NOT NULL,
       expires_at TEXT NOT NULL,
       used INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
     -- Audit Log (HIPAA compliance)
     CREATE TABLE IF NOT EXISTS audit_log (
       id TEXT PRIMARY KEY,
-      timestamp TEXT DEFAULT (datetime('now')),
+      timestamp TEXT DEFAULT NOW(),
       user_id TEXT,
       user_name TEXT DEFAULT '',
       user_role TEXT DEFAULT '',
@@ -455,9 +530,9 @@ export async function initializeDatabase() {
       token_hash TEXT NOT NULL,
       ip_address TEXT DEFAULT '',
       user_agent TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       expires_at TEXT NOT NULL,
-      last_activity TEXT DEFAULT (datetime('now')),
+      last_activity TEXT DEFAULT NOW(),
       is_active INTEGER DEFAULT 1,
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
@@ -466,20 +541,20 @@ export async function initializeDatabase() {
 
     -- Insurance Verifications
     CREATE TABLE IF NOT EXISTS insurance_verifications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       patient_id TEXT NOT NULL,
       insurance_type TEXT NOT NULL CHECK(insurance_type IN ('primary', 'secondary')),
       verification_data TEXT NOT NULL, -- JSON with verification details
       verified_at TEXT NOT NULL,
       verified_by TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id),
       FOREIGN KEY (verified_by) REFERENCES users(id)
     );
 
     -- Claims Management
     CREATE TABLE IF NOT EXISTS claims (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       claim_number TEXT UNIQUE NOT NULL,
       patient_id TEXT NOT NULL,
       encounter_id TEXT NOT NULL,
@@ -502,9 +577,9 @@ export async function initializeDatabase() {
       denial_code TEXT,
       appeal_deadline TEXT,
       notes TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       created_by TEXT,
-      updated_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id),
       FOREIGN KEY (encounter_id) REFERENCES encounters(id),
       FOREIGN KEY (provider_id) REFERENCES users(id),
@@ -513,7 +588,7 @@ export async function initializeDatabase() {
 
     -- Payment Tracking
     CREATE TABLE IF NOT EXISTS payments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       claim_id INTEGER NOT NULL,
       payment_type TEXT NOT NULL CHECK(payment_type IN ('insurance', 'patient', 'adjustment', 'refund')),
       payment_method TEXT DEFAULT '' CHECK(payment_method IN ('', 'check', 'eft', 'cash', 'card', 'wire', 'auto')),
@@ -525,26 +600,26 @@ export async function initializeDatabase() {
       notes TEXT,
       payment_date TEXT NOT NULL,
       recorded_by TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (claim_id) REFERENCES claims(id),
       FOREIGN KEY (recorded_by) REFERENCES users(id)
     );
 
     -- Practice Management Settings
     CREATE TABLE IF NOT EXISTS practice_settings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       setting_key TEXT UNIQUE NOT NULL,
       setting_value TEXT NOT NULL,
       setting_type TEXT DEFAULT 'string' CHECK(setting_type IN ('string', 'number', 'boolean', 'json')),
       category TEXT DEFAULT 'general',
       description TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW()
     );
 
     -- Fee Schedule Management
     CREATE TABLE IF NOT EXISTS fee_schedule (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       cpt_code TEXT NOT NULL,
       description TEXT NOT NULL,
       fee REAL NOT NULL,
@@ -553,14 +628,14 @@ export async function initializeDatabase() {
       insurance_type TEXT DEFAULT 'default',
       modifier TEXT DEFAULT '',
       units INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW(),
       UNIQUE(cpt_code, insurance_type, modifier, effective_date)
     );
 
     -- Accounts Receivable Aging
     CREATE TABLE IF NOT EXISTS ar_aging (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       patient_id TEXT NOT NULL,
       claim_id INTEGER NOT NULL,
       balance REAL NOT NULL,
@@ -572,8 +647,8 @@ export async function initializeDatabase() {
       follow_up_date TEXT,
       assigned_to TEXT,
       notes TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id),
       FOREIGN KEY (claim_id) REFERENCES claims(id),
       FOREIGN KEY (assigned_to) REFERENCES users(id)
@@ -581,7 +656,7 @@ export async function initializeDatabase() {
 
     -- Patient Statements
     CREATE TABLE IF NOT EXISTS patient_statements (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       patient_id TEXT NOT NULL,
       statement_date TEXT NOT NULL,
       statement_number TEXT UNIQUE NOT NULL,
@@ -596,14 +671,14 @@ export async function initializeDatabase() {
       delivered INTEGER DEFAULT 0,
       payment_due_date TEXT,
       created_by TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id),
       FOREIGN KEY (created_by) REFERENCES users(id)
     );
 
     -- Denial Management
     CREATE TABLE IF NOT EXISTS denial_management (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       claim_id INTEGER NOT NULL,
       denial_code TEXT NOT NULL,
       denial_reason TEXT NOT NULL,
@@ -618,15 +693,15 @@ export async function initializeDatabase() {
       priority TEXT DEFAULT 'Normal' CHECK(priority IN ('Low', 'Normal', 'High', 'Critical')),
       follow_up_date TEXT,
       resolution_notes TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW(),
       FOREIGN KEY (claim_id) REFERENCES claims(id),
       FOREIGN KEY (assigned_to) REFERENCES users(id)
     );
 
     -- Quality Measures Tracking
     CREATE TABLE IF NOT EXISTS quality_measures (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       patient_id TEXT NOT NULL,
       measure_id TEXT NOT NULL, -- HEDIS, MIPS, etc.
       measure_name TEXT NOT NULL,
@@ -639,7 +714,7 @@ export async function initializeDatabase() {
       calculated_date TEXT NOT NULL,
       calculated_by TEXT,
       notes TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id),
       FOREIGN KEY (calculated_by) REFERENCES users(id),
       UNIQUE(patient_id, measure_id, measurement_period)
@@ -647,7 +722,7 @@ export async function initializeDatabase() {
 
     -- Payer Contracts
     CREATE TABLE IF NOT EXISTS payer_contracts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       payer_name TEXT NOT NULL,
       contract_name TEXT NOT NULL,
       contract_type TEXT DEFAULT 'Fee Schedule' CHECK(contract_type IN ('Fee Schedule', 'Capitation', 'Bundled Payment', 'Value-Based')),
@@ -659,19 +734,19 @@ export async function initializeDatabase() {
       quality_bonuses TEXT, -- JSON array of quality bonus structures
       contract_terms TEXT, -- Full contract details in JSON
       status TEXT DEFAULT 'Active' CHECK(status IN ('Active', 'Pending', 'Terminated', 'Suspended')),
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW()
     );
 
     -- Revenue Analytics Cache
     CREATE TABLE IF NOT EXISTS revenue_analytics (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       period_type TEXT NOT NULL CHECK(period_type IN ('daily', 'weekly', 'monthly', 'quarterly', 'yearly')),
       period_start TEXT NOT NULL,
       period_end TEXT NOT NULL,
       provider_id TEXT,
       metrics TEXT NOT NULL, -- JSON with calculated metrics
-      calculated_at TEXT DEFAULT (datetime('now')),
+      calculated_at TEXT DEFAULT NOW(),
       UNIQUE(period_type, period_start, period_end, provider_id)
     );
 
@@ -679,7 +754,7 @@ export async function initializeDatabase() {
     
     -- Telehealth Billing
     CREATE TABLE IF NOT EXISTS telehealth_billing (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       session_id TEXT NOT NULL,
       patient_id TEXT NOT NULL,
       provider_id TEXT NOT NULL,
@@ -691,28 +766,28 @@ export async function initializeDatabase() {
       total_amount REAL NOT NULL,
       billing_status TEXT DEFAULT 'pending' CHECK(billing_status IN ('pending', 'billed', 'paid', 'cancelled')),
       documentation_notes TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id),
       FOREIGN KEY (provider_id) REFERENCES users(id)
     );
 
     -- Patient Statement Items (details for each statement)
     CREATE TABLE IF NOT EXISTS patient_statement_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       statement_id INTEGER NOT NULL,
       claim_id INTEGER,
       service_date TEXT NOT NULL,
       description TEXT NOT NULL,
       amount REAL NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (statement_id) REFERENCES patient_statements(id),
       FOREIGN KEY (claim_id) REFERENCES claims(id)
     );
 
     -- Appeal Tasks (workflow management for denied claims)
     CREATE TABLE IF NOT EXISTS appeal_tasks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       denial_id INTEGER NOT NULL,
       task_type TEXT NOT NULL CHECK(task_type IN ('appeal_submission', 'peer_review', 'clinical_documentation', 'prior_auth')),
       assigned_to TEXT, -- user_id
@@ -720,7 +795,7 @@ export async function initializeDatabase() {
       status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'in_progress', 'completed', 'cancelled')),
       notes TEXT,
       priority TEXT DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high', 'urgent')),
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       completed_at TEXT,
       FOREIGN KEY (denial_id) REFERENCES denial_management(id),
       FOREIGN KEY (assigned_to) REFERENCES users(id)
@@ -728,7 +803,7 @@ export async function initializeDatabase() {
 
     -- Patient Portal Access Log (security and audit trail)
     CREATE TABLE IF NOT EXISTS patient_portal_access_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       patient_id TEXT NOT NULL,
       access_type TEXT NOT NULL CHECK(access_type IN ('login', 'view_statement', 'make_payment', 'view_billing_history', 'download_statement')),
       ip_address TEXT,
@@ -736,13 +811,13 @@ export async function initializeDatabase() {
       session_id TEXT,
       success BOOLEAN DEFAULT 1,
       failure_reason TEXT,
-      timestamp TEXT DEFAULT (datetime('now')),
+      timestamp TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id)
     );
 
     -- Payment Plans (for patients with high balances)
     CREATE TABLE IF NOT EXISTS payment_plans (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       patient_id TEXT NOT NULL,
       total_amount REAL NOT NULL,
       monthly_payment REAL NOT NULL,
@@ -751,14 +826,14 @@ export async function initializeDatabase() {
       status TEXT DEFAULT 'active' CHECK(status IN ('active', 'completed', 'defaulted', 'cancelled')),
       setup_fee REAL DEFAULT 0,
       late_fee REAL DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id)
     );
 
     -- Payment Plan Payments (scheduled installments)
     CREATE TABLE IF NOT EXISTS payment_plan_payments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       payment_plan_id INTEGER NOT NULL,
       payment_id INTEGER,
       scheduled_date TEXT NOT NULL,
@@ -768,14 +843,14 @@ export async function initializeDatabase() {
       attempt_count INTEGER DEFAULT 0,
       last_attempt_date TEXT,
       failure_reason TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (payment_plan_id) REFERENCES payment_plans(id),
       FOREIGN KEY (payment_id) REFERENCES payments(id)
     );
 
     -- Billing Notifications (automated communications)
     CREATE TABLE IF NOT EXISTS billing_notifications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       patient_id TEXT,
       provider_id TEXT,
       notification_type TEXT NOT NULL CHECK(notification_type IN ('payment_due', 'payment_received', 'claim_denied', 'statement_generated', 'payment_plan_setup', 'payment_failed')),
@@ -785,22 +860,22 @@ export async function initializeDatabase() {
       delivery_method TEXT CHECK(delivery_method IN ('email', 'sms', 'portal', 'mail')),
       recipient_address TEXT,
       error_message TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT NOW(),
       FOREIGN KEY (patient_id) REFERENCES patients(id),
       FOREIGN KEY (provider_id) REFERENCES users(id)
     );
 
     -- Billing Rules Engine (automated business rules)
     CREATE TABLE IF NOT EXISTS billing_rules (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       rule_name TEXT NOT NULL,
       rule_type TEXT NOT NULL CHECK(rule_type IN ('auto_billing', 'denial_prevention', 'payment_posting', 'statement_generation')),
       conditions TEXT NOT NULL, -- JSON with rule conditions
       actions TEXT NOT NULL, -- JSON with actions to take
       priority INTEGER DEFAULT 1,
       enabled BOOLEAN DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW()
     );
 
     -- Indexes for performance
@@ -825,7 +900,7 @@ export async function initializeDatabase() {
       recipient_id TEXT NOT NULL,
       sender_name TEXT DEFAULT '',
       content TEXT NOT NULL,
-      timestamp TEXT DEFAULT (datetime('now')),
+      timestamp TEXT DEFAULT NOW(),
       reactions TEXT DEFAULT '{}',
       read INTEGER DEFAULT 0,
       FOREIGN KEY (sender_id) REFERENCES users(id),
@@ -925,20 +1000,36 @@ export async function initializeDatabase() {
       rooms INTEGER NOT NULL DEFAULT 0,
       telehealth INTEGER NOT NULL DEFAULT 1,
       sort_order INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT NOW(),
+      updated_at TEXT DEFAULT NOW()
     );
 
     -- Seed default locations if none exist
-    INSERT OR IGNORE INTO locations (id, name, short_name, address, phone, fax, hours, type, status, npi, tax_id, place_of_service, rooms, telehealth, sort_order) VALUES
+    INSERT INTO locations (id, name, short_name, address, phone, fax, hours, type, status, npi, tax_id, place_of_service, rooms, telehealth, sort_order) VALUES
       ('loc-apmg', 'Advanced Practice Medical Group', 'Rolling Meadows', '2280 Hicks Rd Suite 508, Rolling Meadows, IL 60008', '(847) 371-5200', '', '', 'Primary',   'Active', '', '', '11 — Office', 0, 1, 0),
       ('loc1', 'Clarity — Main Office',      'Main Office',   '200 N Michigan Ave, Suite 1500, Chicago, IL 60601', '(312) 555-0199', '(312) 555-0200', 'Mon–Fri 8:00 AM – 6:00 PM',          'Primary',  'Active', '1234567890', '12-3456789', '11 — Office',       8, 1, 1),
       ('loc2', 'Clarity — West Loop',         'West Loop',     '311 W Randolph St, Suite 800, Chicago, IL 60606',   '(312) 555-0210', '(312) 555-0211', 'Mon, Wed, Fri 9:00 AM – 5:00 PM',    'Satellite', 'Active', '1234567891', '12-3456789', '11 — Office',       5, 1, 2),
       ('loc3', 'Clarity — Evanston',          'Evanston',      '1603 Orrington Ave, Suite 300, Evanston, IL 60201', '(847) 555-0130', '(847) 555-0131', 'Tue, Thu 9:00 AM – 5:00 PM',         'Satellite', 'Active', '1234567892', '12-3456790', '11 — Office',       3, 1, 3),
-      ('loc4', 'Clarity — Telehealth Only',   'Telehealth',    'Virtual — No Physical Location',                    '(312) 555-0250', '—',              'Mon–Sat 7:00 AM – 9:00 PM',          'Virtual',  'Active', '',           '12-3456789', '02 — Telehealth',   0, 1, 4);
+      ('loc4', 'Clarity — Telehealth Only',   'Telehealth',    'Virtual — No Physical Location',                    '(312) 555-0250', '—',              'Mon–Sat 7:00 AM – 9:00 PM',          'Virtual',  'Active', '',           '12-3456789', '02 — Telehealth',   0, 1, 4)
+    ON CONFLICT (id) DO NOTHING;
   `);
 
-  console.log('Database schema initialized');
+  // Safe column additions (idempotent — ignored if column already exists)
+  const columnMigrations = [
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password INTEGER DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT DEFAULT NULL`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_otp TEXT DEFAULT NULL`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_otp_expires TEXT DEFAULT NULL`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_otp_attempts INTEGER DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS location_id TEXT DEFAULT 'loc1'`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS dosespot_user_id TEXT DEFAULT NULL`,
+    `ALTER TABLE patients ADD COLUMN IF NOT EXISTS dosespot_patient_id TEXT DEFAULT NULL`,
+  ];
+  for (const m of columnMigrations) {
+    await pool.query(m);
+  }
+
+  console.log('PostgreSQL schema initialized');
 }
 
 export default db;

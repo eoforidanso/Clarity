@@ -7,7 +7,7 @@ import db from '../db/database.js';
  * medication changes, order creation, prescription, etc.
  */
 
-export function logAuditEvent({
+export async function logAuditEvent({
   userId = '',
   userName = '',
   userRole = '',
@@ -22,7 +22,7 @@ export function logAuditEvent({
   sessionId = '',
 }) {
   try {
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_log (id, user_id, user_name, user_role, action, resource_type, resource_id, patient_id, patient_name, details, ip_address, user_agent, session_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -108,5 +108,5 @@ export function getAuditLog({ userId, patientId, action, startDate, endDate, lim
   sql += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
 
-  return db.prepare(sql).all(...params);
+  return await db.prepare(sql).all(...params);
 }

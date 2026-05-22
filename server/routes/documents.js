@@ -14,7 +14,7 @@ const router = Router();
 // ── Utility: Build structured document data ─────────────
 
 function getPatientHeader(patientId) {
-  const p = db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId);
+  const p = await db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId);
   if (!p) return null;
   return {
     name: `${p.first_name} ${p.last_name}`,
@@ -29,7 +29,7 @@ function getPatientHeader(patientId) {
 }
 
 function getProviderInfo(userId) {
-  const u = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  const u = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
   if (!u) return { name: 'Unknown', credentials: '', npi: '', specialty: '' };
   return {
     name: `${u.first_name} ${u.last_name || ''}`.trim(),
@@ -41,7 +41,7 @@ function getProviderInfo(userId) {
 }
 
 // ── POST /api/documents/progress-note ─────────────────
-router.post('/progress-note', authenticate, (req, res) => {
+router.post('/progress-note', authenticate, async (req, res) => {
   const { encounterId, patientId } = req.body;
   if (!encounterId || !patientId) {
     return res.status(400).json({ error: 'encounterId and patientId are required' });
@@ -50,25 +50,25 @@ router.post('/progress-note', authenticate, (req, res) => {
   const patient = getPatientHeader(patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-  const enc = db.prepare('SELECT * FROM encounters WHERE id = ? AND patient_id = ?').get(encounterId, patientId);
+  const enc = await db.prepare('SELECT * FROM encounters WHERE id = ? AND patient_id = ?').get(encounterId, patientId);
   if (!enc) return res.status(404).json({ error: 'Encounter not found' });
 
   const provider = enc.provider ? getProviderInfo(enc.provider) : { name: enc.provider_name || 'Unknown', credentials: enc.credentials || '' };
 
   // Get active problems for this patient
-  const problems = db.prepare('SELECT * FROM problems WHERE patient_id = ? AND status = ?').all(patientId, 'Active');
+  const problems = await db.prepare('SELECT * FROM problems WHERE patient_id = ? AND status = ?').all(patientId, 'Active');
 
   // Get active meds
-  const meds = db.prepare('SELECT * FROM medications WHERE patient_id = ? AND status = ?').all(patientId, 'Active');
+  const meds = await db.prepare('SELECT * FROM medications WHERE patient_id = ? AND status = ?').all(patientId, 'Active');
 
   // Get allergies
-  const allergies = db.prepare('SELECT * FROM allergies WHERE patient_id = ?').all(patientId);
+  const allergies = await db.prepare('SELECT * FROM allergies WHERE patient_id = ?').all(patientId);
 
   // Get recent vitals
-  const vitals = db.prepare('SELECT * FROM vitals WHERE patient_id = ? ORDER BY date DESC LIMIT 1').get(patientId);
+  const vitals = await db.prepare('SELECT * FROM vitals WHERE patient_id = ? ORDER BY date DESC LIMIT 1').get(patientId);
 
   // Get assessments for this date
-  const assessments = db.prepare('SELECT * FROM assessments WHERE patient_id = ? AND date = ?').all(patientId, enc.date);
+  const assessments = await db.prepare('SELECT * FROM assessments WHERE patient_id = ? AND date = ?').all(patientId, enc.date);
 
   const document = {
     type: 'progress_note',
@@ -170,7 +170,7 @@ router.post('/progress-note', authenticate, (req, res) => {
 });
 
 // ── POST /api/documents/prescription ──────────────────
-router.post('/prescription', authenticate, (req, res) => {
+router.post('/prescription', authenticate, async (req, res) => {
   const { medicationId, patientId } = req.body;
   if (!medicationId || !patientId) {
     return res.status(400).json({ error: 'medicationId and patientId are required' });
@@ -179,11 +179,11 @@ router.post('/prescription', authenticate, (req, res) => {
   const patient = getPatientHeader(patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-  const med = db.prepare('SELECT * FROM medications WHERE id = ? AND patient_id = ?').get(medicationId, patientId);
+  const med = await db.prepare('SELECT * FROM medications WHERE id = ? AND patient_id = ?').get(medicationId, patientId);
   if (!med) return res.status(404).json({ error: 'Medication not found' });
 
   const provider = getProviderInfo(req.user.id);
-  const allergies = db.prepare('SELECT * FROM allergies WHERE patient_id = ?').all(patientId);
+  const allergies = await db.prepare('SELECT * FROM allergies WHERE patient_id = ?').all(patientId);
 
   const document = {
     type: 'prescription',
@@ -250,20 +250,20 @@ router.post('/prescription', authenticate, (req, res) => {
 });
 
 // ── POST /api/documents/patient-summary ───────────────
-router.post('/patient-summary', authenticate, (req, res) => {
+router.post('/patient-summary', authenticate, async (req, res) => {
   const { patientId } = req.body;
   if (!patientId) return res.status(400).json({ error: 'patientId is required' });
 
   const patient = getPatientHeader(patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-  const problems = db.prepare('SELECT * FROM problems WHERE patient_id = ?').all(patientId);
-  const meds = db.prepare('SELECT * FROM medications WHERE patient_id = ?').all(patientId);
-  const allergies = db.prepare('SELECT * FROM allergies WHERE patient_id = ?').all(patientId);
-  const vitals = db.prepare('SELECT * FROM vitals WHERE patient_id = ? ORDER BY date DESC LIMIT 5').all(patientId);
-  const assessments = db.prepare('SELECT * FROM assessments WHERE patient_id = ? ORDER BY date DESC LIMIT 10').all(patientId);
-  const immunizations = db.prepare('SELECT * FROM immunizations WHERE patient_id = ?').all(patientId);
-  const recentEncounters = db.prepare('SELECT * FROM encounters WHERE patient_id = ? ORDER BY date DESC LIMIT 5').all(patientId);
+  const problems = await db.prepare('SELECT * FROM problems WHERE patient_id = ?').all(patientId);
+  const meds = await db.prepare('SELECT * FROM medications WHERE patient_id = ?').all(patientId);
+  const allergies = await db.prepare('SELECT * FROM allergies WHERE patient_id = ?').all(patientId);
+  const vitals = await db.prepare('SELECT * FROM vitals WHERE patient_id = ? ORDER BY date DESC LIMIT 5').all(patientId);
+  const assessments = await db.prepare('SELECT * FROM assessments WHERE patient_id = ? ORDER BY date DESC LIMIT 10').all(patientId);
+  const immunizations = await db.prepare('SELECT * FROM immunizations WHERE patient_id = ?').all(patientId);
+  const recentEncounters = await db.prepare('SELECT * FROM encounters WHERE patient_id = ? ORDER BY date DESC LIMIT 5').all(patientId);
 
   const document = {
     type: 'patient_summary',
@@ -303,16 +303,16 @@ router.post('/patient-summary', authenticate, (req, res) => {
 });
 
 // ── POST /api/documents/discharge-summary ─────────────
-router.post('/discharge-summary', authenticate, (req, res) => {
+router.post('/discharge-summary', authenticate, async (req, res) => {
   const { patientId, encounterId, dischargePlan, followUpInstructions } = req.body;
   if (!patientId) return res.status(400).json({ error: 'patientId is required' });
 
   const patient = getPatientHeader(patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-  const enc = encounterId ? db.prepare('SELECT * FROM encounters WHERE id = ?').get(encounterId) : null;
-  const activeMeds = db.prepare('SELECT * FROM medications WHERE patient_id = ? AND status = ?').all(patientId, 'Active');
-  const problems = db.prepare('SELECT * FROM problems WHERE patient_id = ? AND status = ?').all(patientId, 'Active');
+  const enc = encounterId ? await db.prepare('SELECT * FROM encounters WHERE id = ?').get(encounterId) : null;
+  const activeMeds = await db.prepare('SELECT * FROM medications WHERE patient_id = ? AND status = ?').all(patientId, 'Active');
+  const problems = await db.prepare('SELECT * FROM problems WHERE patient_id = ? AND status = ?').all(patientId, 'Active');
 
   const document = {
     type: 'discharge_summary',

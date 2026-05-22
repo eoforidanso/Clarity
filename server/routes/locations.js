@@ -34,7 +34,7 @@ function rowToObj(r) {
 // ── GET /api/locations ──────────────────────────────────────────────────
 // Public to authenticated users (all roles need to see the location list)
 router.get('/', authenticate, (_req, res) => {
-  const rows = db.prepare(
+  const rows = await db.prepare(
     `SELECT * FROM locations ORDER BY sort_order ASC, name ASC`
   ).all();
   res.json(rows.map(rowToObj));
@@ -42,7 +42,7 @@ router.get('/', authenticate, (_req, res) => {
 
 // ── POST /api/locations ─────────────────────────────────────────────────
 // Admin/front_desk only
-router.post('/', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
+router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
   const { name, shortName, address, phone, fax, hours, type, status, npi, taxId, placeOfService, rooms, telehealth, sortOrder } = req.body;
 
   if (!name || typeof name !== 'string' || name.trim().length < 1) {
@@ -53,7 +53,7 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
   }
 
   const id = uuidv4();
-  db.prepare(
+  await db.prepare(
     `INSERT INTO locations (id, name, short_name, address, phone, fax, hours, type, status, npi, tax_id, place_of_service, rooms, telehealth, sort_order)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
@@ -86,14 +86,14 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
     userAgent: req.get('User-Agent') || '',
   });
 
-  const created = db.prepare('SELECT * FROM locations WHERE id = ?').get(id);
+  const created = await db.prepare('SELECT * FROM locations WHERE id = ?').get(id);
   res.status(201).json(rowToObj(created));
 });
 
 // ── PUT /api/locations/:id ──────────────────────────────────────────────
-router.put('/:id', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
+router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
   const { id } = req.params;
-  const loc = db.prepare('SELECT id FROM locations WHERE id = ?').get(id);
+  const loc = await db.prepare('SELECT id FROM locations WHERE id = ?').get(id);
   if (!loc) return res.status(404).json({ error: 'Location not found' });
 
   const { name, shortName, address, phone, fax, hours, type, status, npi, taxId, placeOfService, rooms, telehealth, sortOrder } = req.body;
@@ -105,7 +105,7 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
     return res.status(400).json({ error: `Status must be one of: ${VALID_STATUSES.join(', ')}` });
   }
 
-  db.prepare(
+  await db.prepare(
     `UPDATE locations SET
        name             = COALESCE(?, name),
        short_name       = COALESCE(?, short_name),
@@ -152,23 +152,23 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
     userAgent: req.get('User-Agent') || '',
   });
 
-  const updated = db.prepare('SELECT * FROM locations WHERE id = ?').get(id);
+  const updated = await db.prepare('SELECT * FROM locations WHERE id = ?').get(id);
   res.json(rowToObj(updated));
 });
 
 // ── DELETE /api/locations/:id ───────────────────────────────────────────
-router.delete('/:id', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
+router.delete('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
   const { id } = req.params;
-  const loc = db.prepare('SELECT id, name FROM locations WHERE id = ?').get(id);
+  const loc = await db.prepare('SELECT id, name FROM locations WHERE id = ?').get(id);
   if (!loc) return res.status(404).json({ error: 'Location not found' });
 
   // Prevent deleting the last active location
-  const activeCount = db.prepare("SELECT COUNT(*) as c FROM locations WHERE status = 'Active'").get();
+  const activeCount = await db.prepare("SELECT COUNT(*) as c FROM locations WHERE status = 'Active'").get();
   if (activeCount.c <= 1) {
     return res.status(400).json({ error: 'Cannot delete the last active location' });
   }
 
-  db.prepare('DELETE FROM locations WHERE id = ?').run(id);
+  await db.prepare('DELETE FROM locations WHERE id = ?').run(id);
 
   logAuditEvent({
     userId: req.user.id,

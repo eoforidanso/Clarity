@@ -43,7 +43,7 @@ async function sendOtpEmail(to, otp) {
 const router = Router();
 
 // ── Helper: issue a full authenticated session (cookie + audit log) ──────────
-function issueFullSession(res, req, user) {
+async function issueFullSession(res, req, user) {
   const sessionId = uuidv4();
   const token = jwt.sign({ userId: user.id, role: user.role, sessionId }, config.jwtSecret, {
     expiresIn: config.jwtExpiresIn,
@@ -51,7 +51,7 @@ function issueFullSession(res, req, user) {
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
   try {
-    db.prepare('INSERT INTO sessions (id, user_id, token_hash, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?)').run(
+    await db.prepare('INSERT INTO sessions (id, user_id, token_hash, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?)').run(
       sessionId, user.id, tokenHash, req.ip || '', req.get('User-Agent') || '', expiresAt
     );
   } catch (e) { /* session table may not exist on first run */ }
@@ -98,7 +98,7 @@ function issueFullSession(res, req, user) {
 }
 
 // POST /api/auth/login
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
@@ -116,7 +116,7 @@ router.post('/login', (req, res) => {
     return res.status(400).json({ error: 'Invalid password' });
   }
 
-  const user = db.prepare('SELECT id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, totp_secret, must_change_password, patient_id FROM users WHERE username = ?').get(sanitizedUsername);
+  const user = await db.prepare('SELECT id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, totp_secret, must_change_password, patient_id FROM users WHERE username = ?').get(sanitizedUsername);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     // Log failed login attempt
     logAuditEvent({
@@ -138,7 +138,7 @@ router.post('/login', (req, res) => {
     // Generate cryptographically secure 6-digit OTP
     const otp = String(crypto.randomInt(100000, 1000000));
     const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-    db.prepare(
+    await db.prepare(
       "UPDATE users SET email_otp = ?, email_otp_expires = ?, email_otp_attempts = 0, updated_at = datetime('now') WHERE id = ?"
     ).run(otp, expires, user.id);
 
@@ -176,11 +176,11 @@ router.post('/login', (req, res) => {
   }
 
   // No 2FA configured — issue full session immediately
-  res.json(issueFullSession(res, req, user));
+  res.json(await issueFullSession(res, req, user));
 });
 
 // GET /api/auth/me
-router.get('/me', authenticate, (req, res) => {
+router.get('/me', authenticate, async (req, res) => {
   logAuditEvent({
     userId: req.user.id,
     userName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
@@ -212,7 +212,7 @@ router.get('/me', authenticate, (req, res) => {
 });
 
 // POST /api/auth/change-password
-router.post('/change-password', authenticate, (req, res) => {
+router.post('/change-password', authenticate, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) {
     return res.status(400).json({ error: 'currentPassword and newPassword are required' });
@@ -224,7 +224,7 @@ router.post('/change-password', authenticate, (req, res) => {
     return res.status(400).json({ error: 'New password must contain at least one uppercase letter and one number' });
   }
 
-  const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.user.id);
+  const user = await db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.user.id);
   if (!user || !bcrypt.compareSync(currentPassword, user.password_hash)) {
     return res.status(401).json({ error: 'Current password is incorrect' });
   }
@@ -235,7 +235,7 @@ router.post('/change-password', authenticate, (req, res) => {
   }
 
   const newHash = bcrypt.hashSync(newPassword, 12);
-  db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = datetime(\'now\') WHERE id = ?').run(newHash, req.user.id);
+  await db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = datetime(\'now\') WHERE id = ?').run(newHash, req.user.id);
 
   logAuditEvent({
     userId: req.user.id,
@@ -251,7 +251,7 @@ router.post('/change-password', authenticate, (req, res) => {
 });
 
 // POST /api/auth/logout
-router.post('/logout', authenticate, (req, res) => {
+router.post('/logout', authenticate, async (req, res) => {
   // Clear the httpOnly auth cookie
   res.clearCookie('ehr_token', {
     httpOnly: true,
@@ -262,7 +262,7 @@ router.post('/logout', authenticate, (req, res) => {
 
   // Invalidate session
   try {
-    db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = ? AND is_active = 1').run(req.user.id);
+    await db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = ? AND is_active = 1').run(req.user.id);
   } catch (e) { /* ok */ }
 
   logAuditEvent({
@@ -278,11 +278,11 @@ router.post('/logout', authenticate, (req, res) => {
 });
 
 // POST /api/auth/verify-epcs-pin
-router.post('/verify-epcs-pin', authenticate, (req, res) => {
+router.post('/verify-epcs-pin', authenticate, async (req, res) => {
   const { pin } = req.body;
   if (!pin) return res.status(400).json({ error: 'PIN is required' });
 
-  const user = db.prepare('SELECT epcs_pin_hash FROM users WHERE id = ?').get(req.user.id);
+  const user = await db.prepare('SELECT epcs_pin_hash FROM users WHERE id = ?').get(req.user.id);
   if (!user || !user.epcs_pin_hash) {
     return res.status(400).json({ error: 'EPCS not configured for this user' });
   }
@@ -292,17 +292,17 @@ router.post('/verify-epcs-pin', authenticate, (req, res) => {
 });
 
 // POST /api/auth/generate-epcs-otp
-router.post('/generate-epcs-otp', authenticate, (req, res) => {
+router.post('/generate-epcs-otp', authenticate, async (req, res) => {
   // Generate 6-digit OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const otpHash = bcrypt.hashSync(otp, 10);
   const expiresAt = new Date(Date.now() + 30000).toISOString(); // 30 seconds
 
   // Invalidate previous OTPs
-  db.prepare('UPDATE epcs_otps SET used = 1 WHERE user_id = ? AND used = 0').run(req.user.id);
+  await db.prepare('UPDATE epcs_otps SET used = 1 WHERE user_id = ? AND used = 0').run(req.user.id);
 
   // Store new OTP
-  db.prepare('INSERT INTO epcs_otps (id, user_id, otp_hash, expires_at) VALUES (?, ?, ?, ?)').run(
+  await db.prepare('INSERT INTO epcs_otps (id, user_id, otp_hash, expires_at) VALUES (?, ?, ?, ?)').run(
     uuidv4(), req.user.id, otpHash, expiresAt
   );
 
@@ -314,11 +314,11 @@ router.post('/generate-epcs-otp', authenticate, (req, res) => {
 });
 
 // POST /api/auth/verify-epcs-otp
-router.post('/verify-epcs-otp', authenticate, (req, res) => {
+router.post('/verify-epcs-otp', authenticate, async (req, res) => {
   const { otp } = req.body;
   if (!otp) return res.status(400).json({ error: 'OTP is required' });
 
-  const otpRecord = db.prepare(
+  const otpRecord = await db.prepare(
     'SELECT * FROM epcs_otps WHERE user_id = ? AND used = 0 ORDER BY created_at DESC LIMIT 1'
   ).get(req.user.id);
 
@@ -327,20 +327,20 @@ router.post('/verify-epcs-otp', authenticate, (req, res) => {
   }
 
   if (new Date(otpRecord.expires_at) < new Date()) {
-    db.prepare('UPDATE epcs_otps SET used = 1 WHERE id = ?').run(otpRecord.id);
+    await db.prepare('UPDATE epcs_otps SET used = 1 WHERE id = ?').run(otpRecord.id);
     return res.json({ valid: false, error: 'OTP has expired' });
   }
 
   const valid = bcrypt.compareSync(otp, otpRecord.otp_hash);
   if (valid) {
-    db.prepare('UPDATE epcs_otps SET used = 1 WHERE id = ?').run(otpRecord.id);
+    await db.prepare('UPDATE epcs_otps SET used = 1 WHERE id = ?').run(otpRecord.id);
   }
 
   res.json({ valid });
 });
 
 // POST /api/auth/2fa/verify — validate email OTP and issue full session
-router.post('/2fa/verify', (req, res) => {
+router.post('/2fa/verify', async (req, res) => {
   const { tempToken, code } = req.body;
   if (!tempToken || !code) {
     return res.status(400).json({ error: 'tempToken and code are required' });
@@ -357,7 +357,7 @@ router.post('/2fa/verify', (req, res) => {
     return res.status(401).json({ error: 'Invalid token type' });
   }
 
-  const user = db.prepare(
+  const user = await db.prepare(
     'SELECT id, username, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, email_otp, email_otp_expires, email_otp_attempts, must_change_password, patient_id FROM users WHERE id = ?'
   ).get(payload.userId);
 
@@ -367,13 +367,13 @@ router.post('/2fa/verify', (req, res) => {
 
   // Enforce attempt limit
   if ((user.email_otp_attempts || 0) >= 5) {
-    db.prepare("UPDATE users SET email_otp = NULL, email_otp_expires = NULL, email_otp_attempts = 0 WHERE id = ?").run(user.id);
+    await db.prepare("UPDATE users SET email_otp = NULL, email_otp_expires = NULL, email_otp_attempts = 0 WHERE id = ?").run(user.id);
     return res.status(400).json({ error: 'Too many failed attempts. Please log in again.' });
   }
 
   // Check expiry
   if (!user.email_otp || !user.email_otp_expires || new Date(user.email_otp_expires) < new Date()) {
-    db.prepare("UPDATE users SET email_otp = NULL, email_otp_expires = NULL, email_otp_attempts = 0 WHERE id = ?").run(user.id);
+    await db.prepare("UPDATE users SET email_otp = NULL, email_otp_expires = NULL, email_otp_attempts = 0 WHERE id = ?").run(user.id);
     return res.status(400).json({ error: 'Code expired. Please log in again.' });
   }
 
@@ -384,7 +384,7 @@ router.post('/2fa/verify', (req, res) => {
     crypto.timingSafeEqual(submittedBuf, storedBuf);
 
   if (!match) {
-    db.prepare("UPDATE users SET email_otp_attempts = email_otp_attempts + 1 WHERE id = ?").run(user.id);
+    await db.prepare("UPDATE users SET email_otp_attempts = email_otp_attempts + 1 WHERE id = ?").run(user.id);
     logAuditEvent({
       userId: user.id,
       userName: `${user.first_name} ${user.last_name || ''}`.trim(),
@@ -398,14 +398,14 @@ router.post('/2fa/verify', (req, res) => {
   }
 
   // Clear OTP after successful use
-  db.prepare("UPDATE users SET email_otp = NULL, email_otp_expires = NULL, email_otp_attempts = 0 WHERE id = ?").run(user.id);
+  await db.prepare("UPDATE users SET email_otp = NULL, email_otp_expires = NULL, email_otp_attempts = 0 WHERE id = ?").run(user.id);
 
-  res.json(issueFullSession(res, req, user));
+  res.json(await issueFullSession(res, req, user));
 });
 
 // POST /api/auth/2fa/enable — enable email 2FA for the authenticated user
-router.post('/2fa/enable', authenticate, (req, res) => {
-  db.prepare("UPDATE users SET two_factor_enabled = 1, updated_at = datetime('now') WHERE id = ?")
+router.post('/2fa/enable', authenticate, async (req, res) => {
+  await db.prepare("UPDATE users SET two_factor_enabled = 1, updated_at = datetime('now') WHERE id = ?")
     .run(req.user.id);
   logAuditEvent({
     userId: req.user.id,
@@ -420,8 +420,8 @@ router.post('/2fa/enable', authenticate, (req, res) => {
 });
 
 // POST /api/auth/2fa/disable — disable email 2FA for the authenticated user
-router.post('/2fa/disable', authenticate, (req, res) => {
-  db.prepare("UPDATE users SET two_factor_enabled = 0, email_otp = NULL, email_otp_expires = NULL, updated_at = datetime('now') WHERE id = ?")
+router.post('/2fa/disable', authenticate, async (req, res) => {
+  await db.prepare("UPDATE users SET two_factor_enabled = 0, email_otp = NULL, email_otp_expires = NULL, updated_at = datetime('now') WHERE id = ?")
     .run(req.user.id);
   logAuditEvent({
     userId: req.user.id,

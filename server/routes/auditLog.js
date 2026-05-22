@@ -5,7 +5,7 @@ import { getAuditLog } from '../middleware/auditLog.js';
 const router = Router();
 
 // GET /api/audit-log — front_desk only
-router.get('/', authenticate, authorize('front_desk'), (req, res) => {
+router.get('/', authenticate, authorize('front_desk'), async (req, res) => {
   const { userId, patientId, action, startDate, endDate, limit, offset } = req.query;
   const entries = getAuditLog({
     userId,
@@ -20,7 +20,7 @@ router.get('/', authenticate, authorize('front_desk'), (req, res) => {
 });
 
 // GET /api/audit-log/patient/:patientId — who accessed a patient's chart
-router.get('/patient/:patientId', authenticate, (req, res) => {
+router.get('/patient/:patientId', authenticate, async (req, res) => {
   const entries = getAuditLog({
     patientId: req.params.patientId,
     limit: parseInt(req.query.limit) || 50,
@@ -30,7 +30,7 @@ router.get('/patient/:patientId', authenticate, (req, res) => {
 });
 
 // GET /api/audit-log/user/:userId — all actions by a user
-router.get('/user/:userId', authenticate, authorize('front_desk'), (req, res) => {
+router.get('/user/:userId', authenticate, authorize('front_desk'), async (req, res) => {
   const entries = getAuditLog({
     userId: req.params.userId,
     limit: parseInt(req.query.limit) || 50,

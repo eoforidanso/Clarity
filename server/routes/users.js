@@ -86,7 +86,7 @@ router.get('/', authenticate, authorize(...ADMIN_ROLES), (_req, res) => {
 
 // ── POST /api/users ─────────────────────────────────────────────────────
 // Create a new staff user. Admin/front_desk only.
-router.post('/', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
+router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
   const { username, password, firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled, locationId } = req.body;
 
   // Validate required fields
@@ -107,16 +107,16 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
   }
 
   // Check uniqueness
-  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(cleanUsername);
+  const existing = await db.prepare('SELECT id FROM users WHERE username = ?').get(cleanUsername);
   if (existing) return res.status(409).json({ error: 'Username already exists' });
 
-  const emailExists = db.prepare('SELECT id FROM users WHERE email = ?').get(email.trim().toLowerCase());
+  const emailExists = await db.prepare('SELECT id FROM users WHERE email = ?').get(email.trim().toLowerCase());
   if (emailExists) return res.status(409).json({ error: 'Email already in use' });
 
   const id = uuidv4();
   const passwordHash = bcrypt.hashSync(password, SALT_ROUNDS);
 
-  db.prepare(
+  await db.prepare(
     `INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, must_change_password, location_id)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
   ).run(
@@ -155,11 +155,11 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
 
 // ── PUT /api/users/:id ──────────────────────────────────────────────────
 // Update a user's profile (not password). Admin/front_desk only.
-router.put('/:id', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
+router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
   const { id } = req.params;
   const { firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled, locationId } = req.body;
 
-  const user = db.prepare('SELECT id, role FROM users WHERE id = ? AND role != ?').get(id, 'patient');
+  const user = await db.prepare('SELECT id, role FROM users WHERE id = ? AND role != ?').get(id, 'patient');
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   if (role && !VALID_ROLES.includes(role)) {
@@ -169,11 +169,11 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
     return res.status(400).json({ error: 'Valid email is required' });
   }
   if (email) {
-    const emailConflict = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email.trim().toLowerCase(), id);
+    const emailConflict = await db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email.trim().toLowerCase(), id);
     if (emailConflict) return res.status(409).json({ error: 'Email already in use' });
   }
 
-  db.prepare(
+  await db.prepare(
     `UPDATE users SET
        first_name = COALESCE(?, first_name),
        last_name = COALESCE(?, last_name),
@@ -218,7 +218,7 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
 
 // ── POST /api/users/:id/reset-password ─────────────────────────────────
 // Reset a user's password. Admin/front_desk only. Cannot reset own password this way.
-router.post('/:id/reset-password', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
+router.post('/:id/reset-password', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
   const { id } = req.params;
   const { newPassword } = req.body;
 
@@ -229,15 +229,15 @@ router.post('/:id/reset-password', authenticate, authorize(...ADMIN_ROLES), (req
   const pwdError = validatePassword(newPassword);
   if (pwdError) return res.status(400).json({ error: pwdError });
 
-  const user = db.prepare('SELECT id FROM users WHERE id = ? AND role != ?').get(id, 'patient');
+  const user = await db.prepare('SELECT id FROM users WHERE id = ? AND role != ?').get(id, 'patient');
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const hash = bcrypt.hashSync(newPassword, SALT_ROUNDS);
-  db.prepare("UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = datetime('now') WHERE id = ?").run(hash, id);
+  await db.prepare("UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = datetime('now') WHERE id = ?").run(hash, id);
 
   // Invalidate all active sessions for this user
   try {
-    db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = ?').run(id);
+    await db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = ?').run(id);
   } catch (_) { /* sessions table may not exist */ }
 
   logAuditEvent({
@@ -256,17 +256,17 @@ router.post('/:id/reset-password', authenticate, authorize(...ADMIN_ROLES), (req
 
 // ── DELETE /api/users/:id ───────────────────────────────────────────────
 // Delete a staff user. Cannot delete yourself.
-router.delete('/:id', authenticate, authorize(...ADMIN_ROLES), (req, res) => {
+router.delete('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
   const { id } = req.params;
 
   if (id === req.user.id) {
     return res.status(400).json({ error: 'You cannot delete your own account' });
   }
 
-  const user = db.prepare('SELECT id, username, role FROM users WHERE id = ? AND role != ?').get(id, 'patient');
+  const user = await db.prepare('SELECT id, username, role FROM users WHERE id = ? AND role != ?').get(id, 'patient');
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  await db.prepare('DELETE FROM users WHERE id = ?').run(id);
 
   logAuditEvent({
     userId: req.user.id,

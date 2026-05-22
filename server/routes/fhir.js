@@ -15,7 +15,7 @@ const router = Router();
 const BASE_URL = '/api/fhir';
 
 // ── Metadata / CapabilityStatement ────────────────────
-router.get('/metadata', (req, res) => {
+router.get('/metadata', async (req, res) => {
   res.json({
     resourceType: 'CapabilityStatement',
     status: 'active',
@@ -90,20 +90,20 @@ function toFhirPatient(p) {
 }
 
 // GET /api/fhir/Patient
-router.get('/Patient', authenticate, (req, res) => {
+router.get('/Patient', authenticate, async (req, res) => {
   const { name, _id, identifier } = req.query;
   let patients;
 
   if (_id) {
-    const p = db.prepare('SELECT * FROM patients WHERE id = ?').get(_id);
+    const p = await db.prepare('SELECT * FROM patients WHERE id = ?').get(_id);
     patients = p ? [p] : [];
   } else if (identifier) {
-    const p = db.prepare('SELECT * FROM patients WHERE mrn = ?').get(identifier);
+    const p = await db.prepare('SELECT * FROM patients WHERE mrn = ?').get(identifier);
     patients = p ? [p] : [];
   } else if (name) {
-    patients = db.prepare("SELECT * FROM patients WHERE first_name LIKE ? OR last_name LIKE ?").all(`%${name}%`, `%${name}%`);
+    patients = await db.prepare("SELECT * FROM patients WHERE first_name LIKE ? OR last_name LIKE ?").all(`%${name}%`, `%${name}%`);
   } else {
-    patients = db.prepare('SELECT * FROM patients WHERE is_active = 1').all();
+    patients = await db.prepare('SELECT * FROM patients WHERE is_active = 1').all();
   }
 
   logAuditEvent({
@@ -116,8 +116,8 @@ router.get('/Patient', authenticate, (req, res) => {
 });
 
 // GET /api/fhir/Patient/:id
-router.get('/Patient/:id', authenticate, (req, res) => {
-  const p = db.prepare('SELECT * FROM patients WHERE id = ?').get(req.params.id);
+router.get('/Patient/:id', authenticate, async (req, res) => {
+  const p = await db.prepare('SELECT * FROM patients WHERE id = ?').get(req.params.id);
   if (!p) return res.status(404).json({ resourceType: 'OperationOutcome', issue: [{ severity: 'error', code: 'not-found' }] });
 
   logAuditEvent({
@@ -148,21 +148,21 @@ function toFhirEncounter(e) {
   };
 }
 
-router.get('/Encounter', authenticate, (req, res) => {
+router.get('/Encounter', authenticate, async (req, res) => {
   const { patient, date } = req.query;
   let encounters;
 
   if (patient) {
-    encounters = db.prepare('SELECT * FROM encounters WHERE patient_id = ? ORDER BY date DESC').all(patient);
+    encounters = await db.prepare('SELECT * FROM encounters WHERE patient_id = ? ORDER BY date DESC').all(patient);
   } else {
-    encounters = db.prepare('SELECT * FROM encounters ORDER BY date DESC LIMIT 100').all();
+    encounters = await db.prepare('SELECT * FROM encounters ORDER BY date DESC LIMIT 100').all();
   }
 
   res.json(bundle('searchset', encounters.map(toFhirEncounter)));
 });
 
-router.get('/Encounter/:id', authenticate, (req, res) => {
-  const e = db.prepare('SELECT * FROM encounters WHERE id = ?').get(req.params.id);
+router.get('/Encounter/:id', authenticate, async (req, res) => {
+  const e = await db.prepare('SELECT * FROM encounters WHERE id = ?').get(req.params.id);
   if (!e) return res.status(404).json({ resourceType: 'OperationOutcome', issue: [{ severity: 'error', code: 'not-found' }] });
   res.json(toFhirEncounter(e));
 });
@@ -209,19 +209,19 @@ function toFhirAssessment(a) {
   };
 }
 
-router.get('/Observation', authenticate, (req, res) => {
+router.get('/Observation', authenticate, async (req, res) => {
   const { patient, category } = req.query;
   const results = [];
 
   if (!patient) return res.json(bundle('searchset', []));
 
   if (!category || category === 'vital-signs') {
-    const vitals = db.prepare('SELECT * FROM vitals WHERE patient_id = ? ORDER BY date DESC').all(patient);
+    const vitals = await db.prepare('SELECT * FROM vitals WHERE patient_id = ? ORDER BY date DESC').all(patient);
     results.push(...vitals.map(toFhirVital));
   }
 
   if (!category || category === 'survey') {
-    const assessments = db.prepare('SELECT * FROM assessments WHERE patient_id = ? ORDER BY date DESC').all(patient);
+    const assessments = await db.prepare('SELECT * FROM assessments WHERE patient_id = ? ORDER BY date DESC').all(patient);
     results.push(...assessments.map(toFhirAssessment));
   }
 
@@ -245,16 +245,16 @@ function toFhirCondition(p) {
   };
 }
 
-router.get('/Condition', authenticate, (req, res) => {
+router.get('/Condition', authenticate, async (req, res) => {
   const { patient } = req.query;
   if (!patient) return res.json(bundle('searchset', []));
 
-  const problems = db.prepare('SELECT * FROM problems WHERE patient_id = ?').all(patient);
+  const problems = await db.prepare('SELECT * FROM problems WHERE patient_id = ?').all(patient);
   res.json(bundle('searchset', problems.map(toFhirCondition)));
 });
 
-router.get('/Condition/:id', authenticate, (req, res) => {
-  const p = db.prepare('SELECT * FROM problems WHERE id = ?').get(req.params.id);
+router.get('/Condition/:id', authenticate, async (req, res) => {
+  const p = await db.prepare('SELECT * FROM problems WHERE id = ?').get(req.params.id);
   if (!p) return res.status(404).json({ resourceType: 'OperationOutcome', issue: [{ severity: 'error', code: 'not-found' }] });
   res.json(toFhirCondition(p));
 });
@@ -278,11 +278,11 @@ function toFhirMedicationStatement(m) {
   };
 }
 
-router.get('/MedicationStatement', authenticate, (req, res) => {
+router.get('/MedicationStatement', authenticate, async (req, res) => {
   const { patient } = req.query;
   if (!patient) return res.json(bundle('searchset', []));
 
-  const meds = db.prepare('SELECT * FROM medications WHERE patient_id = ?').all(patient);
+  const meds = await db.prepare('SELECT * FROM medications WHERE patient_id = ?').all(patient);
   res.json(bundle('searchset', meds.map(toFhirMedicationStatement)));
 });
 
@@ -303,11 +303,11 @@ function toFhirAllergy(a) {
   };
 }
 
-router.get('/AllergyIntolerance', authenticate, (req, res) => {
+router.get('/AllergyIntolerance', authenticate, async (req, res) => {
   const { patient } = req.query;
   if (!patient) return res.json(bundle('searchset', []));
 
-  const allergies = db.prepare('SELECT * FROM allergies WHERE patient_id = ?').all(patient);
+  const allergies = await db.prepare('SELECT * FROM allergies WHERE patient_id = ?').all(patient);
   res.json(bundle('searchset', allergies.map(toFhirAllergy)));
 });
 

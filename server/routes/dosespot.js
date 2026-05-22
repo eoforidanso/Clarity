@@ -97,7 +97,7 @@ async function syncPatientToDS(token, patient) {
 
 // ── GET /api/dosespot/status ─────────────────────────────────────────────────
 // Returns whether DoseSpot is configured + environment
-router.get('/status', authenticate, (req, res) => {
+router.get('/status', authenticate, async (req, res) => {
   res.json({
     configured: isConfigured(),
     environment: process.env.DOSESPOT_ENVIRONMENT || 'staging',
@@ -114,7 +114,7 @@ router.get('/sso', authenticate, authorize('prescriber'), async (req, res) => {
     });
   }
 
-  const prescriber = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  const prescriber = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   if (!prescriber?.dosespot_user_id) {
     return res.status(400).json({
       error: 'Your account is not yet enrolled in DoseSpot. Contact your administrator.',
@@ -128,12 +128,12 @@ router.get('/sso', authenticate, authorize('prescriber'), async (req, res) => {
 
     let dosespotPatientId = null;
     if (patientId) {
-      let patient = db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId);
+      let patient = await db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId);
       if (patient) {
         dosespotPatientId = patient.dosespot_patient_id;
         if (!dosespotPatientId) {
           dosespotPatientId = await syncPatientToDS(token, patient);
-          db.prepare('UPDATE patients SET dosespot_patient_id = ? WHERE id = ?')
+          await db.prepare('UPDATE patients SET dosespot_patient_id = ? WHERE id = ?')
             .run(dosespotPatientId, patientId);
         }
       }
@@ -186,7 +186,7 @@ router.post('/webhook', async (req, res) => {
       const status = statusMap[Data.Status] || 'Active';
 
       // Update order if we have a matching DoseSpot prescription ID stored
-      db.prepare(`
+      await db.prepare(`
         UPDATE orders SET status = ? WHERE notes LIKE ?
       `).run(status, `%${Data.PrescriptionId}%`);
     }
@@ -199,8 +199,8 @@ router.post('/webhook', async (req, res) => {
 
 // ── GET /api/dosespot/prescriber-status ──────────────────────────────────────
 // Check if the current prescriber has a dosespot_user_id assigned
-router.get('/prescriber-status', authenticate, authorize('prescriber'), (req, res) => {
-  const prescriber = db.prepare('SELECT dosespot_user_id FROM users WHERE id = ?').get(req.user.id);
+router.get('/prescriber-status', authenticate, authorize('prescriber'), async (req, res) => {
+  const prescriber = await db.prepare('SELECT dosespot_user_id FROM users WHERE id = ?').get(req.user.id);
   res.json({ enrolled: !!prescriber?.dosespot_user_id });
 });
 
