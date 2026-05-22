@@ -2750,7 +2750,7 @@ img { max-width: 100%; }
 }
 .system-status-label { letter-spacing: 0.1px; }
 .login-topnav-right {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 10px; flex: 1; justify-content: flex-end;
 }
 
 .login-role-chip {
@@ -2920,10 +2920,12 @@ img { max-width: 100%; }
   .telehealth-container { grid-template-columns: 1fr; }
   .telehealth-sidebar   { display: none; }
 }
+@media (max-width: 480px) {
+  .login-topnav-badges { display: none; }
+}
 @media (max-width: 780px) {
   .login-two-col { flex-direction: column; padding: 24px 16px; gap: 20px; }
   .login-col-form, .login-col-demo { max-width: 100%; }
-  .login-topnav-badges { display: none; }
   .login-topnav { padding: 10px 16px; }
   .login-topnav-wordmark { font-size: 15px; }
   /* shrink decorative orbs so they don't cause overflow on narrow screens */
