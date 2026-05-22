@@ -258,6 +258,21 @@
 .login-submit-btn {
   min-height: 48px;    /* WCAG / Apple HIG 44px minimum */
 }
+
+/* Soft server-unavailable note below submit — informational, not alarming */
+.login-server-note {
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: #94a3b8;
+  text-align: center;
+  line-height: 1.5;
+  animation: clarity-fadein 0.3s ease;
+}
+.login-server-note a {
+  color: #7dd3fc;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .btn-spinner {
   display: inline-block;
   width: 14px;

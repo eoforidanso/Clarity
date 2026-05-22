@@ -171,7 +171,6 @@ export default function LoginPage() {
           <span className="login-version-pill" aria-label="Version 14.2">V14.2</span>
         </div>
         <div className="login-topnav-right">
-          <SystemStatus />
           <div className="login-topnav-badges" aria-label="Compliance certifications">
             {CERTS.map(c => (
               <span key={c} className="login-topnav-cert">{c}</span>
@@ -211,10 +210,12 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Live region — screen readers announce login errors immediately */}
+            {/* Live region — error banner only appears AFTER a login attempt fails.
+                 serverDown from the background probe is shown as a softer note below
+                 the submit button. SystemStatus in the nav handles pre-login server state. */}
             <div role="alert" aria-live="assertive" aria-atomic="true">
-              {(loginError || serverDown) && (() => {
-                const msg = loginError || 'Unable to reach server. Check your internet connection.';
+              {loginError && (() => {
+                const msg = loginError;
                 const cfg = getErrorConfig(msg);
                 return (
                   <div className={`login-error login-error--${cfg.type}`}>
@@ -354,6 +355,16 @@ export default function LoginPage() {
                   '🔒 Account Locked — Contact IT'
                 ) : 'Sign In'}
               </button>
+
+              {/* Soft server-down note — only while server is unreachable, before any attempt.
+                   Matches Epic/athena pattern: form is usable, status is informational. */}
+              {serverDown && loginAttempts === 0 && !loginError && (
+                <p className="login-server-note" role="note">
+                  <span aria-hidden="true">⚠️</span> Server may be temporarily unavailable.
+                  {' '}<a href="https://status.clarity-ehr.com" target="_blank" rel="noopener noreferrer">Check status ↗</a>
+                  {' '}· You can still try to sign in.
+                </p>
+              )}
             </form>
 
             <div className="login-hipaa-footer" role="note" aria-label="Security notice">
