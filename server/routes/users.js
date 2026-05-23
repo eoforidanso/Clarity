@@ -131,11 +131,8 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
     (npi || '').trim(),
     (deaNumber || '').trim(),
     email.trim().toLowerCase(),
-    twoFactorEnabled ? 1 : 0,
+    twoFactorEnabled ? true : false,
     locationId || 'loc1'
-    (deaNumber || '').trim(),
-    email.trim().toLowerCase(),
-    twoFactorEnabled ? 1 : 0
   );
 
   logAuditEvent({
@@ -196,7 +193,7 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => 
     npi?.trim() ?? null,
     deaNumber?.trim() ?? null,
     email ? email.trim().toLowerCase() : null,
-    twoFactorEnabled != null ? (twoFactorEnabled ? 1 : 0) : null,
+    twoFactorEnabled != null ? Boolean(twoFactorEnabled) : null,
     locationId ?? null,
     id
   );
