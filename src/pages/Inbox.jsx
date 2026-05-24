@@ -307,7 +307,7 @@ export default function Inbox() {
         
         {/* Patient List Column */}
         {(!isMobile || mobilePanel === 0) && (
-        <div style={{ background: 'var(--bg-sidebar)', overflowY: 'auto', borderRight: 'none', boxShadow: isMobile ? 'none' : '3px 0 10px rgba(0,0,0,0.18)' }}>
+        <div style={{ background: 'linear-gradient(180deg, #13203d 0%, #0f1729 100%)', overflowY: 'auto', borderRight: 'none', boxShadow: isMobile ? 'none' : '3px 0 10px rgba(0,0,0,0.18)' }}>
           <div style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.12)', fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase' }}>
             Patients ({patientList.length})
           </div>

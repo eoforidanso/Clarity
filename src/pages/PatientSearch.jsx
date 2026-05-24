@@ -16,8 +16,15 @@ export default function PatientSearch() {
   const { activeSiteId, isFiltered } = useSite();
   const [search, setSearch] = useState('');
   const [hoveredRow, setHoveredRow] = useState(null);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   const navigate = useNavigate();
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // New encounter modal state
   const [encounterModal, setEncounterModal] = useState(null); // patient object | null
@@ -174,6 +181,64 @@ export default function PatientSearch() {
                   Showing all {filtered.length} patients
                 </div>
               )}
+              {isMobile ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 1, padding: '8px' }}>
+                  {filtered.map((p) => {
+                    const getFlagStyle = (f) => {
+                      if (f.includes('Suicide') || f.includes('Safety') || f.includes('Self-Harm'))
+                        return { background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' };
+                      if (f.includes('Fall')) return { background: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa' };
+                      if (f === 'VIP') return { background: '#faf5ff', color: '#6b21a8', border: '1px solid #d8b4fe' };
+                      if (f.includes('Substance')) return { background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' };
+                      return { background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' };
+                    };
+                    return (
+                      <div key={p.id}
+                        onClick={() => handleSelect(p)}
+                        style={{ background: 'var(--surface)', borderRadius: 10, padding: '14px', border: '1px solid var(--border)', cursor: 'pointer', transition: 'box-shadow 0.15s' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none'; }}
+                      >
+                        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                          <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+                            {p.firstName?.[0]}{p.lastName?.[0]}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 2 }}>{p.lastName}, {p.firstName}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+                              MRN <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--text-secondary)' }}>{p.mrn}</span>
+                              {p.dob && <> · DOB {p.dob}</>}
+                              {p.gender && <> · {p.gender}</>}
+                            </div>
+                            {p.insurance?.primary?.name && (
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+                                🏥 {p.insurance.primary.name}
+                              </div>
+                            )}
+                            {(p.isBTG || p.flags?.length > 0) && (
+                              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
+                                {p.isBTG && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10, background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' }}>🔒 BTG</span>}
+                                {p.flags?.filter(f => f !== 'BTG Protected').map((f, i) => (
+                                  <span key={i} style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10, whiteSpace: 'nowrap', ...getFlagStyle(f) }}>{f}</span>
+                                ))}
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); handleSelect(p); }}>
+                                Open Chart
+                              </button>
+                              <button className="btn btn-sm" style={{ background: 'var(--success)', color: 'white', border: 'none' }}
+                                onClick={(e) => openEncounterModal(e, p)}>
+                                + Encounter
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
               <table className="data-table">
                 <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg)' }}>
                   <tr>
@@ -251,6 +316,7 @@ export default function PatientSearch() {
                 ))}
               </tbody>
             </table>
+              )}
             </>
           )}
         </div>
