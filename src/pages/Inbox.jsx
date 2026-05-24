@@ -232,13 +232,13 @@ export default function Inbox() {
   return (
     <div className="fade-in">
       {/* ── Integrated Inbox Header ── */}
-      <div style={{ marginBottom: 16, padding: '14px 18px', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+      <div style={{ marginBottom: 16, padding: '14px 18px', background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', boxShadow: 'var(--shadow-sm)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
               📥 Clinical Inbox
               {unreadCount > 0 && (
-                <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 9px', borderRadius: 12, background: '#dc2626', color: '#fff' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 9px', borderRadius: 'var(--radius-chip)', background: '#dc2626', color: '#fff' }}>
                   {unreadCount} new
                 </span>
               )}
@@ -257,7 +257,7 @@ export default function Inbox() {
                 { label: 'Urgent', value: urgentCount, bg: urgentCount > 0 ? '#fef2f2' : '#f8fafc', color: urgentCount > 0 ? '#991b1b' : '#94a3b8', dot: '#ef4444', border: `1.5px solid ${urgentCount > 0 ? '#fca5a5' : '#e2e8f0'}` },
               ];
             })().map(s => (
-              <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', height: 26, borderRadius: 20, background: s.bg, border: s.border, boxShadow: 'var(--shadow-sm)' }}>
+              <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', height: 26, borderRadius: 'var(--radius-chip)', background: s.bg, border: s.border, boxShadow: 'var(--shadow-sm)' }}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
                 <span style={{ fontSize: 14, fontWeight: 800, color: s.color }}>{s.value}</span>
                 <span style={{ fontSize: 11, color: s.color, opacity: 0.75 }}>{s.label}</span>
@@ -276,23 +276,23 @@ export default function Inbox() {
             <button key={t} type="button" onClick={() => setFilterType(t)}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,
-                padding: '5px 13px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                padding: '5px 13px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                 border: active ? 'none' : '1.5px solid var(--border)',
                 background: active ? (tc ? tc.color : '#0f172a') : (tc ? tc.bg : '#fff'),
                 color: active ? '#fff' : (tc ? tc.color : 'var(--text-secondary)'),
                 transition: 'all 0.15s',
-                boxShadow: active ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
+                boxShadow: active ? 'var(--shadow-sm)' : 'none',
               }}>
               {t !== 'All' && <TypeIcon type={t} size={11} />}
               {t === 'Rx Refill Request' ? 'Refills' : t === 'Lab Result' ? 'Labs' : t === 'Patient Message' ? 'Messages' : t === 'Check-in Alert' ? 'Check-ins' : t === 'Prior Auth' ? 'Prior Auth' : t === 'Staff Message' ? 'Staff' : t === 'Referral Response' ? 'Referrals' : t}
             </button>
           );
         })}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: '#f8fafc', borderRadius: 20, padding: 3, border: '1px solid var(--border)' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: '#f8fafc', borderRadius: 8, padding: 3, border: '1px solid var(--border)' }}>
           {['All', 'Unread', 'Read'].map(s => (
             <button key={s} type="button" onClick={() => setFilterStatus(s)}
               style={{
-                padding: '4px 12px', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
                 border: 'none',
                 background: filterStatus === s ? '#0f172a' : 'transparent',
                 color: filterStatus === s ? '#fff' : 'var(--text-muted)',
@@ -310,7 +310,7 @@ export default function Inbox() {
         
         {/* Patient List Column */}
         {(!isMobile || mobilePanel === 0) && (
-        <div style={{ background: 'linear-gradient(180deg, #13203d 0%, #182d4a 100%)', overflowY: 'auto', borderRight: 'none', boxShadow: isMobile ? 'none' : '3px 0 10px rgba(0,0,0,0.14)' }}>
+        <div style={{ background: 'linear-gradient(180deg, #13203d 0%, #182d4a 100%)', overflowY: 'auto', borderRight: 'none', boxShadow: isMobile ? 'none' : 'var(--shadow-pane)' }}>
           <div style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.12)', fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase' }}>
             Patients ({patientList.length})
           </div>
@@ -427,7 +427,7 @@ export default function Inbox() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', gap: 4,
-                  padding: '2px 8px', borderRadius: 12, fontSize: 10.5, fontWeight: 700,
+                  padding: '2px 8px', borderRadius: 'var(--radius-chip)', fontSize: 10.5, fontWeight: 700,
                   background: TYPE_TAG_COLORS[msg.type]?.bg || '#f1f5f9',
                   color: TYPE_TAG_COLORS[msg.type]?.color || '#475569',
                   border: `1px solid ${TYPE_TAG_COLORS[msg.type]?.border || '#e2e8f0'}`,
@@ -451,7 +451,7 @@ export default function Inbox() {
 
         {/* Message Detail Column */}
         {(!isMobile || mobilePanel === 2) && (
-        <div style={{ background: 'white', overflowY: 'auto' }}>
+        <div style={{ background: 'var(--bg-white)', overflowY: 'auto' }}>
           {isMobile && (
             <button onClick={() => setMobilePanel(1)}
               style={{ display:'flex', alignItems:'center', gap:6, padding:'10px 14px', width:'100%', background:'#f8fafc', border:'none', borderBottom:'1px solid var(--border)', fontSize:12, fontWeight:700, color:'var(--text-secondary)', cursor:'pointer' }}>
@@ -476,7 +476,7 @@ export default function Inbox() {
                     {selectedMessage.urgent && <span className="badge badge-danger">⚠️ URGENT</span>}
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: 4,
-                      padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700,
+                      padding: '3px 10px', borderRadius: 'var(--radius-chip)', fontSize: 11, fontWeight: 700,
                       background: TYPE_TAG_COLORS[selectedMessage.type]?.bg || '#f1f5f9',
                       color: TYPE_TAG_COLORS[selectedMessage.type]?.color || '#475569',
                       border: `1px solid ${TYPE_TAG_COLORS[selectedMessage.type]?.border || '#e2e8f0'}`,

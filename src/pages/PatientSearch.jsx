@@ -217,9 +217,9 @@ export default function PatientSearch() {
                             )}
                             {(p.isBTG || p.flags?.length > 0) && (
                               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
-                                {p.isBTG && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10, background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' }}>🔒 BTG</span>}
+                                {p.isBTG && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' }}>🔒 BTG</span>}
                                 {p.flags?.filter(f => f !== 'BTG Protected').map((f, i) => (
-                                  <span key={i} style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10, whiteSpace: 'nowrap', ...getFlagStyle(f) }}>{f}</span>
+                                  <span key={i} style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, whiteSpace: 'nowrap', ...getFlagStyle(f) }}>{f}</span>
                                 ))}
                               </div>
                             )}
@@ -282,7 +282,7 @@ export default function PatientSearch() {
                     <td className="text-sm">{p.lastVisit || '—'}</td>
                     <td style={{ maxWidth: 200 }}>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                        {p.isBTG && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10, background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', whiteSpace: 'nowrap' }}>🔒 BTG</span>}
+                        {p.isBTG && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', whiteSpace: 'nowrap' }}>🔒 BTG</span>}
                         {p.flags?.filter(f => f !== 'BTG Protected').map((f, i) => {
                           const flagStyle = f.includes('Suicide') || f.includes('Safety') || f.includes('Self-Harm')
                             ? { background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' }
@@ -294,7 +294,7 @@ export default function PatientSearch() {
                             ? { background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }
                             : { background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' };
                           return (
-                            <span key={i} style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10, whiteSpace: 'nowrap', ...flagStyle }}>
+                            <span key={i} style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, whiteSpace: 'nowrap', ...flagStyle }}>
                               {f}
                             </span>
                           );
@@ -331,7 +331,7 @@ export default function PatientSearch() {
         }}>
           <div style={{
             background: 'var(--surface)', borderRadius: 12, width: '100%', maxWidth: 680,
-            maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.35)',
+            maxHeight: '90vh', overflow: 'auto', boxShadow: 'var(--shadow-overlay)',
           }}>
             {/* Modal header */}
             <div style={{
@@ -433,7 +433,7 @@ export default function PatientSearch() {
         }}>
           <div style={{
             background: 'var(--surface)', borderRadius: 14, width: '100%', maxWidth: 760,
-            maxHeight: '92vh', overflow: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
+            maxHeight: '92vh', overflow: 'auto', boxShadow: 'var(--shadow-overlay)',
           }}>
             {/* Header */}
             <div style={{

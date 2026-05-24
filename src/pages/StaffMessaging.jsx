@@ -245,10 +245,10 @@ export default function StaffMessaging() {
       <div style={{
         display: 'grid', gridTemplateColumns: '260px 1fr', height: '100%',
         border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden',
-        background: 'var(--bg-white)', boxShadow: 'var(--shadow)',
+        background: 'var(--bg-white)', boxShadow: 'var(--shadow-pane)',
       }}>
         {/* Left Panel — Channels & DMs */}
-        <div style={{ background: '#0f172a', display: 'flex', flexDirection: 'column', borderRight: '2px solid rgba(255,255,255,0.1)', boxShadow: '3px 0 10px rgba(0,0,0,0.14)' }}>
+        <div style={{ background: '#0f172a', display: 'flex', flexDirection: 'column', borderRight: '2px solid rgba(255,255,255,0.1)', boxShadow: 'var(--shadow-pane)' }}>
           {/* Workspace header */}
           <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9', letterSpacing: -0.3, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -402,7 +402,7 @@ export default function StaffMessaging() {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   style={{
-                    padding: '5px 10px 5px 28px', border: '1px solid var(--border)', borderRadius: 6,
+                    padding: '5px 10px 5px 28px', border: '1px solid var(--border)', borderRadius: 8,
                     background: 'var(--bg)', fontSize: 11.5, width: 180, outline: 'none',
                     transition: 'border-color 0.15s, box-shadow 0.15s',
                   }}

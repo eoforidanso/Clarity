@@ -61,15 +61,15 @@ const PROV_COLORS = ["#4f46e5","#0891b2","#059669","#7c3aed","#dc2626","#d97706"
 const provColor = id => PROV_COLORS[PROVIDERS.findIndex(p => p.id === id) % PROV_COLORS.length] || "#4f46e5";
 
 const card = (extra = {}) => ({
-  background: "#fff", border: "1px solid var(--border)", borderRadius: 12,
-  boxShadow: "0 1px 4px rgba(0,0,0,0.06)", ...extra,
+  background: "#fff", border: "1px solid var(--border)", borderRadius: 10,
+  boxShadow: "var(--shadow-sm)", ...extra,
 });
 const LBL = ({ c }) => (
   <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase",
     letterSpacing: "0.5px", color: "var(--text-secondary)", marginBottom: 4 }}>{c}</label>
 );
 const Pill = ({ label, color, dot }) => (
-  <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"2px 9px", borderRadius:20,
+  <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"2px 9px", borderRadius:6,
     background: STATUS_STYLE[label]?.bg || "#f1f5f9", color: STATUS_STYLE[label]?.color || "#475569",
     fontSize:10.5, fontWeight:700 }}>
     <span style={{ width:5, height:5, borderRadius:"50%", background: STATUS_STYLE[label]?.dot || "#94a3b8" }} />
@@ -119,7 +119,7 @@ function MiniCalendar({ selectedDate, onSelect, aptsByDate, blockedByDate }) {
                 onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = "#f5f3ff"; }}
                 onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = isToday ? "#eff6ff" : "transparent"; }}>
                 <span style={{ fontSize:10.5, fontWeight: isSel||isToday ? 800:600, lineHeight:1,
-                  color: isSel ? "#fff" : isToday ? "#1e40af" : isWknd ? "#94a3b8" : "var(--text-primary)" }}>
+                  color: isSel ? "#fff" : isToday ? "#1e40af" : isWknd ? "var(--text-dim)" : "var(--text-primary)" }}>
                   {day.getDate()}
                 </span>
                 {isToday && !isSel && (
@@ -150,10 +150,10 @@ function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggl
   const pc = provColor(apt.provider);
   return (
     <div style={{ display:"flex", gap:0, borderRadius:10, overflow:"hidden", cursor:"default",
-      border:"1px solid #e2e8f0", background:"#fff", boxShadow:"0 1px 4px rgba(0,0,0,0.06)",
+      border:"1px solid #e2e8f0", background:"#fff", boxShadow:"var(--shadow-sm)",
       marginBottom:8, transition:"all 0.15s" }}
-      onMouseEnter={e => { e.currentTarget.style.boxShadow="0 4px 14px rgba(0,0,0,0.1)"; e.currentTarget.style.transform="translateY(-1px)"; }}
-      onMouseLeave={e => { e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.06)"; e.currentTarget.style.transform="none"; }}>
+      onMouseEnter={e => { e.currentTarget.style.boxShadow="var(--shadow-md)"; e.currentTarget.style.transform="translateY(-1px)"; }}
+      onMouseLeave={e => { e.currentTarget.style.boxShadow="var(--shadow-sm)"; e.currentTarget.style.transform="none"; }}>
       <div style={{ width:5, background:c.border, flexShrink:0 }} />
       <div style={{ flex:1, padding:"12px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap" }}>
@@ -241,7 +241,7 @@ function ScheduleModal({ show, onClose, initialDate, initialVisitType, patients,
     <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.55)", zIndex:2000,
       display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
       onClick={e => { if (e.target===e.currentTarget) onClose(); }}>
-      <div style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:580, boxShadow:"0 24px 64px rgba(0,0,0,0.22)", overflow:"hidden" }}>
+      <div style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:580, boxShadow:"var(--shadow-overlay)", overflow:"hidden" }}>
         <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"#fff",
           display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
@@ -352,9 +352,9 @@ function WaitingRow({ apt, onCheckIn, onNoShow, onCancel, onGoToSession, onCheck
   return (
     <div style={{ display:"flex", alignItems:"center", gap:0, borderRadius:10, overflow:"hidden",
       border:"1px solid #e2e8f0", background:"#fff", marginBottom:8,
-      boxShadow:"0 1px 3px rgba(0,0,0,0.05)", transition:"box-shadow 0.15s" }}
-      onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.1)"}
-      onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.05)"}>
+      boxShadow:"var(--shadow-sm)", transition:"box-shadow 0.15s" }}
+      onMouseEnter={e=>e.currentTarget.style.boxShadow="var(--shadow-md)"}
+      onMouseLeave={e=>e.currentTarget.style.boxShadow="var(--shadow-sm)">
       <div style={{ width:5, background:c.border, flexShrink:0, alignSelf:"stretch" }} />
       <div style={{ flex:1, padding:"11px 14px", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
         {/* time */}
@@ -480,7 +480,7 @@ function CheckoutModal({ apt, patients, show, onClose, onConfirm }) {
     <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.55)", zIndex:2100,
       display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
       onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
-      <div style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:520, boxShadow:"0 24px 64px rgba(0,0,0,0.22)", overflow:"hidden" }}>
+      <div style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:520, boxShadow:"var(--shadow-overlay)", overflow:"hidden" }}>
         <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#0891b2,#0e7490)", color:"#fff",
           display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
@@ -570,7 +570,7 @@ function RescheduleModal({ apt, show, onClose, onConfirm }) {
     <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.55)", zIndex:2100,
       display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
       onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
-      <div style={{ background:"#fff", borderRadius:14, width:"100%", maxWidth:420, boxShadow:"0 20px 50px rgba(0,0,0,0.2)", overflow:"hidden" }}>
+      <div style={{ background:"#fff", borderRadius:14, width:"100%", maxWidth:420, boxShadow:"var(--shadow-overlay)", overflow:"hidden" }}>
         <div style={{ padding:"14px 20px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"#fff",
           display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div style={{ fontWeight:800, fontSize:15 }}>🔄 Reschedule</div>
@@ -624,7 +624,7 @@ function WalkInModal({ show, onClose, patients, onSave }) {
     <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.55)", zIndex:2100,
       display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
       onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
-      <div style={{ background:"#fff", borderRadius:14, width:"100%", maxWidth:500, boxShadow:"0 20px 50px rgba(0,0,0,0.2)", overflow:"hidden" }}>
+      <div style={{ background:"#fff", borderRadius:14, width:"100%", maxWidth:500, boxShadow:"var(--shadow-overlay)", overflow:"hidden" }}>
         <div style={{ padding:"14px 20px", background:"linear-gradient(135deg,#dc2626,#b91c1c)", color:"#fff",
           display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
@@ -1020,7 +1020,7 @@ function CloseEncounterModal({ apt, show, onClose, onConfirm }) {
     <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", zIndex:2200,
       display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:540, boxShadow:"0 24px 64px rgba(0,0,0,0.25)", overflow:"hidden" }}>
+      <div style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:540, boxShadow:"var(--shadow-overlay)", overflow:"hidden" }}>
         {/* header */}
         <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#312e81,#4f46e5)", color:"#fff",
           display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -1631,7 +1631,7 @@ export default function Schedule() {
                 border:"none", transition:"all 0.15s",
                 background: activeTab===t.key?"#fff":"transparent",
                 color: activeTab===t.key?"var(--text-primary)":"var(--text-secondary)",
-                boxShadow: activeTab===t.key?"0 1px 4px rgba(0,0,0,0.12)":"none" }}>
+                boxShadow: activeTab===t.key?"var(--shadow-sm)":"none" }}>
               {t.label}
             </button>
           ))}
