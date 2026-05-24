@@ -248,7 +248,7 @@ export default function StaffMessaging() {
         background: 'var(--bg-white)', boxShadow: 'var(--shadow)',
       }}>
         {/* Left Panel — Channels & DMs */}
-        <div style={{ background: '#0f172a', display: 'flex', flexDirection: 'column', borderRight: '2px solid rgba(255,255,255,0.1)', boxShadow: '2px 0 8px rgba(0,0,0,0.25)' }}>
+        <div style={{ background: '#0f172a', display: 'flex', flexDirection: 'column', borderRight: '2px solid rgba(255,255,255,0.1)', boxShadow: '3px 0 10px rgba(0,0,0,0.14)' }}>
           {/* Workspace header */}
           <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9', letterSpacing: -0.3, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -280,12 +280,13 @@ export default function StaffMessaging() {
                     display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', cursor: 'pointer',
                     background: isActive ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.02)',
                     borderLeft: isActive ? '3px solid #3b82f6' : '3px solid transparent',
+                    boxShadow: isActive ? 'inset 0 0 0 1px rgba(59,130,246,0.22)' : 'none',
                     transition: 'all 0.1s',
                   }}
                   onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
                   onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
                 >
-                  <span style={{ fontSize: 16, width: 28, textAlign: 'center', flexShrink: 0 }}>{ch.icon}</span>
+                  <span style={{ fontSize: 16, width: 28, textAlign: 'center', flexShrink: 0, paddingRight: 2 }}>{ch.icon}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: isActive ? 13.5 : 12.5, fontWeight: isActive ? 800 : unread > 0 ? 700 : 500, color: isActive ? '#93c5fd' : unread > 0 ? '#f1f5f9' : '#94a3b8' }}>
                       {ch.name}
@@ -321,6 +322,7 @@ export default function StaffMessaging() {
                     display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', cursor: 'pointer',
                     background: isActive ? 'rgba(59,130,246,0.15)' : 'transparent',
                     borderLeft: isActive ? '3px solid #3b82f6' : '3px solid transparent',
+                    boxShadow: isActive ? 'inset 0 0 0 1px rgba(59,130,246,0.22)' : 'none',
                     transition: 'all 0.1s',
                   }}
                   onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
@@ -533,7 +535,7 @@ export default function StaffMessaging() {
           <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', background: '#fafbfc' }}>
             <div style={{
               display: 'flex', gap: 10, alignItems: 'flex-end',
-              background: 'var(--bg-white)', border: '1.5px solid var(--border)', borderRadius: 10,
+              background: 'var(--bg-white)', border: '1.5px solid var(--border)', borderRadius: 8,
               padding: '8px 12px', transition: 'border-color 0.15s, box-shadow 0.15s',
             }}
             onFocus={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.boxShadow = '0 0 0 3px var(--primary-ring)'; }}
@@ -541,6 +543,7 @@ export default function StaffMessaging() {
             >
               <textarea
                 ref={inputRef}
+                className="messaging-input"
                 rows={1}
                 placeholder={`Message ${activeDM ? getStaffName(activeDM, staff) : `#${channelInfo?.name || ''}`}...`}
                 value={input}

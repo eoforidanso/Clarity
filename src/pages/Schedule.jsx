@@ -917,12 +917,12 @@ function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, a
             <div style={{ fontSize:36, marginBottom:8 }}>
               {fdFilter==="No Show"?"🚫":fdFilter==="Cancelled"?"❌":fdFilter==="Completed"?"✅":"🗂️"}
             </div>
-            <div style={{ fontWeight:700, fontSize:13, marginBottom:4 }}>
+            <div style={{ fontWeight:700, fontSize:14, marginBottom:4 }}>
               {fdFilter==="All" ? "No appointments today" : `No ${fdFilter.toLowerCase()} appointments`}
             </div>
             {fdFilter==="All" && (
               <button onClick={() => setShowWalkIn(true)}
-                style={{ marginTop:10, padding:"7px 18px", borderRadius:8, fontSize:12, fontWeight:700,
+                style={{ marginTop:10, padding:"10px 18px", borderRadius:8, fontSize:12, fontWeight:700,
                   border:"none", background:"#dc2626", color:"#fff", cursor:"pointer" }}>
                 🚶 Register Walk-In
               </button>
@@ -1804,8 +1804,8 @@ export default function Schedule() {
                 {/* Stat filter chips — grouped */}
                 <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                   {/* Overview group */}
-                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                    <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.6px", color:"var(--text-muted)", minWidth:50 }}>Overview</span>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", paddingTop:2 }}>
+                    <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.6px", color:"#b0bac9", minWidth:50 }}>Overview</span>
                     {[
                       {label:"Total", count:counts.total, key:"All", bg:"#f1f5f9", color:"#475569", dot:"#94a3b8", accent:"#cbd5e1"},
                     ].map(s=>(
@@ -1813,7 +1813,7 @@ export default function Schedule() {
                         style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 16px", borderRadius:20,
                           border:`1.5px solid ${statusFilter===s.key?s.dot:s.accent}`,
                           cursor:"pointer", background: statusFilter===s.key ? s.dot : s.bg,
-                          boxShadow: statusFilter===s.key ? `0 2px 8px ${s.dot}55` : '0 1px 3px rgba(0,0,0,0.08)',
+                          boxShadow: statusFilter===s.key ? `0 2px 8px ${s.dot}55` : 'var(--shadow-sm)',
                           transition:"all 0.15s" }}>
                         <span style={{ width:7, height:7, borderRadius:"50%", background: statusFilter===s.key ? "#fff" : s.dot, flexShrink:0 }} />
                         <span style={{ fontSize:14, fontWeight:800, color: statusFilter===s.key ? "#fff" : s.color, lineHeight:1 }}>{s.count}</span>
@@ -1825,8 +1825,8 @@ export default function Schedule() {
                     )}
                   </div>
                   {/* Status group */}
-                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                    <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.6px", color:"var(--text-muted)", minWidth:50 }}>Status</span>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", paddingTop:4 }}>
+                    <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.6px", color:"#b0bac9", minWidth:50 }}>Status</span>
                     {[
                       {label:"Waiting",    count:counts.scheduled,   key:"Waiting",    bg:"#dbeafe", color:"#1e40af", dot:"#3b82f6", accent:"#93c5fd"},
                       {label:"Checked In", count:counts.checkedIn,   key:"Checked In", bg:"#dcfce7", color:"#166534", dot:"#22c55e", accent:"#86efac"},
@@ -1837,7 +1837,7 @@ export default function Schedule() {
                         style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 16px", borderRadius:20,
                           border:`1.5px solid ${statusFilter===s.key?s.dot:s.accent}`,
                           cursor:"pointer", background: statusFilter===s.key ? s.dot : s.bg,
-                          boxShadow: statusFilter===s.key ? `0 2px 8px ${s.dot}55` : '0 1px 3px rgba(0,0,0,0.08)',
+                          boxShadow: statusFilter===s.key ? `0 2px 8px ${s.dot}55` : 'var(--shadow-sm)',
                           transition:"all 0.15s" }}>
                         <span style={{ width:7, height:7, borderRadius:"50%", background: statusFilter===s.key ? "#fff" : s.dot, flexShrink:0 }} />
                         <span style={{ fontSize:14, fontWeight:800, color: statusFilter===s.key ? "#fff" : s.color, lineHeight:1 }}>{s.count}</span>

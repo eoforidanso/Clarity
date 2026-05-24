@@ -611,6 +611,7 @@ img { max-width: 100%; }
 .chip-billing       { background: var(--domain-billing-bg);       color: #6d28d9; border: 1px solid #ddd6fe; }
 .chip-clearinghouse { background: var(--domain-clearinghouse-bg); color: #0f766e; border: 1px solid #99f6e4; }
 .chip-api           { background: var(--domain-api-bg);           color: #c2410c; border: 1px solid #fed7aa; }
+.chip + .chip { margin-left: 6px; }
 
 /* ════════════════════════════════════════════════════════════
    SOFT SEPARATORS
@@ -1944,7 +1945,7 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 .btn-outline:hover { background: var(--primary-light); }
 .btn-ghost { background: transparent; color: var(--text-secondary); }
 .btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
-.btn-sm  { padding: 4px 10px; font-size: 11px; gap: 3px; border-radius: var(--radius); }
+.btn-sm  { padding: 4px 12px; font-size: 11px; gap: 3px; border-radius: var(--radius); }
 .btn-lg  { padding: 10px 22px; font-size: 13.5px; }
 .btn-xl  { padding: 12px 28px; font-size: 14.5px; font-weight: 700; }
 .btn-icon { width: 32px; height: 32px; padding: 0; }
@@ -1963,6 +1964,7 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--primary-ring); background: #fff;
 }
 .form-input::placeholder, .form-textarea::placeholder { color: var(--text-muted); font-size: 12.5px; }
+.messaging-input::placeholder { color: var(--text-secondary); opacity: 1; }
 .form-textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
 .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
 .form-grid { display: grid; gap: 14px; }

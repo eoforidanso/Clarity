@@ -240,7 +240,7 @@ export default function PatientSearch() {
                 </div>
               ) : (
               <table className="data-table">
-                <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg)' }}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f4f7fb', borderBottom: '1.5px solid #dde3ec' }}>
                   <tr>
                     <th>Patient</th>
                     <th>MRN</th>
@@ -281,7 +281,7 @@ export default function PatientSearch() {
                     <td className="text-sm">{p.insurance?.primary?.name || '—'}</td>
                     <td className="text-sm">{p.lastVisit || '—'}</td>
                     <td>
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                         {p.isBTG && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10, background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', whiteSpace: 'nowrap' }}>🔒 BTG</span>}
                         {p.flags?.filter(f => f !== 'BTG Protected').map((f, i) => {
                           const flagStyle = f.includes('Suicide') || f.includes('Safety') || f.includes('Self-Harm')
