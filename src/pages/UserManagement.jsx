@@ -369,14 +369,18 @@ export default function UserManagement() {
       setUserList(data);
       try { localStorage.removeItem(USERS_STORAGE_KEY); } catch {}
     } catch {
-      // Backend offline — try localStorage first, then seed from mock data
+      // Backend offline — merge localStorage with any new mock users (by id)
+      const seed = mockUsersData
+        .filter(u => u.role !== 'patient')
+        .map(({ password, epcsPin, ...rest }) => rest);
       const stored = loadUsersFromStorage();
       if (stored && stored.length > 0) {
-        setUserList(stored);
+        const storedIds = new Set(stored.map(u => u.id));
+        const newFromSeed = seed.filter(u => !storedIds.has(u.id));
+        const merged = [...stored, ...newFromSeed];
+        if (newFromSeed.length > 0) saveUsersToStorage(merged);
+        setUserList(merged);
       } else {
-        const seed = mockUsersData
-          .filter(u => u.role !== 'patient')
-          .map(({ password, epcsPin, ...rest }) => rest);
         setUserList(seed);
         saveUsersToStorage(seed);
       }
