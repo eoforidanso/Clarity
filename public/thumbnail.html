@@ -50,15 +50,15 @@
     z-index: 1;
     display: flex;
     align-items: center;
-    gap: 60px;
-    padding: 0 80px;
+    gap: 44px;
+    padding: 0 56px;
     width: 100%;
   }
 
   /* Left side — branding */
   .brand {
     flex: 1;
-    max-width: 520px;
+    max-width: 480px;
   }
 
   .logo-row {
@@ -97,12 +97,12 @@
   }
 
   .headline {
-    font-size: 42px;
+    font-size: 38px;
     font-weight: 900;
     color: #fff;
     line-height: 1.15;
-    letter-spacing: -1px;
-    margin-bottom: 16px;
+    letter-spacing: -0.8px;
+    margin-bottom: 22px;
   }
   .headline span {
     background: linear-gradient(135deg, #60a5fa, #a78bfa);
@@ -111,11 +111,11 @@
   }
 
   .tagline {
-    font-size: 16px;
+    font-size: 15px;
     color: rgba(255,255,255,0.55);
-    line-height: 1.6;
+    line-height: 1.65;
     font-weight: 500;
-    margin-bottom: 28px;
+    margin-bottom: 36px;
   }
 
   /* Feature pills */
@@ -137,15 +137,37 @@
     font-weight: 600;
     backdrop-filter: blur(8px);
   }
-  .pill .icon { font-size: 14px; }
+  /* Consistent icon weight — all pill icons same size/weight */
+  .pill .icon { font-size: 13px; line-height: 1; display: inline-block; width: 16px; text-align: center; }
 
-  /* Right side — mock UI preview */
+  /* Right side — mock UI preview with glass frame */
+  .preview-wrapper {
+    flex: 0 0 544px;
+    position: relative;
+    padding: 10px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.05) 100%);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow:
+      0 40px 100px rgba(0,0,0,0.45),
+      inset 0 1px 0 rgba(255,255,255,0.22),
+      inset 0 -1px 0 rgba(255,255,255,0.06);
+    backdrop-filter: blur(2px);
+  }
+  .preview-wrapper::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 22px;
+    background: linear-gradient(160deg, rgba(255,255,255,0.06) 0%, transparent 60%);
+    pointer-events: none;
+  }
   .preview {
-    flex: 0 0 560px;
-    height: 420px;
-    border-radius: 16px;
+    width: 100%;
+    height: 410px;
+    border-radius: 14px;
     background: #fff;
-    box-shadow: 0 30px 80px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.18);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -311,6 +333,100 @@
   .bg-amber { background: #fef3c7; color: #92400e; }
   .bg-purple { background: #f3e8ff; color: #6b21a8; }
 
+  /* Today ribbon */
+  .today-ribbon {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e3a5f 100%);
+    border-radius: 7px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .today-ribbon::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(45deg,rgba(255,255,255,0.03) 0,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 8px);
+    pointer-events: none;
+  }
+  .ribbon-sep { width: 1px; height: 22px; background: rgba(255,255,255,0.18); flex-shrink: 0; }
+  .ribbon-metric { display: flex; align-items: center; gap: 6px; }
+  .ribbon-metric .icon { font-size: 11px; line-height: 1; }
+  .ribbon-metric .lbl { font-size: 7px; color: rgba(255,255,255,0.45); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1; margin-bottom: 1px; }
+  .ribbon-metric .val { font-size: 11px; font-weight: 800; color: #fff; line-height: 1; }
+  .ribbon-metric .val.green { color: #34d399; }
+  .ribbon-metric .val.purple { color: #a78bfa; }
+  .ribbon-metric .val.dim { color: rgba(255,255,255,0.4); }
+  .active-pill {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(52,211,153,0.15);
+    border: 1px solid rgba(52,211,153,0.35);
+    border-radius: 5px;
+    padding: 3px 7px;
+    flex-shrink: 0;
+  }
+  .active-pill .dot { width: 5px; height: 5px; background: #34d399; border-radius: 50%; }
+  .active-pill span { font-size: 8px; color: #34d399; font-weight: 700; }
+
+  /* Stat chips */
+  .stat-chips {
+    display: flex;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+  .stat-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 9px;
+    border-radius: 12px;
+    border: 1.5px solid;
+    cursor: default;
+  }
+  .stat-chip .chip-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .stat-chip .chip-num { font-size: 13px; font-weight: 800; line-height: 1; }
+  .stat-chip .chip-lbl { font-size: 8px; font-weight: 600; }
+  .chip-total { background: #f1f5f9; border-color: #cbd5e1; }
+  .chip-total .chip-dot { background: #94a3b8; }
+  .chip-total .chip-num { color: #475569; }
+  .chip-total .chip-lbl { color: #64748b; }
+  .chip-waiting { background: #dbeafe; border-color: #93c5fd; }
+  .chip-waiting .chip-dot { background: #3b82f6; }
+  .chip-waiting .chip-num { color: #1e40af; font-size: 10px; }
+  .chip-waiting .chip-lbl { color: #1e40af; }
+  .chip-checked { background: #dcfce7; border-color: #86efac; }
+  .chip-checked .chip-dot { background: #22c55e; }
+  .chip-checked .chip-num { color: #166534; font-size: 10px; }
+  .chip-checked .chip-lbl { color: #166534; }
+  .chip-session { background: #fef3c7; border-color: #fcd34d; }
+  .chip-session .chip-dot { background: #f59e0b; }
+  .chip-session .chip-num { color: #92400e; font-size: 10px; }
+  .chip-session .chip-lbl { color: #92400e; }
+
+  /* Apt cards */
+  .apt-card {
+    background: #fff;
+    border-radius: 7px;
+    border: 1px solid #e2e8f0;
+    padding: 7px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  .apt-card .apt-time { font-size: 9px; font-weight: 700; color: #64748b; min-width: 38px; }
+  .apt-card .apt-name { font-size: 10px; font-weight: 700; color: #1e293b; flex: 1; }
+  .apt-card .apt-type { font-size: 7px; font-weight: 700; padding: 2px 6px; border-radius: 8px; }
+  .apt-card .apt-status { font-size: 7px; font-weight: 700; padding: 2px 7px; border-radius: 10px; display: flex; align-items: center; gap: 3px; }
+  .apt-card .status-dot { width: 4px; height: 4px; border-radius: 50%; }
+
   /* Bottom bar */
   .bottom-bar {
     position: absolute;
@@ -355,7 +471,7 @@
       </div>
 
       <div class="headline">
-        Modern Psychiatric<br /><span>Electronic Health Records</span>
+        A Complete Psychiatric EHR<br /><span>for Teaching Hospitals</span>
       </div>
 
       <p class="tagline">
@@ -374,18 +490,19 @@
       </div>
     </div>
 
-    <!-- Right: Mock UI Preview -->
+    <!-- Right: Mock UI Preview — Schedule Page -->
+    <div class="preview-wrapper">
     <div class="preview">
       <div class="preview-topbar">
         <div class="dot dot-r"></div>
         <div class="dot dot-y"></div>
         <div class="dot dot-g"></div>
-        <span class="topbar-title">🧠 Clarity — Dashboard</span>
+        <span class="topbar-title">🧠 Clarity — Schedule</span>
       </div>
       <div class="preview-body">
         <div class="mini-sidebar">
-          <div class="mini-nav active">📊</div>
-          <div class="mini-nav">📅</div>
+          <div class="mini-nav">📊</div>
+          <div class="mini-nav active">📅</div>
           <div class="mini-nav">👥</div>
           <div class="mini-nav">📨</div>
           <div class="mini-nav">💊</div>
@@ -395,70 +512,98 @@
         </div>
         <div class="mini-main">
           <div class="mini-header">
-            <h3>📊 Dashboard</h3>
+            <h3>📅 Schedule</h3>
             <span class="badge">● Live</span>
           </div>
 
-          <div class="stats-row">
-            <div class="stat-card">
-              <div class="num" style="color:#3b82f6">24</div>
-              <div class="lbl">Patients Today</div>
+          <!-- Today's Workflow Ribbon -->
+          <div class="today-ribbon">
+            <div class="ribbon-metric">
+              <span class="icon">⏰</span>
+              <div>
+                <div class="lbl">Today</div>
+                <div class="val" style="font-variant-numeric:tabular-nums">10:24 AM</div>
+              </div>
             </div>
-            <div class="stat-card">
-              <div class="num" style="color:#8b5cf6">8</div>
-              <div class="lbl">Telehealth</div>
+            <div class="ribbon-sep"></div>
+            <div class="ribbon-metric">
+              <span class="icon">👤</span>
+              <div>
+                <div class="lbl">Next Up</div>
+                <div class="val">Maria <span style="color:#a5b4fc;font-weight:600">@ 10:30</span></div>
+              </div>
             </div>
-            <div class="stat-card">
-              <div class="num" style="color:#10b981">12</div>
-              <div class="lbl">Rx Pending</div>
+            <div class="ribbon-sep"></div>
+            <div class="ribbon-metric">
+              <span class="icon">🩺</span>
+              <div>
+                <div class="lbl">In Session</div>
+                <div class="val green">2 active visits</div>
+              </div>
             </div>
-            <div class="stat-card">
-              <div class="num" style="color:#f59e0b">3</div>
-              <div class="lbl">Urgent</div>
+            <div class="ribbon-sep"></div>
+            <div class="ribbon-metric">
+              <span class="icon">📹</span>
+              <div>
+                <div class="lbl">Telehealth</div>
+                <div class="val purple">3 sessions</div>
+              </div>
+            </div>
+            <div class="active-pill">
+              <div class="dot"></div>
+              <span>2 providers active</span>
             </div>
           </div>
 
-          <div class="mini-table">
-            <div class="mini-table-head">
-              <span style="flex:1">Patient</span>
-              <span>Time</span>
-              <span>Type</span>
-              <span>Status</span>
+          <!-- Stat chips -->
+          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+            <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+              <span style="font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#94a3b8;min-width:38px;">Overview</span>
+              <div class="stat-chip chip-total">
+                <div class="chip-dot"></div>
+                <span class="chip-num">14</span>
+                <span class="chip-lbl">Total</span>
+              </div>
             </div>
-            <div class="mini-table-row">
-              <span class="name">James Anderson</span>
-              <span class="meta">9:00 AM</span>
-              <span class="tbadge bg-blue">Follow-up</span>
-              <span class="tbadge bg-green">Checked In</span>
+            <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+              <span style="font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#94a3b8;min-width:38px;">Status</span>
+              <div class="stat-chip chip-waiting"><div class="chip-dot"></div><span class="chip-num">4</span><span class="chip-lbl">Waiting</span></div>
+              <div class="stat-chip chip-checked"><div class="chip-dot"></div><span class="chip-num">2</span><span class="chip-lbl">Checked In</span></div>
+              <div class="stat-chip chip-session"><div class="chip-dot"></div><span class="chip-num">2</span><span class="chip-lbl">In Session</span></div>
             </div>
-            <div class="mini-table-row">
-              <span class="name">Maria Garcia</span>
-              <span class="meta">9:30 AM</span>
-              <span class="tbadge bg-purple">Telehealth</span>
-              <span class="tbadge bg-amber">Waiting</span>
+          </div>
+
+          <!-- Appointment cards -->
+          <div style="flex:1;overflow:hidden;">
+            <div class="apt-card">
+              <span class="apt-time">9:00 AM</span>
+              <span class="apt-name">James Anderson</span>
+              <span class="apt-type bg-blue">Follow-up</span>
+              <span class="apt-status" style="background:#dcfce7;color:#166534"><span class="status-dot" style="background:#22c55e"></span>Checked In</span>
             </div>
-            <div class="mini-table-row">
-              <span class="name">Robert Chen</span>
-              <span class="meta">10:00 AM</span>
-              <span class="tbadge bg-blue">Med Check</span>
-              <span class="tbadge bg-green">Checked In</span>
+            <div class="apt-card">
+              <span class="apt-time">9:30 AM</span>
+              <span class="apt-name">Maria Garcia</span>
+              <span class="apt-type bg-purple">Telehealth</span>
+              <span class="apt-status" style="background:#fef3c7;color:#92400e"><span class="status-dot" style="background:#f59e0b"></span>In Session</span>
             </div>
-            <div class="mini-table-row">
-              <span class="name">Ashley Kim</span>
-              <span class="meta">10:30 AM</span>
-              <span class="tbadge bg-purple">Telehealth</span>
-              <span class="tbadge bg-amber">Scheduled</span>
+            <div class="apt-card">
+              <span class="apt-time">10:30 AM</span>
+              <span class="apt-name">Robert Chen</span>
+              <span class="apt-type bg-blue">Med Check</span>
+              <span class="apt-status" style="background:#dbeafe;color:#1e40af"><span class="status-dot" style="background:#3b82f6"></span>Waiting</span>
             </div>
-            <div class="mini-table-row">
-              <span class="name">Dorothy Wilson</span>
-              <span class="meta">11:00 AM</span>
-              <span class="tbadge bg-blue">Intake</span>
-              <span class="tbadge bg-green">Confirmed</span>
+            <div class="apt-card">
+              <span class="apt-time">11:00 AM</span>
+              <span class="apt-name">Ashley Kim</span>
+              <span class="apt-type bg-purple">Telehealth</span>
+              <span class="apt-status" style="background:#dbeafe;color:#1e40af"><span class="status-dot" style="background:#3b82f6"></span>Waiting</span>
             </div>
           </div>
         </div>
       </div>
     </div>
+    </div> <!-- /preview-wrapper -->
   </div>
 
   <div class="bottom-bar">
