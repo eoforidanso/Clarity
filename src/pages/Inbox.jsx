@@ -257,7 +257,7 @@ export default function Inbox() {
                 { label: 'Urgent', value: urgentCount, bg: urgentCount > 0 ? '#fef2f2' : '#f8fafc', color: urgentCount > 0 ? '#991b1b' : '#94a3b8', dot: '#ef4444', border: `1.5px solid ${urgentCount > 0 ? '#fca5a5' : '#e2e8f0'}` },
               ];
             })().map(s => (
-              <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', height: 26, borderRadius: 20, background: s.bg, border: s.border, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+              <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', height: 26, borderRadius: 20, background: s.bg, border: s.border, boxShadow: 'var(--shadow-sm)' }}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
                 <span style={{ fontSize: 14, fontWeight: 800, color: s.color }}>{s.value}</span>
                 <span style={{ fontSize: 11, color: s.color, opacity: 0.75 }}>{s.label}</span>
@@ -437,10 +437,10 @@ export default function Inbox() {
                 </span>
                 {msg.urgent && <span className="badge badge-danger" style={{ fontSize: 10 }}>URGENT</span>}
               </div>
-              <div style={{ fontWeight: msg.urgent || msg.status === 'Unread' ? 800 : 600, fontSize: msg.status === 'Unread' ? 15 : 14, marginBottom: 3, color: msg.urgent ? '#7f1d1d' : 'var(--text-primary)', lineHeight: 1.3 }}>
+              <div style={{ fontWeight: msg.urgent || msg.status === 'Unread' ? 800 : 600, fontSize: msg.status === 'Unread' ? 15 : 14, marginBottom: 3, color: msg.urgent ? '#7f1d1d' : 'var(--text-primary)', lineHeight: 1.45 }}>
                 {msg.subject}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 300, color: 'rgba(71,85,105,0.65)', marginTop: 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 300, color: 'rgba(71,85,105,0.65)', marginTop: 4 }}>
                 <span>{msg.from}</span>
                 <span>{msg.date}</span>
               </div>

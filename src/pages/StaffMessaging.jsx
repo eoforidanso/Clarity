@@ -263,7 +263,7 @@ export default function StaffMessaging() {
           <div style={{ flex: 1, overflowY: 'auto' }}>
 
             {/* ── Team Channels ── */}
-            <div style={{ padding: '12px 14px 4px', background: 'rgba(59,130,246,0.06)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ padding: '16px 14px 4px', background: 'rgba(59,130,246,0.06)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
               <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#475569' }}>
                 Team Channels
               </div>
@@ -306,7 +306,7 @@ export default function StaffMessaging() {
             })}
 
             {/* ── Direct Messages ── */}
-            <div style={{ padding: '14px 14px 4px' }}>
+            <div style={{ padding: '16px 14px 4px', background: 'rgba(16,185,129,0.05)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
               <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#475569' }}>
                 Direct Messages
               </div>
@@ -415,7 +415,7 @@ export default function StaffMessaging() {
           </div>
 
           {/* Messages area */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: 'var(--bg-white)' }}>
             {loadingMsgs && (
               <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
                 <div style={{ fontSize: 13 }}>Loading messages…</div>

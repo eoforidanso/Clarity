@@ -100,7 +100,7 @@ function MiniCalendar({ selectedDate, onSelect, aptsByDate, blockedByDate }) {
         ))}
       </div>
       {weeks.map((week, wi) => (
-        <div key={wi} style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:1, marginBottom:1 }}>
+        <div key={wi} style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2, marginBottom:1 }}>
           {week.map((day, di) => {
             if (!day) return <div key={di} style={{ height:26 }} />;
             const key = toKey(day);
@@ -111,7 +111,7 @@ function MiniCalendar({ selectedDate, onSelect, aptsByDate, blockedByDate }) {
             const isWknd = day.getDay() === 0 || day.getDay() === 6;
             return (
               <div key={di} onClick={() => onSelect(isSel ? null : key)}
-                style={{ height:26, display:"flex", flexDirection:"column", alignItems:"center",
+                style={{ height:28, display:"flex", flexDirection:"column", alignItems:"center",
                   justifyContent:"center", cursor:"pointer", borderRadius:6,
                   background: isSel ? "#4f46e5" : isToday ? "#eff6ff" : "transparent",
                   border: isToday && !isSel ? "1.5px solid #3b82f6" : "1.5px solid transparent",
@@ -122,6 +122,9 @@ function MiniCalendar({ selectedDate, onSelect, aptsByDate, blockedByDate }) {
                   color: isSel ? "#fff" : isToday ? "#1e40af" : isWknd ? "#94a3b8" : "var(--text-primary)" }}>
                   {day.getDate()}
                 </span>
+                {isToday && !isSel && (
+                  <span style={{ fontSize:7, fontWeight:800, color:'#3b82f6', letterSpacing:'0.5px', lineHeight:1, marginTop:1 }}>TODAY</span>
+                )}
                 {(hasApts || blocked) && (
                   <div style={{ display:"flex", gap:2, marginTop:1 }}>
                     {hasApts && <span style={{ width:4, height:4, borderRadius:"50%", background: isSel?"#c7d2fe":"#3b82f6" }} />}
@@ -1805,7 +1808,7 @@ export default function Schedule() {
                 <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                   {/* Overview group */}
                   <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", paddingTop:2 }}>
-                    <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.6px", color:"#b0bac9", minWidth:50 }}>Overview</span>
+                    <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.6px", color:"var(--text-dim)", minWidth:50 }}>Overview</span>
                     {[
                       {label:"Total", count:counts.total, key:"All", bg:"#f1f5f9", color:"#475569", dot:"#94a3b8", accent:"#cbd5e1"},
                     ].map(s=>(
@@ -1826,7 +1829,7 @@ export default function Schedule() {
                   </div>
                   {/* Status group */}
                   <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", paddingTop:4 }}>
-                    <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.6px", color:"#b0bac9", minWidth:50 }}>Status</span>
+                    <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.6px", color:"var(--text-dim)", minWidth:50 }}>Status</span>
                     {[
                       {label:"Waiting",    count:counts.scheduled,   key:"Waiting",    bg:"#dbeafe", color:"#1e40af", dot:"#3b82f6", accent:"#93c5fd"},
                       {label:"Checked In", count:counts.checkedIn,   key:"Checked In", bg:"#dcfce7", color:"#166534", dot:"#22c55e", accent:"#86efac"},

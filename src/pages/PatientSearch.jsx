@@ -244,8 +244,8 @@ export default function PatientSearch() {
                   <tr>
                     <th>Patient</th>
                     <th>MRN</th>
-                    <th style={{ color: 'var(--text-muted)', fontWeight: 600 }}>DOB</th>
-                    <th style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Gender</th>
+                    <th style={{ color: 'var(--text-muted)', fontWeight: 700 }}>DOB</th>
+                    <th style={{ color: 'var(--text-muted)', fontWeight: 700 }}>Gender</th>
                     <th>Insurance</th>
                     <th>Last Visit</th>
                     <th>Flags</th>
@@ -259,7 +259,7 @@ export default function PatientSearch() {
                     onClick={() => handleSelect(p)}
                     onMouseEnter={() => setHoveredRow(p.id)}
                     onMouseLeave={() => setHoveredRow(null)}>
-                    <td>
+                    <td style={{ minWidth: 160, maxWidth: 240 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <div style={{
                           width: 34, height: 34, borderRadius: '50%',
@@ -280,7 +280,7 @@ export default function PatientSearch() {
                     <td style={{ color: 'var(--text-muted)', fontSize: 11 }}>{p.gender}</td>
                     <td className="text-sm">{p.insurance?.primary?.name || '—'}</td>
                     <td className="text-sm">{p.lastVisit || '—'}</td>
-                    <td>
+                    <td style={{ maxWidth: 200 }}>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                         {p.isBTG && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10, background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', whiteSpace: 'nowrap' }}>🔒 BTG</span>}
                         {p.flags?.filter(f => f !== 'BTG Protected').map((f, i) => {
@@ -301,7 +301,7 @@ export default function PatientSearch() {
                         })}
                       </div>
                     </td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); handleSelect(p); }}>
                           Open Chart
