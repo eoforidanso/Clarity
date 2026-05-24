@@ -436,7 +436,7 @@
   --orange:         #ea580c;
   --orange-light:   #fff7ed;
 
-  --bg:             #f1f5f9;
+  --bg:             #f4f7fb;
   --bg-hover:       #e2e8f0;
   --bg-white:       #ffffff;
   --bg-secondary:   #f7f9fc;
@@ -447,7 +447,7 @@
 
   --text-primary:   #0f172a;
   --text-secondary: #475569;
-  --text-muted:     #94a3b8;
+  --text-muted:     #64748b;
   --text-dim:        #b0bac9;
   --text-white:     #ffffff;
   --text-sidebar:   #94a3b8;
@@ -457,10 +457,10 @@
   --border-focus:   #0066cc;
 
   --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
   --shadow:    0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05);
-  --shadow-md: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.05);
-  --shadow-lg: 0 20px 25px -5px rgba(0,0,0,0.08), 0 8px 10px -6px rgba(0,0,0,0.04);
+  --shadow-md: 0 2px 6px rgba(0,0,0,0.14);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.18);
   --shadow-xl: 0 25px 50px -12px rgba(0,0,0,0.2);
   /* Semantic shadow aliases — 3-tier system */
   --shadow-separator: var(--shadow-sm);   /* chips, filter rows, subtle borders */
@@ -478,7 +478,7 @@
   /* Semantic radius aliases */
   --radius-card:  var(--radius-lg);   /* 10px — cards, panels */
   --radius-input: var(--radius-md);   /* 8px  — inputs, selects, textareas */
-  --radius-chip:  var(--radius-full); /* 9999px — chips, badges */
+  --radius-chip:  6px;                /* 6px — chips, tags, badges */
   --radius-modal: 12px;              /* modals, large overlay containers */
 
   --font:      'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -491,9 +491,9 @@
   /* ── Domain color system ──────────────────────────────────── */
   --domain-clinical:      #3b82f6;
   --domain-clinical-bg:   #eff6ff;
-  --domain-billing:       #8b5cf6;
+  --domain-billing:       #7c3aed;
   --domain-billing-bg:    #f5f3ff;
-  --domain-clearinghouse: #14b8a6;
+  --domain-clearinghouse: #0d9488;
   --domain-clearinghouse-bg: #f0fdfa;
   --domain-api:           #f97316;
   --domain-api-bg:        #fff7ed;
@@ -2007,7 +2007,7 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 .btn-outline:hover { background: var(--primary-light); }
 .btn-ghost { background: transparent; color: var(--text-secondary); }
 .btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
-.btn-sm  { padding: 4px 14px; font-size: 11px; gap: 3px; border-radius: var(--radius); }
+.btn-sm  { padding: 6px 14px; font-size: 11px; gap: 3px; border-radius: var(--radius); }
 .btn-lg  { padding: 10px 22px; font-size: 13.5px; }
 .btn-xl  { padding: 12px 28px; font-size: 14.5px; font-weight: 700; }
 .btn-icon { width: 32px; height: 32px; padding: 0; }
