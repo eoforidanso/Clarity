@@ -718,6 +718,16 @@ hr { border: none; height: 1px; background: linear-gradient(90deg, transparent 0
 /* Hover card lift */
 .card-lift { transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease); }
 .card-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-md) !important; }
+
+/* ── Schedule micro-animations ───────────────────────────── */
+@keyframes fade-slide-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.55; transform: scale(1.5); }
+}
 /* Row hover */
 .row-hover:hover { background: #f8fafc !important; cursor: pointer; }
 /* Success flash */

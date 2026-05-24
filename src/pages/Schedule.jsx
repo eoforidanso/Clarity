@@ -72,10 +72,100 @@ const Pill = ({ label, color, dot }) => (
   <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"2px 9px", borderRadius:6,
     background: STATUS_STYLE[label]?.bg || "#f1f5f9", color: STATUS_STYLE[label]?.color || "#475569",
     fontSize:10.5, fontWeight:700 }}>
-    <span style={{ width:5, height:5, borderRadius:"50%", background: STATUS_STYLE[label]?.dot || "#94a3b8" }} />
+    <span style={{ width:5, height:5, borderRadius:"50%", background: STATUS_STYLE[label]?.dot || "#94a3b8",
+      animation: label==="Checked In" ? "pulse-dot 2s ease-in-out infinite" : "none" }} />
     {label}
   </span>
 );
+
+/* ══════════════════════════════════════════════
+   TODAY'S WORKFLOW RIBBON
+══════════════════════════════════════════════ */
+function TodayRibbon({ dateAppts, todayKey, activeDate }) {
+  const [clockStr, setClockStr] = useState(() =>
+    new Date().toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", hour12:true })
+  );
+  useEffect(() => {
+    const id = setInterval(() =>
+      setClockStr(new Date().toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", hour12:true }))
+    , 30_000);
+    return () => clearInterval(id);
+  }, []);
+  if (activeDate !== todayKey) return null;
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nextApt = [...dateAppts]
+    .filter(a => {
+      const [h,m] = (a.time||"0:0").split(":").map(Number);
+      return (h*60+m) >= nowMins && a.status!=="Completed" && a.status!=="Cancelled" && a.status!=="No Show";
+    })
+    .sort((a,b)=>a.time.localeCompare(b.time))[0];
+  const inSession = dateAppts.filter(a=>a.status==="In Progress"||a.status==="Checked In");
+  const teleToday = dateAppts.filter(a=>a.visitType==="Telehealth"&&a.status!=="Completed"&&a.status!=="Cancelled"&&a.status!=="No Show").length;
+  const activeProv = new Set(inSession.map(a=>a.provider)).size;
+  const SEP = <div style={{width:1,height:32,background:"rgba(255,255,255,0.15)",flexShrink:0}} />;
+  return (
+    <div style={{
+      background:"linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#1e3a5f 100%)",
+      borderRadius:12, padding:"12px 20px", marginBottom:16,
+      display:"flex", alignItems:"center", gap:16, flexWrap:"wrap",
+      boxShadow:"var(--shadow-md)", position:"relative", overflow:"hidden"
+    }}>
+      <div style={{position:"absolute",inset:0,background:"repeating-linear-gradient(45deg,rgba(255,255,255,0.02) 0,rgba(255,255,255,0.02) 1px,transparent 1px,transparent 12px)",pointerEvents:"none"}} />
+      {/* Clock */}
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:14,lineHeight:1}}>⏰</span>
+        <div>
+          <div style={{fontSize:9,color:"rgba(255,255,255,0.5)",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.6px",lineHeight:1,marginBottom:2}}>Today</div>
+          <div style={{fontSize:17,fontWeight:800,color:"#fff",lineHeight:1,fontVariantNumeric:"tabular-nums"}}>{clockStr}</div>
+        </div>
+      </div>
+      {SEP}
+      {/* Next up */}
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:14,lineHeight:1}}>👤</span>
+        <div>
+          <div style={{fontSize:9,color:"rgba(255,255,255,0.5)",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.6px",lineHeight:1,marginBottom:2}}>Next Up</div>
+          {nextApt ? (
+            <div style={{fontSize:12,fontWeight:700,color:"#fff",lineHeight:1}}>
+              {nextApt.patientName?.split(" ")[0]} <span style={{color:"#a5b4fc"}}>@ {fmtTime12(nextApt.time)}</span>
+            </div>
+          ) : (
+            <div style={{fontSize:12,fontWeight:600,color:"rgba(255,255,255,0.45)",lineHeight:1}}>No more today</div>
+          )}
+        </div>
+      </div>
+      {SEP}
+      {/* In Session */}
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:14,lineHeight:1}}>🩺</span>
+        <div>
+          <div style={{fontSize:9,color:"rgba(255,255,255,0.5)",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.6px",lineHeight:1,marginBottom:2}}>In Session</div>
+          <div style={{fontSize:12,fontWeight:700,color:inSession.length>0?"#34d399":"rgba(255,255,255,0.45)",lineHeight:1}}>
+            {inSession.length>0?`${inSession.length} active visit${inSession.length>1?"s":""}`:`None active`}
+          </div>
+        </div>
+      </div>
+      {teleToday>0 && (<>
+        {SEP}
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:14,lineHeight:1}}>📹</span>
+          <div>
+            <div style={{fontSize:9,color:"rgba(255,255,255,0.5)",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.6px",lineHeight:1,marginBottom:2}}>Telehealth</div>
+            <div style={{fontSize:12,fontWeight:700,color:"#a78bfa",lineHeight:1}}>{teleToday} session{teleToday>1?"s":""} today</div>
+          </div>
+        </div>
+      </>)}
+      <div style={{flex:1}} />
+      {activeProv>0 && (
+        <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(52,211,153,0.15)",border:"1px solid rgba(52,211,153,0.35)",borderRadius:8,padding:"6px 12px",flexShrink:0}}>
+          <span style={{width:6,height:6,borderRadius:"50%",background:"#34d399",flexShrink:0,animation:"pulse-dot 2s ease-in-out infinite"}} />
+          <span style={{fontSize:11,color:"#34d399",fontWeight:700}}>{activeProv} provider{activeProv>1?"s":""} active</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ══════════════════════════════════════════════
    MINI CALENDAR
@@ -87,12 +177,16 @@ function MiniCalendar({ selectedDate, onSelect, aptsByDate, blockedByDate }) {
     <div style={{ userSelect: "none" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
         <button onClick={() => setBase(p => new Date(p.getFullYear(), p.getMonth()-1, 1))}
-          style={{ background:"none", border:"none", cursor:"pointer", padding:"2px 6px", fontSize:16, color:"var(--text-secondary)", borderRadius:4 }}>‹</button>
+          style={{ background:"none", border:"none", cursor:"pointer", padding:"4px 8px", fontSize:16, color:"var(--text-secondary)", borderRadius:6, transition:"all 0.12s" }}
+          onMouseEnter={e=>{e.currentTarget.style.background="#f5f3ff";e.currentTarget.style.color="#4f46e5";}}
+          onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color="var(--text-secondary)";}}>‹</button>
         <span style={{ fontSize:12, fontWeight:700, color:"var(--text-primary)" }}>
           {MONTH_NAMES[base.getMonth()].slice(0,3)} {base.getFullYear()}
         </span>
         <button onClick={() => setBase(p => new Date(p.getFullYear(), p.getMonth()+1, 1))}
-          style={{ background:"none", border:"none", cursor:"pointer", padding:"2px 6px", fontSize:16, color:"var(--text-secondary)", borderRadius:4 }}>›</button>
+          style={{ background:"none", border:"none", cursor:"pointer", padding:"4px 8px", fontSize:16, color:"var(--text-secondary)", borderRadius:6, transition:"all 0.12s" }}
+          onMouseEnter={e=>{e.currentTarget.style.background="#f5f3ff";e.currentTarget.style.color="#4f46e5";}}
+          onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color="var(--text-secondary)";}}>›</button>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:1, marginBottom:3 }}>
         {WEEKDAYS_SHORT.map(d => (
@@ -159,7 +253,8 @@ function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggl
         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap" }}>
           <span style={{ fontSize:13, fontWeight:800, color:c.text, fontVariantNumeric:"tabular-nums", minWidth:75 }}>{fmtTime12(apt.time)}</span>
           <span style={{ fontSize:10.5, fontWeight:700, padding:"2px 9px", borderRadius:20, background:ss.bg, color:ss.color, display:"flex", alignItems:"center", gap:4 }}>
-            <span style={{ width:5, height:5, borderRadius:"50%", background:ss.dot, display:"inline-block" }} />{apt.status}
+            <span style={{ width:5, height:5, borderRadius:"50%", background:ss.dot, display:"inline-block",
+              animation:apt.status==="Checked In"?"pulse-dot 2s ease-in-out infinite":"none" }} />{apt.status}
           </span>
           <span style={{ fontSize:10.5, padding:"2px 8px", borderRadius:20, background:c.light, color:c.text, fontWeight:600 }}>
             {apt.visitType==="Telehealth" ? "📹 Telehealth" : "🏥 "+(apt.type||"Visit")}
@@ -1717,6 +1812,7 @@ export default function Schedule() {
           )}
           {viewMode === 'day' && (
           <>
+          <TodayRibbon dateAppts={dateAppts} todayKey={todayKey} activeDate={activeDate} />
           {/* Mobile sidebar toggle */}
           {isMobile && (
             <div style={{ marginBottom:10 }}>
@@ -1813,18 +1909,18 @@ export default function Schedule() {
                       {label:"Total", count:counts.total, key:"All", bg:"#f1f5f9", color:"#475569", dot:"#94a3b8", accent:"#cbd5e1"},
                     ].map(s=>(
                       <button key={s.key} onClick={() => setStatusFilter(statusFilter===s.key?"All":s.key)}
-                        style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 16px", borderRadius:20,
+                        style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 18px", borderRadius:20,
                           border:`1.5px solid ${statusFilter===s.key?s.dot:s.accent}`,
                           cursor:"pointer", background: statusFilter===s.key ? s.dot : s.bg,
                           boxShadow: statusFilter===s.key ? `0 2px 8px ${s.dot}55` : 'var(--shadow-sm)',
                           transition:"all 0.15s" }}>
                         <span style={{ width:7, height:7, borderRadius:"50%", background: statusFilter===s.key ? "#fff" : s.dot, flexShrink:0 }} />
-                        <span style={{ fontSize:14, fontWeight:800, color: statusFilter===s.key ? "#fff" : s.color, lineHeight:1 }}>{s.count}</span>
+                        <span style={{ fontSize:20, fontWeight:800, color: statusFilter===s.key ? "#fff" : s.color, lineHeight:1 }}>{s.count}</span>
                         <span style={{ fontSize:11, color: statusFilter===s.key ? "rgba(255,255,255,0.85)" : s.color, opacity: statusFilter===s.key ? 1 : 0.8 }}>{s.label}</span>
                       </button>
                     ))}
                     {statusFilter!=="All" && (
-                      <button onClick={() => setStatusFilter("All")} style={{ padding:"5px 12px", borderRadius:20, border:"1px solid var(--border)", background:"#fff", fontSize:11, cursor:"pointer", color:"var(--text-secondary)", boxShadow:"0 1px 3px rgba(0,0,0,0.06)" }}>Clear ×</button>
+                      <button onClick={() => setStatusFilter("All")} style={{ padding:"5px 12px", borderRadius:20, border:"1px solid var(--border)", background:"#fff", fontSize:11, cursor:"pointer", color:"var(--text-secondary)", boxShadow:"var(--shadow-sm)" }}>Clear ×</button>
                     )}
                   </div>
                   {/* Status group */}
@@ -1904,30 +2000,68 @@ export default function Schedule() {
                 </div>
                 <div style={{ padding:"14px 16px", minHeight:100 }}>
                   {dateAppts.length===0 ? (
-                    <div style={{ textAlign:"center", padding:"48px 24px", color:"var(--text-muted)" }}>
-                      <div style={{ fontSize:48, marginBottom:12, filter:"drop-shadow(0 2px 4px rgba(0,0,0,0.08))" }}>
-                        {statusFilter!=="All" ? "🔍" : "📅"}
-                      </div>
-                      <div style={{ fontWeight:800, fontSize:15, marginBottom:6, color:"var(--text-secondary)" }}>
-                        {statusFilter!=="All" ? `No "${statusFilter}" appointments` : "Schedule is clear"}
-                      </div>
-                      <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom: isFrontDesk ? 16 : 0, lineHeight:1.5 }}>
-                        {statusFilter!=="All"
-                          ? "Try a different status filter or clear to see all appointments."
-                          : "No appointments are scheduled for this day. The day is yours."}
-                      </div>
-                      {isFrontDesk && (
-                        <button className="btn btn-primary btn-sm" style={{ marginTop:4, fontSize:12, fontWeight:700 }} onClick={() => { setModalDate(activeDate); setShowModal(true); }}>
-                          ＋ Schedule Patient
-                        </button>
+                    <div style={{ padding:"32px 16px" }}>
+                      {statusFilter!=="All" ? (
+                        <div style={{ textAlign:"center" }}>
+                          <div style={{ fontSize:44, marginBottom:12 }}>🔍</div>
+                          <div style={{ fontWeight:800, fontSize:15, marginBottom:6, color:"var(--text-secondary)" }}>
+                            No &ldquo;{statusFilter}&rdquo; appointments
+                          </div>
+                          <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:16, lineHeight:1.5 }}>
+                            Try a different status filter or clear to see all appointments.
+                          </div>
+                          <button className="btn btn-secondary btn-sm" onClick={() => setStatusFilter("All")}>Clear Filter</button>
+                        </div>
+                      ) : (
+                        <div>
+                          <div style={{ textAlign:"center", marginBottom:24 }}>
+                            <div style={{ fontSize:44, marginBottom:10 }}>📅</div>
+                            <div style={{ fontWeight:800, fontSize:16, color:"var(--text-primary)", marginBottom:6 }}>Schedule is clear</div>
+                            <div style={{ fontSize:12, color:"var(--text-muted)", maxWidth:300, margin:"0 auto", lineHeight:1.6 }}>
+                              No appointments for {selDateLabel.split(",").slice(0,2).join(",")}. Use the quick actions below.
+                            </div>
+                          </div>
+                          {canCreateAppointment && (
+                            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:8, maxWidth:460, margin:"0 auto 20px" }}>
+                              {[
+                                { icon:"＋", label:"Schedule Patient", sub:"New in-person visit", color:"#4f46e5", border:"#4f46e5", bg:"#f5f3ff",
+                                  action:() => { setModalDate(activeDate); setModalVisitType("In-Person"); setShowModal(true); } },
+                                { icon:"📹", label:"New Telehealth", sub:"Schedule video visit", color:"#7c3aed", border:"#7c3aed", bg:"#f5f3ff",
+                                  action:() => { setModalDate(activeDate); setModalVisitType("Telehealth"); setShowModal(true); } },
+                                { icon:"📆", label:"Browse Days", sub:"View another date", color:"var(--text-secondary)", border:"var(--border)", bg:"#f8fafc",
+                                  action:() => setSelectedDate(toKey(TODAY)) },
+                              ].map(item => (
+                                <button key={item.label} onClick={item.action}
+                                  style={{ padding:"16px 12px", borderRadius:10, border:`1.5px solid ${item.border}`, background:item.bg, cursor:"pointer", textAlign:"center", transition:"all 0.15s" }}
+                                  onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="var(--shadow-md)"; }}
+                                  onMouseLeave={e => { e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="none"; }}>
+                                  <div style={{ fontSize:22, marginBottom:6 }}>{item.icon}</div>
+                                  <div style={{ fontSize:12, fontWeight:700, color:item.color, marginBottom:2 }}>{item.label}</div>
+                                  <div style={{ fontSize:10, color:"var(--text-muted)" }}>{item.sub}</div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          <div style={{ background:"#f8fafc", border:"1px solid var(--border)", borderRadius:8, padding:"10px 14px", maxWidth:440, margin:"0 auto", display:"flex", alignItems:"flex-start", gap:10 }}>
+                            <span style={{ fontSize:14, lineHeight:1.5 }}>💡</span>
+                            <div style={{ fontSize:11, color:"var(--text-muted)", lineHeight:1.6 }}>
+                              <strong style={{ color:"var(--text-secondary)" }}>Tip: </strong>
+                              {isSelToday
+                                ? "Use the Front Desk tab for walk-ins and same-day check-ins."
+                                : "Pre-schedule recurring visits by booking on future dates."}
+                            </div>
+                          </div>
+                        </div>
                       )}
                     </div>
                   ) : (
-                    dateAppts.map(apt=>(
-                      <AptCard key={apt.id} apt={apt} todayKey={todayKey}
-                        onOpenChart={handleOpenChart} onCheckIn={handleCheckIn} onGoToSession={handleGoToSession}
-                        onToggleVisitType={handleToggleVisitType} />
-                    ))
+                    <div key={activeDate} style={{ animation:"fade-slide-in 0.22s ease both" }}>
+                      {dateAppts.map(apt=>(
+                        <AptCard key={apt.id} apt={apt} todayKey={todayKey}
+                          onOpenChart={handleOpenChart} onCheckIn={handleCheckIn} onGoToSession={handleGoToSession}
+                          onToggleVisitType={handleToggleVisitType} />
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
