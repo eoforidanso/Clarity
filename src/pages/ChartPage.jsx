@@ -16,6 +16,7 @@ import Assessments from './chart/Assessments';
 import Immunizations from './chart/Immunizations';
 import LabResults from './chart/LabResults';
 import Encounters from './chart/Encounters';
+import PatientStatus, { getPatientStatusRecord } from './chart/PatientStatus';
 
 const chartTabs = [
   { key: 'summary', label: '📋 Summary', component: ChartSummary },
@@ -29,6 +30,7 @@ const chartTabs = [
   { key: 'assessments', label: '📊 Assessments', component: Assessments },
   { key: 'immunizations', label: '💉 Immunizations', component: Immunizations },
   { key: 'labs', label: '🔬 Labs', component: LabResults },
+  { key: 'status', label: '🚫 Patient Status', component: PatientStatus },
 ];
 
 // Therapist gets read-only labels on clinical tabs they can view but not modify
@@ -406,9 +408,41 @@ export default function ChartPage() {
     setExportSections(prev => prev.includes(sec) ? prev.filter(s => s !== sec) : [...prev, sec]);
   };
 
+  const patStatusRecord = getPatientStatusRecord(patientId);
+  const isPatientInactive = patStatusRecord && patStatusRecord.status !== 'active';
+  const STATUS_BANNER_STYLES = {
+    deceased:    { bg: '#1e1b1b', border: '#7f1d1d', color: '#fca5a5', icon: '🕊️' },
+    discharged:  { bg: '#451a03', border: '#f59e0b', color: '#fde68a', icon: '📤' },
+    transferred: { bg: '#2e1065', border: '#a78bfa', color: '#e9d5ff', icon: '🔀' },
+    lost_to_fu:  { bg: '#1c1917', border: '#78716c', color: '#d6d3d1', icon: '❓' },
+    on_hold:     { bg: '#0c1a2e', border: '#3b82f6', color: '#bfdbfe', icon: '⏸️' },
+  };
+  const bannerStyle = isPatientInactive ? STATUS_BANNER_STYLES[patStatusRecord.status] : null;
+
   return (
     <div className="athena-chart-layout">
       <PatientBanner />
+
+      {/* Inactive patient banner */}
+      {isPatientInactive && bannerStyle && (
+        <div style={{ background: bannerStyle.bg, borderBottom: '2px solid ' + bannerStyle.border, padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 12, zIndex: 10 }}>
+          <span style={{ fontSize: 18 }}>{bannerStyle.icon}</span>
+          <span style={{ color: bannerStyle.color, fontWeight: 800, fontSize: 13 }}>
+            INACTIVE — {(patStatusRecord.status || '').toUpperCase().replace('_', ' ')}
+          </span>
+          {patStatusRecord.status === 'deceased' && patStatusRecord.dateOfDeath && (
+            <span style={{ color: bannerStyle.color, fontSize: 12, opacity: 0.8 }}>· Date of death: {patStatusRecord.dateOfDeath}</span>
+          )}
+          {patStatusRecord.status === 'discharged' && patStatusRecord.dischargeDate && (
+            <span style={{ color: bannerStyle.color, fontSize: 12, opacity: 0.8 }}>· Discharged: {patStatusRecord.dischargeDate}{patStatusRecord.dischargeReason ? ' — ' + patStatusRecord.dischargeReason : ''}</span>
+          )}
+          {patStatusRecord.status === 'transferred' && patStatusRecord.transferTo && (
+            <span style={{ color: bannerStyle.color, fontSize: 12, opacity: 0.8 }}>· To: {patStatusRecord.transferTo}</span>
+          )}
+          <span style={{ marginLeft: 'auto', color: bannerStyle.color, fontSize: 11, opacity: 0.7 }}>⚠️ Scheduling blocked · New Rx restricted</span>
+          <button onClick={() => navigate(`/chart/${patientId}/status`)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, background: 'transparent', border: '1px solid ' + bannerStyle.border, color: bannerStyle.color, cursor: 'pointer', fontWeight: 700 }}>View Status →</button>
+        </div>
+      )}
 
       {/* ── Athena-style Chart Navigation Bar ─────────── */}
       <div className="athena-chart-toolbar">
@@ -583,6 +617,93 @@ export default function ChartPage() {
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Recent Assessments</div>
                 <div className="card" style={{ padding: 12 }}>
+                  {/* Inline trend sparkline for PHQ-9 and GAD-7 */}
+                  {(() => {
+                    const phqSeries = patAssessments.filter(a => (a.tool || a.name) === 'PHQ-9').slice(0, 8).reverse();
+                    const gadSeries = patAssessments.filter(a => (a.tool || a.name) === 'GAD-7').slice(0, 8).reverse();
+                    const hasTrend = phqSeries.length >= 2 || gadSeries.length >= 2;
+                    if (!hasTrend) return null;
+
+                    const W = 260, H = 80;
+                    const PAD = { t: 8, r: 8, b: 18, l: 24 };
+                    const cW = W - PAD.l - PAD.r;
+                    const cH = H - PAD.t - PAD.b;
+
+                    // Shared x-axis: all unique dates across both series
+                    const allDates = Array.from(new Set([...phqSeries.map(s => s.date), ...gadSeries.map(s => s.date)])).sort();
+                    const xOf = d => PAD.l + (allDates.length < 2 ? cW / 2 : (allDates.indexOf(d) / (allDates.length - 1)) * cW);
+                    const yOf = (score, max) => PAD.t + cH - Math.min(score / max, 1) * cH;
+
+                    const path = (pts) => pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+                    const phqPts = phqSeries.map(s => ({ x: xOf(s.date), y: yOf(s.score, 27), score: s.score, date: s.date }));
+                    const gadPts = gadSeries.map(s => ({ x: xOf(s.date), y: yOf(s.score, 21), score: s.score, date: s.date }));
+
+                    // Severity reference lines (PHQ-9 scale: mod=10/27≈37%, mod-sev=15/27≈56%, sev=20/27≈74%)
+                    const refLines = [
+                      { score: 20, label: 'Sev', color: '#fca5a5' },
+                      { score: 15, label: 'Mod-Sev', color: '#fde68a' },
+                      { score: 10, label: 'Mod', color: '#bbf7d0' },
+                    ];
+
+                    return (
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, fontSize: 10 }}>
+                          <span style={{ fontWeight: 700, color: '#475569', fontSize: 10, letterSpacing: 0.3 }}>📈 TREND</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#4f46e5', fontWeight: 600 }}>
+                            <svg width={14} height={3}><line x1={0} y1={1.5} x2={14} y2={1.5} stroke="#4f46e5" strokeWidth={2.5} strokeLinecap="round" /></svg>
+                            PHQ-9
+                          </span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#d97706', fontWeight: 600 }}>
+                            <svg width={14} height={3}><line x1={0} y1={1.5} x2={14} y2={1.5} stroke="#d97706" strokeWidth={2.5} strokeLinecap="round" strokeDasharray="3 2" /></svg>
+                            GAD-7
+                          </span>
+                        </div>
+                        <div style={{ background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', overflowX: 'auto' }}>
+                          <svg width={W} height={H} style={{ display: 'block' }}>
+                            {/* Severity band fills */}
+                            {refLines.map(r => (
+                              <rect key={r.score} x={PAD.l} y={PAD.t} width={cW} height={Math.max(0, yOf(r.score, 27) - PAD.t)} fill={r.color} opacity={0.18} />
+                            ))}
+                            {/* Horizontal grid + score labels */}
+                            {[0, 10, 20].map(v => {
+                              const y = yOf(v, 27);
+                              return (
+                                <g key={v}>
+                                  <line x1={PAD.l} y1={y} x2={PAD.l + cW} y2={y} stroke="#e2e8f0" strokeWidth={1} />
+                                  <text x={PAD.l - 3} y={y + 3.5} textAnchor="end" fontSize={8} fill="#94a3b8">{v}</text>
+                                </g>
+                              );
+                            })}
+                            {/* X-axis date labels */}
+                            {allDates.map(d => (
+                              <text key={d} x={xOf(d)} y={H - 3} textAnchor="middle" fontSize={8} fill="#94a3b8">{d.slice(5)}</text>
+                            ))}
+                            {/* GAD-7 line (dashed, amber) */}
+                            {gadPts.length >= 2 && (
+                              <path d={path(gadPts)} fill="none" stroke="#d97706" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4 2" />
+                            )}
+                            {gadPts.map((p, i) => (
+                              <g key={i}>
+                                <circle cx={p.x} cy={p.y} r={3.5} fill="#d97706" stroke="#fff" strokeWidth={1.5} />
+                                <title>GAD-7 {p.date}: {p.score}</title>
+                              </g>
+                            ))}
+                            {/* PHQ-9 line (solid, indigo) */}
+                            {phqPts.length >= 2 && (
+                              <path d={path(phqPts)} fill="none" stroke="#4f46e5" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+                            )}
+                            {phqPts.map((p, i) => (
+                              <g key={i}>
+                                <circle cx={p.x} cy={p.y} r={3.5} fill="#4f46e5" stroke="#fff" strokeWidth={1.5} />
+                                <title>PHQ-9 {p.date}: {p.score}</title>
+                              </g>
+                            ))}
+                          </svg>
+                        </div>
+                        <div style={{ borderBottom: '1px solid #e2e8f0', margin: '8px 0' }} />
+                      </div>
+                    );
+                  })()}
                   {patAssessments.length === 0 ? <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No assessments</span> : patAssessments.slice(0, 6).map((a, i) => (
                     <div key={i} style={{ fontSize: 12, padding: '3px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span className="badge badge-info" style={{ fontSize: 9, flexShrink: 0 }}>{a.tool || a.name}</span>

@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
 
-const TYPE_ICONS = {
-  'Rx Refill Request': '💊',
-  'Lab Result': '🧪',
-  'Patient Message': '✉️',
-  'Prior Auth': '📋',
-  'Staff Message': '👥',
-  'Check-in Alert': '🔔',
-  'Referral Response': '🔗',
+const TYPE_TAG_COLORS = {
+  'Rx Refill Request': { bg: '#f0fdf4', color: '#166534', border: '#86efac' },
+  'Lab Result':        { bg: '#fdf4ff', color: '#7c3aed', border: '#e9d5ff' },
+  'Patient Message':   { bg: '#eff6ff', color: '#1e40af', border: '#bfdbfe' },
+  'Prior Auth':        { bg: '#fef2f2', color: '#991b1b', border: '#fca5a5' },
+  'Staff Message':     { bg: '#ecfdf5', color: '#065f46', border: '#6ee7b7' },
+  'Check-in Alert':    { bg: '#ecfeff', color: '#0e7490', border: '#a5f3fc' },
+  'Referral Response': { bg: '#f0f9ff', color: '#075985', border: '#7dd3fc' },
 };
 
 const TYPE_COLORS = {
@@ -22,6 +22,29 @@ const TYPE_COLORS = {
   'Check-in Alert': 'badge-info',
   'Referral Response': 'badge-primary',
 };
+
+function TypeIcon({ type, size = 13 }) {
+  const s = { width: size, height: size, flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' };
+  const cp = { fill: 'none', stroke: 'currentColor', strokeWidth: '2.2', strokeLinecap: 'round', strokeLinejoin: 'round' };
+  switch (type) {
+    case 'Rx Refill Request':
+      return <svg style={s} viewBox="0 0 24 24" {...cp}><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>;
+    case 'Lab Result':
+      return <svg style={s} viewBox="0 0 24 24" {...cp}><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v11l-3 6h12l-3-6V3"/><line x1="3" y1="9" x2="21" y2="9"/></svg>;
+    case 'Patient Message':
+      return <svg style={s} viewBox="0 0 24 24" {...cp}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
+    case 'Prior Auth':
+      return <svg style={s} viewBox="0 0 24 24" {...cp}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>;
+    case 'Staff Message':
+      return <svg style={s} viewBox="0 0 24 24" {...cp}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+    case 'Check-in Alert':
+      return <svg style={s} viewBox="0 0 24 24" {...cp}><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>;
+    case 'Referral Response':
+      return <svg style={s} viewBox="0 0 24 24" {...cp}><polyline points="15 3 21 3 21 9"/><path d="M21 3L9 15"/><path d="M10 3H3v18h18v-7"/></svg>;
+    default:
+      return <svg style={s} viewBox="0 0 24 24" {...cp}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>;
+  }
+}
 
 export default function Inbox() {
   const { inboxMessages, updateMessageStatus, addInboxMessage, patients, selectPatient } = usePatient();
@@ -198,20 +221,42 @@ export default function Inbox() {
         <p>{unreadCount > 0 ? `${unreadCount} unread message${unreadCount > 1 ? 's' : ''} requiring attention` : 'All caught up — no unread messages'}</p>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-3 mb-4" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
-        <select className="form-select" style={{ width: 180 }} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-          <option value="All">All Types</option>
-          {messageTypes.map(t => (
-            <option key={t} value={t}>{TYPE_ICONS[t] || '📩'} {t}</option>
+      {/* Filters — pill bar */}
+      <div style={{ marginBottom: 14, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        {['All', ...messageTypes].map(t => {
+          const active = filterType === t;
+          const tc = TYPE_TAG_COLORS[t];
+          return (
+            <button key={t} type="button" onClick={() => setFilterType(t)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '5px 13px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                border: active ? 'none' : '1.5px solid var(--border)',
+                background: active ? (tc ? tc.color : '#0f172a') : (tc ? tc.bg : '#fff'),
+                color: active ? '#fff' : (tc ? tc.color : 'var(--text-secondary)'),
+                transition: 'all 0.15s',
+                boxShadow: active ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
+              }}>
+              {t !== 'All' && <TypeIcon type={t} size={11} />}
+              {t === 'Rx Refill Request' ? 'Refills' : t === 'Lab Result' ? 'Labs' : t === 'Patient Message' ? 'Messages' : t === 'Check-in Alert' ? 'Check-ins' : t === 'Prior Auth' ? 'Prior Auth' : t === 'Staff Message' ? 'Staff' : t === 'Referral Response' ? 'Referrals' : t}
+            </button>
+          );
+        })}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: '#f8fafc', borderRadius: 20, padding: 3, border: '1px solid var(--border)' }}>
+          {['All', 'Unread', 'Read'].map(s => (
+            <button key={s} type="button" onClick={() => setFilterStatus(s)}
+              style={{
+                padding: '4px 12px', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                border: 'none',
+                background: filterStatus === s ? '#0f172a' : 'transparent',
+                color: filterStatus === s ? '#fff' : 'var(--text-muted)',
+                transition: 'all 0.15s',
+              }}>
+              {s}
+            </button>
           ))}
-        </select>
-        <select className="form-select" style={{ width: 140 }} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="All">All Status</option>
-          <option value="Unread">Unread</option>
-          <option value="Read">Read</option>
-        </select>
-        <span className="text-muted text-sm">{filteredMessages.length} message{filteredMessages.length !== 1 ? 's' : ''}</span>
+        </div>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{filteredMessages.length} msg{filteredMessages.length !== 1 ? 's' : ''}</span>
       </div>
 
       {/* Three-Column Inbox Layout */}
@@ -302,11 +347,21 @@ export default function Inbox() {
                 borderBottom: '1px solid var(--border)',
                 borderRight: 'none',
                 borderRadius: '0',
+                transition: 'background 0.12s',
               }}
+              onMouseEnter={e => { if (selectedId !== msg.id) e.currentTarget.style.background = '#f8fafc'; }}
+              onMouseLeave={e => { if (selectedId !== msg.id) e.currentTarget.style.background = ''; }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                <span className={`badge ${TYPE_COLORS[msg.type] || 'badge-info'}`} style={{ fontSize: 11 }}>
-                  {TYPE_ICONS[msg.type] || '📩'} {msg.type}
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '2px 8px', borderRadius: 12, fontSize: 10.5, fontWeight: 700,
+                  background: TYPE_TAG_COLORS[msg.type]?.bg || '#f1f5f9',
+                  color: TYPE_TAG_COLORS[msg.type]?.color || '#475569',
+                  border: `1px solid ${TYPE_TAG_COLORS[msg.type]?.border || '#e2e8f0'}`,
+                }}>
+                  <TypeIcon type={msg.type} size={10} />
+                  {msg.type}
                 </span>
                 {msg.urgent && <span className="badge badge-danger" style={{ fontSize: 10 }}>URGENT</span>}
               </div>
@@ -339,8 +394,15 @@ export default function Inbox() {
                   <h2 style={{ fontSize: 20, fontWeight: 700, flex: 1 }}>{selectedMessage.subject}</h2>
                   <div className="flex gap-2">
                     {selectedMessage.urgent && <span className="badge badge-danger">⚠️ URGENT</span>}
-                    <span className={`badge ${TYPE_COLORS[selectedMessage.type] || 'badge-info'}`}>
-                      {TYPE_ICONS[selectedMessage.type]} {selectedMessage.type}
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700,
+                      background: TYPE_TAG_COLORS[selectedMessage.type]?.bg || '#f1f5f9',
+                      color: TYPE_TAG_COLORS[selectedMessage.type]?.color || '#475569',
+                      border: `1px solid ${TYPE_TAG_COLORS[selectedMessage.type]?.border || '#e2e8f0'}`,
+                    }}>
+                      <TypeIcon type={selectedMessage.type} size={12} />
+                      {selectedMessage.type}
                     </span>
                   </div>
                 </div>
@@ -386,6 +448,10 @@ export default function Inbox() {
                   )}
                   <button className="btn btn-outline btn-sm" onClick={() => handleMarkUnread(selectedMessage.id)}>
                     📩 Mark Unread
+                  </button>
+                  <button className="btn btn-outline btn-sm" onClick={() => updateMessageStatus(selectedMessage.id, 'Archived')}
+                    style={{ color: '#6b7280', borderColor: '#d1d5db' }}>
+                    🗃 Archive
                   </button>
                   {selectedMessage.type === 'Rx Refill Request' && (() => {
                     const action = refillAction[selectedMessage.id] || selectedMessage.status;

@@ -213,12 +213,12 @@ function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggl
 /* ══════════════════════════════════════════════
    SCHEDULE MODAL
 ══════════════════════════════════════════════ */
-function ScheduleModal({ show, onClose, initialDate, patients, onSave }) {
+function ScheduleModal({ show, onClose, initialDate, initialVisitType, patients, onSave }) {
   const EMPTY = { isNewPatient:false, patientId:"", newPatientName:"", provider:PROVIDERS[0]?.id||"",
     date:"", time:"09:00", duration:30, type:"Follow-Up", visitType:"In-Person", reason:"", room:"" };
   const [form, setForm] = useState(EMPTY);
   const [saved, setSaved] = useState(false);
-  useEffect(() => { if (show) { setForm({ ...EMPTY, date:initialDate||"" }); setSaved(false); } }, [show, initialDate]);
+  useEffect(() => { if (show) { setForm({ ...EMPTY, date:initialDate||"", ...(initialVisitType ? { visitType:initialVisitType, type:initialVisitType==="Telehealth"?"Telehealth":"Follow-Up", room:initialVisitType==="Telehealth"?"Virtual":"" } : {}) }); setSaved(false); } }, [show, initialDate, initialVisitType]);
   const upd = (k, v) => setForm(f => ({ ...f, [k]:v }));
   const canSubmit = form.date && form.time && form.provider && (form.isNewPatient ? form.newPatientName.trim() : form.patientId);
   const handleSubmit = () => {
@@ -795,7 +795,6 @@ function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, a
 
   const handleRescheduleConfirm = useCallback((apt, newDate, newTime, reason) => {
     updateAppointmentStatus(apt.id, "Rescheduled");
-    const prov = PROVIDERS.find(p => p.id === apt.provider);
     addAppointment({
       patientId: apt.patientId, patientName: apt.patientName,
       provider: apt.provider, providerName: apt.providerName,
@@ -1451,6 +1450,8 @@ export default function Schedule() {
   const [providerFilter, setProviderFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("All");
   const [showModal, setShowModal] = useState(false);
+  const [viewMode, setViewMode] = useState('day');
+  const [modalVisitType, setModalVisitType] = useState('In-Person');
   const [modalDate, setModalDate] = useState("");
   const [showBlockPanel, setShowBlockPanel] = useState(false);
   const [blockProvider, setBlockProvider] = useState(() =>
@@ -1567,6 +1568,18 @@ export default function Schedule() {
         <div style={{ marginLeft:"auto", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
           {activeTab==="schedule" && (
             <>
+              {/* View mode toggle */}
+              <div style={{ display:"flex", gap:0, background:"#f8fafc", border:"1px solid var(--border)", borderRadius:8, overflow:"hidden" }}>
+                {['day','week','month'].map(v => (
+                  <button key={v} type="button" onClick={() => setViewMode(v)}
+                    style={{ padding:"5px 14px", border:"none", fontSize:11, fontWeight:700, cursor:"pointer",
+                      background: viewMode===v?"#4f46e5":"transparent",
+                      color: viewMode===v?"#fff":"var(--text-muted)",
+                      transition:"all 0.12s" }}>
+                    {v==='day'?'Day':v==='week'?'Week':'Month'}
+                  </button>
+                ))}
+              </div>
               <button className="btn btn-secondary btn-sm" onClick={() => setSelectedDate(toKey(TODAY))}>Today</button>
               {canBlockDays && (
                 <button onClick={() => setShowBlockPanel(v=>!v)}
@@ -1576,8 +1589,15 @@ export default function Schedule() {
                     color:showBlockPanel?"#fff":"var(--text-secondary)" }}>⛔ Block Days</button>
               )}
               {canCreateAppointment && (
-                <button className="btn btn-primary btn-sm" onClick={() => { setModalDate(activeDate); setShowModal(true); }}
-                  style={{ fontSize:12, fontWeight:700 }}>＋ New Appointment</button>
+                <>
+                  <button className="btn btn-primary btn-sm" onClick={() => { setModalDate(activeDate); setModalVisitType('In-Person'); setShowModal(true); }}
+                    style={{ fontSize:12, fontWeight:700 }}>＋ New Appointment</button>
+                  <button onClick={() => { setModalDate(activeDate); setModalVisitType('Telehealth'); setShowModal(true); }}
+                    style={{ padding:"6px 14px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer",
+                      border:"1.5px solid #8b5cf6", background:"#8b5cf6", color:"#fff", transition:"all 0.15s" }}
+                    onMouseEnter={e=>{e.currentTarget.style.background="#7c3aed";}}
+                    onMouseLeave={e=>{e.currentTarget.style.background="#8b5cf6";}}>📹 New Telehealth</button>
+                </>
               )}
             </>
           )}
@@ -1666,6 +1686,19 @@ export default function Schedule() {
           )}
 
           {/* MAIN 2-COLUMN LAYOUT */}
+          {viewMode !== 'day' && (
+            <div style={{ background:"#fff", border:"1px solid var(--border)", borderRadius:14, padding:"40px 32px", textAlign:"center", color:"var(--text-muted)" }}>
+              <div style={{ fontSize:48, marginBottom:12 }}>{viewMode==='week'?'🗓':'📆'}</div>
+              <div style={{ fontWeight:800, fontSize:16, marginBottom:6, color:"var(--text-primary)" }}>
+                {viewMode==='week'?'Week':'Month'} View
+              </div>
+              <p style={{ fontSize:13, maxWidth:320, margin:"0 auto" }}>
+                {viewMode==='week'?'Week':'Month'} view is in development. Switch to <strong>Day</strong> view to manage individual appointments.
+              </p>
+              <button className="btn btn-primary btn-sm" style={{ marginTop:16 }} onClick={() => setViewMode('day')}>Switch to Day View</button>
+            </div>
+          )}
+          {viewMode === 'day' && (
           <div style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
             {/* LEFT SIDEBAR */}
             <div style={{ width:218, flexShrink:0, display:"flex", flexDirection:"column", gap:12 }}>
@@ -1872,7 +1905,22 @@ export default function Schedule() {
                 </div>
               </div>
             </div>
-          </div>
+
+            {/* MINI TIMELINE */}
+            <div style={{ width:54, flexShrink:0, background:"#f8fafc", border:"1px solid var(--border)", borderRadius:10, overflow:"hidden", position:"sticky", top:80, alignSelf:"flex-start" }}>
+              <div style={{ textAlign:"center", padding:"7px 4px", background:"#eef1f6", borderBottom:"1px solid var(--border)", fontSize:9, fontWeight:800, textTransform:"uppercase", color:"var(--text-muted)", letterSpacing:"0.5px" }}>Hours</div>
+              {Array.from({length:11}, (_,i) => i+8).map(h => {
+                const label = h < 12 ? `${h}AM` : h === 12 ? '12PM' : `${h-12}PM`;
+                const hasApt = dateAppts.some(a => a.time && parseInt(a.time.split(':')[0],10) === h);
+                return (
+                  <div key={h} style={{ padding:"7px 4px", borderBottom:"1px solid var(--border)", textAlign:"center" }}>
+                    <span style={{ fontSize:9.5, fontWeight:700, color:hasApt?"var(--primary)":"var(--text-muted)", display:"block" }}>{label}</span>
+                    {hasApt && <div style={{ width:6, height:6, background:"var(--primary)", borderRadius:"50%", margin:"2px auto 0" }} />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>)}
         </>
       )}
 
@@ -1913,10 +1961,11 @@ export default function Schedule() {
       {/* Schedule Modal */}
       <ScheduleModal
         show={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={() => { setShowModal(false); setModalVisitType('In-Person'); }}
         initialDate={modalDate}
+        initialVisitType={modalVisitType}
         patients={patients}
-        onSave={apt => { addAppointment(apt); setShowModal(false); }}
+        onSave={apt => { addAppointment(apt); setShowModal(false); setModalVisitType('In-Person'); }}
       />
     </div>
   );

@@ -39,6 +39,10 @@ export default function PriorAuthTracking() {
   const [search, setSearch] = useState('');
   const [selectedAuth, setSelectedAuth] = useState(null);
   const [showNew, setShowNew] = useState(false);
+  const [faxedIds, setFaxedIds] = useState(() => new Set());
+  const [showStepTherapyDoc, setShowStepTherapyDoc] = useState(false);
+  const [stepTherapyBannerOpen, setStepTherapyBannerOpen] = useState(true);
+  const [stepDocFaxed, setStepDocFaxed] = useState(false);
   const [newForm, setNewForm] = useState({
     patientId: '', insurance: '', memberId: '', serviceType: '', medication: '',
     cptCode: '', icdCodes: '', requestedUnits: '', urgency: 'Standard', notes: '',
@@ -125,6 +129,43 @@ export default function PriorAuthTracking() {
           <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Manage insurance prior authorizations, track approvals, and handle denials & appeals</p>
         </div>
         <button className="btn btn-primary" onClick={() => setShowNew(true)}>➕ New Auth Request</button>
+      </div>
+
+      {/* ── Illinois Step Therapy Ban Banner (H.B. 5395) ── */}
+      <div style={{ marginBottom: 18, borderRadius: 12, border: '2px solid #3b82f6', background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)', overflow: 'hidden' }}>
+        <button type="button"
+          onClick={() => setStepTherapyBannerOpen(v => !v)}
+          style={{ width: '100%', padding: '12px 18px', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 20 }}>⚖️</span>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#1e3a8a' }}>Illinois Step Therapy Ban — H.B. 5395</div>
+              <div style={{ fontSize: 11, color: '#1d4ed8', marginTop: 1 }}>Know your patient's rights. Remind insurance companies of their legal obligations under Illinois law.</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <button type="button" onClick={e => { e.stopPropagation(); setShowStepTherapyDoc(true); }}
+              style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 7, background: '#1d4ed8', color: '#fff', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              📄 View / Send Document
+            </button>
+            <span style={{ fontSize: 13, color: '#3b82f6', fontWeight: 700 }}>{stepTherapyBannerOpen ? '▲' : '▼'}</span>
+          </div>
+        </button>
+        {stepTherapyBannerOpen && (
+          <div style={{ padding: '0 18px 14px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+            {[
+              { icon: '🚫', title: 'Step Therapy Exceptions Required', body: 'Insurers must grant a step therapy exception upon request when clinical evidence supports the prescribed treatment or step therapy is contraindicated.' },
+              { icon: '⏱️', title: '72-Hour Response Mandate', body: 'Standard requests must be answered within 72 hours. Urgent/expedited requests require a response within 24 hours. Silence = deemed approved.' },
+              { icon: '🩺', title: 'Grounds for Exception', body: 'Contraindication · Likely adverse reaction · Previous treatment failure · Clinical evidence supporting prescribed drug · Step therapy would cause significant harm.' },
+            ].map(item => (
+              <div key={item.title} style={{ background: 'rgba(255,255,255,0.75)', borderRadius: 9, padding: '10px 12px', border: '1px solid #bfdbfe' }}>
+                <div style={{ fontSize: 16, marginBottom: 4 }}>{item.icon}</div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#1e3a8a', marginBottom: 4 }}>{item.title}</div>
+                <div style={{ fontSize: 10.5, color: '#1d4ed8', lineHeight: 1.55 }}>{item.body}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Stats row */}
@@ -361,6 +402,127 @@ export default function PriorAuthTracking() {
             <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button className="btn btn-secondary" onClick={() => setShowNew(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={submitAuth} disabled={!newForm.patientId || !newForm.serviceType || !newForm.insurance}>🔐 Create Authorization</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── Illinois Step Therapy H.B. 5395 Document Modal ── */}
+      {showStepTherapyDoc && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 2100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowStepTherapyDoc(false); }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 720, maxHeight: '90vh', boxShadow: '0 24px 64px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* Modal header */}
+            <div style={{ padding: '18px 24px', background: 'linear-gradient(135deg, #1e3a8a, #1d4ed8)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>⚖️ Illinois Step Therapy Exception — H.B. 5395</div>
+                <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>Formal payer reminder document · Print or fax directly to insurance company</div>
+              </div>
+              <button onClick={() => setShowStepTherapyDoc(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 800, fontSize: 20, width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            </div>
+
+            {/* Document body */}
+            <div id="step-therapy-doc" style={{ flex: 1, overflowY: 'auto', padding: '28px 32px', fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 13, lineHeight: 1.75, color: '#111827' }}>
+
+              {/* Letterhead */}
+              <div style={{ textAlign: 'center', borderBottom: '3px double #1d4ed8', paddingBottom: 16, marginBottom: 24 }}>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#1e3a8a', letterSpacing: '-0.5px' }}>NOTICE OF PATIENT RIGHTS</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#1d4ed8', marginTop: 4 }}>ILLINOIS STEP THERAPY EXCEPTION — H.B. 5395</div>
+                <div style={{ fontSize: 12, color: '#374151', marginTop: 6 }}>Date: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+              </div>
+
+              {/* Addressee */}
+              <div style={{ marginBottom: 20, fontSize: 12 }}>
+                <strong>To:</strong> Medical Director / Utilization Management Department<br />
+                <strong>Re:</strong> Step Therapy Exception Request — Illinois H.B. 5395 Compliance<br />
+                {selectedAuth && (
+                  <>
+                    <strong>Patient:</strong> {selectedAuth.patientName} · Member ID: {selectedAuth.memberId}<br />
+                    <strong>Insurance Plan:</strong> {selectedAuth.insurance}<br />
+                    <strong>Auth Number:</strong> {selectedAuth.authNumber || 'Pending'}<br />
+                    <strong>Service / Medication:</strong> {selectedAuth.serviceType}{selectedAuth.medication ? ` — ${selectedAuth.medication}` : ''}<br />
+                  </>
+                )}
+              </div>
+
+              <p>Dear Medical Director,</p>
+              <p>
+                This letter serves as formal notice that the above-referenced prior authorization request involves a step therapy (fail-first) protocol. Pursuant to <strong>Illinois House Bill 5395</strong> (amending the Illinois Insurance Code, 215 ILCS 5/) and related provisions of the <em>Illinois Managed Care Reform and Patient Rights Act</em>, the treating provider is formally invoking the patient's rights to a step therapy exception review.
+              </p>
+
+              {/* Legal provisions */}
+              <div style={{ background: '#eff6ff', border: '1.5px solid #3b82f6', borderRadius: 10, padding: '16px 20px', margin: '20px 0' }}>
+                <div style={{ fontWeight: 900, fontSize: 13, color: '#1e3a8a', marginBottom: 12, fontFamily: 'sans-serif', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Key Provisions — Illinois H.B. 5395</div>
+                <ol style={{ paddingLeft: 20, margin: 0, fontSize: 12, color: '#1e3a8a' }}>
+                  <li style={{ marginBottom: 8 }}>
+                    <strong>Exception Process Required:</strong> Health insurers and managed care organizations must establish a clear, accessible step therapy exception process. Denial of an exception request without a documented medical review constitutes a violation of this Act.
+                  </li>
+                  <li style={{ marginBottom: 8 }}>
+                    <strong>Mandatory Response Timeframes:</strong> Upon receipt of a complete exception request:
+                    <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+                      <li>Standard requests: determination within <strong>72 hours</strong></li>
+                      <li>Urgent / expedited requests: determination within <strong>24 hours</strong></li>
+                      <li>Failure to respond within these timeframes constitutes <strong>automatic approval</strong> of the exception.</li>
+                    </ul>
+                  </li>
+                  <li style={{ marginBottom: 8 }}>
+                    <strong>Grounds for Granting an Exception (any one of the following):</strong>
+                    <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+                      <li>The required step-therapy drug is contraindicated for the patient.</li>
+                      <li>The required drug is likely to cause an adverse reaction or harm the patient.</li>
+                      <li>The patient previously tried and failed the required step-therapy drug (including trial during enrollment in a different health plan).</li>
+                      <li>Clinical evidence indicates the prescribed drug is superior to the required alternative for the patient's specific condition.</li>
+                      <li>Adherence to the step-therapy protocol would cause clinically significant harm, delay in necessary care, or irreversible consequences.</li>
+                    </ul>
+                  </li>
+                  <li style={{ marginBottom: 8 }}>
+                    <strong>Non-Retaliation:</strong> Insurers may not penalize, reduce payment to, or take adverse action against a provider for requesting a step therapy exception on behalf of their patient.
+                  </li>
+                  <li>
+                    <strong>Independent Review:</strong> If an exception is denied, the enrollee or provider may request an expedited independent medical review through the Illinois Department of Insurance.
+                  </li>
+                </ol>
+              </div>
+
+              {/* Clinical basis */}
+              <p>
+                <strong>Clinical Basis for This Exception Request:</strong><br />
+                The prescribing provider has determined, based on their clinical judgment and the specific medical needs of this patient, that the requested treatment is medically necessary and that the step-therapy protocol is not clinically appropriate in this instance. Supporting clinical documentation, including medical records, prior treatment history, and letter of medical necessity, is attached or available upon request.
+              </p>
+
+              {/* Demand */}
+              <div style={{ background: '#fef2f2', border: '1.5px solid #f87171', borderRadius: 10, padding: '14px 18px', margin: '20px 0', fontSize: 12 }}>
+                <strong style={{ color: '#991b1b' }}>Action Required:</strong>
+                <span style={{ color: '#7f1d1d' }}> Please process this step therapy exception request in accordance with the timeframes mandated under Illinois H.B. 5395. If this request is classified as urgent/expedited, a determination must be provided within 24 hours. Failure to comply may be reported to the Illinois Department of Insurance. For questions or to provide a determination, please contact our office immediately.</span>
+              </div>
+
+              {/* Signature block */}
+              <div style={{ marginTop: 24, fontSize: 12 }}>
+                <div>Sincerely,</div>
+                <div style={{ marginTop: 20, borderTop: '1px solid #9ca3af', paddingTop: 6, display: 'inline-block', minWidth: 260 }}>
+                  <div><strong>{currentUser ? `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || 'Provider' : 'Provider'}</strong>{currentUser?.credentials ? `, ${currentUser.credentials}` : ''}</div>
+                  <div>Clarity EHR — Outpatient Behavioral Health</div>
+                  <div style={{ marginTop: 2, color: '#6b7280', fontSize: 11 }}>NPI: {currentUser?.npi || '[NPI on file]'} · License: {currentUser?.licenseNumber || '[License on file]'}</div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 24, padding: '10px 14px', background: '#f9fafb', border: '1px solid var(--border)', borderRadius: 7, fontSize: 10.5, color: '#6b7280' }}>
+                <strong>References:</strong> Illinois H.B. 5395 · Illinois Insurance Code, 215 ILCS 5/ · Illinois Managed Care Reform and Patient Rights Act · 50 Ill. Adm. Code 5410 (Illinois Department of Insurance step therapy regulations). This document was generated by Clarity EHR on {new Date().toLocaleDateString()}.
+              </div>
+            </div>
+
+            {/* Action footer */}
+            <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)', background: '#f8fafc', display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+              <button className="btn btn-primary" onClick={() => window.print()}>🖨️ Print Document</button>
+              <button className="btn btn-secondary"
+                style={stepDocFaxed ? { background: '#dcfce7', color: '#166534', borderColor: '#86efac' } : {}}
+                onClick={() => setStepDocFaxed(true)}>
+                {stepDocFaxed ? '✅ Fax Sent' : '📠 Fax to Insurance'}
+              </button>
+              <button className="btn btn-secondary" onClick={() => {
+                const text = document.getElementById('step-therapy-doc')?.innerText || '';
+                navigator.clipboard?.writeText(text).catch(() => {});
+              }}>📋 Copy Text</button>
+              <button className="btn btn-secondary" style={{ marginLeft: 'auto' }} onClick={() => setShowStepTherapyDoc(false)}>Close</button>
             </div>
           </div>
         </div>

@@ -39,6 +39,9 @@ export default function PatientRecall() {
   const [selectedRecall, setSelectedRecall] = useState(null);
   const [showOutreach, setShowOutreach] = useState(false);
   const [outreachForm, setOutreachForm] = useState({ method: 'Phone', notes: '' });
+  const [batchSending, setBatchSending] = useState(false);
+  const [batchSent, setBatchSent] = useState(false);
+  const [msgSentType, setMsgSentType] = useState(null);
 
   const filtered = useMemo(() => {
     let list = [...recalls];

@@ -2,13 +2,159 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
+import { encounterHistory as mockEncounterHistory, patients as mockPatients } from '../data/mockData';
 
-const MOCK_SUPERBILLS = [
-  { id: 'sb-1', patientId: 'p1', patientName: 'James Anderson', mrn: 'MRN-001', dos: '2026-04-14', provider: 'Dr. Chris L.', providerNPI: '1234567890', facility: 'Clarity — Main Office', visitType: 'Follow-Up', cptCodes: [{ code: '99214', desc: 'Office Visit — Moderate', units: 1, fee: 175.00 }, { code: '90833', desc: 'Psychotherapy Add-On 16-37 min', units: 1, fee: 85.00 }], icdCodes: ['F31.81', 'F90.0'], modifiers: ['25'], totalCharge: 260.00, status: 'Ready to Submit', insurance: 'Blue Cross Blue Shield', copay: 30, paid: 0, balance: 260.00, renderingTime: '30 min', notes: '' },
-  { id: 'sb-2', patientId: 'p2', patientName: 'Maria Garcia', mrn: 'MRN-002', dos: '2026-04-14', provider: 'April Torres, LCSW', providerNPI: '5566778899', facility: 'Clarity — Main Office', visitType: 'Telehealth', cptCodes: [{ code: '90837', desc: 'Psychotherapy 53+ min', units: 1, fee: 195.00 }, { code: '96127', desc: 'Brief Behavioral Assessment', units: 1, fee: 12.00 }], icdCodes: ['F41.1', 'F43.10'], modifiers: ['95', 'GT'], totalCharge: 207.00, status: 'Submitted', insurance: 'Aetna', copay: 25, paid: 25, balance: 182.00, renderingTime: '55 min', notes: 'Telehealth modifier applied' },
-  { id: 'sb-3', patientId: 'p3', patientName: 'Robert Chen', mrn: 'MRN-003', dos: '2026-04-13', provider: 'Dr. Chris L.', providerNPI: '1234567890', facility: 'Clarity — Main Office', visitType: 'New Patient', cptCodes: [{ code: '90792', desc: 'Psychiatric Diagnostic Eval w/ Medical', units: 1, fee: 325.00 }], icdCodes: ['F33.2', 'F10.20'], modifiers: [], totalCharge: 325.00, status: 'Paid', insurance: 'Cigna', copay: 40, paid: 325.00, balance: 0, renderingTime: '60 min', notes: 'New patient evaluation' },
-  { id: 'sb-4', patientId: 'p4', patientName: 'Ashley Kim', mrn: 'MRN-004', dos: '2026-04-12', provider: 'Dr. Chris L.', providerNPI: '1234567890', facility: 'Clarity — Main Office', visitType: 'Follow-Up', cptCodes: [{ code: '99215', desc: 'Office Visit — High Complexity', units: 1, fee: 225.00 }, { code: '90836', desc: 'Psychotherapy Add-On 38-52 min', units: 1, fee: 115.00 }, { code: '96127', desc: 'Brief Behavioral Assessment', units: 2, fee: 24.00 }], icdCodes: ['F33.1', 'F90.0', 'F41.1'], modifiers: ['25'], totalCharge: 364.00, status: 'Denied', insurance: 'UnitedHealthcare', copay: 35, paid: 0, balance: 364.00, renderingTime: '50 min', notes: 'Denied: modifier 25 documentation insufficient' },
-  { id: 'sb-5', patientId: 'p6', patientName: 'Marcus Brown', mrn: 'MRN-006', dos: '2026-04-11', provider: 'Dr. Chris L.', providerNPI: '1234567890', facility: 'Clarity — Main Office', visitType: 'Follow-Up', cptCodes: [{ code: '99213', desc: 'Office Visit — Low Complexity', units: 1, fee: 130.00 }], icdCodes: ['F33.0'], modifiers: [], totalCharge: 130.00, status: 'Ready to Submit', insurance: 'Medicaid', copay: 0, paid: 0, balance: 130.00, renderingTime: '20 min', notes: '' },
+// CPT fee schedule (code → fee) for deriving charges from encounters
+const CPT_FEE_SCHEDULE = {
+  '99202': 130, '99203': 155, '99204': 200, '99205': 250,
+  '99211': 50,  '99212': 90,  '99213': 130, '99214': 175, '99215': 225,
+  '90791': 275, '90792': 325,
+  '90832': 80,  '90833': 85,  '90834': 110, '90836': 115, '90837': 195, '90838': 140,
+  '90839': 185, '90840': 90,
+  '90202': 120, '90203': 145, '90204': 175,
+  '96127': 12,  '99354': 70,
+};
+
+const CPT_DESC = {
+  '99202': 'Office Visit — Straightforward, New', '99203': 'Office Visit — Low, New', '99204': 'Office Visit — Moderate, New', '99205': 'Office Visit — High, New',
+  '99211': 'Office Visit — Minimal', '99212': 'Office Visit — Straightforward', '99213': 'Office Visit — Low Complexity', '99214': 'Office Visit — Moderate Complexity', '99215': 'Office Visit — High Complexity',
+  '90791': 'Psychiatric Diagnostic Evaluation', '90792': 'Psychiatric Diagnostic Eval w/ Medical',
+  '90832': 'Psychotherapy 16–37 min', '90833': 'Psychotherapy Add-On 16–37 min',
+  '90834': 'Psychotherapy 38–52 min', '90836': 'Psychotherapy Add-On 38–52 min',
+  '90837': 'Psychotherapy 53+ min', '90838': 'Psychotherapy Add-On 53+ min',
+  '90839': 'Crisis Psychotherapy — First 60 min', '90840': 'Crisis Psychotherapy — Add-On 30 min',
+  '90202': 'Therapy Session — Low Complexity', '90203': 'Therapy Session — Moderate Complexity', '90204': 'Therapy Session — High Complexity',
+  '96127': 'Brief Behavioral / Emotional Assessment', '99354': 'Prolonged Service Add-On',
+};
+
+const PROVIDER_NPI_MAP = {
+  'u1': '1234567890',
+  'u2': '9876543210',
+  'u8': '3344556677',
+  'u9': '1376299933',
+};
+
+const STORAGE_KEY = 'ehr_superbill_statuses';
+
+function loadPersistedStatuses() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function savePersistedStatus(id, overrides) {
+  const existing = loadPersistedStatuses();
+  existing[id] = { ...existing[id], ...overrides, lastUpdated: new Date().toISOString() };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+/**
+ * Convert a signed encounter object into a superbill shape.
+ * Works with both PatientContext encounters and encounterHistory items.
+ */
+function encounterToSuperbill(enc, patientId, patient, persisted) {
+  // Build CPT codes list
+  let cptCodes = [];
+  if (Array.isArray(enc.cptCodes) && enc.cptCodes.length > 0) {
+    cptCodes = enc.cptCodes.map(c => ({
+      code: typeof c === 'string' ? c : c.code,
+      desc: typeof c === 'string' ? (CPT_DESC[c] || c) : (c.desc || CPT_DESC[c.code] || c.code),
+      units: c.units || 1,
+      fee: c.fee || CPT_FEE_SCHEDULE[typeof c === 'string' ? c : c.code] || 100,
+    }));
+  } else if (enc.cptCode) {
+    const code = enc.cptCode;
+    cptCodes = [{ code, desc: CPT_DESC[code] || enc.visitType || code, units: 1, fee: CPT_FEE_SCHEDULE[code] || 100 }];
+  }
+
+  // ICD codes
+  let icdCodes = [];
+  if (Array.isArray(enc.icdCodes) && enc.icdCodes.length > 0) {
+    icdCodes = enc.icdCodes;
+  } else if (enc.icdCode) {
+    icdCodes = [enc.icdCode.split(' ')[0]]; // strip description from "F33.1 - Major..."
+  }
+
+  const totalCharge = cptCodes.reduce((s, c) => s + c.fee * c.units, 0);
+  const copay = patient?.insurance?.primary?.copay || 0;
+  const insurance = patient?.insurance?.primary?.name || 'Unknown';
+
+  const defaultStatus = 'Ready to Submit';
+  const saved = persisted[enc.id] || {};
+
+  return {
+    id: enc.id,
+    patientId,
+    patientName: patient ? `${patient.firstName} ${patient.lastName}` : 'Unknown',
+    mrn: patient?.mrn || '',
+    dos: enc.date,
+    provider: enc.signedBy || enc.provider || 'Unknown',
+    providerNPI: enc.providerNPI || PROVIDER_NPI_MAP[enc.providerId] || '',
+    facility: enc.facility || 'Clarity — Main Office',
+    visitType: enc.visitType || 'Follow-Up',
+    cptCodes,
+    icdCodes,
+    modifiers: enc.modifiers || [],
+    totalCharge,
+    status: saved.status || defaultStatus,
+    insurance,
+    copay,
+    paid: saved.paid != null ? saved.paid : (copay > 0 ? copay : 0),
+    balance: saved.balance != null ? saved.balance : (totalCharge - (copay > 0 ? copay : 0)),
+    renderingTime: enc.duration || `${enc.timeSpentMinutes || ''} min`,
+    notes: saved.notes || enc.billingNotes || '',
+    _fromEncounter: true,
+  };
+}
+
+function buildSuperbills(patientContextEncounters, patients) {
+  const persisted = loadPersistedStatuses();
+  const result = [];
+  const seenIds = new Set();
+
+  // 1. From PatientContext (newly created or signed encounters in session)
+  for (const [patientId, encList] of Object.entries(patientContextEncounters || {})) {
+    const patient = patients.find(p => p.id === patientId);
+    for (const enc of (encList || [])) {
+      if (!enc.signedAt) continue; // only signed encounters
+      seenIds.add(enc.id);
+      result.push(encounterToSuperbill(enc, patientId, patient, persisted));
+    }
+  }
+
+  // 2. From mockData encounterHistory (signed historical encounters)
+  for (const [patientId, encList] of Object.entries(mockEncounterHistory || {})) {
+    const patient = patients.find(p => p.id === patientId);
+    for (const enc of (encList || [])) {
+      if (seenIds.has(enc.id)) continue; // don't duplicate
+      // All encounterHistory items are considered signed (historical)
+      result.push(encounterToSuperbill(enc, patientId, patient, persisted));
+    }
+  }
+
+  // 3. If nothing found, fall back to sample superbills
+  if (result.length === 0) {
+    return FALLBACK_SUPERBILLS.map(sb => {
+      const saved = persisted[sb.id] || {};
+      return { ...sb, status: saved.status || sb.status, paid: saved.paid != null ? saved.paid : sb.paid, balance: saved.balance != null ? saved.balance : sb.balance, notes: saved.notes || sb.notes };
+    });
+  }
+
+  return result.sort((a, b) => new Date(b.dos) - new Date(a.dos));
+}
+
+const FALLBACK_SUPERBILLS = [
+  { id: 'sb-1', patientId: 'p1', patientName: 'James Anderson', mrn: 'MRN-00001', dos: '2026-04-14', provider: 'Dr. Chris L.', providerNPI: '1234567890', facility: 'Clarity — Main Office', visitType: 'Follow-Up', cptCodes: [{ code: '99214', desc: 'Office Visit — Moderate', units: 1, fee: 175.00 }, { code: '90833', desc: 'Psychotherapy Add-On 16-37 min', units: 1, fee: 85.00 }], icdCodes: ['F31.81', 'F90.0'], modifiers: ['25'], totalCharge: 260.00, status: 'Ready to Submit', insurance: 'Blue Cross Blue Shield', copay: 30, paid: 0, balance: 260.00, renderingTime: '30 min', notes: '' },
+  { id: 'sb-2', patientId: 'p2', patientName: 'Maria Garcia', mrn: 'MRN-00002', dos: '2026-04-14', provider: 'April T., LCSW', providerNPI: '3344556677', facility: 'Clarity — Main Office', visitType: 'Telehealth', cptCodes: [{ code: '90837', desc: 'Psychotherapy 53+ min', units: 1, fee: 195.00 }, { code: '96127', desc: 'Brief Behavioral Assessment', units: 1, fee: 12.00 }], icdCodes: ['F41.1', 'F43.10'], modifiers: ['95', 'GT'], totalCharge: 207.00, status: 'Submitted', insurance: 'Aetna', copay: 25, paid: 25, balance: 182.00, renderingTime: '55 min', notes: 'Telehealth modifier applied' },
+  { id: 'sb-3', patientId: 'p4', patientName: 'Emily Chen', mrn: 'MRN-00004', dos: '2026-04-13', provider: 'Joseph', providerNPI: '9876543210', facility: 'Clarity — Main Office', visitType: 'Follow-Up', cptCodes: [{ code: '99214', desc: 'Office Visit — Moderate Complexity', units: 1, fee: 175.00 }], icdCodes: ['F90.2', 'F41.1'], modifiers: [], totalCharge: 175.00, status: 'Paid', insurance: 'Cigna', copay: 20, paid: 175.00, balance: 0, renderingTime: '25 min', notes: '' },
+  { id: 'sb-4', patientId: 'p6', patientName: 'Aisha Patel', mrn: 'MRN-00006', dos: '2026-04-12', provider: 'Dr. Chris L.', providerNPI: '1234567890', facility: 'Clarity — Main Office', visitType: 'Follow-Up', cptCodes: [{ code: '99215', desc: 'Office Visit — High Complexity', units: 1, fee: 225.00 }, { code: '96127', desc: 'Brief Behavioral Assessment', units: 2, fee: 24.00 }], icdCodes: ['F31.31', 'F41.1'], modifiers: ['25'], totalCharge: 249.00, status: 'Denied', insurance: 'Anthem', copay: 35, paid: 0, balance: 249.00, renderingTime: '45 min', notes: 'Denied: modifier 25 documentation insufficient' },
+  { id: 'sb-5', patientId: 'p5', patientName: 'Robert Wilson', mrn: 'MRN-00005', dos: '2026-04-11', provider: 'Dr. Chris L.', providerNPI: '1234567890', facility: 'Clarity — Main Office', visitType: 'Follow-Up', cptCodes: [{ code: '99215', desc: 'Office Visit — High Complexity', units: 1, fee: 225.00 }], icdCodes: ['F32.2', 'F41.0'], modifiers: [], totalCharge: 225.00, status: 'Ready to Submit', insurance: 'Medicare', copay: 0, paid: 0, balance: 225.00, renderingTime: '40 min', notes: '' },
 ];
 
 const STATUS_COLORS = {
@@ -23,11 +169,19 @@ const STATUS_COLORS = {
 export default function SuperbillCapture() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const [bills, setBills] = useState(MOCK_SUPERBILLS);
+  const { encounters, patients } = usePatient();
+
+  // Roles that can edit CPT codes, ICD codes, and modifiers
+  const isProvider = ['prescriber', 'therapist', 'admin'].includes(currentUser?.role);
+
+  // Build superbills from signed encounters + mockData encounterHistory, persisted via localStorage
+  const [bills, setBills] = useState(() => buildSuperbills(encounters, patients));
+
+  // Re-derive when encounters or patients change (e.g., provider signs a new encounter)
   const [filterStatus, setFilterStatus] = useState('All');
   const [selectedBill, setSelectedBill] = useState(null);
   const [search, setSearch] = useState('');
-  const [toast, setToast] = useState(null); // { message, type }
+  const [toast, setToast] = useState(null);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -59,6 +213,7 @@ export default function SuperbillCapture() {
   }, [bills]);
 
   const updateStatus = (id, status) => {
+    savePersistedStatus(id, { status });
     setBills(prev => prev.map(b => b.id === id ? { ...b, status } : b));
     if (selectedBill?.id === id) setSelectedBill(prev => ({ ...prev, status }));
   };
@@ -93,7 +248,7 @@ export default function SuperbillCapture() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>🧾 Superbill & Charge Capture</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Auto-generated superbills from encounters, charge review, and claim submission</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Auto-generated superbills from signed encounters, charge review, and claim submission</p>
         </div>
         {stats.readyToSubmit > 0 && (
           <button
@@ -234,7 +389,14 @@ export default function SuperbillCapture() {
 
               {/* CPT line items */}
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Procedure Codes</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Procedure Codes</div>
+                  {!isProvider && (
+                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: '#fef3c7', color: '#92400e', fontWeight: 600, border: '1px solid #fde68a' }}>
+                      🔒 View-only · Provider edits codes
+                    </span>
+                  )}
+                </div>
                 <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ borderBottom: '2px solid var(--border)' }}>
@@ -264,7 +426,7 @@ export default function SuperbillCapture() {
               {/* ICD & Modifiers */}
               <div style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Diagnosis Codes</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Diagnosis Codes {!isProvider && <span style={{ color: '#92400e' }}>🔒</span>}</div>
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                     {selectedBill.icdCodes.map(c => (
                       <span key={c} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>{c}</span>
@@ -273,7 +435,7 @@ export default function SuperbillCapture() {
                 </div>
                 {selectedBill.modifiers.length > 0 && (
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Modifiers</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Modifiers {!isProvider && <span style={{ color: '#92400e' }}>🔒</span>}</div>
                     <div style={{ display: 'flex', gap: 4 }}>
                       {selectedBill.modifiers.map(m => (
                         <span key={m} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: '#e0e7ff', color: '#3730a3', fontWeight: 700 }}>{m}</span>

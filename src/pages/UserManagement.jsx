@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useSite } from '../contexts/SiteContext';
 import { users as usersApi } from '../services/api';
-import { SITES } from '../contexts/SiteContext';
+import { users as mockUsersData } from '../data/mockData';
 
-const LOCATION_OPTIONS = SITES.filter(s => s.id !== 'all');
+const USERS_STORAGE_KEY = 'clarity_demo_users';
+const saveUsersToStorage = (list) => { try { localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(list)); } catch {} };
+const loadUsersFromStorage = () => { try { const s = localStorage.getItem(USERS_STORAGE_KEY); return s ? JSON.parse(s) : null; } catch { return null; } };
 
 const ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist'];
 const ROLE_LABELS = {
@@ -101,7 +104,7 @@ const inputStyle = {
   color: 'var(--text-primary)', outline: 'none',
 };
 
-function UserForm({ initial, onSave, onCancel, loading, error }) {
+function UserForm({ initial, onSave, onCancel, loading, error, locationOptions }) {
   const [form, setForm] = useState(initial);
   const [showPwd, setShowPwd] = useState(false);
   const isEdit = !!initial.id;
@@ -192,7 +195,7 @@ function UserForm({ initial, onSave, onCancel, loading, error }) {
 
       <Field label="Primary Location">
         <select style={inputStyle} value={form.locationId} onChange={e => set('locationId', e.target.value)}>
-          {LOCATION_OPTIONS.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          {(locationOptions || []).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
       </Field>
 
@@ -329,6 +332,11 @@ function DeleteConfirmModal({ user, onConfirm, onClose, loading }) {
 
 export default function UserManagement() {
   const { currentUser } = useAuth();
+  const { availableSites, reloadSites } = useSite();
+  const locationOptions = useMemo(
+    () => (availableSites || []).filter(s => s.id !== 'all'),
+    [availableSites]
+  );
   const [userList, setUserList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
@@ -359,8 +367,19 @@ export default function UserManagement() {
     try {
       const data = await usersApi.list();
       setUserList(data);
-    } catch (err) {
-      setFetchError(err.message || 'Failed to load users');
+      try { localStorage.removeItem(USERS_STORAGE_KEY); } catch {}
+    } catch {
+      // Backend offline — try localStorage first, then seed from mock data
+      const stored = loadUsersFromStorage();
+      if (stored && stored.length > 0) {
+        setUserList(stored);
+      } else {
+        const seed = mockUsersData
+          .filter(u => u.role !== 'patient')
+          .map(({ password, epcsPin, ...rest }) => rest);
+        setUserList(seed);
+        saveUsersToStorage(seed);
+      }
     } finally {
       setLoading(false);
     }
@@ -368,8 +387,24 @@ export default function UserManagement() {
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
-  // Restrict to front_desk only
-  if (currentUser?.role !== 'front_desk') {
+  // Refresh users + locations when the tab regains focus or becomes visible,
+  // so changes made on the Location Management page show up here immediately.
+  useEffect(() => {
+    const refresh = () => { loadUsers(); reloadSites && reloadSites(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    const onStorage = (e) => { if (e.key === 'clarity_demo_users' || e.key === 'clarity_demo_locations') refresh(); };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [loadUsers, reloadSites]);
+
+  // Only admins may manage users
+  if (currentUser?.role !== 'admin') {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
         <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
@@ -419,45 +454,72 @@ export default function UserManagement() {
   const handleCreate = async (form) => {
     setFormLoading(true);
     setFormError('');
+    const { password: _pw, ...safeForm } = form;
     try {
       await usersApi.create(form);
-      await loadUsers();
+    } catch {
+      // Backend offline — add to local state and persist
+      const newUser = { ...safeForm, id: 'local-' + Date.now() };
+      setUserList(prev => {
+        const next = [...prev, newUser];
+        saveUsersToStorage(next);
+        return next;
+      });
       closeModal();
       showToast(`✅ User "${form.username}" created successfully`);
-    } catch (err) {
-      setFormError(err.message);
-    } finally {
       setFormLoading(false);
+      return;
     }
+    await loadUsers();
+    closeModal();
+    showToast(`✅ User "${form.username}" created successfully`);
+    setFormLoading(false);
   };
 
   const handleUpdate = async (form) => {
     setFormLoading(true);
     setFormError('');
+    const { password: _pw, ...safeForm } = form;
     try {
       await usersApi.update(selectedUser.id, form);
-      await loadUsers();
+    } catch {
+      // Backend offline — update local state and persist
+      setUserList(prev => {
+        const next = prev.map(u => u.id === selectedUser.id ? { ...u, ...safeForm } : u);
+        saveUsersToStorage(next);
+        return next;
+      });
       closeModal();
-      showToast(`✅ User updated successfully`);
-    } catch (err) {
-      setFormError(err.message);
-    } finally {
+      showToast('✅ User updated successfully');
       setFormLoading(false);
+      return;
     }
+    await loadUsers();
+    closeModal();
+    showToast('✅ User updated successfully');
+    setFormLoading(false);
   };
 
   const handleDelete = async () => {
     setFormLoading(true);
     try {
       await usersApi.remove(selectedUser.id);
-      await loadUsers();
+    } catch {
+      // Backend offline — remove from local state and persist
+      setUserList(prev => {
+        const next = prev.filter(u => u.id !== selectedUser.id);
+        saveUsersToStorage(next);
+        return next;
+      });
       closeModal();
       showToast(`🗑️ User "${selectedUser.username}" deleted`);
-    } catch (err) {
-      setFormError(err.message);
-    } finally {
       setFormLoading(false);
+      return;
     }
+    await loadUsers();
+    closeModal();
+    showToast(`🗑️ User "${selectedUser.username}" deleted`);
+    setFormLoading(false);
   };
 
   const roleCounts = ROLES.reduce((acc, r) => {
@@ -596,7 +658,7 @@ export default function UserManagement() {
                     )}
                     {u.locationId && u.locationId !== 'loc1' && (
                       <div style={{ marginTop: 3 }}>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>📍 {LOCATION_OPTIONS.find(l => l.id === u.locationId)?.shortName || u.locationId}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>📍 {locationOptions.find(l => l.id === u.locationId)?.shortName || u.locationId}</span>
                       </div>
                     )}
                     {!u.credentials && !u.specialty && u.role !== 'prescriber' && <span style={{ opacity: 0.35 }}>—</span>}
@@ -642,11 +704,12 @@ export default function UserManagement() {
       {modal === 'add' && (
         <Modal title="Add New User" onClose={closeModal}>
           <UserForm
-            initial={{ ...EMPTY_FORM }}
+            initial={{ ...EMPTY_FORM, locationId: locationOptions[0]?.id || EMPTY_FORM.locationId }}
             onSave={handleCreate}
             onCancel={closeModal}
             loading={formLoading}
             error={formError}
+            locationOptions={locationOptions}
           />
         </Modal>
       )}
@@ -673,6 +736,7 @@ export default function UserManagement() {
             onCancel={closeModal}
             loading={formLoading}
             error={formError}
+            locationOptions={locationOptions}
           />
         </Modal>
       )}

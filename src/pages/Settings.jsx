@@ -156,6 +156,10 @@ export default function Settings() {
   /* Theme state */
   const stored = getStoredTheme();
   const [selectedTheme, setSelectedTheme] = useState(stored?.id || 'default');
+  const [hoveredTheme, setHoveredTheme] = useState(null);
+  const [themeToast, setThemeToast] = useState(null);
+  const toastTimerRef = useRef(null);
+  const swatchGridRef = useRef(null);
 
   /* Signature state */
   const canvasRef = useRef(null);
@@ -195,10 +199,40 @@ export default function Settings() {
     }
   }, [currentUser?.id]);
 
+  useEffect(() => {
+    return () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); };
+  }, []);
+
   /* ── Theme handlers ────────────────── */
   const handleThemeSelect = (id) => {
     setSelectedTheme(id);
     applyTheme(id);
+    const preset = THEMES.find((t) => t.id === id);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setThemeToast(preset?.label || id);
+    toastTimerRef.current = setTimeout(() => setThemeToast(null), 3000);
+  };
+
+  const handleSwatchKeyDown = (e, idx) => {
+    const count = THEMES.length;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleThemeSelect(THEMES[idx].id);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      swatchGridRef.current?.children[(idx + 1) % count]?.focus();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      swatchGridRef.current?.children[(idx - 1 + count) % count]?.focus();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      swatchGridRef.current?.children[Math.min(idx + 3, count - 1)]?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      swatchGridRef.current?.children[Math.max(idx - 3, 0)]?.focus();
+    } else if (e.key === 'Escape') {
+      swatchGridRef.current?.children[idx]?.blur();
+    }
   };
 
   /* ── Canvas drawing ────────────────── */
@@ -339,22 +373,43 @@ export default function Settings() {
               Choose a color scheme for the application. Changes apply immediately.
             </p>
 
-            <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-              gap: 16,
-            }}>
-              {THEMES.map((t) => {
+            <div
+              ref={swatchGridRef}
+              role="radiogroup"
+              aria-label="Color themes"
+              style={{
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                gap: 16,
+              }}
+            >
+              {THEMES.map((t, idx) => {
                 const active = selectedTheme === t.id;
+                const hovered = hoveredTheme === t.id;
                 return (
                   <button
                     key={t.id}
+                    role="radio"
+                    aria-checked={active}
+                    aria-label={`${t.label} theme`}
+                    tabIndex={active ? 0 : -1}
                     onClick={() => handleThemeSelect(t.id)}
+                    onMouseEnter={() => setHoveredTheme(t.id)}
+                    onMouseLeave={() => setHoveredTheme(null)}
+                    onKeyDown={(e) => handleSwatchKeyDown(e, idx)}
                     style={{
-                      border: active ? `2px solid ${t.colors['--primary']}` : '2px solid var(--border)',
+                      border: active
+                        ? `2px solid ${t.colors['--primary']}`
+                        : `1px solid ${hovered ? t.colors['--primary'] + '60' : 'var(--border)'}`,
                       borderRadius: 12, padding: 16, cursor: 'pointer',
                       background: active ? t.colors['--primary-light'] : 'var(--bg-white)',
-                      textAlign: 'left', transition: 'all 0.15s',
-                      boxShadow: active ? `0 0 0 3px ${hexToMid(t.colors['--primary'], 0.15)}` : 'var(--shadow-xs)',
+                      textAlign: 'left',
+                      transition: 'all 0.18s ease',
+                      transform: hovered && !active ? 'scale(1.02)' : 'scale(1)',
+                      boxShadow: active
+                        ? `0 0 0 3px ${hexToMid(t.colors['--primary'], 0.15)}`
+                        : hovered
+                          ? `0 4px 16px ${hexToMid(t.colors['--primary'], 0.18)}, 0 2px 4px rgba(0,0,0,0.06)`
+                          : 'var(--shadow-xs)',
                     }}
                   >
                     {/* Color preview strip */}
@@ -362,15 +417,17 @@ export default function Settings() {
                       <div style={{
                         width: 32, height: 32, borderRadius: 8,
                         background: t.colors['--primary'],
+                        border: '1px solid rgba(0,0,0,0.1)',
                       }} />
                       <div style={{
                         width: 32, height: 32, borderRadius: 8,
                         background: t.colors['--primary-dark'],
+                        border: '1px solid rgba(0,0,0,0.1)',
                       }} />
                       <div style={{
                         width: 32, height: 32, borderRadius: 8,
                         background: t.colors['--bg-sidebar'],
-                        border: '1px solid var(--border)',
+                        border: '1px solid rgba(0,0,0,0.15)',
                       }} />
                     </div>
                     <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
@@ -388,6 +445,76 @@ export default function Settings() {
                 );
               })}
             </div>
+
+            {/* Keyboard hint */}
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, marginBottom: 0 }}>
+              ← → ↑ ↓ navigate · Enter to select · Esc to dismiss focus
+            </p>
+
+            {/* Theme Preview Panel */}
+            {(() => {
+              const activeT = THEMES.find((t) => t.id === selectedTheme);
+              if (!activeT) return null;
+              return (
+                <div style={{ marginTop: 24, padding: 20, borderRadius: 14, border: '1px solid var(--border)', background: 'var(--bg-white)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 16 }}>
+                    Preview · {activeT.label}
+                  </div>
+                  <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                    {/* Buttons */}
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>Buttons</div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <div style={{ padding: '7px 16px', borderRadius: 7, background: activeT.colors['--primary'], color: '#fff', fontSize: 12, fontWeight: 600 }}>Primary</div>
+                        <div style={{ padding: '7px 14px', borderRadius: 7, border: `1.5px solid ${activeT.colors['--primary']}`, color: activeT.colors['--primary'], fontSize: 12, fontWeight: 600 }}>Outline</div>
+                      </div>
+                    </div>
+                    {/* Tabs */}
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>Tabs</div>
+                      <div style={{ display: 'flex', borderBottom: `2px solid ${hexToMid(activeT.colors['--primary'], 0.15)}` }}>
+                        {['Overview', 'History', 'Notes'].map((tab, i) => (
+                          <div key={tab} style={{
+                            padding: '5px 14px', fontSize: 11, fontWeight: i === 0 ? 700 : 500, cursor: 'default',
+                            color: i === 0 ? activeT.colors['--primary'] : 'var(--text-secondary)',
+                            borderBottom: i === 0 ? `2px solid ${activeT.colors['--primary']}` : '2px solid transparent',
+                            marginBottom: -2,
+                          }}>
+                            {tab}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Sidebar */}
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>Sidebar</div>
+                      <div style={{ width: 110, borderRadius: 8, background: activeT.colors['--bg-sidebar'], padding: '8px 6px' }}>
+                        {['Dashboard', 'Schedule', 'Patients'].map((item, i) => (
+                          <div key={item} style={{
+                            padding: '5px 8px', borderRadius: 6, marginBottom: 2, fontSize: 10, fontWeight: i === 0 ? 700 : 400,
+                            background: i === 0 ? hexToMid(activeT.colors['--primary'], 0.25) : 'transparent',
+                            color: i === 0 ? activeT.colors['--primary'] : 'rgba(255,255,255,0.45)',
+                          }}>
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Card */}
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>Card</div>
+                      <div style={{ width: 150, border: `1px solid ${hexToMid(activeT.colors['--primary'], 0.2)}`, borderRadius: 10, padding: 12, background: activeT.colors['--primary-light'] }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: activeT.colors['--primary'], marginBottom: 3 }}>Patient Card</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8 }}>Next appt: 10:30 AM</div>
+                        <div style={{ height: 4, borderRadius: 2, background: hexToMid(activeT.colors['--primary'], 0.2) }}>
+                          <div style={{ width: '65%', height: '100%', borderRadius: 2, background: activeT.colors['--primary'] }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Reset button */}
             <div style={{ marginTop: 24 }}>
@@ -1026,6 +1153,32 @@ export default function Settings() {
           </div>
         )}
       </div>
+
+      {/* ── Theme selection toast ── */}
+      {themeToast && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
+          background: '#1e293b', color: '#f1f5f9',
+          padding: '12px 18px 12px 16px', borderRadius: 12,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+          display: 'flex', alignItems: 'center', gap: 12,
+          animation: 'fadeInUp 0.22s ease both',
+          minWidth: 260,
+        }}>
+          <span style={{ fontSize: 22 }}>🎨</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Theme updated</div>
+            <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>
+              Your interface now uses {themeToast}
+            </div>
+          </div>
+          <button
+            onClick={() => setThemeToast(null)}
+            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 20, padding: '0 2px', lineHeight: 1, marginLeft: 4 }}
+            aria-label="Dismiss notification"
+          >×</button>
+        </div>
+      )}
     </div>
   );
 }

@@ -66,7 +66,8 @@ export default async function seed() {
     for (const u of users) {
       // Staff accounts: must change temporary password on first login.
       // Patient portal accounts: no forced change (they set their own on registration).
-      const mustChange = u.role !== 'patient' ? 1 : 0;
+      // Admin owner account (harriet) is pre-verified and never forced to change.
+      const mustChange = (u.role === 'patient' || u.id === 'u5') ? 0 : 1;
       insertUser.run(u.id, u.username, hashPassword(u.password), u.firstName, u.lastName, u.role, u.credentials || '', u.specialty || '', u.npi || '', u.deaNumber || '', u.email, u.epcsPin ? hashPassword(u.epcsPin) : null, u.twoFactorEnabled ? 1 : 0, mustChange, u.patientId || null, u.locationId || 'loc1');
     }
 

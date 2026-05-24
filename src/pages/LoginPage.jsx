@@ -6,15 +6,25 @@ import SystemStatus from '../components/SystemStatus';
 const CERTS = ['HIPAA', 'EPCS', 'ONC', '42 CFR Part 2'];
 const MAX_ATTEMPTS = 5;
 
+const IconNetwork = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+);
+const IconWarning = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+);
+const IconLock = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+);
+
 function getErrorConfig(msg) {
   if (!msg) return null;
   if (msg.includes('reach server') || msg.includes('internet connection') || msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-    return { type: 'network', icon: '📡', title: 'Cannot reach server', canRetry: true };
+    return { type: 'network', icon: <IconNetwork />, title: 'Cannot reach server', canRetry: true };
   }
   if (msg.includes('Server error') || msg.includes('500') || msg.includes('502') || msg.includes('503')) {
-    return { type: 'server', icon: '⚠️', title: 'Server error', canRetry: true };
+    return { type: 'server', icon: <IconWarning />, title: 'Server error', canRetry: true };
   }
-  return { type: 'credentials', icon: '🔒', title: 'Sign-in failed', canRetry: false };
+  return { type: 'credentials', icon: <IconLock />, title: 'Sign-in failed', canRetry: false };
 }
 
 export default function LoginPage() {
@@ -39,6 +49,10 @@ export default function LoginPage() {
   const [shakeForm, setShakeForm] = useState(false);        // error shake animation
   const [fieldErrors, setFieldErrors] = useState({});       // inline empty-field errors
   const usernameRef = useRef(null);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('login-theme') === 'dark');
+  useEffect(() => {
+    localStorage.setItem('login-theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
 
   // Shake and refocus on failure
   const triggerErrorShake = (focusId = 'login-username') => {
@@ -158,17 +172,19 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-orb login-orb-1" />
-      <div className="login-orb login-orb-2" />
-      <div className="login-orb login-orb-3" />
+    <div className={`login-page${darkMode ? ' login-page--dark' : ''}`}>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
 
-      {/* ── Sticky Top Nav ── */}
+      {/* ── Top Nav ── */}
       <nav className="login-topnav" aria-label="Application header">
         <div className="login-topnav-left">
-          <span className="login-topnav-logo" aria-hidden="true">🧠</span>
-          <span className="login-topnav-wordmark" aria-label="Clarity EHR">Clarity<span aria-hidden="true">EHR</span></span>
-          <span className="login-version-pill" aria-label="Version 14.2">V14.2</span>
+          <svg className="login-topnav-logomark" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+            <rect width="26" height="26" rx="7" fill="#0891b2"/>
+            <rect x="11.5" y="6" width="3" height="14" rx="1.5" fill="white"/>
+            <rect x="6" y="11.5" width="14" height="3" rx="1.5" fill="white"/>
+          </svg>
+          <span className="login-topnav-wordmark" aria-label="Clarity EHR">Clarity<span>EHR</span></span>
+          <span className="login-version-pill" aria-label="Version 14.2">v14.2</span>
         </div>
         <div className="login-topnav-right">
           <div className="login-topnav-badges" aria-label="Compliance certifications">
@@ -179,258 +195,341 @@ export default function LoginPage() {
         </div>
       </nav>
 
-      {/* ── Two-Column Body ── */}
-      <div className="login-two-col" id="main-content">
+      {/* ── Main Card ── */}
+      <main className="login-main" id="main-content">
+        <div className="login-card">
 
-        {/* LEFT — Sign-In Card */}
-        <div className="login-col login-col-form">
-          <div className="glass-card glass-card-sign-in">
-            <h1 className="glass-card-title" id="signin-heading">
-              <span className="glass-card-lock" aria-hidden="true">🔒</span> Secure Sign In
-            </h1>
-
-            {/* Session check — dismissible, never blocks the form */}
-            {sessionChecking && (
-              <div className="session-check-banner" role="status" aria-live="polite" aria-label="Checking for active session">
-                <span className="session-check-spinner" aria-hidden="true" />
-                <span className="session-check-text">
-                  Checking for an active session
-                  {checkElapsed > 0 && (
-                    <span className="session-check-elapsed" aria-label={`${checkElapsed} seconds elapsed`}> · {checkElapsed}s</span>
-                  )}
-                </span>
-                <button
-                  type="button"
-                  className="session-check-skip"
-                  onClick={cancelSessionCheck}
-                  aria-label="Skip session check and sign in manually"
-                >
-                  Sign in now →
-                </button>
+          {/* LEFT — Brand Panel */}
+          <div className="login-brand-panel" aria-label="Clarity EHR information">
+            <div className="login-brand-inner">
+              <div className="login-brand-logo">
+                <svg width="32" height="32" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+                  <rect width="26" height="26" rx="7" fill="rgba(255,255,255,0.18)"/>
+                  <rect x="11.5" y="6" width="3" height="14" rx="1.5" fill="white"/>
+                  <rect x="6" y="11.5" width="14" height="3" rx="1.5" fill="white"/>
+                </svg>
+                <span>Clarity EHR</span>
               </div>
-            )}
 
-            {/* Live region — error banner only appears AFTER a login attempt fails.
-                 serverDown from the background probe is shown as a softer note below
-                 the submit button. SystemStatus in the nav handles pre-login server state. */}
-            <div role="alert" aria-live="assertive" aria-atomic="true">
-              {loginError && (() => {
-                const msg = loginError;
-                const cfg = getErrorConfig(msg);
-                return (
-                  <div className={`login-error login-error--${cfg.type}`}>
-                    <div className="login-error__header">
-                      <span aria-hidden="true">{cfg.icon}</span>
-                      <strong>{cfg.title}</strong>
-                      <button
-                        type="button"
-                        className="login-error__dismiss"
-                        onClick={clearLoginError}
-                        aria-label="Dismiss error"
-                      >✕</button>
-                    </div>
-                    <p className="login-error__msg">{msg}</p>
-                    {loginAttempts > 0 && cfg.type === 'credentials' && (
-                      <p className="login-error__attempts">
-                        {loginAttempts} failed attempt{loginAttempts !== 1 ? 's' : ''}
-                        {loginAttempts >= 3 && ` — account locks after ${MAX_ATTEMPTS}`}
-                      </p>
+              <div className="login-brand-illustration" aria-hidden="true">
+                <svg viewBox="0 0 280 218" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  {/* Orbit rings */}
+                  <circle cx="140" cy="109" r="98" stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
+                  <circle cx="140" cy="109" r="72" stroke="rgba(255,255,255,0.09)" strokeWidth="1"/>
+                  <circle cx="140" cy="109" r="46" stroke="rgba(255,255,255,0.07)" strokeWidth="1"/>
+                  {/* Dot mesh — top edge */}
+                  <circle cx="20" cy="18" r="1.5" fill="rgba(255,255,255,0.18)"/>
+                  <circle cx="56" cy="18" r="1.5" fill="rgba(255,255,255,0.15)"/>
+                  <circle cx="92" cy="18" r="1.5" fill="rgba(255,255,255,0.12)"/>
+                  <circle cx="140" cy="14" r="2" fill="rgba(255,255,255,0.22)"/>
+                  <circle cx="188" cy="18" r="1.5" fill="rgba(255,255,255,0.12)"/>
+                  <circle cx="224" cy="18" r="1.5" fill="rgba(255,255,255,0.15)"/>
+                  <circle cx="260" cy="18" r="1.5" fill="rgba(255,255,255,0.18)"/>
+                  {/* Dot mesh — bottom edge */}
+                  <circle cx="20" cy="196" r="1.5" fill="rgba(255,255,255,0.18)"/>
+                  <circle cx="56" cy="196" r="1.5" fill="rgba(255,255,255,0.15)"/>
+                  <circle cx="92" cy="196" r="1.5" fill="rgba(255,255,255,0.12)"/>
+                  <circle cx="140" cy="200" r="2" fill="rgba(255,255,255,0.22)"/>
+                  <circle cx="188" cy="196" r="1.5" fill="rgba(255,255,255,0.12)"/>
+                  <circle cx="224" cy="196" r="1.5" fill="rgba(255,255,255,0.15)"/>
+                  <circle cx="260" cy="196" r="1.5" fill="rgba(255,255,255,0.18)"/>
+                  {/* Dot mesh — left/right edges */}
+                  <circle cx="14" cy="56" r="1.5" fill="rgba(255,255,255,0.13)"/>
+                  <circle cx="14" cy="90" r="1.5" fill="rgba(255,255,255,0.13)"/>
+                  <circle cx="14" cy="130" r="1.5" fill="rgba(255,255,255,0.13)"/>
+                  <circle cx="14" cy="162" r="1.5" fill="rgba(255,255,255,0.13)"/>
+                  <circle cx="266" cy="56" r="1.5" fill="rgba(255,255,255,0.13)"/>
+                  <circle cx="266" cy="90" r="1.5" fill="rgba(255,255,255,0.13)"/>
+                  <circle cx="266" cy="130" r="1.5" fill="rgba(255,255,255,0.13)"/>
+                  <circle cx="266" cy="162" r="1.5" fill="rgba(255,255,255,0.13)"/>
+                  {/* Dot mesh — inner scattered */}
+                  <circle cx="54" cy="56" r="1.2" fill="rgba(255,255,255,0.1)"/>
+                  <circle cx="226" cy="56" r="1.2" fill="rgba(255,255,255,0.1)"/>
+                  <circle cx="54" cy="162" r="1.2" fill="rgba(255,255,255,0.1)"/>
+                  <circle cx="226" cy="162" r="1.2" fill="rgba(255,255,255,0.1)"/>
+                  {/* 4 data nodes at corners */}
+                  <circle cx="38" cy="38" r="8" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.28)" strokeWidth="1"/>
+                  <circle cx="38" cy="38" r="3" fill="rgba(255,255,255,0.75)"/>
+                  <circle cx="242" cy="38" r="8" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.28)" strokeWidth="1"/>
+                  <circle cx="242" cy="38" r="3" fill="rgba(255,255,255,0.75)"/>
+                  <circle cx="38" cy="180" r="8" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.28)" strokeWidth="1"/>
+                  <circle cx="38" cy="180" r="3" fill="rgba(255,255,255,0.75)"/>
+                  <circle cx="242" cy="180" r="8" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.28)" strokeWidth="1"/>
+                  <circle cx="242" cy="180" r="3" fill="rgba(255,255,255,0.75)"/>
+                  {/* Dashed connector lines node → cross */}
+                  <line x1="45" y1="44" x2="113" y2="100" stroke="rgba(255,255,255,0.13)" strokeWidth="1" strokeDasharray="4 4"/>
+                  <line x1="235" y1="44" x2="167" y2="100" stroke="rgba(255,255,255,0.13)" strokeWidth="1" strokeDasharray="4 4"/>
+                  <line x1="45" y1="174" x2="113" y2="118" stroke="rgba(255,255,255,0.13)" strokeWidth="1" strokeDasharray="4 4"/>
+                  <line x1="235" y1="174" x2="167" y2="118" stroke="rgba(255,255,255,0.13)" strokeWidth="1" strokeDasharray="4 4"/>
+                  {/* ECG pulse line */}
+                  <polyline
+                    points="14,109 50,109 58,91 64,128 70,109 77,101 81,117 85,109 126,109 134,79 144,139 150,109 196,109 204,93 212,125 218,109 266,109"
+                    stroke="rgba(255,255,255,0.55)"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {/* Central cross — glow halo */}
+                  <rect x="124" y="82" width="32" height="54" rx="8" fill="rgba(255,255,255,0.1)"/>
+                  <rect x="107" y="99" width="66" height="20" rx="8" fill="rgba(255,255,255,0.1)"/>
+                  {/* Central cross — solid */}
+                  <rect x="128" y="86" width="24" height="46" rx="6" fill="white" fillOpacity="0.88"/>
+                  <rect x="112" y="103" width="56" height="18" rx="6" fill="white" fillOpacity="0.88"/>
+                  {/* Floating data chip — top left */}
+                  <rect x="62" y="50" width="42" height="18" rx="5" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.22)" strokeWidth="0.75"/>
+                  <circle cx="72" cy="59" r="2.5" fill="rgba(255,255,255,0.55)"/>
+                  <rect x="78" y="56" width="20" height="2.5" rx="1.2" fill="rgba(255,255,255,0.35)"/>
+                  <rect x="78" y="61" width="14" height="2.5" rx="1.2" fill="rgba(255,255,255,0.2)"/>
+                  {/* Floating data chip — bottom right */}
+                  <rect x="176" y="150" width="42" height="18" rx="5" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.22)" strokeWidth="0.75"/>
+                  <circle cx="186" cy="159" r="2.5" fill="rgba(255,255,255,0.55)"/>
+                  <rect x="192" y="156" width="20" height="2.5" rx="1.2" fill="rgba(255,255,255,0.35)"/>
+                  <rect x="192" y="161" width="14" height="2.5" rx="1.2" fill="rgba(255,255,255,0.2)"/>
+                </svg>
+              </div>
+
+              <div className="login-brand-tagline">
+                <h2>Clinical care,<br/>simplified.</h2>
+                <p className="login-brand-designed-tagline">Clarity — Designed for healing</p>
+                <p>HIPAA-compliant electronic health records for outpatient behavioral health.</p>
+              </div>
+
+              <div className="login-brand-pills">
+                <span>MFA Protected</span>
+                <span>42 CFR Part 2</span>
+                <span>EPCS Certified</span>
+                <span>Audit Logged</span>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT — Form Panel */}
+          <div className="login-form-panel">
+            <div className="login-form-inner">
+              <div className="login-form-header">
+                <div className="login-form-header-row">
+                  <h1 className="login-form-title" id="signin-heading">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="login-form-title-icon"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Sign In
+                  </h1>
+                  <button
+                    type="button"
+                    className="login-theme-toggle"
+                    onClick={() => setDarkMode(d => !d)}
+                    aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                    title={darkMode ? 'Light mode' : 'Dark mode'}
+                  >
+                    {darkMode ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
                     )}
-                    <div className="login-error__actions">
-                      {cfg.canRetry && (
+                  </button>
+                </div>
+                <p className="login-form-sub">Access your Clarity EHR workspace</p>
+              </div>
+
+              {/* Session check — dismissible, never blocks the form */}
+              {sessionChecking && (
+                <div className="session-check-banner" role="status" aria-live="polite" aria-label="Checking for active session">
+                  <span className="session-check-spinner" aria-hidden="true" />
+                  <span className="session-check-text">
+                    Checking for an active session
+                    {checkElapsed > 0 && (
+                      <span className="session-check-elapsed" aria-label={`${checkElapsed} seconds elapsed`}> · {checkElapsed}s</span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    className="session-check-skip"
+                    onClick={cancelSessionCheck}
+                    aria-label="Skip session check and sign in manually"
+                  >
+                    Sign in now →
+                  </button>
+                </div>
+              )}
+
+              {/* Error banner — only after a login attempt */}
+              <div role="alert" aria-live="assertive" aria-atomic="true">
+                {loginError && (() => {
+                  const msg = loginError;
+                  const cfg = getErrorConfig(msg);
+                  return (
+                    <div className={`login-error login-error--${cfg.type}`}>
+                      <div className="login-error__header">
+                        <span className="login-error__icon">{cfg.icon}</span>
+                        <strong>{cfg.title}</strong>
                         <button
                           type="button"
-                          className="login-error__btn"
-                          onClick={() => { clearLoginError(); document.getElementById('login-username')?.focus(); }}
-                        >
-                          ↺ Retry
-                        </button>
+                          className="login-error__dismiss"
+                          onClick={clearLoginError}
+                          aria-label="Dismiss error"
+                        >✕</button>
+                      </div>
+                      <p className="login-error__msg">{msg}</p>
+                      {loginAttempts > 0 && cfg.type === 'credentials' && (
+                        <p className="login-error__attempts">
+                          {loginAttempts} failed attempt{loginAttempts !== 1 ? 's' : ''}
+                          {loginAttempts >= 3 && ` — account locks after ${MAX_ATTEMPTS}`}
+                        </p>
                       )}
-                      <a
-                        href="https://status.clarity-ehr.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="login-error__btn login-error__btn--ghost"
-                      >
-                        System status ↗
-                      </a>
-                      <a
-                        href="mailto:support@clarity-ehr.org"
-                        className="login-error__btn login-error__btn--ghost"
-                      >
-                        Contact IT support
-                      </a>
+                      <div className="login-error__actions">
+                        {cfg.canRetry && (
+                          <button
+                            type="button"
+                            className="login-error__btn"
+                            onClick={() => { clearLoginError(); document.getElementById('login-username')?.focus(); }}
+                          >
+                            Retry
+                          </button>
+                        )}
+                        <a href="https://status.clarity-ehr.com" target="_blank" rel="noopener noreferrer" className="login-error__btn login-error__btn--ghost">
+                          System status ↗
+                        </a>
+                        <a href="mailto:support@clarity-ehr.org" className="login-error__btn login-error__btn--ghost">
+                          Contact IT
+                        </a>
+                      </div>
                     </div>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <form
-              onSubmit={handleSubmit}
-              autoComplete="on"
-              aria-labelledby="signin-heading"
-              noValidate
-              className={shakeForm ? 'login-form--shake' : undefined}
-            >
-              <div className="form-group">
-                <label className="form-label" htmlFor="login-username">Username</label>
-                <input
-                  ref={usernameRef}
-                  id="login-username"
-                  type="text"
-                  className={`form-input${fieldErrors.username ? ' form-input--error' : ''}`}
-                  value={username}
-                  onChange={(e) => { setUsername(e.target.value); if (fieldErrors.username) setFieldErrors(f => ({...f, username: ''})); }}
-                  placeholder="Enter your username"
-                  autoComplete="username"
-                  required
-                  aria-required="true"
-                  aria-describedby={loginError ? 'login-error-msg' : undefined}
-                  autoFocus
-                  enterKeyHint="next"
-                />
-                {fieldErrors.username
-                  ? <span className="field-error" role="alert">{fieldErrors.username}</span>
-                  : !username && <span className="field-hint" aria-hidden="true">Required</span>}
+                  );
+                })()}
               </div>
 
-              <div className="form-group">
-                <div className="form-label-row">
-                  <label className="form-label" htmlFor="login-password">Password</label>
-                  <button
-                    type="button"
-                    className="forgot-password-link"
-                    onClick={() => setShowForgotPassword(true)}
-                    aria-haspopup="dialog"
-                  >
-                    Forgot password?
-                  </button>
-                </div>
-                <div className="password-field-wrapper">
+              <form
+                onSubmit={handleSubmit}
+                autoComplete="on"
+                aria-labelledby="signin-heading"
+                noValidate
+                className={shakeForm ? 'login-form--shake' : undefined}
+              >
+                <div className="lf-group">
+                  <label className="lf-label" htmlFor="login-username">Username</label>
                   <input
-                    id="login-password"
-                    type={showPassword ? 'text' : 'password'}
-                    className={`form-input${fieldErrors.password ? ' form-input--error' : ''}`}
-                    value={password}
-                    onChange={(e) => { setPassword(e.target.value); if (fieldErrors.password) setFieldErrors(f => ({...f, password: ''})); }}
-                    placeholder="Enter your password"
-                    autoComplete="current-password"
+                    ref={usernameRef}
+                    id="login-username"
+                    type="text"
+                    className={`lf-input${fieldErrors.username ? ' lf-input--error' : ''}`}
+                    value={username}
+                    onChange={(e) => { setUsername(e.target.value); if (fieldErrors.username) setFieldErrors(f => ({...f, username: ''})); }}
+                    placeholder="Enter your username"
+                    autoComplete="username"
                     required
                     aria-required="true"
-                    enterKeyHint="go"
+                    aria-invalid={fieldErrors.username ? 'true' : 'false'}
+                    aria-describedby={fieldErrors.username ? 'username-error' : undefined}
+                    autoFocus
+                    enterKeyHint="next"
                   />
-                  <button
-                    type="button"
-                    className="password-toggle"
-                    onClick={() => setShowPassword(v => !v)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    tabIndex={0}
-                  >
-                    {showPassword ? (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                        <line x1="1" y1="1" x2="23" y2="23"/>
-                      </svg>
-                    ) : (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
-                      </svg>
-                    )}
-                  </button>
+                  {fieldErrors.username
+                    ? <span id="username-error" className="field-error" role="alert">{fieldErrors.username}</span>
+                    : !username && <span className="field-hint" aria-hidden="true">Required</span>}
                 </div>
-                {fieldErrors.password
-                  ? <span className="field-error" role="alert">{fieldErrors.password}</span>
-                  : !password && <span className="field-hint" aria-hidden="true">Required</span>}
-              </div>
 
-              <button
-                type="submit"
-                className="btn btn-primary login-submit-btn"
-                disabled={loading || loginAttempts >= MAX_ATTEMPTS}
-                aria-busy={loading}
-                aria-live="polite"
-              >
-                {loading ? (
-                  <><span className="btn-spinner" aria-hidden="true" />Signing In…</>
-                ) : loginAttempts >= MAX_ATTEMPTS ? (
-                  '🔒 Account Locked — Contact IT'
-                ) : 'Sign In'}
-              </button>
-
-              {/* Soft server-down note — only while server is unreachable, before any attempt.
-                   Matches Epic/athena pattern: form is usable, status is informational. */}
-              {serverDown && loginAttempts === 0 && !loginError && (
-                <p className="login-server-note" role="note">
-                  <span aria-hidden="true">⚠️</span> Server may be temporarily unavailable.
-                  {' '}<a href="https://status.clarity-ehr.com" target="_blank" rel="noopener noreferrer">Check status ↗</a>
-                  {' '}· You can still try to sign in.
-                </p>
-              )}
-            </form>
-
-            <div className="login-hipaa-footer" role="note" aria-label="Security notice">
-              <span aria-hidden="true">🛡️</span>
-              <span>Protected by 256-bit AES encryption · HIPAA compliant · All access monitored &amp; logged</span>
-            </div>
-
-            <div className="login-support-row">
-              <span>Having trouble?</span>
-              <a href="mailto:support@clarity-ehr.org" className="login-support-link">
-                📧 IT Support
-              </a>
-              <span className="login-support-sep">·</span>
-              <a href="tel:+15554007748" className="login-support-link">
-                📞 (555) 400-7748
-              </a>
-              <span className="login-support-sep">·</span>
-              <a href="https://status.clarity-ehr.com" target="_blank" rel="noopener noreferrer" className="login-support-link">
-                System status
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT — System Info */}
-        <div className="login-col login-col-demo" aria-label="System information">
-          <div className="glass-card glass-card-demo">
-            <h2 className="glass-card-title" id="sysinfo-heading">
-              <span aria-hidden="true">🧠 </span>Clarity EHR
-            </h2>
-            <p className="glass-card-subtitle">Secure, HIPAA-compliant electronic health records</p>
-
-            <ul style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8, listStyle: 'none', padding: 0, margin: 0 }} aria-label="Key security features">
-              {[
-                { icon: '🔐', title: 'Multi-Factor Authentication', desc: 'Every login protected by 2FA with email verification' },
-                { icon: '🛡️', title: 'HIPAA & 42 CFR Part 2', desc: 'Full compliance with federal privacy and substance use protections' },
-                { icon: '📋', title: 'Complete Audit Trail', desc: 'Every access and change is logged and time-stamped' },
-                { icon: '💊', title: 'DEA-Compliant EPCS', desc: 'Electronic prescribing for controlled substances with dual-factor auth' },
-              ].map(f => (
-                <li key={f.title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  <span style={{ fontSize: 20, flexShrink: 0 }} aria-hidden="true">{f.icon}</span>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: '#f1f5f9' }}>{f.title}</div>
-                    <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{f.desc}</div>
+                <div className="lf-group">
+                  <div className="lf-label-row">
+                    <label className="lf-label" htmlFor="login-password">Password</label>
+                    <button
+                      type="button"
+                      className="lf-forgot"
+                      onClick={() => setShowForgotPassword(true)}
+                      aria-haspopup="dialog"
+                    >
+                      Forgot password?
+                    </button>
                   </div>
-                </li>
-              ))}
-            </ul>
+                  <div className="password-field-wrapper">
+                    <input
+                      id="login-password"
+                      type={showPassword ? 'text' : 'password'}
+                      className={`lf-input${fieldErrors.password ? ' lf-input--error' : ''}`}
+                      value={password}
+                      onChange={(e) => { setPassword(e.target.value); if (fieldErrors.password) setFieldErrors(f => ({...f, password: ''})); }}
+                      placeholder="Enter your password"
+                      autoComplete="current-password"
+                      required
+                      aria-required="true"
+                      aria-invalid={fieldErrors.password ? 'true' : 'false'}
+                      aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+                      enterKeyHint="go"
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle"
+                      onClick={() => setShowPassword(v => !v)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      tabIndex={0}
+                    >
+                      {showPassword ? (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                          <line x1="1" y1="1" x2="23" y2="23"/>
+                        </svg>
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                          <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  {fieldErrors.password
+                    ? <span id="password-error" className="field-error" role="alert">{fieldErrors.password}</span>
+                    : !password && <span className="field-hint" aria-hidden="true">Required</span>}
+                </div>
 
-            <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', fontSize: 12, color: '#94a3b8' }}>
-              <strong style={{ color: '#e2e8f0' }}>IT Support</strong><br />
-              Contact your system administrator if you need help accessing your account.
+                <button
+                  type="submit"
+                  className="lf-submit"
+                  disabled={loading || loginAttempts >= MAX_ATTEMPTS}
+                  aria-busy={loading}
+                  aria-live="polite"
+                >
+                  {loading ? (
+                    <><span className="btn-spinner" aria-hidden="true" />Signing In…</>
+                  ) : loginAttempts >= MAX_ATTEMPTS ? (
+                    'Account Locked — Contact IT'
+                  ) : 'Sign In'}
+                </button>
+
+                {serverDown && loginAttempts === 0 && !loginError && (
+                  <div className="login-server-note" role="note">
+                    <span className="login-server-note-label">System Notice</span>
+                    <span>The server is currently experiencing delays. You may still attempt to sign in or{' '}
+                    <a href="https://status.clarity-ehr.com" target="_blank" rel="noopener noreferrer">check system status ↗</a>.</span>
+                  </div>
+                )}
+              </form>
+
+              <div className="lf-footer">
+                <p className="lf-security-notice" role="note" aria-label="Security notice">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  AES-256 · HIPAA compliant · All access monitored
+                </p>
+                <p className="lf-support">
+                  <a href="mailto:support@clarity-ehr.org" className="lf-support-link">IT Support</a>
+                  <span aria-hidden="true">·</span>
+                  <a href="tel:+15554007748" className="lf-support-link">(555) 400-7748</a>
+                  <span aria-hidden="true">·</span>
+                  <a href="https://status.clarity-ehr.com" target="_blank" rel="noopener noreferrer" className="lf-support-link lf-status-link">
+                    <span
+                      className={`lf-status-dot${serverDown ? ' lf-status-dot--degraded' : ' lf-status-dot--operational'}`}
+                      aria-hidden="true"
+                    />
+                    {serverDown ? 'Degraded' : 'Operational'}
+                  </a>
+                </p>
+                <p className="lf-patient-link">
+                  Are you a patient?{' '}
+                  <Link to="/patient-portal-login">Sign in to the Patient Portal →</Link>
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Patient Portal CTA */}
-          <div className="glass-card glass-card-patient-cta">
-            <span>Are you a patient?</span>
-            <Link to="/patient-portal-login">Sign in to the Patient Portal →</Link>
-          </div>
         </div>
-      </div>
+      </main>
 
       {/* ── Footer ── */}
       <footer className="login-footer">

@@ -92,6 +92,20 @@ export const users = [
   },
 
   {
+    id: 'u10',
+    username: 'biller1',
+    password: 'Pass123!',
+    firstName: 'Sandra',
+    lastName: 'Williams',
+    role: 'biller',
+    credentials: 'CPC',
+    specialty: 'Medical Billing',
+    npi: '',
+    email: 'biller@clarity.health',
+    twoFactorEnabled: false,
+  },
+
+  {
     id: 'u8',
     username: 'april.t',
     password: 'Pass123!',
@@ -103,6 +117,22 @@ export const users = [
     npi: '3344556677',
     email: 'april.t@clarity.health',
     twoFactorEnabled: true,
+  },
+
+  {
+    id: 'u11',
+    username: 'np.ola',
+    password: 'Welcome2026',
+    mustChangePassword: true,
+    firstName: 'Idayatu Ola',
+    lastName: 'Omoniyi',
+    role: 'prescriber',
+    credentials: 'NP',
+    specialty: 'Psychiatry',
+    npi: '1174282826',
+    email: 'ola_somoniyi@yahoo.com',
+    twoFactorEnabled: true,
+    locationId: 'loc-victory',
   },
 
   // ── Patient portal accounts ──────────────────────────────────

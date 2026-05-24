@@ -34,6 +34,20 @@ const StaffMessaging = lazy(() => import('./pages/StaffMessaging'));
 const BillingDashboard = lazy(() => import('./pages/BillingDashboard'));
 const ClaimsManagement = lazy(() => import('./pages/ClaimsManagement'));
 const DenialManagement = lazy(() => import('./pages/DenialManagement'));
+const PayerProfiles = lazy(() => import('./pages/PayerProfiles'));
+const RemittancePosting = lazy(() => import('./pages/RemittancePosting'));
+const ScrubberRulesEngine = lazy(() => import('./pages/ScrubberRulesEngine'));
+const ERAPosting = lazy(() => import('./pages/ERAPosting'));
+const ContractVarianceReport = lazy(() => import('./pages/ContractVarianceReport'));
+const EDITransportLayer = lazy(() => import('./pages/EDITransportLayer'));
+const EDIRoutingEngine = lazy(() => import('./pages/EDIRoutingEngine'));
+const EDI837Generator = lazy(() => import('./pages/EDI837Generator'));
+const EDI999Parser = lazy(() => import('./pages/EDI999Parser'));
+const EDI270Engine = lazy(() => import('./pages/EDI270Engine'));
+const EDI835Listener = lazy(() => import('./pages/EDI835Listener'));
+const EDIMonitoring = lazy(() => import('./pages/EDIMonitoring'));
+const ClinicalOutcomes = lazy(() => import('./pages/ClinicalOutcomes'));
+const RolePermissions = lazy(() => import('./pages/RolePermissions'));
 const TelehealthBilling = lazy(() => import('./pages/TelehealthBilling'));
 const PatientPortalBilling = lazy(() => import('./pages/PatientPortalBilling'));
 const QualityMeasures = lazy(() => import('./pages/QualityMeasures'));
@@ -69,6 +83,7 @@ const PatientCheckIn = lazy(() => import('./pages/PatientCheckIn'));
 const PatientCostEstimator = lazy(() => import('./pages/PatientCostEstimator'));
 const AppMarketplace = lazy(() => import('./pages/AppMarketplace'));
 const APIDocumentation = lazy(() => import('./pages/APIDocumentation'));
+const EDIApiPortal = lazy(() => import('./pages/EDIApiPortal'));
 const OrderSetTemplates = lazy(() => import('./pages/OrderSetTemplates'));
 const AmbientScribe = lazy(() => import('./pages/AmbientScribe'));
 const PopulationHealth = lazy(() => import('./pages/PopulationHealth'));
@@ -270,6 +285,20 @@ export default function App() {
             <Route path="/patient-portal-billing" element={<PatientPortalBilling />} />
             <Route path="/billing" element={<BillingDashboard />} />
             <Route path="/billing/claims" element={<ClaimsManagement />} />
+            <Route path="/payer-profiles" element={<PayerProfiles />} />
+            <Route path="/remittance-posting" element={<RemittancePosting />} />
+            <Route path="/scrubber-rules" element={<ScrubberRulesEngine />} />
+            <Route path="/era-posting" element={<ERAPosting />} />
+            <Route path="/contract-variance" element={<ContractVarianceReport />} />
+            <Route path="/edi-transport" element={<EDITransportLayer />} />
+            <Route path="/edi-routing" element={<EDIRoutingEngine />} />
+            <Route path="/edi-837" element={<EDI837Generator />} />
+            <Route path="/edi-999" element={<EDI999Parser />} />
+            <Route path="/edi-270" element={<EDI270Engine />} />
+            <Route path="/edi-835" element={<EDI835Listener />} />
+            <Route path="/edi-monitoring" element={<EDIMonitoring />} />
+            <Route path="/clinical-outcomes" element={<ClinicalOutcomes />} />
+            <Route path="/role-permissions" element={<RolePermissions />} />
             <Route path="/quality-measures" element={<QualityMeasures />} />
             <Route path="/documents" element={<DocumentManagement />} />
             <Route path="/audit-trail" element={<AuditTrail />} />
@@ -303,6 +332,7 @@ export default function App() {
             <Route path="/cost-estimator" element={<PatientCostEstimator />} />
             <Route path="/marketplace" element={<AppMarketplace />} />
             <Route path="/api-docs" element={<APIDocumentation />} />
+            <Route path="/edi-api" element={<EDIApiPortal />} />
             <Route path="/order-sets" element={<OrderSetTemplates />} />
             <Route path="/ambient-scribe" element={<AmbientScribe />} />
             <Route path="/population-health" element={<PopulationHealth />} />

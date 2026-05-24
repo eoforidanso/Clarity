@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
-import { medicationDatabase, pharmacies, users, problems } from '../data/mockData';
+import { medicationDatabase, pharmacies, users, problems, allergies } from '../data/mockData';
 import { rxnorm as rxnormApi, openfda as openfdaApi, locations as locationsApi, nppes as nppesApi, dosespot as dosespotApi } from '../services/api';
 import { useSite } from '../contexts/SiteContext';
 import { generateILPmpReport } from '../utils/pmpMock';
@@ -605,6 +605,21 @@ export default function EPrescribe() {
   const [pmpLoading, setPmpLoading] = useState(false);
   const otpTimerRef = useRef(null);
 
+  // ── New UX state ────────────────────────────────────────────────
+  const [diagnosisTouched, setDiagnosisTouched] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const draftTimerRef = useRef(null);
+  const [showCommonSigs, setShowCommonSigs] = useState(false);
+  const [showInteractionsModal, setShowInteractionsModal] = useState(false);
+  const [showDiagFavorites, setShowDiagFavorites] = useState(false);
+  const [diagFavorites, setDiagFavorites] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('clarity_diag_favorites') || '[]'); } catch { return []; }
+  });
+  const [recentPharmacies, setRecentPharmacies] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('clarity_recent_pharmacies') || '[]'); } catch { return []; }
+  });
+  const [showMedHistory, setShowMedHistory] = useState(false);
+
   // Auto-query IL PMP whenever a controlled substance is selected with a patient
   useEffect(() => {
     if (step === 2 && selectedMed?.isControlled && prescriptionPatient) {
@@ -627,6 +642,22 @@ export default function EPrescribe() {
   const hasNpi = !!(currentUser?.npi && currentUser.npi.trim().length === 10);
   // DEA is required to prescribe controlled substances
   const hasDea = !!(currentUser?.deaNumber && /^[A-Z]{2}\d{7}$/i.test(currentUser.deaNumber.trim()));
+
+  // Allergy + duplicate therapy warnings for warnings panel
+  const patientAllergies = prescriptionPatient
+    ? (allergies[prescriptionPatient.id] || []).filter(a => a.type === 'Medication' && a.status === 'Active' && a.allergen !== 'No Known Drug Allergies (NKDA)')
+    : [];
+  const allergyConflict = selectedMed
+    ? patientAllergies.find(a =>
+        selectedMed.name.toLowerCase().includes(a.allergen.toLowerCase().split(' ')[0]) ||
+        a.allergen.toLowerCase().includes(selectedMed.name.toLowerCase().split(' ')[0])
+      )
+    : null;
+  const duplicateMeds = prescriptionPatient && selectedMed
+    ? (meds[prescriptionPatient.id] || []).filter(m =>
+        m.status === 'Active' && m.name.toLowerCase().includes(selectedMed.name.toLowerCase().split(' ')[0])
+      )
+    : [];
 
   if (!hasNpi) {
     return (
@@ -803,6 +834,41 @@ export default function EPrescribe() {
     setShowSuccess(true);
   };
 
+  const saveDraft = () => {
+    const draft = { selectedMed, rx, prescriptionPatientId: prescriptionPatient?.id, savedAt: new Date().toISOString() };
+    localStorage.setItem('clarity_rx_draft', JSON.stringify(draft));
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    setDraftSaved(true);
+    draftTimerRef.current = setTimeout(() => setDraftSaved(false), 2500);
+  };
+
+  const autoGenerateSig = () => {
+    if (!selectedMed) return;
+    const route = selectedMed.routes?.[0]?.toLowerCase() || 'mouth';
+    const dose = rx.dose || selectedMed.doses?.[0] || '1 dose';
+    const generated = `Take ${dose} by ${route} ${rx.frequency.toLowerCase()}`;
+    setRx(prev => ({ ...prev, sig: generated }));
+    setShowCommonSigs(false);
+  };
+
+  const selectPharmacyOption = (pharmacyStr) => {
+    setRx(prev => ({ ...prev, pharmacy: pharmacyStr }));
+    setPharmacySearch('');
+    setPharmacyCityFilter('');
+    setPharmacyStateFilter('');
+    setShowPharmacyDropdown(false);
+    setNppesResults([]);
+    const updated = [pharmacyStr, ...recentPharmacies.filter(p => p !== pharmacyStr)].slice(0, 5);
+    setRecentPharmacies(updated);
+    localStorage.setItem('clarity_recent_pharmacies', JSON.stringify(updated));
+  };
+
+  const addDiagFavorite = (code, name) => {
+    const updated = [{ code, name }, ...diagFavorites.filter(f => f.code !== code)].slice(0, 10);
+    setDiagFavorites(updated);
+    localStorage.setItem('clarity_diag_favorites', JSON.stringify(updated));
+  };
+
   const resetPrescriber = () => {
     setShowSuccess(false);
     setStep(1);
@@ -815,6 +881,12 @@ export default function EPrescribe() {
     setEpcsOtpInputs(['', '', '', '', '', '']);
     setEpcsPhase(1);
     setGeneratedOTP('');
+    setDiagnosisTouched(false);
+    setDraftSaved(false);
+    setShowCommonSigs(false);
+    setShowDiagFavorites(false);
+    setShowInteractionsModal(false);
+    setShowMedHistory(false);
   };
 
   const printRxReceipt = () => {
@@ -1141,6 +1213,21 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
 
       {/* Step 2: Prescription Details */}
       {step === 2 && selectedMed && (
+        <>
+        {/* Medication breadcrumb */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, flexWrap: 'wrap' }}>
+          <span style={{ color: 'var(--primary)', fontWeight: 600 }}>💊 E-Prescribe</span>
+          <span>›</span>
+          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{selectedMed.name}{rx.dose ? ` ${rx.dose}` : ''}</span>
+          <span>›</span>
+          <span>Prescription Details</span>
+          {prescriptionPatient && (
+            <>
+              <span>›</span>
+              <span style={{ color: 'var(--primary)' }}>{prescriptionPatient.firstName} {prescriptionPatient.lastName}</span>
+            </>
+          )}
+        </div>
         <div className="card">
           <div className="card-header">
             <h2>📝 Prescription Details — {selectedMed.name}</h2>
@@ -1366,6 +1453,20 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                   </div>
                 ) : (
                   <>
+                    {recentPharmacies.length > 0 && (
+                      <div style={{ marginBottom: 6 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Recently used</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                          {recentPharmacies.map(ph => (
+                            <button key={ph} type="button"
+                              onClick={() => selectPharmacyOption(ph)}
+                              style={{ fontSize: 11, padding: '3px 9px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', cursor: 'pointer', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              🏥 {ph.split(' — ')[0]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       <input className="form-input" style={{ flex: '2 1 200px', minWidth: 160 }} value={pharmacySearch}
                         onChange={(e) => { setPharmacySearch(e.target.value); setShowPharmacyDropdown(true); }}
@@ -1409,7 +1510,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                                 <div key={p.id} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}
                                   onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
                                   onMouseLeave={e => e.currentTarget.style.background = ''}
-                                  onClick={() => { setRx({ ...rx, pharmacy: `${p.name} — ${p.address}, ${p.city}, ${p.state} ${p.zip}` }); setPharmacySearch(''); setPharmacyCityFilter(''); setPharmacyStateFilter(''); setShowPharmacyDropdown(false); setNppesResults([]); }}>
+                                  onClick={() => selectPharmacyOption(`${p.name} — ${p.address}, ${p.city}, ${p.state} ${p.zip}`)}>
                                   <div style={{ fontWeight: 600 }}>{p.name}</div>
                                   <div style={{ color: 'var(--text-muted)' }}>{p.address}, {p.city}, {p.state} {p.zip}{p.phone ? ' · ' + p.phone : ''}</div>
                                 </div>
@@ -1420,7 +1521,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                                 <div key={p.id} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}
                                   onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
                                   onMouseLeave={e => e.currentTarget.style.background = ''}
-                                  onClick={() => { setRx({ ...rx, pharmacy: `${p.name} — ${p.address}, ${p.city}, ${p.state} ${p.zip}` }); setPharmacySearch(''); setPharmacyCityFilter(''); setPharmacyStateFilter(''); setShowPharmacyDropdown(false); setNppesResults([]); }}>
+                                  onClick={() => selectPharmacyOption(`${p.name} — ${p.address}, ${p.city}, ${p.state} ${p.zip}`)}>
                                   <div style={{ fontWeight: 600 }}>{p.name} <span style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 400 }}>NPI {p.npi}</span></div>
                                   <div style={{ color: 'var(--text-muted)' }}>{p.address}, {p.city}, {p.state} {p.zip}{p.phone ? ' · ' + p.phone : ''}</div>
                                 </div>
@@ -1440,8 +1541,54 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
               </div>
             </div>
 
-            <div className="form-group">
-              <label className="form-label">SIG (Directions)</label>
+            <div className="form-group" style={{ position: 'relative' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 0 }}>
+                  {/* Pencil icon */}
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--primary)', flexShrink: 0 }}><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                  SIG (Directions)
+                  <span style={{ fontSize: 10, fontWeight: 700, background: '#fef2f2', color: 'var(--danger)', border: '1px solid #fca5a5', borderRadius: 4, padding: '1px 5px', lineHeight: 1.4 }}>Required</span>
+                </label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowCommonSigs(prev => !prev)}
+                    style={{ fontSize: 11, padding: '3px 9px', borderRadius: 5, border: '1px solid var(--border)', background: showCommonSigs ? 'var(--primary-light)' : 'var(--bg)', color: 'var(--primary)', fontWeight: 600, cursor: 'pointer' }}>
+                    📋 Common SIGs {showCommonSigs ? '▲' : '▾'}
+                  </button>
+                  <button
+                    type="button"
+                    title="Auto-generate SIG from dose, route, and frequency"
+                    onClick={autoGenerateSig}
+                    style={{ fontSize: 11, padding: '3px 9px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 600 }}>
+                    ⚙ Auto-fill
+                  </button>
+                </div>
+              </div>
+              {showCommonSigs && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-white)', marginBottom: 6, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                  <div style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>Click to insert</div>
+                  {[
+                    'Take 1 tablet by mouth once daily',
+                    'Take 1 tablet by mouth twice daily',
+                    'Take 1 tablet by mouth three times daily',
+                    'Take 1 tablet by mouth every 6 hours',
+                    'Take 1 tablet by mouth at bedtime',
+                    'Take as needed (PRN) — do not exceed 3 doses per day',
+                    'Take with food to reduce GI upset',
+                    'Apply topically to affected area twice daily',
+                  ].map(sig => (
+                    <div
+                      key={sig}
+                      onClick={() => { setRx(prev => ({ ...prev, sig })); setShowCommonSigs(false); }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
+                      onMouseLeave={e => e.currentTarget.style.background = ''}
+                      style={{ padding: '7px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border-light)' }}>
+                      {sig}
+                    </div>
+                  ))}
+                </div>
+              )}
               <textarea
                 className="form-textarea"
                 rows={2}
@@ -1452,7 +1599,42 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
             </div>
 
             <div className="form-group">
-              <label className="form-label">Diagnosis / Indication <span style={{ color: 'var(--danger)' }}>*</span></label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 0 }}>
+                  {/* Stethoscope icon */}
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--primary)', flexShrink: 0 }}><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>
+                  Diagnosis / Indication <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowDiagFavorites(prev => !prev)}
+                  style={{ fontSize: 11, padding: '3px 9px', borderRadius: 5, border: '1px solid var(--border)', background: showDiagFavorites ? 'var(--primary-light)' : 'var(--bg)', color: 'var(--primary)', fontWeight: 600, cursor: 'pointer' }}>
+                  ⭐ Favorites {showDiagFavorites ? '▲' : '▾'}
+                </button>
+              </div>
+              {showDiagFavorites && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-white)', marginBottom: 8, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                  <div style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
+                    Saved favorites — click to insert
+                  </div>
+                  {diagFavorites.length === 0 && (
+                    <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      No favorites yet — use ⭐ icon on any ICD suggestion to save it
+                    </div>
+                  )}
+                  {diagFavorites.map(f => (
+                    <div
+                      key={f.code}
+                      onClick={() => { setRx(prev => ({ ...prev, diagnosisCode: f.code, diagnosis: f.name })); setShowDiagFavorites(false); }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
+                      onMouseLeave={e => e.currentTarget.style.background = ''}
+                      style={{ padding: '7px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border-light)', display: 'flex', gap: 8 }}>
+                      <span style={{ fontWeight: 700, color: 'var(--primary)', minWidth: 60 }}>{f.code}</span>
+                      <span>{f.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {prescriptionPatient && (problems[prescriptionPatient.id] || []).filter(p => p.status === 'Active').length > 0 && (
                 <div style={{ marginBottom: 8 }}>
                   <span className="text-xs text-muted" style={{ display: 'block', marginBottom: 4 }}>Quick-select from active problem list:</span>
@@ -1484,7 +1666,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                       lookupIcd(val, 'code');
                     }}
                     onFocus={() => { if (rx.diagnosisCode.length >= 2) lookupIcd(rx.diagnosisCode, 'code'); }}
-                    onBlur={() => setTimeout(() => setIcdSuggestions([]), 200)}
+                    onBlur={() => { setTimeout(() => setIcdSuggestions([]), 200); setDiagnosisTouched(true); }}
                     placeholder="ICD-10"
                     maxLength={10}
                   />
@@ -1499,13 +1681,13 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                       lookupIcd(e.target.value, 'desc');
                     }}
                     onFocus={() => { if (rx.diagnosis.length >= 2) lookupIcd(rx.diagnosis, 'desc'); }}
-                    onBlur={() => setTimeout(() => setIcdSuggestions([]), 200)}
+                    onBlur={() => { setTimeout(() => setIcdSuggestions([]), 200); setDiagnosisTouched(true); }}
                     placeholder="Diagnosis — type name or ICD-10 code"
                   />
                   {icdSuggestions.length > 0 && (
                     <div style={{ position: 'absolute', top: '100%', left: icdSuggestFor === 'code' ? '-118px' : 0, right: 0, zIndex: 60, border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-white)', boxShadow: 'var(--shadow-md)', marginTop: 2, maxHeight: 260, overflowY: 'auto' }}>
                       {icdSuggestions.map(s => (
-                        <div key={s.code} style={{ padding: '7px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid var(--border-light)', display: 'flex', gap: 8 }}
+                        <div key={s.code} style={{ padding: '7px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid var(--border-light)', display: 'flex', gap: 8, alignItems: 'center' }}
                           onMouseDown={() => {
                             setRx(prev => ({ ...prev, diagnosisCode: s.code, diagnosis: s.name }));
                             setIcdSuggestions([]);
@@ -1513,22 +1695,107 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                           onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
                           onMouseLeave={e => e.currentTarget.style.background = ''}>
                           <span style={{ fontWeight: 700, color: 'var(--primary)', minWidth: 60 }}>{s.code}</span>
-                          <span>{s.name}</span>
+                          <span style={{ flex: 1 }}>{s.name}</span>
+                          <button
+                            type="button"
+                            title="Save to diagnosis favorites"
+                            onMouseDown={e => { e.stopPropagation(); addDiagFavorite(s.code, s.name); }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', color: diagFavorites.some(f => f.code === s.code) ? '#f59e0b' : '#cbd5e1' }}>
+                            ⭐
+                          </button>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
               </div>
-              {!rx.diagnosis.trim() && (
-                <span style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4, display: 'block' }}>Required — enter or select a diagnosis above</span>
+              {!rx.diagnosis.trim() && diagnosisTouched && (
+                <span style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4, display: 'block' }}>⚠ Diagnosis is required before sending</span>
               )}
             </div>
 
             <div className="form-group">
-              <label className="form-label">Notes</label>
+              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                {/* Document/notes icon */}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--primary)', flexShrink: 0 }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                Notes
+              </label>
               <textarea className="form-textarea" rows={2} value={rx.notes} onChange={(e) => setRx({ ...rx, notes: e.target.value })} placeholder="Additional notes..." />
             </div>
+
+            {/* ── Check Interactions ──────────────────────────────── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <button
+                type="button"
+                onClick={() => setShowInteractionsModal(true)}
+                style={{ fontSize: 12, padding: '5px 12px', borderRadius: 6, border: '1px solid var(--primary)', background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                ⚡ Check Drug Interactions
+              </button>
+              {prescriptionPatient && patientAllergies.length > 0 && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  {patientAllergies.length} known drug allerg{patientAllergies.length === 1 ? 'y' : 'ies'} on file
+                </span>
+              )}
+            </div>
+
+            {/* ── Interactions modal ──────────────────────────────── */}
+            {showInteractionsModal && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+                onClick={() => setShowInteractionsModal(false)}>
+                <div style={{ background: 'var(--bg-white)', borderRadius: 14, padding: 28, maxWidth: 520, width: '100%', boxShadow: 'var(--shadow-lg)' }}
+                  onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <h3 style={{ fontWeight: 800, fontSize: 16 }}>⚡ Drug Interaction Check</h3>
+                    <button type="button" onClick={() => setShowInteractionsModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
+                  </div>
+                  <div style={{ fontSize: 13, marginBottom: 14, color: 'var(--text-muted)' }}>
+                    Checking <strong style={{ color: 'var(--text-primary)' }}>{selectedMed?.name}</strong> against patient&apos;s active medications…
+                  </div>
+                  {duplicateMeds.length > 0 && (
+                    <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 14px', marginBottom: 10, fontSize: 12 }}>
+                      <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 4 }}>⚠ Possible Duplicate Therapy</div>
+                      {duplicateMeds.map((m, i) => (
+                        <div key={i} style={{ color: '#78350f' }}>{m.name} {m.dose} — currently {m.status}</div>
+                      ))}
+                    </div>
+                  )}
+                  {allergyConflict && (
+                    <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 14px', marginBottom: 10, fontSize: 12 }}>
+                      <div style={{ fontWeight: 700, color: '#dc2626', marginBottom: 4 }}>🚨 Allergy Alert</div>
+                      <div style={{ color: '#7f1d1d' }}>Patient has documented allergy to <strong>{allergyConflict.allergen}</strong> — {allergyConflict.reaction} ({allergyConflict.severity})</div>
+                    </div>
+                  )}
+                  {duplicateMeds.length === 0 && !allergyConflict && (
+                    <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#166534' }}>
+                      ✅ No known allergy conflicts or duplicate therapy detected in the local medication list.
+                    </div>
+                  )}
+                  <div style={{ marginTop: 14, fontSize: 11, color: 'var(--text-muted)' }}>
+                    For comprehensive interaction checking, use{' '}
+                    <a href="https://www.drugs.com/drug_interactions.html" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>Drugs.com Interaction Checker ↗</a>
+                    {' '}or{' '}
+                    <a href="https://rxnav.nlm.nih.gov/InteractionAPIs.html" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>NLM RxNav ↗</a>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Allergy / Warnings Banner ───────────────────────── */}
+            {(allergyConflict || duplicateMeds.length > 0) && (
+              <div style={{ border: '1.5px solid #fcd34d', borderRadius: 10, background: '#fffbeb', padding: '12px 16px', marginBottom: 16 }}>
+                <div style={{ fontWeight: 700, fontSize: 12, color: '#92400e', marginBottom: 6 }}>⚠ Prescribing Alerts</div>
+                {allergyConflict && (
+                  <div style={{ fontSize: 12, color: '#7f1d1d', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 10px', marginBottom: 4 }}>
+                    🚨 <strong>Allergy:</strong> {allergyConflict.allergen} — {allergyConflict.reaction} ({allergyConflict.severity})
+                  </div>
+                )}
+                {duplicateMeds.map((m, i) => (
+                  <div key={i} style={{ fontSize: 12, color: '#78350f', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, padding: '6px 10px', marginBottom: 4 }}>
+                    ⚠ <strong>Duplicate:</strong> Patient is already on {m.name} {m.dose}
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
@@ -1551,8 +1818,63 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
               </div>
             </div>
 
+            {/* ── Medication History ──────────────────────────────── */}
+            {prescriptionPatient && (
+              <div style={{ marginTop: 16, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowMedHistory(prev => !prev)}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg)', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  <span>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--primary)', marginRight: 5, verticalAlign: 'middle' }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    Medication History
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {(meds[prescriptionPatient.id] || []).length} records {showMedHistory ? '▲' : '▾'}
+                  </span>
+                </button>
+                {showMedHistory && (
+                  <div style={{ borderTop: '1px solid var(--border)', maxHeight: 240, overflowY: 'auto' }}>
+                    {(meds[prescriptionPatient.id] || []).length === 0 ? (
+                      <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No medication history on file</div>
+                    ) : (
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ background: 'var(--bg)' }}>
+                            {['Medication', 'Dose', 'Frequency', 'Status', 'Prescriber'].map(h => (
+                              <th key={h} style={{ padding: '6px 10px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, borderBottom: '1px solid var(--border)' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(meds[prescriptionPatient.id] || []).map((m, i) => (
+                            <tr key={i} style={{ borderBottom: '1px solid var(--border-light)', background: m.name.toLowerCase().includes(selectedMed.name.toLowerCase().split(' ')[0]) ? '#fef9c3' : i % 2 === 0 ? '#fff' : 'var(--bg)' }}>
+                              <td style={{ padding: '6px 10px', fontWeight: 600 }}>{m.name}</td>
+                              <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>{m.dose}</td>
+                              <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>{m.frequency}</td>
+                              <td style={{ padding: '6px 10px' }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: m.status === 'Active' ? '#dcfce7' : '#f1f5f9', color: m.status === 'Active' ? '#166534' : '#64748b' }}>{m.status}</span>
+                              </td>
+                              <td style={{ padding: '6px 10px', color: 'var(--text-muted)', fontSize: 11 }}>{m.prescriber || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20 }}>
               <button className="btn btn-secondary" onClick={() => { setStep(1); setSelectedMed(null); }}>Cancel</button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={saveDraft}
+                style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                {draftSaved ? '✓ Draft Saved!' : '💾 Save as Draft'}
+              </button>
               <button
                 className="btn btn-primary btn-lg"
                 onClick={() => handleSubmitPrescription()}
@@ -1564,6 +1886,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
             </div>
           </div>
         </div>
+        </>
       )}
 
       {/* Step 3: EPCS Two-Factor Authentication */}

@@ -41,6 +41,7 @@ function MedDetail({ med, patientId, onClose }) {
   const [confirm, setConfirm] = useState(null); // 'refill' | 'delete'
   const [refillQty, setRefillQty] = useState(30);
   const [refillNote, setRefillNote] = useState('');
+  const [refillDate, setRefillDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [toast, setToast] = useState(null);
   const [detailTab, setDetailTab] = useState('details');
   const toastTimerRef = useRef(null);
@@ -105,9 +106,10 @@ function MedDetail({ med, patientId, onClose }) {
   const handleRefill = () => {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toTimeString().slice(0, 5);
+    const fillDate = refillDate || today;
 
     const newEntry = {
-      date: today,
+      date: fillDate,
       prescribedBy: currentUser?.name || 'Provider',
       pharmacy: med.pharmacy || 'Pharmacy on file',
       qty: refillQty,
@@ -118,7 +120,7 @@ function MedDetail({ med, patientId, onClose }) {
 
     updateMedication(patientId, med.id, {
       refillsLeft: (med.refillsLeft || 0) + 1,
-      lastFilled: today,
+      lastFilled: fillDate,
       rxHistory: [newEntry, ...(med.rxHistory || [])],
     });
 
@@ -130,7 +132,7 @@ function MedDetail({ med, patientId, onClose }) {
       patient: patientId,
       patientName: null, // resolved in Inbox via patientId
       subject: `Refill Authorized: ${med.name} ${med.dose}`,
-      body: `Refill authorized by ${currentUser?.name || 'Provider'}.\nMedication: ${med.name} ${med.dose}\nSIG: ${med.sig || ''}\nQty: #${refillQty}\nPharmacy: ${med.pharmacy || 'On file'}${refillNote ? `\nNote: ${refillNote}` : ''}`,
+      body: `Refill authorized by ${currentUser?.name || 'Provider'}.\nMedication: ${med.name} ${med.dose}\nSIG: ${med.sig || ''}\nQty: #${refillQty}\nRefill Date: ${fillDate}\nPharmacy: ${med.pharmacy || 'On file'}${refillNote ? `\nNote: ${refillNote}` : ''}`,
       date: today,
       time,
       priority: med.isControlled ? 'High' : 'Normal',
@@ -492,6 +494,12 @@ function MedDetail({ med, patientId, onClose }) {
               <label className="form-label" style={{ fontSize: 12 }}>Qty to dispense</label>
               <input className="form-input" type="number" min={1} max={365}
                 value={refillQty} onChange={(e) => setRefillQty(Number(e.target.value))}
+                style={{ fontSize: 13 }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="form-label" style={{ fontSize: 12 }}>Refill Date</label>
+              <input className="form-input" type="date"
+                value={refillDate} onChange={(e) => setRefillDate(e.target.value)}
                 style={{ fontSize: 13 }} />
             </div>
           </div>

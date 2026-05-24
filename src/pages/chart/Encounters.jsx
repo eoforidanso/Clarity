@@ -317,6 +317,12 @@ function VoiceDictation({ value, onChange, placeholder, rows = 6, label }) {
   const [supported] = useState(!!SpeechRecognition);
   const recognitionRef = useRef(null);
   const textareaRef = useRef(null);
+  // Refs to avoid stale closures inside recognition callbacks
+  const listeningRef = useRef(false);
+  const valueRef = useRef(value);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { valueRef.current = value; }, [value]);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
   const startListening = useCallback(() => {
     if (!SpeechRecognition) return;
@@ -337,8 +343,9 @@ function VoiceDictation({ value, onChange, placeholder, rows = 6, label }) {
         }
       }
       if (finalTranscript) {
-        const separator = value && !value.endsWith(' ') && !value.endsWith('\n') ? ' ' : '';
-        onChange(value + separator + finalTranscript);
+        const currentValue = valueRef.current;
+        const separator = currentValue && !currentValue.endsWith(' ') && !currentValue.endsWith('\n') ? ' ' : '';
+        onChangeRef.current(currentValue + separator + finalTranscript);
         setInterim('');
       } else {
         setInterim(interimTranscript);
@@ -348,6 +355,7 @@ function VoiceDictation({ value, onChange, placeholder, rows = 6, label }) {
     recognition.onerror = (event) => {
       console.warn('Speech recognition error:', event.error);
       if (event.error !== 'no-speech') {
+        listeningRef.current = false;
         setListening(false);
         setInterim('');
       }
@@ -355,20 +363,23 @@ function VoiceDictation({ value, onChange, placeholder, rows = 6, label }) {
 
     recognition.onend = () => {
       // Auto-restart if still listening (browser may auto-stop)
-      if (recognitionRef.current && listening) {
+      if (recognitionRef.current && listeningRef.current) {
         try { recognitionRef.current.start(); } catch {}
       } else {
+        listeningRef.current = false;
         setListening(false);
         setInterim('');
       }
     };
 
     recognitionRef.current = recognition;
+    listeningRef.current = true;
     recognition.start();
     setListening(true);
-  }, [value, onChange, listening]);
+  }, []); // No deps needed — all values accessed via refs
 
   const stopListening = useCallback(() => {
+    listeningRef.current = false;
     if (recognitionRef.current) {
       recognitionRef.current.onend = null;
       recognitionRef.current.stop();
@@ -4007,14 +4018,28 @@ function DiagnosesAndOrdersSection({ d, setD }) {
   );
 }
 
+// ── 3-Panel filter types ──────────────────────────────────────────────────────
+const FILTER_TYPES = [
+  { key: 'encounters',  label: 'Encounters',  icon: '📋', color: '#4f46e5', bg: '#ede9fe' },
+  { key: 'medications', label: 'Medications', icon: '💊', color: '#16a34a', bg: '#dcfce7' },
+  { key: 'labs',        label: 'Labs',        icon: '🧪', color: '#7c3aed', bg: '#fdf4ff' },
+  { key: 'imaging',     label: 'Imaging',     icon: '🩻', color: '#0891b2', bg: '#ecfeff' },
+  { key: 'vitals',      label: 'Vitals',      icon: '💓', color: '#dc2626', bg: '#fee2e2' },
+  { key: 'orders',      label: 'Orders',      icon: '📝', color: '#d97706', bg: '#fef3c7' },
+  { key: 'screenings',  label: 'Screenings',  icon: '✅', color: '#059669', bg: '#ecfdf5' },
+  { key: 'diagnoses',   label: 'Diagnoses',   icon: '🔖', color: '#1d4ed8', bg: '#eff6ff' },
+  { key: 'messages',    label: 'Messages',    icon: '✉️', color: '#6d28d9', bg: '#f5f3ff' },
+  { key: 'documents',   label: 'Documents',   icon: '📄', color: '#374151', bg: '#f1f5f9' },
+];
+
 // ── Section tabs config ───────────────────────────────────────────────────────
 const SECTIONS = [
-  { id: 'subjective', label: 'Chief Complaint & Subjective' },
-  { id: 'mse',        label: 'Mental Status Exam' },
-  { id: 'assessment', label: 'Assessment & Plan' },
-  { id: 'diagnoses',  label: 'Diagnoses & ICD-10' },
-  { id: 'billing',    label: 'CPT & Billing' },
-  { id: 'followup',   label: 'Follow-Up' },
+  { id: 'subjective', label: 'Chief Complaint & Subjective', icon: '🗣️' },
+  { id: 'mse',        label: 'Mental Status Exam',           icon: '🧠' },
+  { id: 'assessment', label: 'Assessment & Plan',            icon: '📋' },
+  { id: 'diagnoses',  label: 'Diagnoses & ICD-10',           icon: '🔖' },
+  { id: 'billing',    label: 'CPT & Billing',                icon: '💳' },
+  { id: 'followup',   label: 'Follow-Up',                    icon: '📅' },
 ];
 
 // ── Main Encounters component ──────────────────────────────────────────────────
@@ -4043,7 +4068,14 @@ export default function Encounters({ patientId }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarTab, setSidebarTab] = useState('notes'); // notes | diagnoses | meds | vitals
   const [expandedPrevEnc, setExpandedPrevEnc] = useState(null);
+  const [copySelections, setCopySelections] = useState({}); // { [encId]: { field: bool } }
   const [sidebarSection, setSidebarSection] = useState('history'); // history | allergies | demographics | problems | vitals | medications | orders | assessments
+  const [filterOpen, setFilterOpen] = useState(true);
+  const [activeFilters, setActiveFilters] = useState(() =>
+    Object.fromEntries(FILTER_TYPES.map(f => [f.key, true]))
+  );
+  const [selectedRecord, setSelectedRecord] = useState(null); // { type, data } for non-encounter timeline items
+  const [expandedTimelineItem, setExpandedTimelineItem] = useState(null); // id of expanded card
 
   const flashTimerRef = useRef(null);
   useEffect(() => {
@@ -4214,7 +4246,7 @@ export default function Encounters({ patientId }) {
             fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)',
             justifyContent: sidebarOpen ? 'flex-start' : 'center',
           }}>
-          {sidebarOpen ? '▶' : '◀'}
+          {sidebarOpen ? '◀' : '▶'}
           {sidebarOpen && <span>Previous Notes & History</span>}
         </button>
 
@@ -4282,140 +4314,94 @@ export default function Encounters({ patientId }) {
                             </div>
                           </button>
 
-                          {/* Expanded detail with import buttons */}
-                          {isExpanded && (
-                            <div style={{ padding: '8px 10px' }}>
-                              {/* Import all button */}
-                              <button type="button" onClick={() => importAllFromEncounter(setD, enc)}
-                                style={{
-                                  width: '100%', padding: '6px 10px', marginBottom: 10, borderRadius: 6,
-                                  fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
-                                  background: 'var(--primary)', color: '#fff', border: 'none',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                                }}>
-                                ↗ Import All Into Current Encounter
-                              </button>
+                          {/* Expanded detail — section selector */}
+                          {isExpanded && (() => {
+                            const sections = [
+                              { key: 'chiefComplaint', label: 'Chief Complaint', color: '#0060b6', bg: '#eff6ff', available: !!enc.chiefComplaint, preview: enc.chiefComplaint },
+                              { key: 'subjective',     label: 'Subjective',       color: '#4f46e5', bg: '#ede9fe', available: !!enc.subjective,     preview: enc.subjective },
+                              { key: 'mse',            label: 'Mental Status Exam', color: '#7c3aed', bg: '#f5f3ff', available: hasMse,           preview: Object.entries(enc.mse || {}).filter(([,v]) => v && v !== '').slice(0,3).map(([k,v]) => v).join(' · ') || null },
+                              { key: 'objective',      label: 'Objective',        color: '#0891b2', bg: '#ecfeff', available: !!enc.objective,      preview: enc.objective },
+                              { key: 'assessment',     label: 'Assessment',       color: '#d97706', bg: '#fffbeb', available: !!enc.assessment,     preview: enc.assessment },
+                              { key: 'plan',           label: 'Plan',             color: '#16a34a', bg: '#f0fdf4', available: !!enc.plan,           preview: enc.plan },
+                              { key: 'diagnoses',      label: `Diagnoses (${(enc.diagnoses||[]).length})`, color: '#0891b2', bg: '#ecfeff', available: (enc.diagnoses||[]).length > 0, preview: (enc.diagnoses||[]).map(d => d.code).join(', ') },
+                              { key: 'cptCodes',       label: `CPT Codes (${(enc.cptCodes||[]).length})`,  color: '#1a7f4b', bg: '#f0fdf4', available: (enc.cptCodes||[]).length > 0,  preview: (enc.cptCodes||[]).map(c => c.code || c).join(', ') },
+                            ].filter(s => s.available);
 
-                              {/* Chief Complaint */}
-                              {enc.chiefComplaint && (
-                                <div style={{ marginBottom: 8 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                                    <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', color: '#0060b6', letterSpacing: '0.4px' }}>Chief Complaint</span>
-                                    <button type="button" onClick={() => importField(setD, 'chiefComplaint', enc.chiefComplaint)}
-                                      style={{ fontSize: 10, fontWeight: 700, color: 'var(--primary)', background: 'var(--primary-light)', border: '1px solid rgba(0,96,182,0.2)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer' }}>
-                                      ↗ Import
-                                    </button>
-                                  </div>
-                                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{enc.chiefComplaint}</div>
-                                </div>
-                              )}
+                            const encSel = copySelections[enc.id] !== undefined
+                              ? copySelections[enc.id]
+                              : Object.fromEntries(sections.map(s => [s.key, true]));
+                            const selectedCount = sections.filter(s => encSel[s.key]).length;
+                            const allSelected = selectedCount === sections.length;
+                            const noneSelected = selectedCount === 0;
 
-                              {/* Subjective */}
-                              {enc.subjective && (
-                                <div style={{ marginBottom: 8 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                                    <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', color: '#4f46e5', letterSpacing: '0.4px' }}>Subjective</span>
-                                    <button type="button" onClick={() => importField(setD, 'subjective', enc.subjective)}
-                                      style={{ fontSize: 10, fontWeight: 700, color: 'var(--primary)', background: 'var(--primary-light)', border: '1px solid rgba(0,96,182,0.2)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer' }}>
-                                      ↗ Import
-                                    </button>
-                                  </div>
-                                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4, maxHeight: 80, overflow: 'hidden', textOverflow: 'ellipsis' }}>{enc.subjective}</div>
-                                </div>
-                              )}
+                            const toggle = (key) => setCopySelections(prev => ({
+                              ...prev,
+                              [enc.id]: { ...encSel, [key]: !encSel[key] },
+                            }));
+                            const toggleAll = () => setCopySelections(prev => ({
+                              ...prev,
+                              [enc.id]: Object.fromEntries(sections.map(s => [s.key, !allSelected])),
+                            }));
+                            const doCopy = () => {
+                              sections.forEach(s => {
+                                if (!encSel[s.key]) return;
+                                if (s.key === 'mse')       { importMse(setD, enc.mse); return; }
+                                if (s.key === 'diagnoses') { importDiagnoses(setD, enc.diagnoses); return; }
+                                if (s.key === 'cptCodes')  { importCptCodes(setD, enc.cptCodes); return; }
+                                importField(setD, s.key, enc[s.key]);
+                              });
+                            };
 
-                              {/* MSE */}
-                              {hasMse && (
-                                <div style={{ marginBottom: 8 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                                    <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', color: '#7c3aed', letterSpacing: '0.4px' }}>MSE</span>
-                                    <button type="button" onClick={() => importMse(setD, enc.mse)}
-                                      style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #e9d5ff', borderRadius: 4, padding: '1px 6px', cursor: 'pointer' }}>
-                                      ↗ Import
-                                    </button>
-                                  </div>
-                                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                    {Object.entries(mse).filter(([k, v]) => v && k !== 'additionalNotes' && k !== 'mood').slice(0, 6).map(([k, v]) => (
-                                      <span key={k} style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 4, background: '#f5f3ff', color: '#7c3aed', border: '1px solid #e9d5ff' }}>
-                                        {v}
-                                      </span>
-                                    ))}
-                                    {Object.entries(mse).filter(([k, v]) => v && k !== 'additionalNotes' && k !== 'mood').length > 6 && (
-                                      <span style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>+{Object.entries(mse).filter(([k, v]) => v && k !== 'additionalNotes' && k !== 'mood').length - 6} more</span>
-                                    )}
-                                  </div>
+                            return (
+                              <div style={{ padding: '8px 10px' }}>
+                                {/* Select All / count row */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                    <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                                      style={{ accentColor: 'var(--primary)', width: 13, height: 13 }} />
+                                    {allSelected ? 'Deselect All' : 'Select All'}
+                                  </label>
+                                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{selectedCount}/{sections.length} selected</span>
                                 </div>
-                              )}
 
-                              {/* Assessment */}
-                              {enc.assessment && (
-                                <div style={{ marginBottom: 8 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                                    <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', color: '#d97706', letterSpacing: '0.4px' }}>Assessment</span>
-                                    <button type="button" onClick={() => importField(setD, 'assessment', enc.assessment)}
-                                      style={{ fontSize: 10, fontWeight: 700, color: '#d97706', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, padding: '1px 6px', cursor: 'pointer' }}>
-                                      ↗ Import
-                                    </button>
-                                  </div>
-                                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4, maxHeight: 60, overflow: 'hidden' }}>{enc.assessment}</div>
-                                </div>
-                              )}
+                                {/* Per-section checkboxes */}
+                                {sections.map(s => (
+                                  <label key={s.key} style={{
+                                    display: 'flex', alignItems: 'flex-start', gap: 7, marginBottom: 5,
+                                    padding: '5px 7px', borderRadius: 6, cursor: 'pointer',
+                                    background: encSel[s.key] ? s.bg : 'transparent',
+                                    border: `1px solid ${encSel[s.key] ? s.color + '40' : 'var(--border)'}`,
+                                    transition: 'all 0.12s',
+                                  }}>
+                                    <input type="checkbox" checked={!!encSel[s.key]} onChange={() => toggle(s.key)}
+                                      style={{ accentColor: s.color, width: 13, height: 13, flexShrink: 0, marginTop: 2 }} />
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ fontSize: 10, fontWeight: 700, color: s.color, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{s.label}</div>
+                                      {s.preview && (
+                                        <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.4, overflow: 'hidden', maxHeight: 32, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                          {s.preview}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </label>
+                                ))}
 
-                              {/* Plan */}
-                              {enc.plan && (
-                                <div style={{ marginBottom: 8 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                                    <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', color: '#16a34a', letterSpacing: '0.4px' }}>Plan</span>
-                                    <button type="button" onClick={() => importField(setD, 'plan', enc.plan)}
-                                      style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 4, padding: '1px 6px', cursor: 'pointer' }}>
-                                      ↗ Import
-                                    </button>
-                                  </div>
-                                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4, maxHeight: 60, overflow: 'hidden', whiteSpace: 'pre-wrap' }}>{enc.plan}</div>
-                                </div>
-                              )}
-
-                              {/* Diagnoses */}
-                              {(enc.diagnoses || []).length > 0 && (
-                                <div style={{ marginBottom: 8 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                                    <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', color: '#0891b2', letterSpacing: '0.4px' }}>Diagnoses ({enc.diagnoses.length})</span>
-                                    <button type="button" onClick={() => importDiagnoses(setD, enc.diagnoses)}
-                                      style={{ fontSize: 10, fontWeight: 700, color: '#0891b2', background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: 4, padding: '1px 6px', cursor: 'pointer' }}>
-                                      ↗ Import
-                                    </button>
-                                  </div>
-                                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                    {enc.diagnoses.map(d => (
-                                      <span key={d.code} style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: '#ecfeff', color: '#0891b2', fontFamily: 'var(--font-mono)', fontWeight: 600, border: '1px solid #a5f3fc' }}>
-                                        {d.code}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* CPT Codes */}
-                              {(enc.cptCodes || []).length > 0 && (
-                                <div style={{ marginBottom: 4 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                                    <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', color: '#1a7f4b', letterSpacing: '0.4px' }}>CPT ({enc.cptCodes.length})</span>
-                                    <button type="button" onClick={() => importCptCodes(setD, enc.cptCodes)}
-                                      style={{ fontSize: 10, fontWeight: 700, color: '#1a7f4b', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 4, padding: '1px 6px', cursor: 'pointer' }}>
-                                      ↗ Import
-                                    </button>
-                                  </div>
-                                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                    {enc.cptCodes.map(c => (
-                                      <span key={c.code} style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: '#f0fdf4', color: '#1a7f4b', fontFamily: 'var(--font-mono)', fontWeight: 600, border: '1px solid #bbf7d0' }}>
-                                        {c.code}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                                {/* Copy action */}
+                                <button type="button" disabled={noneSelected} onClick={doCopy}
+                                  style={{
+                                    width: '100%', marginTop: 8, padding: '7px 10px', borderRadius: 6,
+                                    fontSize: 11.5, fontWeight: 700,
+                                    cursor: noneSelected ? 'not-allowed' : 'pointer',
+                                    background: noneSelected ? '#e2e8f0' : 'var(--primary)',
+                                    color: noneSelected ? 'var(--text-muted)' : '#fff',
+                                    border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                    transition: 'background 0.15s',
+                                  }}>
+                                  → Copy {selectedCount > 0 ? `${selectedCount} Section${selectedCount !== 1 ? 's' : ''}` : 'Selected'} into Encounter
+                                </button>
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })
@@ -4568,6 +4554,20 @@ export default function Encounters({ patientId }) {
               {Object.keys(STATUS_BADGE).map((s) => <option key={s}>{s}</option>)}
             </select>
           </div>
+        </div>
+
+        {/* ─ Section quick-nav pills ─ */}
+        <div style={{ display: 'flex', gap: 4, padding: '7px 18px', background: '#eef1f6', borderBottom: '1px solid var(--border)', overflowX: 'auto', flexShrink: 0 }}>
+          {SECTIONS.map(s => (
+            <span key={s.id} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '3px 11px', borderRadius: 16, fontSize: 11, fontWeight: 600,
+              background: '#fff', border: '1px solid var(--border)',
+              color: 'var(--text-secondary)', whiteSpace: 'nowrap', cursor: 'default',
+            }}>
+              {s.icon} {s.label}
+            </span>
+          ))}
         </div>
 
         {/* ─ All sections on one page ─ */}
@@ -5060,13 +5060,34 @@ export default function Encounters({ patientId }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>📋 Encounter Notes</h2>
-          <p className="text-muted text-sm" style={{ marginTop: 2 }}>
-            {patientEncounters.length} encounter{patientEncounters.length !== 1 ? 's' : ''} on record
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 2 }}>
+            <p className="text-muted text-sm" style={{ margin: 0 }}>
+              {patientEncounters.length} encounter{patientEncounters.length !== 1 ? 's' : ''} on record
+            </p>
+            {patientEncounters.length > 0 && (
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', background: '#f1f5f9', borderRadius: 12, padding: '2px 10px', fontWeight: 600, border: '1px solid var(--border)' }}>
+                Last seen: {patientEncounters[0].date}
+              </span>
+            )}
+          </div>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={startNew} disabled={creating}>
-          + New Encounter
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {patientEncounters.length > 0 && (
+            <button className="btn btn-secondary btn-sm" onClick={() => {
+              const enc = patientEncounters[0];
+              const w = window.open('', '_blank', 'width=700,height=900,scrollbars=yes');
+              if (!w) return;
+              w.document.write(`<!DOCTYPE html><html><head><title>Encounter Summary</title><style>body{font-family:Georgia,serif;padding:32px;line-height:1.8;font-size:13px;color:#1a1a2e}h1{font-size:18px;border-bottom:2px solid #4f46e5;padding-bottom:8px}h2{font-size:13px;text-transform:uppercase;letter-spacing:0.5px;color:#4f46e5;margin-top:20px;margin-bottom:4px}p{margin:4px 0;white-space:pre-wrap}@media print{body{padding:16px}}</style></head><body><h1>Encounter Summary</h1><p><strong>Patient:</strong> ${patient.firstName || ''} ${patient.lastName || ''}</p><p><strong>Date:</strong> ${enc.date} ${enc.time || ''}</p><p><strong>Provider:</strong> ${enc.providerName || ''}</p><p><strong>Type:</strong> ${enc.type || ''}</p><h2>Chief Complaint</h2><p>${enc.chiefComplaint || '\u2014'}</p><h2>Subjective</h2><p>${enc.subjective || '\u2014'}</p><h2>Assessment</h2><p>${enc.assessment || '\u2014'}</p><h2>Plan</h2><p>${enc.plan || '\u2014'}</p>${(enc.diagnoses||[]).length > 0 ? '<h2>Diagnoses</h2><p>' + enc.diagnoses.map(d => d.code + ' — ' + (d.description||'')).join('<br>') + '</p>' : ''}</body></html>`);
+              w.document.close();
+              setTimeout(() => w.print(), 400);
+            }}>
+              🖨 Print Summary
+            </button>
+          )}
+          <button className="btn btn-primary btn-sm" onClick={startNew} disabled={creating}>
+            + New Encounter
+          </button>
+        </div>
       </div>
 
       {saved && (
@@ -5087,11 +5108,112 @@ export default function Encounters({ patientId }) {
         </div>
       )}
 
-      {/* Two-panel: clinical sidebar on left + detail on right */}
+      {/* Three-panel: filter | clinical sidebar | detail */}
       {!creating && (
-        <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 0, minHeight: 'calc(100vh - 180px)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: filterOpen ? '190px 270px 1fr' : '44px 270px 1fr', gap: 0, minHeight: 'calc(100vh - 180px)', transition: 'grid-template-columns 0.2s ease' }}>
 
-          {/* Clinical Sidebar — LEFT — full height, sticky */}
+          {/* ── Filter Panel — FAR LEFT (collapsible) ── */}
+          {(() => {
+            const ordersList = orders[patientId] || [];
+            const getFilterCount = (key) => {
+              switch (key) {
+                case 'encounters':  return patientEncounters.length;
+                case 'medications': return (meds[patientId] || []).length;
+                case 'vitals':      return (vitalSigns[patientId] || []).length;
+                case 'orders':      return ordersList.filter(o => !o.type?.toLowerCase().includes('lab') && !o.type?.toLowerCase().includes('imaging')).length;
+                case 'labs':        return ordersList.filter(o => o.type?.toLowerCase().includes('lab')).length;
+                case 'imaging':     return ordersList.filter(o => o.type?.toLowerCase().includes('imaging') || o.type?.toLowerCase().includes('x-ray') || o.type?.toLowerCase().includes('mri')).length;
+                case 'diagnoses': {
+                  const dxSeen = new Set();
+                  patientEncounters.forEach(enc => (enc.diagnoses || []).forEach(d => dxSeen.add(d.code)));
+                  return dxSeen.size;
+                }
+                default: return 0;
+              }
+            };
+            return (
+              <div style={{
+                background: '#f8fafc', borderRight: '1.5px solid var(--border)',
+                display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                position: 'sticky', top: 0, alignSelf: 'start',
+                height: 'calc(100vh - 120px)',
+              }}>
+                {/* Header with toggle */}
+                <div style={{
+                  padding: filterOpen ? '10px 10px 8px' : '10px 6px',
+                  background: '#eef1f6', borderBottom: '1px solid var(--border)',
+                  display: 'flex', alignItems: 'center',
+                  justifyContent: filterOpen ? 'space-between' : 'center',
+                  flexShrink: 0,
+                }}>
+                  {filterOpen && (
+                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>
+                      Filter Records
+                    </span>
+                  )}
+                  <button type="button" onClick={() => setFilterOpen(v => !v)}
+                    style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 6, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0 }}>
+                    {filterOpen ? '◀' : '▶'}
+                  </button>
+                </div>
+
+                {/* Filter list */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: filterOpen ? '8px' : '4px 0' }}>
+                  {filterOpen && (
+                    <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+                      <button type="button"
+                        onClick={() => setActiveFilters(Object.fromEntries(FILTER_TYPES.map(f => [f.key, true])))}
+                        style={{ flex: 1, fontSize: 9.5, fontWeight: 700, padding: '3px 0', borderRadius: 4, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                        Select All
+                      </button>
+                      <button type="button"
+                        onClick={() => setActiveFilters(Object.fromEntries(FILTER_TYPES.map(f => [f.key, false])))}
+                        style={{ flex: 1, fontSize: 9.5, fontWeight: 700, padding: '3px 0', borderRadius: 4, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                  {FILTER_TYPES.map(f => {
+                    const count = getFilterCount(f.key);
+                    const isActive = activeFilters[f.key];
+                    if (!filterOpen) {
+                      return (
+                        <div key={f.key} title={`${f.label}${count > 0 ? ` (${count})` : ''}`}
+                          onClick={() => setActiveFilters(prev => ({ ...prev, [f.key]: !prev[f.key] }))}
+                          style={{ display: 'flex', justifyContent: 'center', padding: '7px 0', cursor: 'pointer', opacity: isActive ? 1 : 0.3, fontSize: 16, transition: 'opacity 0.15s' }}>
+                          {f.icon}
+                        </div>
+                      );
+                    }
+                    return (
+                      <label key={f.key} style={{
+                        display: 'flex', alignItems: 'center', gap: 7,
+                        padding: '6px 8px', borderRadius: 7, marginBottom: 2, cursor: 'pointer',
+                        background: isActive ? f.bg : 'transparent',
+                        border: `1px solid ${isActive ? f.color + '30' : 'transparent'}`,
+                        transition: 'all 0.12s',
+                      }}>
+                        <input type="checkbox" checked={isActive}
+                          onChange={e => setActiveFilters(prev => ({ ...prev, [f.key]: e.target.checked }))}
+                          style={{ accentColor: f.color, width: 13, height: 13, flexShrink: 0 }} />
+                        <span style={{ fontSize: 13, flexShrink: 0 }}>{f.icon}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: isActive ? f.color : 'var(--text-muted)', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {f.label}
+                        </span>
+                        {count > 0 && (
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 8, flexShrink: 0, background: isActive ? f.color : '#e2e8f0', color: isActive ? '#fff' : 'var(--text-muted)' }}>
+                            {count}
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Clinical Sidebar — MIDDLE — full height, sticky */}
           <div style={{
             background: '#fafbfd', borderRight: '1.5px solid var(--border)',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -5104,6 +5226,7 @@ export default function Encounters({ patientId }) {
               background: '#eef1f6', borderBottom: '1px solid var(--border)',
             }}>
               {[
+                { id: 'snapshot', icon: '⚡', label: 'Snapshot' },
                 { id: 'history', icon: '📋', label: 'History' },
                 { id: 'demographics', icon: '👤', label: 'Demo' },
                 { id: 'allergies', icon: '⚠️', label: 'Allergies' },
@@ -5132,57 +5255,466 @@ export default function Encounters({ patientId }) {
             {/* Sidebar scrollable content */}
             <div style={{ flex: 1, overflowY: 'auto', padding: 0 }}>
 
-              {/* ── History (encounter list) ── */}
-              {sidebarSection === 'history' && (
-                <div>
-                  <div style={{ padding: '8px 10px 4px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>
-                    Encounter History ({patientEncounters.length})
-                  </div>
-                  {patientEncounters.length === 0 ? (
-                    <div className="empty-state" style={{ padding: 24 }}>
-                      <span className="icon">📋</span>
-                      <p style={{ fontSize: 12 }}>No encounters yet</p>
-                      <button className="btn btn-sm btn-primary" style={{ marginTop: 8 }} onClick={startNew}>+ New</button>
+              {/* ── Clinical Snapshot ── */}
+              {sidebarSection === 'snapshot' && (
+                <div style={{ padding: '10px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 8 }}>⚡ Clinical Snapshot</div>
+
+                  {/* Active Problems */}
+                  <div style={{ marginBottom: 10, background: '#fff', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                    <div style={{ padding: '6px 10px', background: '#fef3c7', borderBottom: '1px solid #fde68a', fontSize: 10, fontWeight: 800, color: '#92400e', textTransform: 'uppercase' }}>🔖 Active Problems ({(problemList[patientId] || []).filter(p => p.status === 'Active').length})</div>
+                    <div style={{ padding: '6px 10px' }}>
+                      {(problemList[patientId] || []).filter(p => p.status === 'Active').slice(0, 5).map((p, i) => (
+                        <div key={i} style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '2px 0', borderBottom: '1px solid #f8f9fa' }}>{p.description || p.name || p.code || '—'}</div>
+                      ))}
+                      {(problemList[patientId] || []).filter(p => p.status === 'Active').length === 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>None on record</div>}
                     </div>
-                  ) : (
-                    patientEncounters.map((enc) => (
-                      <div key={enc.id}
-                        onClick={() => { setSelectedId(enc.id); setEditing(false); setEditDraft(null); }}
-                        style={{
-                          padding: '10px 12px', borderBottom: '1px solid var(--border-light)',
-                          cursor: 'pointer',
-                          background: selectedId === enc.id ? 'var(--primary-light)' : '#fff',
-                          borderLeft: `3px solid ${selectedId === enc.id ? 'var(--primary)' : 'transparent'}`,
-                          transition: 'background 0.1s',
-                        }}>
-                        <div style={{ fontWeight: 700, fontSize: 12, color: selectedId === enc.id ? 'var(--primary)' : 'var(--text-primary)' }}>
-                          {enc.date}
+                  </div>
+
+                  {/* Current Medications */}
+                  <div style={{ marginBottom: 10, background: '#fff', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                    <div style={{ padding: '6px 10px', background: '#dcfce7', borderBottom: '1px solid #86efac', fontSize: 10, fontWeight: 800, color: '#166534', textTransform: 'uppercase' }}>💊 Current Meds ({(meds[patientId] || []).filter(m => m.status === 'Active').length})</div>
+                    <div style={{ padding: '6px 10px' }}>
+                      {(meds[patientId] || []).filter(m => m.status === 'Active').slice(0, 5).map((m, i) => (
+                        <div key={i} style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '2px 0', borderBottom: '1px solid #f8f9fa' }}>{m.name}{m.dose ? ` ${m.dose}` : ''}{m.frequency ? ` — ${m.frequency}` : ''}</div>
+                      ))}
+                      {(meds[patientId] || []).filter(m => m.status === 'Active').length === 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>None on record</div>}
+                    </div>
+                  </div>
+
+                  {/* Allergies */}
+                  <div style={{ marginBottom: 10, background: '#fff', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                    <div style={{ padding: '6px 10px', background: '#fee2e2', borderBottom: '1px solid #fca5a5', fontSize: 10, fontWeight: 800, color: '#991b1b', textTransform: 'uppercase' }}>⚠️ Allergies ({(allergies[patientId] || []).length})</div>
+                    <div style={{ padding: '6px 10px' }}>
+                      {(allergies[patientId] || []).slice(0, 4).map((a, i) => (
+                        <div key={i} style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '2px 0', borderBottom: '1px solid #f8f9fa' }}>{a.substance || a.allergen || '—'}{a.reaction ? ` → ${a.reaction}` : ''}</div>
+                      ))}
+                      {(allergies[patientId] || []).length === 0 && <div style={{ fontSize: 11, color: '#166534', fontWeight: 700 }}>NKDA — No Known Drug Allergies</div>}
+                    </div>
+                  </div>
+
+                  {/* Last Vitals */}
+                  {(vitalSigns[patientId] || []).length > 0 && (() => {
+                    const v = (vitalSigns[patientId] || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+                    return (
+                      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                        <div style={{ padding: '6px 10px', background: '#eff6ff', borderBottom: '1px solid #bfdbfe', fontSize: 10, fontWeight: 800, color: '#1e40af', textTransform: 'uppercase' }}>💓 Last Vitals — {v.date}</div>
+                        <div style={{ padding: '6px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px' }}>
+                          {v.bp && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}><strong>BP:</strong> {v.bp}</div>}
+                          {v.hr && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}><strong>HR:</strong> {v.hr}</div>}
+                          {v.temp && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}><strong>Temp:</strong> {v.temp}</div>}
+                          {v.weight && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}><strong>Wt:</strong> {v.weight}</div>}
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>{enc.type}</div>
-                        <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {enc.chiefComplaint}
-                        </div>
-                        <div style={{ marginTop: 5, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                          <span className={`badge ${STATUS_BADGE[enc.status] || 'badge-info'}`} style={{ fontSize: 9 }}>
-                            {enc.status}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* ── History / Chronological Timeline ── */}
+              {sidebarSection === 'history' && (() => {
+                const ordersList = orders[patientId] || [];
+
+                // ── Build unified timeline items ──
+                const tlItems = [];
+                if (activeFilters.encounters) {
+                  patientEncounters.forEach(enc =>
+                    tlItems.push({ type: 'encounter', date: enc.date, id: enc.id, data: enc }));
+                }
+                if (activeFilters.medications) {
+                  (meds[patientId] || []).forEach(m =>
+                    tlItems.push({ type: 'medication', date: m.startDate || m.date || '', id: m.id || `med-${m.name}`, data: m }));
+                }
+                if (activeFilters.vitals) {
+                  (vitalSigns[patientId] || []).forEach(v =>
+                    tlItems.push({ type: 'vital', date: v.date, id: `vital-${v.date}`, data: v }));
+                }
+                if (activeFilters.orders) {
+                  ordersList.filter(o => !o.type?.toLowerCase().includes('lab') && !o.type?.toLowerCase().includes('imaging')).forEach(o =>
+                    tlItems.push({ type: 'order', date: o.orderedDate || o.date || '', id: o.id || `ord-${o.description}`, data: o }));
+                }
+                if (activeFilters.labs) {
+                  ordersList.filter(o => o.type?.toLowerCase().includes('lab')).forEach(o =>
+                    tlItems.push({ type: 'lab', date: o.orderedDate || o.date || '', id: o.id || `lab-${o.description}`, data: o }));
+                }
+                if (activeFilters.imaging) {
+                  ordersList.filter(o => o.type?.toLowerCase().includes('imaging') || o.type?.toLowerCase().includes('x-ray') || o.type?.toLowerCase().includes('mri')).forEach(o =>
+                    tlItems.push({ type: 'imaging', date: o.orderedDate || o.date || '', id: o.id || `img-${o.description}`, data: o }));
+                }
+                if (activeFilters.diagnoses) {
+                  const dxSeen = new Set();
+                  patientEncounters.forEach(enc => {
+                    (enc.diagnoses || []).forEach(d => {
+                      if (!dxSeen.has(d.code)) {
+                        dxSeen.add(d.code);
+                        tlItems.push({ type: 'diagnosis', date: enc.date, id: `dx-${d.code}`, data: { ...d, fromDate: enc.date } });
+                      }
+                    });
+                  });
+                }
+                const sorted = tlItems.filter(i => i.date).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                // ── Group by year ──
+                const groupedByYear = {};
+                sorted.forEach(item => {
+                  const y = item.date ? new Date(item.date).getFullYear() : 'Unknown';
+                  if (!groupedByYear[y]) groupedByYear[y] = [];
+                  groupedByYear[y].push(item);
+                });
+                const years = Object.keys(groupedByYear).sort((a, b) => Number(b) - Number(a));
+
+                const TYPE_META = {
+                  encounter:  { color: '#4f46e5', bg: '#ede9fe', icon: '📋' },
+                  medication: { color: '#16a34a', bg: '#dcfce7', icon: '💊' },
+                  vital:      { color: '#dc2626', bg: '#fee2e2', icon: '💓' },
+                  order:      { color: '#d97706', bg: '#fef3c7', icon: '📝' },
+                  lab:        { color: '#7c3aed', bg: '#fdf4ff', icon: '🧪' },
+                  imaging:    { color: '#0891b2', bg: '#ecfeff', icon: '🩻' },
+                  diagnosis:  { color: '#1d4ed8', bg: '#eff6ff', icon: '🔖' },
+                };
+
+                // ── Smart features data ──
+                const phq9Scores = (assessmentScores[patientId] || [])
+                  .filter(a => a.tool === 'PHQ-9')
+                  .sort((a, b) => new Date(a.date) - new Date(b.date));
+                const sixMoAgo = new Date(); sixMoAgo.setMonth(sixMoAgo.getMonth() - 6);
+                const recentEncounters = patientEncounters.filter(e => new Date(e.date) >= sixMoAgo);
+                const vitalsList = (vitalSigns[patientId] || []).sort((a, b) => new Date(a.date) - new Date(b.date));
+                const weights = vitalsList.filter(v => v.weight).map(v => parseFloat(v.weight));
+                const weightTrend = weights.length >= 2
+                  ? (weights[weights.length - 1] > weights[0] + 2 ? 'up' : weights[weights.length - 1] < weights[0] - 2 ? 'down' : 'stable')
+                  : null;
+                const phq9Trend = phq9Scores.length >= 2
+                  ? (phq9Scores[phq9Scores.length - 1].score < phq9Scores[0].score ? 'improving'
+                    : phq9Scores[phq9Scores.length - 1].score > phq9Scores[0].score ? 'worsening' : 'stable')
+                  : null;
+                const activeMedCount = (meds[patientId] || []).filter(m => m.status === 'Active').length;
+                const activeProbCount = (problemList[patientId] || []).filter(p => p.status === 'Active').length;
+                const storyParts = [];
+                if (recentEncounters.length > 0) storyParts.push(`${recentEncounters.length} visit${recentEncounters.length > 1 ? 's' : ''} in the last 6 months.`);
+                if (phq9Scores.length >= 2) {
+                  const first = phq9Scores[0].score, last = phq9Scores[phq9Scores.length - 1].score;
+                  storyParts.push(`PHQ-9 ${last < first ? 'improved' : last > first ? 'worsened' : 'stable'} from ${first} → ${last}.`);
+                }
+                if (activeMedCount > 0) storyParts.push(`${activeMedCount} active med${activeMedCount > 1 ? 's' : ''}.`);
+                if (activeProbCount > 0) storyParts.push(`${activeProbCount} active Dx.`);
+
+                // ── Jump To helpers ──
+                const jumpTo = (id) => {
+                  const el = document.getElementById(`tl-${id}`);
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                };
+                const lastEncounterItem = sorted.find(i => i.type === 'encounter');
+                const firstDxItem = [...sorted].reverse().find(i => i.type === 'diagnosis');
+                const lastMedItem = sorted.find(i => i.type === 'medication');
+                const lastLabItem = sorted.find(i => i.type === 'lab');
+
+                return (
+                  <div>
+                    {/* ── Clinical Story Summary ── */}
+                    {storyParts.length > 0 && (
+                      <div style={{ margin: '6px 8px 2px', borderRadius: 8, border: '1px solid #c7d2fe', background: 'linear-gradient(135deg, #ede9fe 0%, #eff6ff 100%)', padding: '8px 10px' }}>
+                        <div style={{ fontSize: 9.5, fontWeight: 800, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>⚡ Clinical Story</div>
+                        <div style={{ fontSize: 10.5, color: '#1e1b4b', lineHeight: 1.65 }}>{storyParts.join(' ')}</div>
+                      </div>
+                    )}
+
+                    {/* ── Trend Highlights ── */}
+                    {(weightTrend || phq9Trend) && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: '5px 8px 2px' }}>
+                        {weightTrend && (
+                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 10, background: weightTrend === 'up' ? '#fef3c7' : weightTrend === 'down' ? '#dcfce7' : '#f1f5f9', color: weightTrend === 'up' ? '#d97706' : weightTrend === 'down' ? '#16a34a' : '#64748b', border: '1px solid', borderColor: weightTrend === 'up' ? '#fbbf24' : weightTrend === 'down' ? '#86efac' : '#cbd5e1' }}>
+                            {weightTrend === 'up' ? '↑' : weightTrend === 'down' ? '↓' : '→'} Wt {weightTrend}
                           </span>
-                          {(enc.diagnoses || []).length > 0 && (
-                            <span className="badge badge-gray" style={{ fontSize: 9 }}>{enc.diagnoses.length} dx</span>
+                        )}
+                        {phq9Trend && (
+                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 10, background: phq9Trend === 'improving' ? '#dcfce7' : phq9Trend === 'worsening' ? '#fee2e2' : '#f1f5f9', color: phq9Trend === 'improving' ? '#16a34a' : phq9Trend === 'worsening' ? '#dc2626' : '#64748b', border: '1px solid', borderColor: phq9Trend === 'improving' ? '#86efac' : phq9Trend === 'worsening' ? '#fca5a5' : '#cbd5e1' }}>
+                            {phq9Trend === 'improving' ? '↑' : phq9Trend === 'worsening' ? '↓' : '→'} PHQ-9 {phq9Trend}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── Jump To Navigation ── */}
+                    {(lastEncounterItem || firstDxItem || lastMedItem || lastLabItem) && (
+                      <div style={{ padding: '4px 8px 6px', borderBottom: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>Jump To</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                          {lastEncounterItem && (
+                            <button type="button" onClick={() => jumpTo(lastEncounterItem.id)}
+                              style={{ fontSize: 9.5, fontWeight: 600, padding: '2px 7px', borderRadius: 8, border: '1px solid #c7d2fe', background: '#ede9fe', color: '#4f46e5', cursor: 'pointer' }}>
+                              📋 Last Visit
+                            </button>
                           )}
-                          {(enc.cptCodes || []).length > 0 && (
-                            <span className="badge badge-success" style={{ fontSize: 9 }}>{enc.cptCodes.length} CPT</span>
+                          {firstDxItem && (
+                            <button type="button" onClick={() => jumpTo(firstDxItem.id)}
+                              style={{ fontSize: 9.5, fontWeight: 600, padding: '2px 7px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer' }}>
+                              🔖 1st Dx
+                            </button>
                           )}
-                          {enc.followUp?.needed && enc.followUp.date && (
-                            <span className="badge" style={{ fontSize: 9, background: 'rgba(10,138,126,0.12)', color: '#0a8a7e', border: '1px solid rgba(10,138,126,0.3)' }}>
-                              F/U {enc.followUp.date}
-                            </span>
+                          {lastMedItem && (
+                            <button type="button" onClick={() => jumpTo(lastMedItem.id)}
+                              style={{ fontSize: 9.5, fontWeight: 600, padding: '2px 7px', borderRadius: 8, border: '1px solid #86efac', background: '#dcfce7', color: '#16a34a', cursor: 'pointer' }}>
+                              💊 Last Rx
+                            </button>
+                          )}
+                          {lastLabItem && (
+                            <button type="button" onClick={() => jumpTo(lastLabItem.id)}
+                              style={{ fontSize: 9.5, fontWeight: 600, padding: '2px 7px', borderRadius: 8, border: '1px solid #d8b4fe', background: '#fdf4ff', color: '#7c3aed', cursor: 'pointer' }}>
+                              🧪 Last Lab
+                            </button>
                           )}
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
-              )}
+                    )}
+
+                    {/* ── Timeline count header ── */}
+                    <div style={{ padding: '6px 10px 3px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>Timeline ({sorted.length})</span>
+                      {sorted.length > 0 && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic' }}>newest first</span>}
+                    </div>
+
+                    {/* ── Empty state ── */}
+                    {sorted.length === 0 && (
+                      <div className="empty-state" style={{ padding: 32 }}>
+                        <span className="icon">📋</span>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>No clinical history yet.</p>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Start by creating a new encounter.</p>
+                        <button className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={startNew}>+ New Encounter</button>
+                      </div>
+                    )}
+
+                    {/* ── Year-grouped timeline ── */}
+                    {years.map(year => (
+                      <div key={year}>
+                        {/* Sticky year divider */}
+                        <div style={{
+                          position: 'sticky', top: 0, zIndex: 10,
+                          background: 'linear-gradient(90deg, #4338ca 0%, #6d28d9 100%)',
+                          padding: '4px 12px', fontSize: 11, fontWeight: 800, color: '#fff',
+                          letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: 6,
+                        }}>
+                          <span>📅</span>{year}
+                          <span style={{ marginLeft: 'auto', fontSize: 9.5, fontWeight: 600, opacity: 0.8 }}>
+                            {groupedByYear[year].length} record{groupedByYear[year].length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+
+                        {/* Event cards for this year */}
+                        <div style={{ padding: '5px 8px' }}>
+                          {groupedByYear[year].map(item => {
+                            const meta = TYPE_META[item.type] || { color: '#64748b', bg: '#f1f5f9', icon: '📄' };
+                            const isExpanded = expandedTimelineItem === item.id;
+                            const isSelected = item.type === 'encounter'
+                              ? selectedId === item.id
+                              : selectedRecord?.id === item.id;
+
+                            return (
+                              <div key={`${item.type}-${item.id}`} id={`tl-${item.id}`}
+                                style={{
+                                  marginBottom: 7, borderRadius: 9,
+                                  border: `1.5px solid ${isSelected ? meta.color : 'var(--border)'}`,
+                                  background: isSelected ? meta.bg : '#fff',
+                                  overflow: 'hidden',
+                                  boxShadow: isSelected ? `0 2px 8px ${meta.color}25` : '0 1px 3px rgba(0,0,0,0.05)',
+                                  transition: 'border-color 0.15s, background 0.15s',
+                                }}>
+
+                                {/* ── Card header (clickable to select) ── */}
+                                <div style={{ padding: '8px 10px', cursor: 'pointer' }}
+                                  onClick={() => {
+                                    if (item.type === 'encounter') {
+                                      setSelectedId(item.id); setSelectedRecord(null); setEditing(false); setEditDraft(null);
+                                    } else {
+                                      setSelectedRecord({ ...item }); setSelectedId(null); setEditing(false);
+                                    }
+                                  }}>
+                                  {/* Type badge + date */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                                    <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: meta.bg, color: meta.color, border: `1px solid ${meta.color}30`, flexShrink: 0 }}>
+                                      {meta.icon} {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
+                                    </span>
+                                    <span style={{ fontSize: 9.5, color: 'var(--text-muted)', marginLeft: 'auto', flexShrink: 0 }}>
+                                      {item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                                    </span>
+                                  </div>
+
+                                  {/* Title */}
+                                  <div style={{ fontWeight: 700, fontSize: 11.5, color: isSelected ? meta.color : 'var(--text-primary)', marginBottom: 2, whiteSpace: item.type === 'diagnosis' ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: item.type === 'diagnosis' ? 'var(--font-mono)' : 'inherit' }}>
+                                    {item.type === 'encounter' && (item.data.type || 'Visit')}
+                                    {item.type === 'medication' && `${item.data.status === 'Discontinued' ? 'Stopped' : item.data.status === 'Changed' ? 'Changed' : 'Started'} ${item.data.name}${item.data.dose ? ` ${item.data.dose}` : ''}`}
+                                    {item.type === 'vital' && 'Vital Signs Recorded'}
+                                    {(item.type === 'order' || item.type === 'lab' || item.type === 'imaging') && item.data.description}
+                                    {item.type === 'diagnosis' && item.data.code}
+                                  </div>
+
+                                  {/* Summary snippet */}
+                                  <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {item.type === 'encounter' && item.data.chiefComplaint}
+                                    {item.type === 'medication' && [item.data.frequency, item.data.route].filter(Boolean).join(' · ')}
+                                    {item.type === 'medication' && item.data.prescriber && <span> · Rx: {item.data.prescriber}</span>}
+                                    {item.type === 'vital' && [item.data.bp && `BP ${item.data.bp}`, item.data.hr && `HR ${item.data.hr}`, item.data.temp && `T ${item.data.temp}°F`].filter(Boolean).join(' · ')}
+                                    {(item.type === 'order' || item.type === 'lab' || item.type === 'imaging') && `${item.data.type || ''}${item.data.status ? ` · ${item.data.status}` : ''}`}
+                                    {item.type === 'diagnosis' && (item.data.description || item.data.label)}
+                                  </div>
+
+                                  {/* Encounter tags */}
+                                  {item.type === 'encounter' && (
+                                    <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                                      <span className={`badge ${STATUS_BADGE[item.data.status] || 'badge-info'}`} style={{ fontSize: 8.5 }}>{item.data.status}</span>
+                                      {(item.data.cptCodes || []).slice(0, 2).map(c => (
+                                        <span key={c} className="badge badge-success" style={{ fontSize: 8.5 }}>{c}</span>
+                                      ))}
+                                      {(item.data.diagnoses || []).length > 0 && (
+                                        <span className="badge badge-gray" style={{ fontSize: 8.5 }}>{item.data.diagnoses.length} dx</span>
+                                      )}
+                                      {item.data.followUp?.needed && item.data.followUp.date && (
+                                        <span className="badge" style={{ fontSize: 8.5, background: 'rgba(10,138,126,0.12)', color: '#0a8a7e', border: '1px solid rgba(10,138,126,0.3)' }}>
+                                          F/U {item.data.followUp.date}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* ── Quick actions row ── */}
+                                <div style={{ padding: '4px 10px 6px', display: 'flex', alignItems: 'center', gap: 4, borderTop: `1px solid ${meta.color}18` }}>
+                                  <button type="button"
+                                    onClick={() => setExpandedTimelineItem(isExpanded ? null : item.id)}
+                                    style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 8px', borderRadius: 5, border: `1px solid ${meta.color}40`, background: isExpanded ? meta.bg : '#fff', color: meta.color, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                    {isExpanded ? '▲ Less' : '▼ Expand'}
+                                  </button>
+                                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 3 }}>
+                                    {item.type === 'encounter' ? (
+                                      <>
+                                        <button type="button"
+                                          onClick={() => { setSelectedId(item.id); setSelectedRecord(null); setEditing(false); setEditDraft(null); }}
+                                          style={{ fontSize: 9.5, fontWeight: 600, padding: '2px 6px', borderRadius: 5, border: '1px solid var(--border)', background: '#fff', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                                          View
+                                        </button>
+                                        <button type="button"
+                                          onClick={() => { setSelectedId(item.id); setSelectedRecord(null); setEditing(true); setEditDraft({ ...item.data }); }}
+                                          style={{ fontSize: 9.5, fontWeight: 600, padding: '2px 6px', borderRadius: 5, border: '1px solid var(--border)', background: '#fff', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                                          Edit
+                                        </button>
+                                        <button type="button"
+                                          onClick={() => {
+                                            const enc = item.data;
+                                            const pat = patients.find(p => p.id === patientId) || {};
+                                            const w = window.open('', '_blank');
+                                            if (!w) return;
+                                            w.document.write(`<html><head><title>Encounter Note</title><style>body{font-family:sans-serif;padding:30px;max-width:700px;margin:auto}h2{color:#1e1b4b}table{width:100%;border-collapse:collapse}td{padding:6px;border-bottom:1px solid #eee;font-size:13px}strong{color:#374151}</style></head><body><h2>Encounter Note</h2><table><tr><td><strong>Patient:</strong></td><td>${pat.firstName || ''} ${pat.lastName || ''}</td><td><strong>Date:</strong></td><td>${enc.date}</td></tr><tr><td><strong>Type:</strong></td><td>${enc.type}</td><td><strong>Provider:</strong></td><td>${enc.provider || ''}</td></tr></table><hr/><h3>Subjective</h3><p>${enc.subjective || enc.chiefComplaint || '—'}</p><h3>Assessment</h3><p>${enc.assessment || '—'}</p><h3>Plan</h3><p>${enc.plan || '—'}</p></body></html>`);
+                                            w.document.close();
+                                            setTimeout(() => w.print(), 400);
+                                          }}
+                                          style={{ fontSize: 9.5, fontWeight: 600, padding: '2px 6px', borderRadius: 5, border: '1px solid var(--border)', background: '#fff', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                                          🖨
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <button type="button"
+                                        onClick={() => { setSelectedRecord({ ...item }); setSelectedId(null); }}
+                                        style={{ fontSize: 9.5, fontWeight: 600, padding: '2px 6px', borderRadius: 5, border: '1px solid var(--border)', background: '#fff', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                                        View
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* ── Expanded detail ── */}
+                                {isExpanded && (
+                                  <div style={{ padding: '10px 10px 12px', borderTop: `1.5px solid ${meta.color}30`, background: `${meta.bg}70` }}>
+                                    {item.type === 'encounter' && (() => {
+                                      const enc = item.data;
+                                      const soap = [
+                                        { label: 'S', title: 'Subjective', value: enc.subjective || enc.chiefComplaint, color: '#4f46e5' },
+                                        { label: 'O', title: 'Objective', value: enc.objective, color: '#0891b2' },
+                                        { label: 'A', title: 'Assessment', value: enc.assessment, color: '#d97706' },
+                                        { label: 'P', title: 'Plan', value: enc.plan, color: '#16a34a' },
+                                      ].filter(s => s.value);
+                                      return (
+                                        <div>
+                                          {soap.length > 0 ? soap.map(s => (
+                                            <div key={s.label} style={{ marginBottom: 8 }}>
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                                                <span style={{ width: 18, height: 18, borderRadius: 4, background: s.color, color: '#fff', fontSize: 10, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.label}</span>
+                                                <span style={{ fontSize: 10, fontWeight: 700, color: s.color }}>{s.title}</span>
+                                              </div>
+                                              <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', paddingLeft: 23, lineHeight: 1.55, maxHeight: 56, overflow: 'hidden' }}>{s.value}</div>
+                                            </div>
+                                          )) : (
+                                            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontStyle: 'italic' }}>Note details in full view.</div>
+                                          )}
+                                          {(enc.diagnoses || []).length > 0 && (
+                                            <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border-light)' }}>
+                                              <div style={{ fontSize: 9.5, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Diagnoses</div>
+                                              {enc.diagnoses.slice(0, 4).map((d, i) => (
+                                                <div key={i} style={{ fontSize: 10, color: 'var(--text-secondary)', padding: '1px 0' }}>
+                                                  {d.code && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, marginRight: 5 }}>{d.code}</span>}
+                                                  {d.description || d.label}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
+
+                                    {item.type === 'medication' && (
+                                      <div>
+                                        {[['Dose', item.data.dose], ['Frequency', item.data.frequency], ['Route', item.data.route], ['Prescriber', item.data.prescriber || item.data.prescribedBy], ['Refills', item.data.refills != null ? String(item.data.refills) : null], ['DEA', item.data.isControlled ? `C-${item.data.schedule}` : null], ['Notes', item.data.notes || item.data.sig]].filter(([, v]) => v).map(([label, val]) => (
+                                          <div key={label} style={{ display: 'flex', gap: 6, fontSize: 10.5, padding: '2px 0', borderBottom: '1px solid var(--border-light)' }}>
+                                            <span style={{ fontWeight: 700, color: 'var(--text-muted)', minWidth: 65, flexShrink: 0 }}>{label}</span>
+                                            <span style={{ color: 'var(--text-primary)' }}>{val}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    {item.type === 'vital' && (
+                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+                                        {[['BP', item.data.bp], ['HR', item.data.hr], ['Temp', item.data.temp ? `${item.data.temp}°F` : null], ['SpO₂', item.data.spo2 ? `${item.data.spo2}%` : null], ['Weight', item.data.weight ? `${item.data.weight} lbs` : null], ['BMI', item.data.bmi], ['RR', item.data.rr], ['Pain', item.data.pain != null ? `${item.data.pain}/10` : null]].filter(([, v]) => v).map(([label, val]) => (
+                                          <div key={label} style={{ fontSize: 10.5, padding: '4px 6px', background: '#fff', borderRadius: 5, border: '1px solid var(--border)' }}>
+                                            <span style={{ fontWeight: 700, color: 'var(--text-muted)', display: 'block', fontSize: 9.5 }}>{label}</span>
+                                            <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{val}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    {(item.type === 'order' || item.type === 'lab' || item.type === 'imaging') && (
+                                      <div>
+                                        {[['Type', item.data.type], ['Status', item.data.status], ['Priority', item.data.priority], ['By', item.data.orderedBy], ['Notes', item.data.notes], ['Result', item.data.result]].filter(([, v]) => v).map(([label, val]) => (
+                                          <div key={label} style={{ display: 'flex', gap: 6, fontSize: 10.5, padding: '2px 0', borderBottom: '1px solid var(--border-light)' }}>
+                                            <span style={{ fontWeight: 700, color: 'var(--text-muted)', minWidth: 55, flexShrink: 0 }}>{label}</span>
+                                            <span style={{ color: 'var(--text-primary)' }}>{val}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    {item.type === 'diagnosis' && (
+                                      <div>
+                                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>{item.data.description || item.data.label}</div>
+                                        {[['First Coded', item.data.fromDate], ['Severity', item.data.severity], ['Notes', item.data.notes]].filter(([, v]) => v).map(([label, val]) => (
+                                          <div key={label} style={{ display: 'flex', gap: 6, fontSize: 10.5, padding: '2px 0' }}>
+                                            <span style={{ fontWeight: 700, color: 'var(--text-muted)', minWidth: 70, flexShrink: 0 }}>{label}</span>
+                                            <span style={{ color: 'var(--text-primary)' }}>{val}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* ── Demographics ── */}
               {sidebarSection === 'demographics' && (
@@ -5437,15 +5969,128 @@ export default function Encounters({ patientId }) {
 
           {/* Detail / Edit panel — RIGHT */}
           <div style={{ minHeight: 0, paddingLeft: 14 }}>
-            {!selected && !editing && (
+            {!selected && !editing && !selectedRecord && (
               <div className="card">
                 <div className="empty-state" style={{ padding: 48 }}>
                   <span className="icon">📋</span>
-                  <h3>Select an Encounter</h3>
-                  <p>Choose from the list or create a new encounter.</p>
+                  <h3>Select a Record</h3>
+                  <p>Choose from the timeline or create a new encounter.</p>
                 </div>
               </div>
             )}
+
+            {/* Non-encounter record detail */}
+            {selectedRecord && !selected && !editing && (() => {
+              const TYPE_META = {
+                encounter:  { color: '#4f46e5', bg: '#ede9fe', icon: '📋' },
+                medication: { color: '#16a34a', bg: '#dcfce7', icon: '💊' },
+                vital:      { color: '#dc2626', bg: '#fee2e2', icon: '💓' },
+                order:      { color: '#d97706', bg: '#fef3c7', icon: '📝' },
+                lab:        { color: '#7c3aed', bg: '#fdf4ff', icon: '🧪' },
+                imaging:    { color: '#0891b2', bg: '#ecfeff', icon: '🩻' },
+                diagnosis:  { color: '#1d4ed8', bg: '#eff6ff', icon: '🔖' },
+              };
+              const meta = TYPE_META[selectedRecord.type] || { color: '#64748b', bg: '#f1f5f9', icon: '📄' };
+              const d = selectedRecord.data;
+              return (
+                <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                  {/* Header */}
+                  <div style={{ padding: '14px 20px', background: meta.bg, borderBottom: `2px solid ${meta.color}30`, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 22 }}>{meta.icon}</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: meta.color, textTransform: 'capitalize' }}>{selectedRecord.type} Detail</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{selectedRecord.date}</div>
+                    </div>
+                    <button type="button" onClick={() => setSelectedRecord(null)}
+                      style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)' }}>×</button>
+                  </div>
+                  {/* Body */}
+                  <div style={{ padding: '18px 20px' }}>
+                    {selectedRecord.type === 'medication' && (
+                      <div style={{ display: 'grid', gap: 10 }}>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>{d.name}</div>
+                        {[
+                          ['Dose', d.dose],
+                          ['Frequency', d.frequency],
+                          ['Route', d.route],
+                          ['Prescriber', d.prescriber || d.prescribedBy],
+                          ['Start Date', d.startDate],
+                          ['End Date', d.endDate],
+                          ['Status', d.status],
+                          ['Refills', d.refills != null ? String(d.refills) : null],
+                          ['DEA Schedule', d.isControlled ? `C-${d.schedule}` : null],
+                          ['Notes', d.notes || d.sig],
+                        ].filter(([, v]) => v).map(([label, val]) => (
+                          <div key={label} style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border-light)', paddingBottom: 6 }}>
+                            <span style={{ fontWeight: 700, color: 'var(--text-muted)', minWidth: 90, fontSize: 11, flexShrink: 0 }}>{label}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text-primary)' }}>{val}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {selectedRecord.type === 'vital' && (
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 12 }}>Recorded: {d.date}{d.takenBy ? ` · By: ${d.takenBy}` : ''}</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          {[
+                            ['Blood Pressure', d.bp, d.bp ? `${parseInt(d.bp) > 130 ? '⚠️ Elevated' : '✓ Normal'}` : null],
+                            ['Heart Rate', d.hr, d.hr ? `${parseInt(d.hr) > 100 ? '⚠️ Tachycardia' : parseInt(d.hr) < 60 ? '⚠️ Bradycardia' : '✓ Normal'}` : null],
+                            ['Temperature', d.temp ? `${d.temp}°F` : null, null],
+                            ['SpO₂', d.spo2 ? `${d.spo2}%` : null, d.spo2 ? `${parseInt(d.spo2) < 95 ? '⚠️ Low' : '✓ Normal'}` : null],
+                            ['Weight', d.weight ? `${d.weight} lbs` : null, null],
+                            ['BMI', d.bmi, null],
+                            ['Respiratory Rate', d.rr, null],
+                            ['Pain Score', d.pain != null ? `${d.pain}/10` : null, null],
+                          ].filter(([, v]) => v).map(([label, val, note]) => (
+                            <div key={label} style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)' }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</div>
+                              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', marginTop: 2 }}>{val}</div>
+                              {note && <div style={{ fontSize: 9.5, color: note.startsWith('⚠️') ? '#d97706' : '#16a34a', marginTop: 2 }}>{note}</div>}
+                            </div>
+                          ))}
+                        </div>
+                        {d.notes && <div style={{ marginTop: 12, padding: '8px 10px', background: '#fffbeb', borderRadius: 7, border: '1px solid #fde68a', fontSize: 11, color: '#92400e' }}><strong>Notes:</strong> {d.notes}</div>}
+                      </div>
+                    )}
+                    {(selectedRecord.type === 'order' || selectedRecord.type === 'lab' || selectedRecord.type === 'imaging') && (
+                      <div style={{ display: 'grid', gap: 10 }}>
+                        <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)' }}>{d.description}</div>
+                        {[
+                          ['Type', d.type],
+                          ['Status', d.status],
+                          ['Priority', d.priority],
+                          ['Ordered Date', d.orderedDate],
+                          ['Ordered By', d.orderedBy],
+                          ['Notes', d.notes],
+                          ['Result', d.result],
+                        ].filter(([, v]) => v).map(([label, val]) => (
+                          <div key={label} style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border-light)', paddingBottom: 6 }}>
+                            <span style={{ fontWeight: 700, color: 'var(--text-muted)', minWidth: 90, fontSize: 11, flexShrink: 0 }}>{label}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text-primary)' }}>{val}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {selectedRecord.type === 'diagnosis' && (
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 900, color: meta.color, marginBottom: 8 }}>{d.code}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>{d.description || d.label}</div>
+                        {[
+                          ['First Coded', d.fromDate],
+                          ['Severity', d.severity],
+                          ['Notes', d.notes],
+                        ].filter(([, v]) => v).map(([label, val]) => (
+                          <div key={label} style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border-light)', paddingBottom: 6, marginBottom: 6 }}>
+                            <span style={{ fontWeight: 700, color: 'var(--text-muted)', minWidth: 90, fontSize: 11, flexShrink: 0 }}>{label}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text-primary)' }}>{val}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {selected && !editing && renderDetail(selected)}
 

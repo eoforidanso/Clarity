@@ -261,6 +261,7 @@ export default function Sidebar() {
           {navItem('/analytics',  '📈', 'Analytics')}
           {navItem('/care-gaps',  '🎯', 'Care Gaps')}
           {navItem('/quality-measures', '📊', 'Quality Measures')}
+          {navItem('/clinical-outcomes', '📉', 'Clinical Outcomes')}
           {navItem('/provider-performance', '🏆', 'Provider Performance')}
           {navItem('/report-builder', '📊', 'Report Builder')}
           {navItem('/population-health', '🌍', 'Population Health')}
@@ -292,6 +293,19 @@ export default function Sidebar() {
           {navItem('/eligibility', '✅', 'Eligibility Check')}
           {navItem('/patient-statements', '📄', 'Patient Statements')}
           {navItem('/batch-claims', '📦', 'Batch Claims')}
+          {navItem('/payer-profiles', '🏥', 'Payer Profiles')}
+          {navItem('/remittance-posting', '💳', 'Remittance Posting')}
+          {navItem('/scrubber-rules', '🔍', 'Scrubber Rules')}
+          {navItem('/era-posting', '💡', 'ERA Auto-Posting')}
+          {navItem('/contract-variance', '📊', 'Contract Variance')}
+          {navItem('/edi-transport', '🔌', 'EDI Transport')}
+          {navItem('/edi-routing', '🔀', 'EDI Routing Engine')}
+          {navItem('/edi-837', '⚙️', '837 Generator')}
+          {navItem('/edi-999', '✅', '999/277CA Parser')}
+          {navItem('/edi-270', '🔍', '270/271 Engine')}
+          {navItem('/edi-835', '💰', '835 ERA Listener')}
+          {navItem('/edi-monitoring', '📡', 'EDI Monitoring')}
+          {navItem('/edi-api', '🌐', 'EDI API Portal')}
           {navItem('/fee-schedules', '💲', 'Fee Schedules')}
           {navItem('/insurance-cards', '🪪', 'Insurance Cards')}
           {navItem('/cost-estimator', '💲', 'Cost Estimator')}
@@ -324,6 +338,7 @@ export default function Sidebar() {
           {navItem('/scheduling-templates', '📅', 'Schedule Templates')}
           {isAdminOrFrontDesk && navItem('/audit-trail', '📜', 'Audit Trail')}
           {isAdminOrFrontDesk && navItem('/btg-audit', '🔓', 'BTG Audit Log')}
+          {isAdminOrFrontDesk && navItem('/role-permissions', '🔐', 'Role Permissions')}
           {isAdminOrFrontDesk && navItem('/user-management', '👥', 'User Management')}
           {isAdminOrFrontDesk && navItem('/provider-management', '🩺', 'Provider NPI/DEA')}
           {navItem('/marketplace', '🏪', 'App Marketplace')}

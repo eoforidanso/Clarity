@@ -80,14 +80,24 @@ app.use(helmet({
   crossOriginOpenerPolicy: false,
 }));
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').filter(Boolean)
-    : config.nodeEnv === 'production'
-      ? (() => {
-          console.error('FATAL: ALLOWED_ORIGINS env var is not set. All cross-origin requests will be rejected.');
-          return [];
-        })()
-      : ['http://localhost:3000', 'http://localhost:5173'],
+  origin: (incomingOrigin, callback) => {
+    // Allow requests with no origin (curl, mobile, same-origin)
+    if (!incomingOrigin) return callback(null, true);
+
+    const explicitList = process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+      : config.nodeEnv === 'production'
+        ? []
+        : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'];
+
+    // Always allow Cloudflare Pages preview deployments (any hash subdomain)
+    const isCfPreview = /^https:\/\/[a-f0-9]{8}\.clarity-ehr\.pages\.dev$/.test(incomingOrigin);
+
+    if (explicitList.includes(incomingOrigin) || isCfPreview) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS: origin '${incomingOrigin}' not allowed`));
+  },
   credentials: true, // required for httpOnly cookies
 }));
 

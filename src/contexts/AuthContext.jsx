@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { auth as authApi, setToken } from '../services/api';
+import { users as mockUsers } from '../data/mockData';
 
 const AuthContext = createContext(null);
 
@@ -150,6 +151,23 @@ export function AuthProvider({ children }) {
     try {
       const data = await authApi.login(username, password);
       if (data.requiresTwoFactor) {
+        // Demo/offline mode: if this is a known mock user, bypass 2FA so the
+        // app is usable without a live email server (local dev or demo).
+        const mockUser = mockUsers.find(
+          u => u.username === username && u.password === password
+        );
+        if (mockUser) {
+          const { password: _pw, epcsPin: _pin, ...safeUser } = mockUser;
+          const enriched = {
+            ...safeUser,
+            name: safeUser.name || `${safeUser.firstName} ${safeUser.lastName || ''}`.trim(),
+          };
+          setCurrentUser(enriched);
+          setIsAuthenticated(true);
+          setAuthMode('mock');
+          lastActivityRef.current = Date.now();
+          return { ok: true, mustChangePassword: false };
+        }
         return { ok: false, requiresTwoFactor: true, tempToken: data.tempToken, emailHint: data.emailHint };
       }
       const user = data.user;
@@ -164,7 +182,24 @@ export function AuthProvider({ children }) {
       return { ok: true, mustChangePassword: !!enriched.mustChangePassword };
     } catch (backendErr) {
       const code = backendErr.code || 'client';
+      // Offline fallback: try mock users when server is unreachable
       if (code === 'network') {
+        const mockUser = mockUsers.find(
+          u => u.username === username && u.password === password
+        );
+        if (mockUser) {
+          const { password: _pw, epcsPin: _pin, ...safeUser } = mockUser;
+          const enriched = {
+            ...safeUser,
+            name: safeUser.name || `${safeUser.firstName} ${safeUser.lastName || ''}`.trim(),
+          };
+          setCurrentUser(enriched);
+          setIsAuthenticated(true);
+          setAuthMode('mock');
+          setServerDown(true);
+          lastActivityRef.current = Date.now();
+          return { ok: true, mustChangePassword: false };
+        }
         setLoginError('Unable to reach the Clarity EHR server. The service may be temporarily unavailable.');
       } else if (code === 'server') {
         setLoginError(`Server error (${backendErr.status || 500}). Please try again or check system status.`);

@@ -10,6 +10,19 @@ export const SITES_FALLBACK = [
   { id: 'loc2',     name: 'Clarity — West Loop',                shortName: 'West Loop',        type: 'Satellite', icon: '📍' },
   { id: 'loc3',     name: 'Clarity — Evanston',                 shortName: 'Evanston',         type: 'Satellite', icon: '📍' },
   { id: 'loc4',     name: 'Clarity — Telehealth Only',          shortName: 'Telehealth',       type: 'Virtual',   icon: '💻' },
+  {
+    id: 'loc-victory',
+    name: 'Victory Mental Health Service',
+    shortName: 'Victory Mental Health',
+    type: 'Primary',
+    icon: '🏥',
+    address: '7060 Centennial Drive, Suite 102C, Tinley Park, IL 60477',
+    phone: '708-575-8043',
+    fax: '708-575-7872',
+    email: 'info@victorymentalservs.com',
+    hours: 'Mon–Fri 9:00 AM–7:00 PM; Mon–Fri 6:00 PM–8:00 PM (Telehealth only)',
+    status: 'Active',
+  },
 ];
 
 // Keep SITES as an alias so existing imports don't break
@@ -69,7 +82,20 @@ export function SiteProvider({ children }) {
           setDynamicSites(locs.filter(l => l.status !== 'Inactive').map(dbLocToSite));
         }
       })
-      .catch(() => { /* backend offline — keep fallback */ });
+      .catch(() => {
+        // Backend offline — check if MultiLocationManagement persisted locations locally
+        try {
+          const raw = localStorage.getItem('clarity_demo_locations');
+          if (raw) {
+            const stored = JSON.parse(raw);
+            if (Array.isArray(stored) && stored.length > 0) {
+              setDynamicSites(stored.filter(l => l.status !== 'Inactive').map(dbLocToSite));
+              return;
+            }
+          }
+        } catch { /* keep fallback */ }
+        // No local overrides — keep the static fallback (no-op)
+      });
   }, []);
 
   useEffect(() => { loadSites(); }, [loadSites]);
