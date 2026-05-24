@@ -2766,8 +2766,8 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 
 /* ── Main layout ── */
 .login-main {
-  flex: 1; display: flex; align-items: center; justify-content: center;
-  padding: 60px 24px 32px;
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  padding: 52px 24px 48px; gap: 28px;
 }
 .login-card {
   display: flex; width: 100%; max-width: 960px; min-height: 560px;
@@ -2780,9 +2780,9 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 .login-brand-panel {
   width: 44%; flex-shrink: 0;
   background:
-    radial-gradient(ellipse at 20% 80%, rgba(139,92,246,0.13) 0%, transparent 55%),
-    radial-gradient(ellipse at 85% 15%, rgba(6,182,212,0.18) 0%, transparent 50%),
-    linear-gradient(150deg, #0d6e8a 0%, #0e86a8 40%, #0ea0c4 75%, #38bfcf 100%);
+    radial-gradient(ellipse at 20% 85%, rgba(99,102,241,0.22) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 10%, rgba(59,130,246,0.28) 0%, transparent 50%),
+    linear-gradient(150deg, #0f1729 0%, #13203d 30%, #1a3560 62%, #1e3a8a 100%);
   display: flex; align-items: center; justify-content: center; padding: 40px 36px;
 }
 .login-brand-inner { display: flex; flex-direction: column; gap: 28px; width: 100%; }
@@ -2792,17 +2792,38 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 }
 .login-brand-illustration { width: 100%; max-width: 260px; margin: 0 auto; }
 .login-brand-illustration svg { width: 100%; height: auto; }
+
+/* ── Product frame (browser chrome around illustration) ── */
+.product-frame {
+  width: 100%; max-width: 260px; margin: 0 auto;
+  border-radius: 10px; overflow: hidden;
+  box-shadow: 0 10px 36px rgba(0,0,0,0.40), 0 1px 0 rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.product-frame-bar {
+  display: flex; align-items: center; gap: 5px;
+  background: rgba(255,255,255,0.12); padding: 7px 11px;
+  border-bottom: 1px solid rgba(255,255,255,0.09);
+}
+.product-frame-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.32); flex-shrink: 0; }
+.product-frame-url {
+  flex: 1; font-size: 9px; font-weight: 500; color: rgba(255,255,255,0.42);
+  text-align: center; letter-spacing: 0.15px; font-family: monospace;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.product-frame-screen { background: rgba(255,255,255,0.04); padding: 0; }
+.product-frame-screen svg { display: block; width: 100%; height: auto; }
 .login-brand-tagline h2 {
-  font-size: 26px; font-weight: 800; color: #fff; line-height: 1.3;
-  letter-spacing: -0.6px; margin: 0 0 10px;
+  font-size: 38px; font-weight: 800; color: #fff; line-height: 1.2;
+  letter-spacing: -1px; margin: 0 0 10px;
 }
 .login-brand-tagline p {
   font-size: 13px; color: rgba(255,255,255,0.78); line-height: 1.75; margin: 0;
 }
 .login-brand-designed-tagline {
-  font-size: 20px !important; font-weight: 700 !important; font-style: italic;
-  color: rgba(255,255,255,0.88) !important; letter-spacing: -0.3px;
-  margin: 6px 0 10px !important; max-width: 280px;
+  font-size: 18px !important; font-weight: 600 !important; font-style: italic;
+  color: rgba(255,255,255,0.78) !important; letter-spacing: -0.2px;
+  margin: 4px 0 8px !important; max-width: 280px;
   line-height: 1.3 !important;
 }
 .login-brand-pills {
@@ -2881,7 +2902,7 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 
 /* ── Submit button ── */
 .lf-submit {
-  width: 100%; padding: 11px; font-size: 14px; font-weight: 700;
+  width: 100%; padding: 11px; font-size: 15px; font-weight: 700;
   border-radius: 9px; background: #1e293b; color: #fff; border: none;
   cursor: pointer; transition: background 0.2s, transform 0.18s, box-shadow 0.22s;
   box-shadow: 0 2px 8px rgba(30,41,59,0.22); margin-top: 32px;
@@ -3085,7 +3106,8 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   .login-card { flex-direction: column; min-height: unset; }
   .login-brand-panel { width: 100%; padding: 28px 24px 24px; }
   .login-brand-illustration { display: none; }
-  .login-brand-tagline h2 { font-size: 20px; }
+  .product-frame { display: none; }
+  .login-brand-tagline h2 { font-size: 24px; }
   .login-form-panel { padding: 36px 28px 32px; }
   .login-form-inner { max-width: 100%; }
   /* Hide nav badges when layout stacks — brand panel shows compliance pills */
@@ -3096,6 +3118,43 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   .login-brand-panel { padding: 22px 18px; }
   .login-form-panel { padding: 28px 20px 28px; }
   .login-form-title { font-size: 26px; }
+}
+
+/* ── Hero gradient separator ── */
+.login-hero-separator {
+  width: 100%; max-width: 960px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(30,58,138,0.35) 25%, rgba(59,130,246,0.55) 50%, rgba(30,58,138,0.35) 75%, transparent 100%);
+  flex-shrink: 0;
+}
+
+/* ── Feature cards section ── */
+.login-feature-section {
+  width: 100%; max-width: 960px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+  padding-bottom: 8px;
+}
+.login-feature-card {
+  background: #fff; border-radius: 14px; border: 1.5px solid #e2e8f0;
+  padding: 20px 22px 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.login-feature-card-header { display: flex; align-items: center; gap: 10px; }
+.login-feature-card-icon {
+  width: 34px; height: 34px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.login-feature-card-title { font-size: 14px; font-weight: 800; color: #1e293b; letter-spacing: -0.2px; }
+.login-feature-card-desc { font-size: 12px; color: #64748b; line-height: 1.65; margin: 0; }
+.login-feature-card-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.login-feature-card-chip {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; letter-spacing: 0.2px;
+}
+@media (max-width: 700px) {
+  .login-feature-section { grid-template-columns: 1fr; }
+  .login-hero-separator { max-width: 100%; }
 }
 
 /* ──────────────────────────────────────────────────────────────
