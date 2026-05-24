@@ -166,7 +166,7 @@ export function AuthProvider({ children }) {
           setIsAuthenticated(true);
           setAuthMode('mock');
           lastActivityRef.current = Date.now();
-          return { ok: true, mustChangePassword: false };
+          return { ok: true, mustChangePassword: !!enriched.mustChangePassword };
         }
         return { ok: false, requiresTwoFactor: true, tempToken: data.tempToken, emailHint: data.emailHint };
       }
@@ -198,7 +198,7 @@ export function AuthProvider({ children }) {
           setAuthMode('mock');
           setServerDown(true);
           lastActivityRef.current = Date.now();
-          return { ok: true, mustChangePassword: false };
+          return { ok: true, mustChangePassword: !!enriched.mustChangePassword };
         }
         setLoginError('Unable to reach the Clarity EHR server. The service may be temporarily unavailable.');
       } else if (code === 'server') {
@@ -277,9 +277,28 @@ export function AuthProvider({ children }) {
 
   // ── Change Password ────────────────────────────────────
   const changePassword = useCallback(async (currentPw, newPw) => {
-    await authApi.changePassword(currentPw, newPw);
+    if (authMode === 'backend') {
+      await authApi.changePassword(currentPw, newPw);
+    } else {
+      // Offline / mock mode — verify current password against stored mock user
+      const stored = mockUsers.find(u => u.username === currentUser?.username);
+      if (!stored || stored.password !== currentPw) {
+        throw new Error('Current password is incorrect');
+      }
+      // Persist the new password in the in-memory mock list so re-login works
+      stored.password = newPw;
+      // Also update clarity_demo_users in localStorage if present
+      try {
+        const raw = localStorage.getItem('clarity_demo_users');
+        if (raw) {
+          const list = JSON.parse(raw);
+          const idx = list.findIndex(u => u.username === currentUser?.username);
+          if (idx !== -1) { list[idx].mustChangePassword = false; localStorage.setItem('clarity_demo_users', JSON.stringify(list)); }
+        }
+      } catch { /* ignore */ }
+    }
     setCurrentUser(prev => ({ ...prev, mustChangePassword: false }));
-  }, []);
+  }, [authMode, currentUser]);
 
   // ── Refresh current user (called after password change) ──
   const refreshUser = useCallback(async () => {
