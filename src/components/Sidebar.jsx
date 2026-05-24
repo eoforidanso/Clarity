@@ -27,9 +27,9 @@ export default function Sidebar() {
   const [expanded, setExpanded] = useState(() => {
     try {
       const saved = localStorage.getItem('sidebar_expanded');
-      return saved ? JSON.parse(saved) : { navigation: true, chart: true, clinical: false, reporting: false, billing: false, admin: false };
+      return saved ? JSON.parse(saved) : { navigation: true, chart: true, clinical: false, billing: false, clearinghouse: false, api: false, admin: false };
     } catch {
-      return { navigation: true, chart: true, clinical: false, reporting: false, billing: false, admin: false };
+      return { navigation: true, chart: true, clinical: false, billing: false, clearinghouse: false, api: false, admin: false };
     }
   });
 
@@ -234,119 +234,129 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* Clinical Tools */}
-      {(isPrescriber || isNurse || isTherapist) && (
-        <div className="sidebar-section">
-          <div
-            className="sidebar-section-title"
-            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
-            onClick={() => toggleSection('clinical')}
-          >
-            <span>Clinical Tools</span>
-            <span style={{ fontSize: 9, opacity: 0.6, transition: 'transform 0.15s' }}>
-              {expanded.clinical ? '▼' : '▶'}
-            </span>
-          </div>
-          {expanded.clinical && (
-          <ul className="sidebar-nav">
-            {navItem('/telehealth',   '📹', 'Telehealth')}
-            {navItem('/group-telehealth', '👥', 'Group Telehealth')}
-            {(isPrescriber || isNurse) && navItem('/prescribe', '💊', 'E-Prescribe')}
-            {isTherapist && navItem('/prescribe', '🔀', 'Refill Requests')}
-            {navItem('/smart-phrases','⚡', 'Smart Phrases')}
-            {navItem('/patient-chat', '💬', 'Patient Chat')}
-            {navItem('/treatment-plans', '📋', 'Treatment Plans')}
-            {navItem('/referrals', '🔄', 'Referrals')}
-            {navItem('/prior-auth', '🔐', 'Prior Auth')}
-            {navItem('/med-rec', '💊', 'Med Reconciliation')}
-            {aiPrefs.cdsAlerts && navItem('/cds-alerts', '🧠', 'CDS Alerts')}
-            {navItem('/patient-recall', '📞', 'Patient Recall')}
-            {navItem('/patient-education', '📚', 'Patient Education')}
-            {navItem('/consents', '✍️', 'Consent Forms')}
-            {navItem('/secure-notes', '🔒', 'Secure Notes')}
-            {navItem('/lab-tracking', '🔬', 'Lab Tracking')}
-            {navItem('/vitals-trending', '📈', 'Vitals Trending')}
-            {navItem('/network-integrations', '🌐', 'Network Integrations')}
-            {navItem('/care-everywhere', '🔄', 'Care Everywhere (HIE)')}
-            {aiPrefs.aiTriage && navItem('/ai-triage', '🤖', 'AI Triage Chat')}
-            {aiPrefs.ambientSoap && navItem('/ambient-scribe', '🎙️', 'Ambient AI Scribe')}
-            {navItem('/order-sets', '📦', 'Order Set Templates')}
-          </ul>
-          )}
-        </div>
-      )}
-
-      {/* Reporting & Analytics */}
+      {/* ── DOMAIN: CLINICAL ── */}
       <div className="sidebar-section">
         <div
           className="sidebar-section-title"
-          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
-          onClick={() => toggleSection('reporting')}
+          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', borderLeft: '3px solid #3b82f6', paddingLeft: 6 }}
+          onClick={() => toggleSection('clinical')}
         >
-          <span>Reporting</span>
-          <span style={{ fontSize: 9, opacity: 0.6, transition: 'transform 0.15s' }}>
-            {expanded.reporting ? '▼' : '▶'}
-          </span>
+          <span style={{ color: '#93c5fd' }}>🩺 Clinical</span>
+          <span style={{ fontSize: 9, opacity: 0.6 }}>{expanded.clinical ? '▼' : '▶'}</span>
         </div>
-        {expanded.reporting && (
+        {expanded.clinical && (
         <ul className="sidebar-nav">
-          {navItem('/analytics',  '📈', 'Analytics')}
-          {navItem('/care-gaps',  '🎯', 'Care Gaps')}
+          {navItem('/telehealth',       '📹', 'Telehealth')}
+          {navItem('/group-telehealth', '👥', 'Group Telehealth')}
+          {(isPrescriber || isNurse) && navItem('/prescribe', '💊', 'E-Prescribe')}
+          {isTherapist && navItem('/prescribe', '🔀', 'Refill Requests')}
+          {navItem('/smart-phrases',    '⚡', 'Smart Phrases')}
+          {navItem('/patient-chat',     '💬', 'Patient Chat')}
+          {navItem('/treatment-plans',  '📋', 'Treatment Plans')}
+          {navItem('/referrals',        '🔄', 'Referrals')}
+          {navItem('/prior-auth',       '🔐', 'Prior Auth')}
+          {navItem('/med-rec',          '💊', 'Med Reconciliation')}
+          {aiPrefs.cdsAlerts && navItem('/cds-alerts', '🧠', 'CDS Alerts')}
+          {navItem('/patient-recall',   '📞', 'Patient Recall')}
+          {navItem('/patient-education','📚', 'Patient Education')}
+          {navItem('/consents',         '✍️', 'Consent Forms')}
+          {navItem('/secure-notes',     '🔒', 'Secure Notes')}
+          {navItem('/lab-tracking',     '🔬', 'Lab Tracking')}
+          {navItem('/vitals-trending',  '📈', 'Vitals Trending')}
+          {aiPrefs.aiTriage && navItem('/ai-triage', '🤖', 'AI Triage Chat')}
+          {aiPrefs.ambientSoap && navItem('/ambient-scribe', '🎙️', 'Ambient AI Scribe')}
+          {navItem('/order-sets',       '📦', 'Order Set Templates')}
+          {navItem('/analytics',        '📊', 'Analytics')}
+          {navItem('/care-gaps',        '🎯', 'Care Gaps')}
           {navItem('/quality-measures', '📊', 'Quality Measures')}
-          {navItem('/clinical-outcomes', '📉', 'Clinical Outcomes')}
+          {navItem('/clinical-outcomes','📉', 'Clinical Outcomes')}
           {navItem('/provider-performance', '🏆', 'Provider Performance')}
-          {navItem('/report-builder', '📊', 'Report Builder')}
-          {navItem('/population-health', '🌍', 'Population Health')}
+          {navItem('/report-builder',   '📊', 'Report Builder')}
+          {navItem('/population-health','🌍', 'Population Health')}
           {navItem('/operational-signals', '⚡', 'Operational Signals')}
         </ul>
         )}
       </div>
 
-      {/* Billing & Revenue Cycle */}
+      {/* ── DOMAIN: BILLING ── */}
       <div className="sidebar-section">
         <div
           className="sidebar-section-title"
-          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
+          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', borderLeft: '3px solid #8b5cf6', paddingLeft: 6 }}
           onClick={() => toggleSection('billing')}
         >
-          <span>Billing & RCM</span>
-          <span style={{ fontSize: 9, opacity: 0.6, transition: 'transform 0.15s' }}>
-            {expanded.billing ? '▼' : '▶'}
-          </span>
+          <span style={{ color: '#c4b5fd' }}>💰 Billing & RCM</span>
+          <span style={{ fontSize: 9, opacity: 0.6 }}>{expanded.billing ? '▼' : '▶'}</span>
         </div>
         {expanded.billing && (
         <ul className="sidebar-nav">
-          {navItem('/billing-dashboard', '💰', 'Billing Dashboard')}
-          {navItem('/claims-management', '📋', 'Claims')}
-          {navItem('/denial-management', '⚠️', 'Denials & Appeals')}
-          {navItem('/telehealth-billing', '💻', 'Telehealth Billing')}
-          {navItem('/patient-portal-billing', '🧾', 'Patient Billing')}
-          {navItem('/superbills', '🧮', 'Superbills')}
-          {navItem('/eligibility', '✅', 'Eligibility Check')}
-          {navItem('/patient-statements', '📄', 'Patient Statements')}
-          {navItem('/batch-claims', '📦', 'Batch Claims')}
-          {navItem('/payer-profiles', '🏥', 'Payer Profiles')}
-          {navItem('/remittance-posting', '💳', 'Remittance Posting')}
-          {navItem('/scrubber-rules', '🔍', 'Scrubber Rules')}
-          {navItem('/era-posting', '💡', 'ERA Auto-Posting')}
-          {navItem('/contract-variance', '📊', 'Contract Variance')}
-          {navItem('/edi-transport', '🔌', 'EDI Transport')}
-          {navItem('/edi-routing', '🔀', 'EDI Routing Engine')}
-          {navItem('/edi-837', '⚙️', '837 Generator')}
-          {navItem('/edi-999', '✅', '999/277CA Parser')}
-          {navItem('/edi-270', '🔍', '270/271 Engine')}
-          {navItem('/edi-835', '💰', '835 ERA Listener')}
-          {navItem('/edi-monitoring', '📡', 'EDI Monitoring')}
-          {navItem('/edi-api', '🌐', 'EDI API Portal')}
-          {navItem('/fee-schedules', '💲', 'Fee Schedules')}
-          {navItem('/insurance-cards', '🪪', 'Insurance Cards')}
-          {navItem('/cost-estimator', '💲', 'Cost Estimator')}
-          {navItem('/charge-posting', '💰', 'Charge Posting')}
+          {navItem('/billing-dashboard',     '💰', 'Billing Dashboard')}
+          {navItem('/claims-management',     '📋', 'Claims')}
+          {navItem('/denial-management',     '⚠️', 'Denials & Appeals')}
+          {navItem('/telehealth-billing',    '💻', 'Telehealth Billing')}
+          {navItem('/patient-portal-billing','🧾', 'Patient Billing')}
+          {navItem('/superbills',            '🧮', 'Superbills')}
+          {navItem('/eligibility',           '✅', 'Eligibility Check')}
+          {navItem('/patient-statements',    '📄', 'Patient Statements')}
+          {navItem('/batch-claims',          '📦', 'Batch Claims')}
+          {navItem('/payer-profiles',        '🏥', 'Payer Profiles')}
+          {navItem('/remittance-posting',    '💳', 'Remittance Posting')}
+          {navItem('/scrubber-rules',        '🔍', 'Scrubber Rules')}
+          {navItem('/era-posting',           '💡', 'ERA Auto-Posting')}
+          {navItem('/contract-variance',     '📊', 'Contract Variance')}
+          {navItem('/fee-schedules',         '💲', 'Fee Schedules')}
+          {navItem('/insurance-cards',       '🪪', 'Insurance Cards')}
+          {navItem('/cost-estimator',        '💲', 'Cost Estimator')}
+          {navItem('/charge-posting',        '💰', 'Charge Posting')}
         </ul>
         )}
       </div>
 
-      {/* Admin Toolkit — all roles */}
+      {/* ── DOMAIN: CLEARINGHOUSE ── */}
+      <div className="sidebar-section">
+        <div
+          className="sidebar-section-title"
+          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', borderLeft: '3px solid #14b8a6', paddingLeft: 6 }}
+          onClick={() => toggleSection('clearinghouse')}
+        >
+          <span style={{ color: '#5eead4' }}>🔀 Clearinghouse</span>
+          <span style={{ fontSize: 9, opacity: 0.6 }}>{expanded.clearinghouse ? '▼' : '▶'}</span>
+        </div>
+        {expanded.clearinghouse && (
+        <ul className="sidebar-nav">
+          {navItem('/edi-transport',  '🔌', 'EDI Transport')}
+          {navItem('/edi-routing',    '🔀', 'EDI Routing Engine')}
+          {navItem('/edi-837',        '⚙️', '837P Generator')}
+          {navItem('/edi-999',        '✅', '999 / 277CA Parser')}
+          {navItem('/edi-270',        '🔍', '270 / 271 Engine')}
+          {navItem('/edi-835',        '💰', '835 ERA Listener')}
+          {navItem('/edi-monitoring', '📡', 'EDI Monitoring')}
+          {navItem('/edi-api',        '🌐', 'EDI API Portal')}
+        </ul>
+        )}
+      </div>
+
+      {/* ── DOMAIN: DEVELOPER / API ── */}
+      <div className="sidebar-section">
+        <div
+          className="sidebar-section-title"
+          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', borderLeft: '3px solid #f97316', paddingLeft: 6 }}
+          onClick={() => toggleSection('api')}
+        >
+          <span style={{ color: '#fdba74' }}>🔧 Developer / API</span>
+          <span style={{ fontSize: 9, opacity: 0.6 }}>{expanded.api ? '▼' : '▶'}</span>
+        </div>
+        {expanded.api && (
+        <ul className="sidebar-nav">
+          {navItem('/api-docs',             '📖', 'API Documentation')}
+          {navItem('/network-integrations', '🌐', 'Network Integrations')}
+          {navItem('/care-everywhere',      '🔄', 'Care Everywhere (HIE)')}
+          {navItem('/marketplace',          '🏪', 'App Marketplace')}
+        </ul>
+        )}
+      </div>
+
+      {/* ── ADMINISTRATION ── */}
       <div className="sidebar-section">
         <div
           className="sidebar-section-title"
@@ -354,32 +364,28 @@ export default function Sidebar() {
           onClick={() => toggleSection('admin')}
         >
           <span>Administration</span>
-          <span style={{ fontSize: 9, opacity: 0.6, transition: 'transform 0.15s' }}>
-            {expanded.admin ? '▼' : '▶'}
-          </span>
+          <span style={{ fontSize: 9, opacity: 0.6 }}>{expanded.admin ? '▼' : '▶'}</span>
         </div>
         {expanded.admin && (
         <ul className="sidebar-nav">
-          {navItem('/admin-toolkit','🗂️', 'Admin Toolkit')}
-          {navItem('/documents', '📂', 'Documents')}
-          {navItem('/intake-forms', '📝', 'Intake Forms')}
-          {navItem('/efax', '📠', 'eFax Center')}
-          {navItem('/waitlist', '⏳', 'Patient Waitlist')}
-          {navItem('/patient-checkin', '📱', 'Patient Check-In')}
-          {navItem('/tasks', '✅', 'Task Manager')}
-          {navItem('/scheduling-templates', '📅', 'Schedule Templates')}
-          {isAdminOrFrontDesk && navItem('/audit-trail', '📜', 'Audit Trail')}
-          {isAdminOrFrontDesk && navItem('/btg-audit', '🔓', 'BTG Audit Log')}
-          {isAdminOrFrontDesk && navItem('/role-permissions', '🔐', 'Role Permissions')}
-          {isAdminOrFrontDesk && navItem('/user-management', '👥', 'User Management')}
-          {isAdminOrFrontDesk && navItem('/provider-management', '🩺', 'Provider NPI/DEA')}
-          {navItem('/marketplace', '🏪', 'App Marketplace')}
-          {navItem('/api-docs', '🔧', 'API Documentation')}
+          {navItem('/admin-toolkit',          '🗂️', 'Admin Toolkit')}
+          {navItem('/documents',              '📂', 'Documents')}
+          {navItem('/intake-forms',           '📝', 'Intake Forms')}
+          {navItem('/efax',                   '📠', 'eFax Center')}
+          {navItem('/waitlist',               '⏳', 'Patient Waitlist')}
+          {navItem('/patient-checkin',        '📱', 'Patient Check-In')}
+          {navItem('/tasks',                  '✅', 'Task Manager')}
+          {navItem('/scheduling-templates',   '📅', 'Schedule Templates')}
           {navPrefs.showApptReminders && navItem('/appointment-reminders', '📣', 'Appt Reminders')}
-          {navItem('/immunization-registry', '💉', 'Immunization Registry')}
-          {navItem('/multi-location', '🏢', 'Multi-Location')}
-          {navItem('/practice-marketing', '📢', 'Marketing & Reputation')}
-          {navItem('/ehr-comparison', '🏆', 'EHR Comparison')}
+          {navItem('/immunization-registry',  '💉', 'Immunization Registry')}
+          {navItem('/multi-location',         '🏢', 'Multi-Location')}
+          {navItem('/practice-marketing',     '📢', 'Marketing & Reputation')}
+          {navItem('/ehr-comparison',         '🏆', 'EHR Comparison')}
+          {isAdminOrFrontDesk && navItem('/audit-trail',       '📜', 'Audit Trail')}
+          {isAdminOrFrontDesk && navItem('/btg-audit',         '🔓', 'BTG Audit Log')}
+          {isAdminOrFrontDesk && navItem('/role-permissions',  '🔐', 'Role Permissions')}
+          {isAdminOrFrontDesk && navItem('/user-management',   '👥', 'User Management')}
+          {isAdminOrFrontDesk && navItem('/provider-management','🩺','Provider NPI/DEA')}
           {navItem('/settings', '⚙️', 'Settings')}
         </ul>
         )}
