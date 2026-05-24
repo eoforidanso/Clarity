@@ -131,7 +131,7 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
     (npi || '').trim(),
     (deaNumber || '').trim(),
     email.trim().toLowerCase(),
-    twoFactorEnabled ? true : false,
+    twoFactorEnabled ? 1 : 0,
     locationId || 'loc1'
   );
 
@@ -193,7 +193,7 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => 
     npi?.trim() ?? null,
     deaNumber?.trim() ?? null,
     email ? email.trim().toLowerCase() : null,
-    twoFactorEnabled != null ? Boolean(twoFactorEnabled) : null,
+    twoFactorEnabled != null ? (twoFactorEnabled ? 1 : 0) : null,
     locationId ?? null,
     id
   );
