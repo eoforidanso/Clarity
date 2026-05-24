@@ -249,12 +249,15 @@ export default function Inbox() {
           </div>
           {/* Stat chips */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {[
-              { label: 'Total', value: (inboxMessages || []).length, bg: '#f8fafc', color: '#475569', dot: '#94a3b8' },
-              { label: 'Unread', value: unreadCount, bg: unreadCount > 0 ? '#eff6ff' : '#f8fafc', color: unreadCount > 0 ? '#1e40af' : '#94a3b8', dot: '#3b82f6' },
-              { label: 'Urgent', value: (inboxMessages || []).filter(m => m.urgent).length, bg: (inboxMessages || []).filter(m => m.urgent).length > 0 ? '#fef2f2' : '#f8fafc', color: (inboxMessages || []).filter(m => m.urgent).length > 0 ? '#991b1b' : '#94a3b8', dot: '#ef4444' },
-            ].map(s => (
-              <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 20, background: s.bg, boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }}>
+            {(() => {
+              const urgentCount = (inboxMessages || []).filter(m => m.urgent).length;
+              return [
+                { label: 'Total', value: (inboxMessages || []).length, bg: '#f8fafc', color: '#475569', dot: '#94a3b8', border: '1.5px solid #e2e8f0' },
+                { label: 'Unread', value: unreadCount, bg: unreadCount > 0 ? '#eff6ff' : '#f8fafc', color: unreadCount > 0 ? '#1e40af' : '#94a3b8', dot: '#3b82f6', border: `1.5px solid ${unreadCount > 0 ? '#93c5fd' : '#e2e8f0'}` },
+                { label: 'Urgent', value: urgentCount, bg: urgentCount > 0 ? '#fef2f2' : '#f8fafc', color: urgentCount > 0 ? '#991b1b' : '#94a3b8', dot: '#ef4444', border: `1.5px solid ${urgentCount > 0 ? '#fca5a5' : '#e2e8f0'}` },
+              ];
+            })().map(s => (
+              <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', height: 26, borderRadius: 20, background: s.bg, border: s.border, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
                 <span style={{ fontSize: 14, fontWeight: 800, color: s.color }}>{s.value}</span>
                 <span style={{ fontSize: 11, color: s.color, opacity: 0.75 }}>{s.label}</span>
@@ -307,7 +310,7 @@ export default function Inbox() {
         
         {/* Patient List Column */}
         {(!isMobile || mobilePanel === 0) && (
-        <div style={{ background: 'linear-gradient(180deg, #13203d 0%, #0f1729 100%)', overflowY: 'auto', borderRight: 'none', boxShadow: isMobile ? 'none' : '3px 0 10px rgba(0,0,0,0.18)' }}>
+        <div style={{ background: 'linear-gradient(180deg, #13203d 0%, #182d4a 100%)', overflowY: 'auto', borderRight: 'none', boxShadow: isMobile ? 'none' : '3px 0 10px rgba(0,0,0,0.14)' }}>
           <div style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.12)', fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase' }}>
             Patients ({patientList.length})
           </div>
@@ -410,8 +413,8 @@ export default function Inbox() {
                 borderLeft: msg.urgent
                   ? '4px solid #ef4444'
                   : msg.status === 'Unread'
-                  ? '4px solid #3b82f6'
-                  : '4px solid transparent',
+                  ? '3px solid #3b82f6'
+                  : 'none',
                 background: selectedId === msg.id
                   ? '#eff6ff'
                   : msg.urgent && msg.status === 'Unread'
@@ -434,10 +437,10 @@ export default function Inbox() {
                 </span>
                 {msg.urgent && <span className="badge badge-danger" style={{ fontSize: 10 }}>URGENT</span>}
               </div>
-              <div style={{ fontWeight: msg.status === 'Unread' ? 800 : 600, fontSize: msg.status === 'Unread' ? 15 : 14, marginBottom: 2, color: msg.urgent ? '#7f1d1d' : 'var(--text-primary)' }}>
+              <div style={{ fontWeight: msg.urgent || msg.status === 'Unread' ? 800 : 600, fontSize: msg.status === 'Unread' ? 15 : 14, marginBottom: 3, color: msg.urgent ? '#7f1d1d' : 'var(--text-primary)', lineHeight: 1.3 }}>
                 {msg.subject}
               </div>
-              <div className="text-muted text-sm" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 300, color: 'rgba(71,85,105,0.65)', marginTop: 1 }}>
                 <span>{msg.from}</span>
                 <span>{msg.date}</span>
               </div>
