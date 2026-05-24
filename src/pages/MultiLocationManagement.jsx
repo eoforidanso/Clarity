@@ -267,8 +267,16 @@ export default function MultiLocationManagement() {
     try {
       const data = await locationsApi.list();
       if (Array.isArray(data) && data.length > 0) {
-        setLocationData(data);
-        try { localStorage.removeItem(LOCS_STORAGE_KEY); } catch {}
+        // Merge in any locally-added entries (id starts with 'local-' or 'loc-')
+        // that the backend doesn't know about yet, so they survive refreshes.
+        const stored = loadLocsFromStorage() || [];
+        const backendIds = new Set(data.map(d => d.id));
+        const localOnly = stored.filter(l => !backendIds.has(l.id));
+        const merged = [...data, ...localOnly];
+        setLocationData(merged);
+        // Persist the local-only entries (drop ones the backend now has)
+        if (localOnly.length > 0) saveLocsToStorage(localOnly);
+        else { try { localStorage.removeItem(LOCS_STORAGE_KEY); } catch {} }
       } else setLocationData(SITES_FALLBACK.filter(s => s.id !== 'all').map(s => ({ ...s, status: 'Active', address: '', phone: '', fax: '', hours: '', npi: '', taxId: '', placeOfService: '11 — Office', rooms: 0, telehealth: true, sortOrder: 0 })));
     } catch {
       // Backend offline — try localStorage first, then seed from SITES_FALLBACK
@@ -302,16 +310,19 @@ export default function MultiLocationManagement() {
   const handleAdd = async (form) => {
     setFormLoading(true); setFormError('');
     try { await locationsApi.create(form); await load(); reloadSites(); closeModal(); showToast('Location added'); }
-    catch {
-      // Backend offline — add to local state and persist
+    catch (err) {
+      // Backend rejected or offline — add to local state and persist as local-only
       const newLoc = { ...form, id: 'local-' + Date.now() };
-      setLocationData(prev => {
-        const next = [...prev, newLoc];
-        saveLocsToStorage(next);
-        return next;
-      });
+      const stored = loadLocsFromStorage() || [];
+      const updatedLocal = [...stored.filter(l => !l.id || String(l.id).startsWith('local-') || String(l.id).startsWith('loc-')), newLoc];
+      saveLocsToStorage(updatedLocal);
+      setLocationData(prev => [...prev, newLoc]);
       reloadSites();
-      closeModal(); showToast('Location added');
+      closeModal();
+      const msg = err?.status >= 400 && err?.status < 500
+        ? `Saved locally (backend rejected: ${err.message || err.status})`
+        : 'Location added (saved locally — backend offline)';
+      showToast(msg);
     }
     finally { setFormLoading(false); }
   };

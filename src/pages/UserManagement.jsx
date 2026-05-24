@@ -366,8 +366,15 @@ export default function UserManagement() {
     setFetchError('');
     try {
       const data = await usersApi.list();
-      setUserList(data);
-      try { localStorage.removeItem(USERS_STORAGE_KEY); } catch {}
+      // Merge backend results with locally-saved entries (id starts with 'local-')
+      // so users added while offline survive once the backend is reachable.
+      const stored = loadUsersFromStorage() || [];
+      const backendIds = new Set(data.map(u => u.id));
+      const localOnly = stored.filter(u => !backendIds.has(u.id) && String(u.id).startsWith('local-'));
+      const merged = [...data, ...localOnly];
+      setUserList(merged);
+      if (localOnly.length > 0) saveUsersToStorage(localOnly);
+      else { try { localStorage.removeItem(USERS_STORAGE_KEY); } catch {} }
     } catch {
       // Backend offline — merge localStorage with any new mock users (by id)
       const seed = mockUsersData
@@ -461,16 +468,18 @@ export default function UserManagement() {
     const { password: _pw, ...safeForm } = form;
     try {
       await usersApi.create(form);
-    } catch {
-      // Backend offline — add to local state and persist
+    } catch (err) {
+      // Backend rejected or offline — add to local state and persist as local-only
       const newUser = { ...safeForm, id: 'local-' + Date.now() };
-      setUserList(prev => {
-        const next = [...prev, newUser];
-        saveUsersToStorage(next);
-        return next;
-      });
+      const stored = loadUsersFromStorage() || [];
+      const updatedLocal = [...stored.filter(u => String(u.id).startsWith('local-')), newUser];
+      saveUsersToStorage(updatedLocal);
+      setUserList(prev => [...prev, newUser]);
       closeModal();
-      showToast(`✅ User "${form.username}" created successfully`);
+      const msg = err?.status >= 400 && err?.status < 500
+        ? `Saved locally (backend rejected: ${err.message || err.status})`
+        : `✅ User "${form.username}" created (saved locally — backend offline)`;
+      showToast(msg);
       setFormLoading(false);
       return;
     }
