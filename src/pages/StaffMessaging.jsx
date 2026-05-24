@@ -248,7 +248,7 @@ export default function StaffMessaging() {
         background: 'var(--bg-white)', boxShadow: 'var(--shadow)',
       }}>
         {/* Left Panel — Channels & DMs */}
-        <div style={{ background: '#0f172a', display: 'flex', flexDirection: 'column', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ background: '#0f172a', display: 'flex', flexDirection: 'column', borderRight: '2px solid rgba(255,255,255,0.1)', boxShadow: '2px 0 8px rgba(0,0,0,0.25)' }}>
           {/* Workspace header */}
           <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9', letterSpacing: -0.3, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -259,50 +259,35 @@ export default function StaffMessaging() {
             </div>
           </div>
 
-          {/* Toggle tabs */}
-          <div style={{ display: 'flex', gap: 2, padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <button
-              onClick={() => { setView('channels'); setActiveDM(null); }}
-              style={{
-                flex: 1, padding: '6px 0', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                background: view === 'channels' ? 'rgba(59,130,246,0.2)' : 'transparent',
-                color: view === 'channels' ? '#93c5fd' : '#64748b',
-                transition: 'all 0.15s',
-              }}
-            >Channels</button>
-            <button
-              onClick={() => setView('dms')}
-              style={{
-                flex: 1, padding: '6px 0', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                background: view === 'dms' ? 'rgba(59,130,246,0.2)' : 'transparent',
-                color: view === 'dms' ? '#93c5fd' : '#64748b',
-                transition: 'all 0.15s',
-              }}
-            >Direct Messages</button>
-          </div>
+          {/* Content — unified sidebar with section headers */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
 
-          {/* Content */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
-            {view === 'channels' && CHANNELS.map(ch => {
+            {/* ── Team Channels ── */}
+            <div style={{ padding: '12px 14px 4px', background: 'rgba(59,130,246,0.06)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#475569' }}>
+                Team Channels
+              </div>
+            </div>
+            {CHANNELS.map(ch => {
               const count = (messages[ch.id] || []).length;
               const unread = unreadCounts[ch.id] || 0;
               const isActive = !activeDM && activeChannel === ch.id;
               return (
                 <div
                   key={ch.id}
-                  onClick={() => switchChannel(ch.id)}
+                  onClick={() => { switchChannel(ch.id); setActiveDM(null); }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', cursor: 'pointer',
-                    background: isActive ? 'rgba(59,130,246,0.15)' : 'transparent',
+                    background: isActive ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.02)',
                     borderLeft: isActive ? '3px solid #3b82f6' : '3px solid transparent',
                     transition: 'all 0.1s',
                   }}
-                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
                 >
                   <span style={{ fontSize: 16, width: 28, textAlign: 'center', flexShrink: 0 }}>{ch.icon}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: isActive || unread > 0 ? 700 : 500, color: isActive ? '#93c5fd' : unread > 0 ? '#f1f5f9' : '#94a3b8' }}>
+                    <div style={{ fontSize: isActive ? 13.5 : 12.5, fontWeight: isActive ? 800 : unread > 0 ? 700 : 500, color: isActive ? '#93c5fd' : unread > 0 ? '#f1f5f9' : '#94a3b8' }}>
                       {ch.name}
                     </div>
                   </div>
@@ -319,7 +304,13 @@ export default function StaffMessaging() {
               );
             })}
 
-            {view === 'dms' && otherStaff.map(s => {
+            {/* ── Direct Messages ── */}
+            <div style={{ padding: '14px 14px 4px' }}>
+              <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#475569' }}>
+                Direct Messages
+              </div>
+            </div>
+            {otherStaff.map(s => {
               const unread = unreadCounts[s.id] || 0;
               const isActive = activeDM === s.id;
               return (
@@ -343,7 +334,7 @@ export default function StaffMessaging() {
                     {getStaffInitials(s.id, staff)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: isActive ? 700 : 500, color: isActive ? '#93c5fd' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: isActive ? 13.5 : 12.5, fontWeight: isActive ? 800 : 500, color: isActive ? '#93c5fd' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {getStaffName(s.id, staff)}
                     </div>
                     <div style={{ fontSize: 10, color: '#475569' }}>{getStaffRole(s.id, staff)}</div>
@@ -383,6 +374,7 @@ export default function StaffMessaging() {
           <div style={{
             padding: '12px 20px', borderBottom: '1px solid var(--border)',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexWrap: 'wrap', gap: 8,
             background: 'linear-gradient(180deg, #fafbfc, #f8fafc)',
           }}>
             <div>

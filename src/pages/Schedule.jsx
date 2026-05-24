@@ -1451,6 +1451,18 @@ export default function Schedule() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [showModal, setShowModal] = useState(false);
   const [viewMode, setViewMode] = useState('day');
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  const [showSidebarMobile, setShowSidebarMobile] = useState(false);
+  useEffect(() => {
+    const handle = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) setViewMode('day');
+    };
+    window.addEventListener('resize', handle);
+    handle();
+    return () => window.removeEventListener('resize', handle);
+  }, []);
   const [modalVisitType, setModalVisitType] = useState('In-Person');
   const [modalDate, setModalDate] = useState("");
   const [showBlockPanel, setShowBlockPanel] = useState(false);
@@ -1568,7 +1580,8 @@ export default function Schedule() {
         <div style={{ marginLeft:"auto", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
           {activeTab==="schedule" && (
             <>
-              {/* View mode toggle */}
+              {/* View mode toggle — hidden on mobile (day-only) */}
+              {!isMobile && (
               <div style={{ display:"flex", gap:0, background:"#f8fafc", border:"1px solid var(--border)", borderRadius:8, overflow:"hidden" }}>
                 {['day','week','month'].map(v => (
                   <button key={v} type="button" onClick={() => setViewMode(v)}
@@ -1580,6 +1593,7 @@ export default function Schedule() {
                   </button>
                 ))}
               </div>
+              )}
               <button className="btn btn-secondary btn-sm" onClick={() => setSelectedDate(toKey(TODAY))}>Today</button>
               {canBlockDays && (
                 <button onClick={() => setShowBlockPanel(v=>!v)}
@@ -1699,9 +1713,21 @@ export default function Schedule() {
             </div>
           )}
           {viewMode === 'day' && (
-          <div style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
+          <>
+          {/* Mobile sidebar toggle */}
+          {isMobile && (
+            <div style={{ marginBottom:10 }}>
+              <button onClick={() => setShowSidebarMobile(v=>!v)}
+                style={{ padding:"7px 16px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer",
+                  border:"1.5px solid var(--border)", background:"#f8fafc", color:"var(--text-secondary)" }}>
+                {showSidebarMobile ? '▲ Hide Calendar & Filters' : '▼ Show Calendar & Filters'}
+              </button>
+            </div>
+          )}
+          <div style={{ display:"flex", gap:16, alignItems:"flex-start", flexDirection: isMobile ? 'column' : 'row' }}>
             {/* LEFT SIDEBAR */}
-            <div style={{ width:218, flexShrink:0, display:"flex", flexDirection:"column", gap:12 }}>
+            {(!isMobile || showSidebarMobile) && (
+            <div style={{ width: isMobile ? '100%' : 218, flexShrink:0, display:"flex", flexDirection:"column", gap:12 }}>
               <div style={{ ...card({ padding:"14px 12px" }) }}>
                 <MiniCalendar selectedDate={activeDate} onSelect={k=>setSelectedDate(k||toKey(TODAY))} aptsByDate={aptsByDate} blockedByDate={blockedByDate} />
                 <button onClick={() => setSelectedDate(toKey(TODAY))}
@@ -1750,6 +1776,7 @@ export default function Schedule() {
                 ))}
               </div>
             </div>
+            )} {/* end mobile-conditional sidebar */}
 
             {/* RIGHT PANEL */}
             <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", gap:14 }}>
@@ -1774,26 +1801,50 @@ export default function Schedule() {
                       style={{ marginLeft:"auto", fontSize:12, fontWeight:700 }}>＋ Schedule Patient</button>
                   )}
                 </div>
-                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                  {[
-                    {label:"Total",      count:counts.total,       key:"All",        bg:"#f1f5f9", color:"#475569", dot:"#94a3b8"},
-                    {label:"Waiting",    count:counts.scheduled,   key:"Waiting",    bg:"#dbeafe", color:"#1e40af", dot:"#3b82f6"},
-                    {label:"Checked In", count:counts.checkedIn,   key:"Checked In", bg:"#dcfce7", color:"#166534", dot:"#22c55e"},
-                    {label:"In Session", count:counts.inProgress,  key:"In Session", bg:"#fef3c7", color:"#92400e", dot:"#f59e0b"},
-                    {label:"Completed",  count:counts.completed,   key:"Completed",  bg:"#e5e7eb", color:"#6b7280", dot:"#9ca3af"},
-                  ].map(s=>(
-                    <button key={s.key} onClick={() => setStatusFilter(statusFilter===s.key?"All":s.key)}
-                      style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:20,
-                        border:"none", cursor:"pointer", background:s.bg,
-                        outline:statusFilter===s.key?`2.5px solid ${s.dot}`:"none", transition:"all 0.1s" }}>
-                      <span style={{ width:7, height:7, borderRadius:"50%", background:s.dot, flexShrink:0 }} />
-                      <span style={{ fontSize:13, fontWeight:800, color:s.color }}>{s.count}</span>
-                      <span style={{ fontSize:11, color:s.color, opacity:0.8 }}>{s.label}</span>
-                    </button>
-                  ))}
-                  {statusFilter!=="All" && (
-                    <button onClick={() => setStatusFilter("All")} style={{ padding:"5px 12px", borderRadius:20, border:"1px solid var(--border)", background:"#fff", fontSize:11, cursor:"pointer", color:"var(--text-secondary)" }}>Clear ×</button>
-                  )}
+                {/* Stat filter chips — grouped */}
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {/* Overview group */}
+                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.6px", color:"var(--text-muted)", minWidth:50 }}>Overview</span>
+                    {[
+                      {label:"Total", count:counts.total, key:"All", bg:"#f1f5f9", color:"#475569", dot:"#94a3b8", accent:"#cbd5e1"},
+                    ].map(s=>(
+                      <button key={s.key} onClick={() => setStatusFilter(statusFilter===s.key?"All":s.key)}
+                        style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 16px", borderRadius:20,
+                          border:`1.5px solid ${statusFilter===s.key?s.dot:s.accent}`,
+                          cursor:"pointer", background: statusFilter===s.key ? s.dot : s.bg,
+                          boxShadow: statusFilter===s.key ? `0 2px 8px ${s.dot}55` : '0 1px 3px rgba(0,0,0,0.08)',
+                          transition:"all 0.15s" }}>
+                        <span style={{ width:7, height:7, borderRadius:"50%", background: statusFilter===s.key ? "#fff" : s.dot, flexShrink:0 }} />
+                        <span style={{ fontSize:14, fontWeight:800, color: statusFilter===s.key ? "#fff" : s.color, lineHeight:1 }}>{s.count}</span>
+                        <span style={{ fontSize:11, color: statusFilter===s.key ? "rgba(255,255,255,0.85)" : s.color, opacity: statusFilter===s.key ? 1 : 0.8 }}>{s.label}</span>
+                      </button>
+                    ))}
+                    {statusFilter!=="All" && (
+                      <button onClick={() => setStatusFilter("All")} style={{ padding:"5px 12px", borderRadius:20, border:"1px solid var(--border)", background:"#fff", fontSize:11, cursor:"pointer", color:"var(--text-secondary)", boxShadow:"0 1px 3px rgba(0,0,0,0.06)" }}>Clear ×</button>
+                    )}
+                  </div>
+                  {/* Status group */}
+                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.6px", color:"var(--text-muted)", minWidth:50 }}>Status</span>
+                    {[
+                      {label:"Waiting",    count:counts.scheduled,   key:"Waiting",    bg:"#dbeafe", color:"#1e40af", dot:"#3b82f6", accent:"#93c5fd"},
+                      {label:"Checked In", count:counts.checkedIn,   key:"Checked In", bg:"#dcfce7", color:"#166534", dot:"#22c55e", accent:"#86efac"},
+                      {label:"In Session", count:counts.inProgress,  key:"In Session", bg:"#fef3c7", color:"#92400e", dot:"#f59e0b", accent:"#fcd34d"},
+                      {label:"Completed",  count:counts.completed,   key:"Completed",  bg:"#f1f5f9", color:"#64748b", dot:"#94a3b8", accent:"#cbd5e1"},
+                    ].map(s=>(
+                      <button key={s.key} onClick={() => setStatusFilter(statusFilter===s.key?"All":s.key)}
+                        style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 16px", borderRadius:20,
+                          border:`1.5px solid ${statusFilter===s.key?s.dot:s.accent}`,
+                          cursor:"pointer", background: statusFilter===s.key ? s.dot : s.bg,
+                          boxShadow: statusFilter===s.key ? `0 2px 8px ${s.dot}55` : '0 1px 3px rgba(0,0,0,0.08)',
+                          transition:"all 0.15s" }}>
+                        <span style={{ width:7, height:7, borderRadius:"50%", background: statusFilter===s.key ? "#fff" : s.dot, flexShrink:0 }} />
+                        <span style={{ fontSize:14, fontWeight:800, color: statusFilter===s.key ? "#fff" : s.color, lineHeight:1 }}>{s.count}</span>
+                        <span style={{ fontSize:11, color: statusFilter===s.key ? "rgba(255,255,255,0.85)" : s.color, opacity: statusFilter===s.key ? 1 : 0.8 }}>{s.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -1850,13 +1901,20 @@ export default function Schedule() {
                 </div>
                 <div style={{ padding:"14px 16px", minHeight:100 }}>
                   {dateAppts.length===0 ? (
-                    <div style={{ textAlign:"center", padding:"36px 20px", color:"var(--text-muted)" }}>
-                      <div style={{ fontSize:40, marginBottom:8 }}>📭</div>
-                      <div style={{ fontWeight:700, fontSize:14, marginBottom:4 }}>
-                        {statusFilter!=="All"?"No appointments match this filter":"No appointments scheduled for this day"}
+                    <div style={{ textAlign:"center", padding:"48px 24px", color:"var(--text-muted)" }}>
+                      <div style={{ fontSize:48, marginBottom:12, filter:"drop-shadow(0 2px 4px rgba(0,0,0,0.08))" }}>
+                        {statusFilter!=="All" ? "🔍" : "📅"}
+                      </div>
+                      <div style={{ fontWeight:800, fontSize:15, marginBottom:6, color:"var(--text-secondary)" }}>
+                        {statusFilter!=="All" ? `No "${statusFilter}" appointments` : "Schedule is clear"}
+                      </div>
+                      <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom: isFrontDesk ? 16 : 0, lineHeight:1.5 }}>
+                        {statusFilter!=="All"
+                          ? "Try a different status filter or clear to see all appointments."
+                          : "No appointments are scheduled for this day. The day is yours."}
                       </div>
                       {isFrontDesk && (
-                        <button className="btn btn-primary btn-sm" style={{ marginTop:10 }} onClick={() => { setModalDate(activeDate); setShowModal(true); }}>
+                        <button className="btn btn-primary btn-sm" style={{ marginTop:4, fontSize:12, fontWeight:700 }} onClick={() => { setModalDate(activeDate); setShowModal(true); }}>
                           ＋ Schedule Patient
                         </button>
                       )}
@@ -1906,7 +1964,8 @@ export default function Schedule() {
               </div>
             </div>
 
-            {/* MINI TIMELINE */}
+            {/* MINI TIMELINE — hidden on mobile */}
+            {!isMobile && (
             <div style={{ width:54, flexShrink:0, background:"#f8fafc", border:"1px solid var(--border)", borderRadius:10, overflow:"hidden", position:"sticky", top:80, alignSelf:"flex-start" }}>
               <div style={{ textAlign:"center", padding:"7px 4px", background:"#eef1f6", borderBottom:"1px solid var(--border)", fontSize:9, fontWeight:800, textTransform:"uppercase", color:"var(--text-muted)", letterSpacing:"0.5px" }}>Hours</div>
               {Array.from({length:11}, (_,i) => i+8).map(h => {
@@ -1920,7 +1979,10 @@ export default function Schedule() {
                 );
               })}
             </div>
-          </div>)}
+            )} {/* end !isMobile mini timeline */}
+          </div>
+          </>
+          )}
         </>
       )}
 

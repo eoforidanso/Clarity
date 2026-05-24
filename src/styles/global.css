@@ -475,7 +475,18 @@
   --font-mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
 
   --sidebar-width: 260px;
+  --sidebar-icon-width: 70px;
   --header-height: 54px;
+
+  /* ── Domain color system ──────────────────────────────────── */
+  --domain-clinical:      #3b82f6;
+  --domain-clinical-bg:   #eff6ff;
+  --domain-billing:       #8b5cf6;
+  --domain-billing-bg:    #f5f3ff;
+  --domain-clearinghouse: #14b8a6;
+  --domain-clearinghouse-bg: #f0fdfa;
+  --domain-api:           #f97316;
+  --domain-api-bg:        #fff7ed;
 
   --ease:      cubic-bezier(0.16, 1, 0.3, 1);
   --ease-out:  cubic-bezier(0, 0, 0.2, 1);
@@ -545,6 +556,7 @@ img { max-width: 100%; }
   height: -webkit-fill-available;
   min-width: 0;
   overflow: hidden;
+  transition: margin-left 0.22s cubic-bezier(0.4,0,0.2,1);
 }
 
 .main-content {
@@ -554,9 +566,111 @@ img { max-width: 100%; }
   overflow-x: hidden;
 }
 
-/* ══════════════════════════════════════════════════════════════
-   SIDEBAR
-══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════
+   SIDEBAR COLLAPSED (manual toggle via data-sidebar="collapsed")
+════════════════════════════════════════════════════════════ */
+@media (min-width: 1025px) {
+  [data-sidebar="collapsed"] .sidebar {
+    width: var(--sidebar-icon-width);
+    overflow: hidden;
+  }
+  [data-sidebar="collapsed"] .sidebar-logo-inner .logo-text,
+  [data-sidebar="collapsed"] .sidebar-section-title,
+  [data-sidebar="collapsed"] .sidebar-user-details,
+  [data-sidebar="collapsed"] .sidebar-patient-ctx,
+  [data-sidebar="collapsed"] .collapse-all-row,
+  [data-sidebar="collapsed"] .sidebar-nav a > *:not(.sidebar-nav-icon):not(.nav-badge) { display: none !important; }
+  [data-sidebar="collapsed"] .sidebar-nav-icon { margin-right: 0; }
+  [data-sidebar="collapsed"] .sidebar-nav a { justify-content: center; padding: 10px; }
+  [data-sidebar="collapsed"] .sidebar-logo-inner { justify-content: center; }
+  [data-sidebar="collapsed"] .logo-mark { margin-right: 0; }
+  [data-sidebar="collapsed"] .sidebar-user-card { justify-content: center; }
+  [data-sidebar="collapsed"] .sidebar-sign-out { display: none; }
+  [data-sidebar="collapsed"] .main-area { margin-left: var(--sidebar-icon-width); }
+}
+
+/* ════════════════════════════════════════════════════════════
+   COLOR CHIP SYSTEM (semantic + domain)
+════════════════════════════════════════════════════════════ */
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 9px; border-radius: 9999px;
+  font-size: 11px; font-weight: 700;
+  white-space: nowrap; line-height: 1.4;
+  transition: opacity 0.1s;
+}
+.chip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+/* Semantic */
+.chip-urgent  { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.chip-caution { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+.chip-info    { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+.chip-success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+.chip-neutral { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+/* Domain */
+.chip-clinical      { background: var(--domain-clinical-bg);      color: #1d4ed8; border: 1px solid #bfdbfe; }
+.chip-billing       { background: var(--domain-billing-bg);       color: #6d28d9; border: 1px solid #ddd6fe; }
+.chip-clearinghouse { background: var(--domain-clearinghouse-bg); color: #0f766e; border: 1px solid #99f6e4; }
+.chip-api           { background: var(--domain-api-bg);           color: #c2410c; border: 1px solid #fed7aa; }
+
+/* ════════════════════════════════════════════════════════════
+   SOFT SEPARATORS
+════════════════════════════════════════════════════════════ */
+.section-sep { height: 1px; background: var(--border); margin: 16px 0; border: none; display: block; }
+.section-sep-sm { height: 1px; background: var(--border); margin: 8px 0; border: none; display: block; }
+.sidebar-sep { height: 1px; background: rgba(255,255,255,0.07); margin: 6px 10px; }
+
+/* ════════════════════════════════════════════════════════════
+   VISUAL HIERARCHY HELPERS
+════════════════════════════════════════════════════════════ */
+/* Stronger active nav */
+.sidebar-nav li a.active { font-weight: 700; letter-spacing: -0.1px; }
+/* Section titles — slightly brighter */
+.sidebar-section-title { font-size: 9.5px !important; letter-spacing: 1.4px !important; }
+/* Text dimming utility */
+.text-dim { opacity: 0.55; }
+.text-muted-sm { font-size: 11px; color: var(--text-muted); }
+/* Consistent spacing scale helpers */
+.gap-8  { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.gap-24 { gap: 24px; }
+
+/* ════════════════════════════════════════════════════════════
+   MICRO-INTERACTIONS
+════════════════════════════════════════════════════════════ */
+/* Button press */
+.btn:active { transform: scale(0.97); }
+/* Hover card lift */
+.card-lift { transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease); }
+.card-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-md) !important; }
+/* Row hover */
+.row-hover:hover { background: #f8fafc !important; cursor: pointer; }
+/* Success flash */
+@keyframes successFlash {
+  0%,100% { background-color: transparent; }
+  50%      { background-color: rgba(34,197,94,0.12); }
+}
+.success-flash { animation: successFlash 0.65s ease; }
+/* Loading dots */
+@keyframes dotPulse {
+  0%,80%,100% { transform: scale(0); opacity: 0; }
+  40%         { transform: scale(1); opacity: 1; }
+}
+.loading-dots { display: inline-flex; gap: 4px; align-items: center; }
+.loading-dots span {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--primary); animation: dotPulse 1.4s ease infinite both;
+}
+.loading-dots span:nth-child(2) { animation-delay: 0.16s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.32s; }
+/* Chip pop */
+@keyframes chipPop {
+  0%   { transform: scale(0.88); opacity: 0.6; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+.chip { animation: chipPop 0.14s var(--ease); }
+
+
 .sidebar {
   width: var(--sidebar-width);
   background: var(--bg-sidebar);
@@ -568,6 +682,7 @@ img { max-width: 100%; }
   overflow-y: auto;
   overflow-x: hidden;
   border-right: 1px solid rgba(255,255,255,0.04);
+  transition: width 0.22s cubic-bezier(0.4,0,0.2,1);
 }
 
 .sidebar-logo { padding: 0; border-bottom: 1px solid rgba(255,255,255,0.06); flex-shrink: 0; }
@@ -3494,7 +3609,7 @@ img { max-width: 100%; }
 /* ══════════════════════════════════════════════════════════════
    RESPONSIVE — Enhanced mobile/tablet support
 ═══════════════════════════════════════════════════════════════ */
-@media (max-width: 1024px) {
+@media (max-width: 1280px) {
   .sidebar { width: 70px; overflow: hidden; }
   .sidebar-logo-inner .logo-text,
   .sidebar-section-title,

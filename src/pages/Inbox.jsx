@@ -141,9 +141,15 @@ export default function Inbox() {
     setSelectedId(msg.id);
     setShowReply(false);
     setReplyText('');
+    if (isMobile) setMobilePanel(2);
     if (msg.status === 'Unread') {
       updateMessageStatus(msg.id, 'Read');
     }
+  };
+
+  const handleSelectPatient = (ptId) => {
+    setSelectedPatientId(ptId);
+    if (isMobile) setMobilePanel(1);
   };
 
   const handleMarkUnread = (id) => {
@@ -153,6 +159,15 @@ export default function Inbox() {
   const [replySent, setReplySent] = useState(false);
   const [assignedMsg, setAssignedMsg] = useState(false);
   const [refillAction, setRefillAction] = useState({}); // { [msgId]: 'Approved' | 'Denied' }
+
+  // Mobile responsive state
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  const [mobilePanel, setMobilePanel] = useState(0); // 0=patient list, 1=message list, 2=detail
+  useEffect(() => {
+    const handle = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handle);
+    return () => window.removeEventListener('resize', handle);
+  }, []);
 
   const isMedicationRelated = (msg) => {
     if (!msg) return false;
@@ -216,9 +231,37 @@ export default function Inbox() {
 
   return (
     <div className="fade-in">
-      <div className="page-header">
-        <h1>📥 Clinical Inbox</h1>
-        <p>{unreadCount > 0 ? `${unreadCount} unread message${unreadCount > 1 ? 's' : ''} requiring attention` : 'All caught up — no unread messages'}</p>
+      {/* ── Integrated Inbox Header ── */}
+      <div style={{ marginBottom: 16, padding: '14px 18px', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              📥 Clinical Inbox
+              {unreadCount > 0 && (
+                <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 9px', borderRadius: 12, background: '#dc2626', color: '#fff' }}>
+                  {unreadCount} new
+                </span>
+              )}
+            </h1>
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+              {unreadCount > 0 ? `${unreadCount} unread message${unreadCount > 1 ? 's' : ''} requiring attention` : 'All caught up — no unread messages'}
+            </p>
+          </div>
+          {/* Stat chips */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Total', value: (inboxMessages || []).length, bg: '#f8fafc', color: '#475569', dot: '#94a3b8' },
+              { label: 'Unread', value: unreadCount, bg: unreadCount > 0 ? '#eff6ff' : '#f8fafc', color: unreadCount > 0 ? '#1e40af' : '#94a3b8', dot: '#3b82f6' },
+              { label: 'Urgent', value: (inboxMessages || []).filter(m => m.urgent).length, bg: (inboxMessages || []).filter(m => m.urgent).length > 0 ? '#fef2f2' : '#f8fafc', color: (inboxMessages || []).filter(m => m.urgent).length > 0 ? '#991b1b' : '#94a3b8', dot: '#ef4444' },
+            ].map(s => (
+              <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 20, background: s.bg, boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
+                <span style={{ fontSize: 14, fontWeight: 800, color: s.color }}>{s.value}</span>
+                <span style={{ fontSize: 11, color: s.color, opacity: 0.75 }}>{s.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Filters — pill bar */}
@@ -260,10 +303,11 @@ export default function Inbox() {
       </div>
 
       {/* Three-Column Inbox Layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 1fr', gap: '1px', background: 'var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', height: '70vh', border: '1px solid var(--border)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '260px 1fr 1fr', gap: '1px', background: 'var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', height: isMobile ? 'calc(100vh - 220px)' : '70vh', border: '1px solid var(--border)' }}>
         
         {/* Patient List Column */}
-        <div style={{ background: 'var(--bg-sidebar)', overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
+        {(!isMobile || mobilePanel === 0) && (
+        <div style={{ background: 'var(--bg-sidebar)', overflowY: 'auto', borderRight: 'none', boxShadow: isMobile ? 'none' : '3px 0 10px rgba(0,0,0,0.18)' }}>
           <div style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.12)', fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase' }}>
             Patients ({patientList.length})
           </div>
@@ -275,7 +319,7 @@ export default function Inbox() {
             patientList.map((pt) => (
               <div
                 key={pt.id}
-                onClick={() => setSelectedPatientId(pt.id)}
+                onClick={() => handleSelectPatient(pt.id)}
                 style={{
                   padding: '12px',
                   borderBottom: '1px solid rgba(255,255,255,0.08)',
@@ -329,9 +373,24 @@ export default function Inbox() {
             ))
           )}
         </div>
+        )} {/* end patient column */}
 
         {/* Message List Column */}
-        <div style={{ background: 'white', overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
+        {(!isMobile || mobilePanel === 1) && (
+        <div style={{ background: 'white', overflowY: 'auto', borderRight: isMobile ? 'none' : '1px solid var(--border)' }}>
+          {isMobile && (
+            <button onClick={() => setMobilePanel(0)}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'10px 14px', width:'100%', background:'#f8fafc', border:'none', borderBottom:'1px solid var(--border)', fontSize:12, fontWeight:700, color:'var(--text-secondary)', cursor:'pointer' }}>
+              ← Back to Patients
+            </button>
+          )}
+          {/* Message list column header */}
+          {selectedPatientId && (
+            <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border)', background:'#fafbfc', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <span style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.3px' }}>Messages</span>
+              <span style={{ fontSize:11, color:'var(--text-muted)' }}>{filteredMessages.length} total</span>
+            </div>
+          )}
           {filteredMessages.length === 0 && (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
               <div style={{ fontSize: 40, marginBottom: 8 }}>📭</div>
@@ -348,9 +407,19 @@ export default function Inbox() {
                 borderRight: 'none',
                 borderRadius: '0',
                 transition: 'background 0.12s',
+                borderLeft: msg.urgent
+                  ? '4px solid #ef4444'
+                  : msg.status === 'Unread'
+                  ? '4px solid #3b82f6'
+                  : '4px solid transparent',
+                background: selectedId === msg.id
+                  ? '#eff6ff'
+                  : msg.urgent && msg.status === 'Unread'
+                  ? '#fff5f5'
+                  : 'transparent',
               }}
               onMouseEnter={e => { if (selectedId !== msg.id) e.currentTarget.style.background = '#f8fafc'; }}
-              onMouseLeave={e => { if (selectedId !== msg.id) e.currentTarget.style.background = ''; }}
+              onMouseLeave={e => { if (selectedId !== msg.id) e.currentTarget.style.background = msg.urgent && msg.status === 'Unread' ? '#fff5f5' : 'transparent'; }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                 <span style={{
@@ -365,7 +434,7 @@ export default function Inbox() {
                 </span>
                 {msg.urgent && <span className="badge badge-danger" style={{ fontSize: 10 }}>URGENT</span>}
               </div>
-              <div style={{ fontWeight: msg.status === 'Unread' ? 700 : 500, fontSize: 14, marginBottom: 2 }}>
+              <div style={{ fontWeight: msg.status === 'Unread' ? 800 : 600, fontSize: msg.status === 'Unread' ? 15 : 14, marginBottom: 2, color: msg.urgent ? '#7f1d1d' : 'var(--text-primary)' }}>
                 {msg.subject}
               </div>
               <div className="text-muted text-sm" style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -375,9 +444,17 @@ export default function Inbox() {
             </div>
           ))}
         </div>
+        )} {/* end message list column */}
 
         {/* Message Detail Column */}
+        {(!isMobile || mobilePanel === 2) && (
         <div style={{ background: 'white', overflowY: 'auto' }}>
+          {isMobile && (
+            <button onClick={() => setMobilePanel(1)}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'10px 14px', width:'100%', background:'#f8fafc', border:'none', borderBottom:'1px solid var(--border)', fontSize:12, fontWeight:700, color:'var(--text-secondary)', cursor:'pointer' }}>
+              ← Back to Messages
+            </button>
+          )}
           {!selectedMessage ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
               <div style={{ textAlign: 'center' }}>
@@ -518,6 +595,7 @@ export default function Inbox() {
             </div>
           )}
         </div>
+        )} {/* end detail column */}
       </div>
     </div>
   );

@@ -13,6 +13,16 @@ export default function Sidebar() {
   const aiPrefs = getAIFeatures();
   const [chartExpanded, setChartExpanded] = useState(true);
 
+  // ── Sidebar width collapse (icon-only mode) ──────────────
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('sidebar_nav_collapsed') === 'true'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-sidebar', sidebarCollapsed ? 'collapsed' : 'expanded');
+    try { localStorage.setItem('sidebar_nav_collapsed', String(sidebarCollapsed)); } catch {}
+  }, [sidebarCollapsed]);
+
   // ── Collapsible section state ────────────────────────────
   const [expanded, setExpanded] = useState(() => {
     try {
@@ -98,7 +108,29 @@ export default function Sidebar() {
             <h1>Clarity</h1>
             <span>Outpatient EHR</span>
           </div>
+          {/* Collapse arrow — visible on expanded sidebar */}
+          {!sidebarCollapsed && (
+            <button
+              onClick={() => setSidebarCollapsed(true)}
+              title="Collapse sidebar"
+              style={{ marginLeft: 'auto', width: 22, height: 22, borderRadius: 5, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = '#fff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}
+            >‹</button>
+          )}
         </div>
+        {/* Expand arrow — visible only when collapsed */}
+        {sidebarCollapsed && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '6px 0 0' }}>
+            <button
+              onClick={() => setSidebarCollapsed(false)}
+              title="Expand sidebar"
+              style={{ width: 28, height: 22, borderRadius: 5, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.14)'; e.currentTarget.style.color = '#fff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; }}
+            >›</button>
+          </div>
+        )}
       </div>
 
       {/* Open patient charts */}
@@ -372,6 +404,26 @@ export default function Sidebar() {
             🚪
           </button>
         </div>
+      </div>
+      {/* Sidebar collapse toggle — bottom strip */}
+      <div style={{ padding: '4px 10px 6px', flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+        <button
+          onClick={() => setSidebarCollapsed(v => !v)}
+          title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start', gap: 6,
+            padding: '5px 8px', borderRadius: 6,
+            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+            color: 'rgba(255,255,255,0.3)', fontSize: 10, fontWeight: 700,
+            cursor: 'pointer', transition: 'all 0.15s',
+            textTransform: 'uppercase', letterSpacing: '0.4px',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; }}
+        >
+          <span style={{ fontSize: 14 }}>{sidebarCollapsed ? '›' : '‹'}</span>
+          {!sidebarCollapsed && <span>Collapse sidebar</span>}
+        </button>
       </div>
     </aside>
   );

@@ -4071,6 +4071,17 @@ export default function Encounters({ patientId }) {
   const [copySelections, setCopySelections] = useState({}); // { [encId]: { field: bool } }
   const [sidebarSection, setSidebarSection] = useState('history'); // history | allergies | demographics | problems | vitals | medications | orders | assessments
   const [filterOpen, setFilterOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(() => {
+    const handle = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) setFilterOpen(false);
+    };
+    window.addEventListener('resize', handle);
+    handle();
+    return () => window.removeEventListener('resize', handle);
+  }, []);
   const [activeFilters, setActiveFilters] = useState(() =>
     Object.fromEntries(FILTER_TYPES.map(f => [f.key, true]))
   );
@@ -5110,7 +5121,7 @@ export default function Encounters({ patientId }) {
 
       {/* Three-panel: filter | clinical sidebar | detail */}
       {!creating && (
-        <div style={{ display: 'grid', gridTemplateColumns: filterOpen ? '190px 270px 1fr' : '44px 270px 1fr', gap: 0, minHeight: 'calc(100vh - 180px)', transition: 'grid-template-columns 0.2s ease' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : filterOpen ? '190px 270px 1fr' : '44px 270px 1fr', gap: 0, minHeight: 'calc(100vh - 180px)', transition: 'grid-template-columns 0.2s ease' }}>
 
           {/* ── Filter Panel — FAR LEFT (collapsible) ── */}
           {(() => {

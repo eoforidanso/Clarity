@@ -15,6 +15,7 @@ export default function PatientSearch() {
   const { currentUser } = useAuth();
   const { activeSiteId, isFiltered } = useSite();
   const [search, setSearch] = useState('');
+  const [hoveredRow, setHoveredRow] = useState(null);
   const navigate = useNavigate();
   const inputRef = useRef(null);
 
@@ -174,12 +175,12 @@ export default function PatientSearch() {
                 </div>
               )}
               <table className="data-table">
-                <thead>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg)' }}>
                   <tr>
                     <th>Patient</th>
                     <th>MRN</th>
-                    <th>DOB</th>
-                    <th>Gender</th>
+                    <th style={{ color: 'var(--text-muted)', fontWeight: 600 }}>DOB</th>
+                    <th style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Gender</th>
                     <th>Insurance</th>
                     <th>Last Visit</th>
                     <th>Flags</th>
@@ -188,7 +189,11 @@ export default function PatientSearch() {
                 </thead>
                 <tbody>
                   {filtered.map((p) => (
-                  <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => handleSelect(p)}>
+                  <tr key={p.id}
+                    style={{ cursor: 'pointer', background: hoveredRow === p.id ? 'rgba(79,70,229,0.04)' : 'transparent', transition: 'background 0.12s' }}
+                    onClick={() => handleSelect(p)}
+                    onMouseEnter={() => setHoveredRow(p.id)}
+                    onMouseLeave={() => setHoveredRow(null)}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <div style={{
@@ -200,24 +205,35 @@ export default function PatientSearch() {
                           {p.firstName?.[0] || ''}{p.lastName?.[0] || ''}
                         </div>
                         <div>
-                          <div style={{ fontWeight: 700, fontSize: 13 }}>{p.lastName}, {p.firstName}</div>
+                          <div style={{ fontWeight: 800, fontSize: 14 }}>{p.lastName}, {p.firstName}</div>
                           <div className="text-xs text-muted">{p.phone || p.cellPhone || ''}</div>
                         </div>
                       </div>
                     </td>
                     <td style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: 12 }}>{p.mrn}</td>
-                    <td>{p.dob}</td>
-                    <td>{p.gender}</td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: 11 }}>{p.dob}</td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: 11 }}>{p.gender}</td>
                     <td className="text-sm">{p.insurance?.primary?.name || '—'}</td>
                     <td className="text-sm">{p.lastVisit || '—'}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                        {p.isBTG && <span className="badge badge-danger" style={{ fontSize: 10 }}>🔒 BTG</span>}
-                        {p.flags?.filter(f => f !== 'BTG Protected').map((f, i) => (
-                          <span key={i} className={`badge ${f.includes('Suicide') || f.includes('Safety') ? 'badge-danger' : f.includes('Substance') ? 'badge-warning' : f === 'VIP' ? 'badge-purple' : 'badge-info'}`} style={{ fontSize: 10 }}>
-                            {f}
-                          </span>
-                        ))}
+                        {p.isBTG && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10, background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', whiteSpace: 'nowrap' }}>🔒 BTG</span>}
+                        {p.flags?.filter(f => f !== 'BTG Protected').map((f, i) => {
+                          const flagStyle = f.includes('Suicide') || f.includes('Safety') || f.includes('Self-Harm')
+                            ? { background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' }
+                            : f.includes('Fall')
+                            ? { background: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa' }
+                            : f === 'VIP'
+                            ? { background: '#faf5ff', color: '#6b21a8', border: '1px solid #d8b4fe' }
+                            : f.includes('Substance')
+                            ? { background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }
+                            : { background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' };
+                          return (
+                            <span key={i} style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10, whiteSpace: 'nowrap', ...flagStyle }}>
+                              {f}
+                            </span>
+                          );
+                        })}
                       </div>
                     </td>
                     <td>
