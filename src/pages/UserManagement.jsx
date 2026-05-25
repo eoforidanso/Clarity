@@ -8,18 +8,22 @@ const USERS_STORAGE_KEY = 'clarity_demo_users';
 const saveUsersToStorage = (list) => { try { localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(list)); } catch {} };
 const loadUsersFromStorage = () => { try { const s = localStorage.getItem(USERS_STORAGE_KEY); return s ? JSON.parse(s) : null; } catch { return null; } };
 
-const ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist'];
+const ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist', 'biller', 'admin'];
 const ROLE_LABELS = {
   prescriber: 'Prescriber',
   nurse: 'Nurse / MA',
   front_desk: 'Front Desk',
   therapist: 'Therapist',
+  biller: 'Biller',
+  admin: 'Admin',
 };
 const ROLE_COLORS = {
   prescriber: '#3b82f6',
   nurse: '#10b981',
   front_desk: '#f59e0b',
   therapist: '#8b5cf6',
+  biller: '#ec4899',
+  admin: '#64748b',
 };
 
 const EMPTY_FORM = {

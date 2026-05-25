@@ -28,7 +28,7 @@ function sanitizeUsername(raw) {
   return cleaned;
 }
 
-const VALID_ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist', 'admin'];
+const VALID_ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist', 'biller', 'admin'];
 
 // ── GET /api/users/directory ───────────────────────────────────────────
 // Returns basic name/role info for all staff — accessible by any authenticated user.
