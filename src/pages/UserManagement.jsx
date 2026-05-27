@@ -29,7 +29,8 @@ const ROLE_COLORS = {
 const EMPTY_FORM = {
   firstName: '', lastName: '', username: '', email: '',
   password: '', role: 'front_desk', credentials: '',
-  specialty: '', npi: '', deaNumber: '', twoFactorEnabled: true, locationId: 'loc1',
+  specialty: '', npi: '', deaNumber: '', twoFactorEnabled: true,
+  mustChangePassword: true, locationId: 'loc1',
 };
 
 function RoleBadge({ role }) {
@@ -203,17 +204,33 @@ function UserForm({ initial, onSave, onCancel, loading, error, locationOptions }
         </select>
       </Field>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
-        <input
-          id="2fa-toggle"
-          type="checkbox"
-          checked={form.twoFactorEnabled}
-          onChange={e => set('twoFactorEnabled', e.target.checked)}
-          style={{ width: 16, height: 16, cursor: 'pointer' }}
-        />
-        <label htmlFor="2fa-toggle" style={{ fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
-          Require Two-Factor Authentication
-        </label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            id="2fa-toggle"
+            type="checkbox"
+            checked={form.twoFactorEnabled}
+            onChange={e => set('twoFactorEnabled', e.target.checked)}
+            style={{ width: 16, height: 16, cursor: 'pointer' }}
+          />
+          <label htmlFor="2fa-toggle" style={{ fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+            Require Two-Factor Authentication
+          </label>
+        </div>
+        {!isEdit && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              id="must-change-pwd"
+              type="checkbox"
+              checked={form.mustChangePassword}
+              onChange={e => set('mustChangePassword', e.target.checked)}
+              style={{ width: 16, height: 16, cursor: 'pointer' }}
+            />
+            <label htmlFor="must-change-pwd" style={{ fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+              Require password change on first login
+            </label>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -473,17 +490,20 @@ export default function UserManagement() {
     try {
       await usersApi.create(form);
     } catch (err) {
-      // Backend rejected or offline — add to local state and persist as local-only
+      if (err?.code !== 'network') {
+        // Backend returned a real error (auth, validation, conflict) — show in modal
+        setFormError(err?.message || 'Failed to create user. Please try again.');
+        setFormLoading(false);
+        return;
+      }
+      // True network failure — save locally so work isn't lost
       const newUser = { ...safeForm, id: 'local-' + Date.now() };
       const stored = loadUsersFromStorage() || [];
       const updatedLocal = [...stored.filter(u => String(u.id).startsWith('local-')), newUser];
       saveUsersToStorage(updatedLocal);
       setUserList(prev => [...prev, newUser]);
       closeModal();
-      const msg = err?.status >= 400 && err?.status < 500
-        ? `Saved locally (backend rejected: ${err.message || err.status})`
-        : `✅ User "${form.username}" created (saved locally — backend offline)`;
-      showToast(msg);
+      showToast(`User "${form.username}" saved locally (server unreachable)`);
       setFormLoading(false);
       return;
     }
@@ -499,15 +519,20 @@ export default function UserManagement() {
     const { password: _pw, ...safeForm } = form;
     try {
       await usersApi.update(selectedUser.id, form);
-    } catch {
-      // Backend offline — update local state and persist
+    } catch (err) {
+      if (err?.code !== 'network') {
+        setFormError(err?.message || 'Failed to update user. Please try again.');
+        setFormLoading(false);
+        return;
+      }
+      // Network offline — update local state
       setUserList(prev => {
         const next = prev.map(u => u.id === selectedUser.id ? { ...u, ...safeForm } : u);
         saveUsersToStorage(next);
         return next;
       });
       closeModal();
-      showToast('✅ User updated successfully');
+      showToast('User updated locally (server unreachable)');
       setFormLoading(false);
       return;
     }

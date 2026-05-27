@@ -87,7 +87,7 @@ router.get('/', authenticate, authorize(...ADMIN_ROLES), async (_req, res) => {
 // ── POST /api/users ─────────────────────────────────────────────────────
 // Create a new staff user. Admin/front_desk only.
 router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
-  const { username, password, firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled, locationId } = req.body;
+  const { username, password, firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled, mustChangePassword, locationId } = req.body;
 
   // Validate required fields
   const cleanUsername = sanitizeUsername(username);
@@ -118,7 +118,7 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
 
   await db.prepare(
     `INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, must_change_password, location_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     cleanUsername,
@@ -132,6 +132,7 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
     (deaNumber || '').trim(),
     email.trim().toLowerCase(),
     twoFactorEnabled ? 1 : 0,
+    mustChangePassword === false ? 0 : 1,
     locationId || 'loc1'
   );
 
