@@ -47,7 +47,7 @@ export function buildAccess(user) {
      */
     canAccessLocation(locId) {
       if (canSeeAll) return true;
-      if (!locId) return true;
+      if (!locId) return false;
       return locId === locationId;
     },
 
@@ -65,7 +65,7 @@ export function buildAccess(user) {
     locationClause(column = 'primary_location') {
       if (canSeeAll || !locationId) return { clause: '', params: [] };
       return {
-        clause: ` AND (${column} IS NULL OR ${column} = ?)`,
+        clause: ` AND ${column} = ?`,
         params: [locationId],
       };
     },
