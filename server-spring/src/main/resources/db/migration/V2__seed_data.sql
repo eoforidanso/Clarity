@@ -5,24 +5,24 @@
 -- =====================================================
 
 -- The bcrypt hash for 'Pass123!' is:
--- $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
+-- $2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2
 -- (pre-generated; Spring BCryptPasswordEncoder is compatible)
 
 INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, epcs_pin_hash, two_factor_enabled, patient_id) VALUES
-('u1', 'dr.chris', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Chris', 'L.', 'prescriber', 'MD, PhD', 'Psychiatry', '1234567890', 'FM1234567', 'chris.l@clarity.health', '$2a$10$rDkzG7QFZEF1QGnX5oPe3OAoTbFuTPa3fD1Ly/Sw3aHyFbKjPbVKi', true, NULL),
-('u2', 'np.joseph', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Joseph', '', 'prescriber', 'PMHNP-BC', 'Psychiatric Mental Health', '0987654321', 'FJ9876543', 'joseph@clarity.health', '$2a$10$rDkzG7QFZEF1QGnX5oPe3OAoTbFuTPa3fD1Ly/Sw3aHyFbKjPbVKi', true, NULL),
-('u3', 'irina.s', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Irina', 'S.', 'prescriber', 'MD', 'Psychiatry', '1122334455', 'FS1122334', 'irina.s@clarity.health', '$2a$10$rDkzG7QFZEF1QGnX5oPe3OAoTbFuTPa3fD1Ly/Sw3aHyFbKjPbVKi', true, NULL),
-('u4', 'nurse.kelly', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Kelly', 'Chen', 'nurse', 'RN', 'Behavioral Health', '', '', 'kelly.chen@clarity.health', NULL, true, NULL),
-('u5', 'admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Admin', 'User', 'front_desk', '', '', '', '', 'admin@clarity.health', NULL, true, NULL),
-('u6', 'baz', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Baz', '', 'front_desk', '', '', '', '', 'baz@clarity.health', NULL, true, NULL),
-('u7', 'amena', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Amena', '', 'front_desk', '', '', '', '', 'amena@clarity.health', NULL, true, NULL),
-('u8', 'april.t', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'April', 'Torres', 'therapist', 'LCSW', 'Clinical Social Work', '5566778899', '', 'april.t@clarity.health', NULL, true, NULL),
-('pat-p1', 'james.anderson', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'James', 'Anderson', 'patient', '', '', '', '', 'james.anderson@email.com', NULL, false, 'p1'),
-('pat-p2', 'maria.garcia', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Maria', 'Garcia', 'patient', '', '', '', '', 'maria.garcia@email.com', NULL, false, 'p2'),
-('pat-p3', 'robert.chen', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Robert', 'Chen', 'patient', '', '', '', '', 'robert.chen@email.com', NULL, false, 'p3'),
-('pat-p4', 'ashley.kim', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Ashley', 'Kim', 'patient', '', '', '', '', 'ashley.kim@email.com', NULL, false, 'p4'),
-('pat-p5', 'dorothy.wilson', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Dorothy', 'Wilson', 'patient', '', '', '', '', 'dorothy.wilson@email.com', NULL, false, 'p5'),
-('pat-p6', 'marcus.brown', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Marcus', 'Brown', 'patient', '', '', '', '', 'marcus.brown@email.com', NULL, false, 'p6');
+('u1', 'dr.chris', '$2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2', 'Chris', 'L.', 'prescriber', 'MD, PhD', 'Psychiatry', '1234567890', 'FM1234567', 'cjlynn023@gmail.com', '$2a$10$rDkzG7QFZEF1QGnX5oPe3OAoTbFuTPa3fD1Ly/Sw3aHyFbKjPbVKi', true, NULL),
+('u2', 'np.joseph', '$2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2', 'Joseph', '', 'prescriber', 'PMHNP-BC', 'Psychiatric Mental Health', '0987654321', 'FJ9876543', 'joseph@clarity.health', '$2a$10$rDkzG7QFZEF1QGnX5oPe3OAoTbFuTPa3fD1Ly/Sw3aHyFbKjPbVKi', true, NULL),
+('u3', 'irina.s', '$2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2', 'Irina', 'S.', 'prescriber', 'MD', 'Psychiatry', '1122334455', 'FS1122334', 'irina.s@clarity.health', '$2a$10$rDkzG7QFZEF1QGnX5oPe3OAoTbFuTPa3fD1Ly/Sw3aHyFbKjPbVKi', true, NULL),
+('u4', 'nurse.kelly', '$2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2', 'Kelly', 'Chen', 'nurse', 'RN', 'Behavioral Health', '', '', 'kelly.chen@clarity.health', NULL, true, NULL),
+('u5', 'admin', '$2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2', 'Admin', 'User', 'front_desk', '', '', '', '', 'admin@clarity.health', NULL, true, NULL),
+('u6', 'baz', '$2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2', 'Baz', '', 'front_desk', '', '', '', '', 'baz@clarity.health', NULL, true, NULL),
+('u7', 'amena', '$2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2', 'Amena', '', 'front_desk', '', '', '', '', 'amena@clarity.health', NULL, true, NULL),
+('u8', 'april.t', '$2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2', 'April', 'Torres', 'therapist', 'LCSW', 'Clinical Social Work', '5566778899', '', 'april.t@clarity.health', NULL, true, NULL),
+('pat-p1', 'james.anderson', '$2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2', 'James', 'Anderson', 'patient', '', '', '', '', 'james.anderson@email.com', NULL, false, 'p1'),
+('pat-p2', 'maria.garcia', '$2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2', 'Maria', 'Garcia', 'patient', '', '', '', '', 'maria.garcia@email.com', NULL, false, 'p2'),
+('pat-p3', 'robert.chen', '$2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2', 'Robert', 'Chen', 'patient', '', '', '', '', 'robert.chen@email.com', NULL, false, 'p3'),
+('pat-p4', 'ashley.kim', '$2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2', 'Ashley', 'Kim', 'patient', '', '', '', '', 'ashley.kim@email.com', NULL, false, 'p4'),
+('pat-p5', 'dorothy.wilson', '$2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2', 'Dorothy', 'Wilson', 'patient', '', '', '', '', 'dorothy.wilson@email.com', NULL, false, 'p5'),
+('pat-p6', 'marcus.brown', '$2a$10$KXAFHjKR//3NdvLvRsz3yO97MXPEtMK3wDT1clWdX/1ntWygEzWN2', 'Marcus', 'Brown', 'patient', '', '', '', '', 'marcus.brown@email.com', NULL, false, 'p6');
 
 -- ─── Patients ────────────────────────────────────────
 INSERT INTO patients (id, mrn, first_name, last_name, dob, gender, pronouns, ssn, race, ethnicity, language, marital_status, phone, cell_phone, email, address_street, address_city, address_state, address_zip, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, insurance_primary_name, insurance_primary_member_id, insurance_primary_group_number, insurance_primary_copay, insurance_secondary_name, insurance_secondary_member_id, insurance_secondary_group_number, insurance_secondary_copay, pcp, assigned_provider, is_btg, is_active, last_visit, next_appointment, flags) VALUES

@@ -44,6 +44,7 @@ function dbLocToSite(loc) {
 // 'all' in the array means the role sees every site and may select 'All Sites'.
 // prescriber/therapist are restricted to their assigned locationId (set per-user by admin).
 const ROLE_SITE_ACCESS = {
+  admin:      ['all'],
   front_desk: ['all'],
   nurse:      ['all'],
   prescriber: null, // resolved per-user from currentUser.locationId

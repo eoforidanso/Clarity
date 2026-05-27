@@ -42,6 +42,12 @@ public class User {
     @Column(name = "two_factor_enabled")
     private Boolean twoFactorEnabled;
 
+    @Column(name = "must_change_password")
+    private Boolean mustChangePassword;
+
+    @Column(name = "location_id")
+    private String locationId;
+
     @Column(name = "patient_id")
     private String patientId;
 
