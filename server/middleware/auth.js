@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import config from '../config.js';
 import db from '../db/database.js';
+import { buildAccess } from './accessControl.js';
 
 export async function authenticate(req, res, next) {
   // Accept token from httpOnly cookie (browser) or Authorization header (API clients / mobile)
@@ -20,6 +21,7 @@ export async function authenticate(req, res, next) {
       return res.status(401).json({ error: 'User not found' });
     }
     req.user = user;
+    req.access = buildAccess(user); // role + location scope for every request
 
     // Server-side enforcement: block all API calls except auth endpoints until password is changed
     if (user.must_change_password) {

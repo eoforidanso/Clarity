@@ -47,23 +47,16 @@ function formatPatient(row, opts = {}) {
   };
 }
 
-const ALL_ACCESS_ROLES = ['admin', 'front_desk'];
-
 // GET /api/patients
 router.get('/', async (req, res) => {
   const { search, active, limit: limitParam, offset: offsetParam } = req.query;
   const limit = Math.min(parseInt(limitParam) || 100, 200); // cap at 200
   const offset = Math.max(parseInt(offsetParam) || 0, 0);
 
-  let query = 'SELECT * FROM patients WHERE 1=1';
-  const params = [];
+  const { clause: locClause, params: locParams } = req.access.locationClause('primary_location');
 
-  // Location-based access: non-admin/front_desk users only see patients at their
-  // assigned location or patients with no location set.
-  if (!ALL_ACCESS_ROLES.includes(req.user?.role) && req.user?.location_id) {
-    query += ' AND (primary_location IS NULL OR primary_location = ?)';
-    params.push(req.user.location_id);
-  }
+  let query = `SELECT * FROM patients WHERE 1=1${locClause}`;
+  const params = [...locParams];
 
   if (active !== undefined) {
     query += ' AND is_active = ?';
