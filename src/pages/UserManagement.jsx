@@ -392,6 +392,10 @@ export default function UserManagement() {
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
+  // Reload locations whenever this page mounts so newly-added locations from
+  // the Location Management page show up in the dropdown immediately.
+  useEffect(() => { reloadSites && reloadSites(); }, [reloadSites]);
+
   // Refresh when the tab regains focus so changes from other pages show up.
   useEffect(() => {
     const refresh = () => { loadUsers(); reloadSites && reloadSites(); };

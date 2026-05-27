@@ -78,7 +78,7 @@ router.get('/', authenticate, authorize(...ADMIN_ROLES), async (_req, res) => {
     deaNumber: u.dea_number || '',
     email: u.email,
     twoFactorEnabled: !!u.two_factor_enabled,
-    locationId: u.location_id || 'loc1',
+    locationId: u.location_id || '',
     createdAt: u.created_at,
     updatedAt: u.updated_at,
   })));
@@ -133,7 +133,7 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
     email.trim().toLowerCase(),
     twoFactorEnabled ? 1 : 0,
     mustChangePassword === false ? 0 : 1,
-    locationId || 'loc1'
+    locationId || null
   );
 
   logAuditEvent({
