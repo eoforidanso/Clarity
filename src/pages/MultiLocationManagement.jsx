@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSite } from '../contexts/SiteContext';
 import { locations as locationsApi, users as usersApi } from '../services/api';
-import { users as mockUsers, } from '../data/mockData';
 import { SITES_FALLBACK } from '../contexts/SiteContext';
 
 const TYPES = ['Primary', 'Satellite', 'Virtual'];
@@ -10,22 +9,6 @@ const STATUSES = ['Active', 'Inactive'];
 const TYPE_COLORS = { Primary: '#4f46e5', Satellite: '#16a34a', Virtual: '#7c3aed' };
 const TYPE_BG    = { Primary: '#eff6ff', Satellite: '#f0fdf4', Virtual: '#f5f3ff' };
 const TYPE_ICON  = { Primary: '🏥', Satellite: '🏢', Virtual: '🌐' };
-
-const LOCS_STORAGE_KEY = 'clarity_demo_locations';
-const saveLocsToStorage = (list) => { try { localStorage.setItem(LOCS_STORAGE_KEY, JSON.stringify(list)); } catch {} };
-const loadLocsFromStorage = () => { try { const s = localStorage.getItem(LOCS_STORAGE_KEY); return s ? JSON.parse(s) : null; } catch { return null; } };
-
-// Shared with UserManagement so providers added/edited here also appear there
-// when the backend is offline.
-const USERS_STORAGE_KEY = 'clarity_demo_users';
-const loadUsersFromStorage = () => { try { const s = localStorage.getItem(USERS_STORAGE_KEY); return s ? JSON.parse(s) : null; } catch { return null; } };
-const writeUsersToStorage = (updater) => {
-  try {
-    const current = loadUsersFromStorage() || [];
-    const next = typeof updater === 'function' ? updater(current) : updater;
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(next));
-  } catch {}
-};
 
 const EMPTY_FORM = {
   name: '', shortName: '', address: '', phone: '', fax: '',
@@ -267,27 +250,12 @@ export default function MultiLocationManagement() {
     try {
       const data = await locationsApi.list();
       if (Array.isArray(data) && data.length > 0) {
-        // Merge in any locally-added entries (id starts with 'local-' or 'loc-')
-        // that the backend doesn't know about yet, so they survive refreshes.
-        const stored = loadLocsFromStorage() || [];
-        const backendIds = new Set(data.map(d => d.id));
-        const localOnly = stored.filter(l => !backendIds.has(l.id));
-        const merged = [...data, ...localOnly];
-        setLocationData(merged);
-        // Persist the local-only entries (drop ones the backend now has)
-        if (localOnly.length > 0) saveLocsToStorage(localOnly);
-        else { try { localStorage.removeItem(LOCS_STORAGE_KEY); } catch {} }
-      } else setLocationData(SITES_FALLBACK.filter(s => s.id !== 'all').map(s => ({ ...s, status: 'Active', address: '', phone: '', fax: '', hours: '', npi: '', taxId: '', placeOfService: '11 — Office', rooms: 0, telehealth: true, sortOrder: 0 })));
-    } catch {
-      // Backend offline — try localStorage first, then seed from SITES_FALLBACK
-      const stored = loadLocsFromStorage();
-      if (stored && stored.length > 0) {
-        setLocationData(stored);
+        setLocationData(data);
       } else {
-        const seed = SITES_FALLBACK.filter(s => s.id !== 'all').map(s => ({ ...s, status: 'Active', address: '', phone: '', fax: '', hours: '', npi: '', taxId: '', placeOfService: '11 — Office', rooms: 0, telehealth: true, sortOrder: 0 }));
-        setLocationData(seed);
-        saveLocsToStorage(seed);
+        setLocationData(SITES_FALLBACK.filter(s => s.id !== 'all').map(s => ({ ...s, status: 'Active', address: '', phone: '', fax: '', hours: '', npi: '', taxId: '', placeOfService: '11 — Office', rooms: 0, telehealth: true, sortOrder: 0 })));
       }
+    } catch (err) {
+      setFetchErr(err?.message || 'Failed to load locations. Check your connection.');
     } finally { setLoading(false); }
   }, []);
 
@@ -295,12 +263,7 @@ export default function MultiLocationManagement() {
     try {
       const data = await usersApi.list();
       if (Array.isArray(data)) setAllUsers(data.filter(u => u.role !== 'patient' && u.role !== 'admin'));
-    } catch {
-      // Prefer the shared offline store so users added in UserManagement appear here too
-      const stored = loadUsersFromStorage();
-      const source = (stored && stored.length) ? stored : mockUsers;
-      setAllUsers(source.filter(u => u.role !== 'patient' && u.role !== 'admin'));
-    }
+    } catch { /* users are supplementary here; silently ignore */ }
   }, []);
 
   useEffect(() => { load(); loadUsers(); }, [load, loadUsers]);
@@ -309,53 +272,22 @@ export default function MultiLocationManagement() {
 
   const handleAdd = async (form) => {
     setFormLoading(true); setFormError('');
-    try { await locationsApi.create(form); await load(); reloadSites(); closeModal(); showToast('Location added'); }
-    catch (err) {
-      // Backend rejected or offline — add to local state and persist as local-only
-      const newLoc = { ...form, id: 'local-' + Date.now() };
-      const stored = loadLocsFromStorage() || [];
-      const updatedLocal = [...stored.filter(l => !l.id || String(l.id).startsWith('local-') || String(l.id).startsWith('loc-')), newLoc];
-      saveLocsToStorage(updatedLocal);
-      setLocationData(prev => [...prev, newLoc]);
-      reloadSites();
-      closeModal();
-      const msg = err?.status >= 400 && err?.status < 500
-        ? `Saved locally (backend rejected: ${err.message || err.status})`
-        : 'Location added (saved locally — backend offline)';
-      showToast(msg);
-    }
+    try { await locationsApi.create(form); await load(); reloadSites(); closeModal(); showToast('✅ Location added'); }
+    catch (err) { setFormError(err?.message || 'Failed to add location. Please try again.'); }
     finally { setFormLoading(false); }
   };
 
   const handleUpdate = async (form) => {
     setFormLoading(true); setFormError('');
-    try { await locationsApi.update(selected.id, form); await load(); reloadSites(); closeModal(); showToast('Location updated'); }
-    catch {
-      // Backend offline — update local state and persist
-      setLocationData(prev => {
-        const next = prev.map(l => l.id === selected.id ? { ...l, ...form } : l);
-        saveLocsToStorage(next);
-        return next;
-      });
-      reloadSites();
-      closeModal(); showToast('Location updated');
-    }
+    try { await locationsApi.update(selected.id, form); await load(); reloadSites(); closeModal(); showToast('✅ Location updated'); }
+    catch (err) { setFormError(err?.message || 'Failed to update location. Please try again.'); }
     finally { setFormLoading(false); }
   };
 
   const handleDelete = async () => {
     setFormLoading(true);
     try { await locationsApi.remove(selected.id); await load(); reloadSites(); closeModal(); showToast('Location deleted'); }
-    catch {
-      // Backend offline — remove from local state and persist
-      setLocationData(prev => {
-        const next = prev.filter(l => l.id !== selected.id);
-        saveLocsToStorage(next);
-        return next;
-      });
-      reloadSites();
-      closeModal(); showToast('Location deleted');
-    }
+    catch (err) { closeModal(); showToast(err?.message || 'Failed to delete location'); }
     finally { setFormLoading(false); }
   };
 
@@ -375,13 +307,11 @@ export default function MultiLocationManagement() {
     setProviderLoading(true); setProviderError('');
     try {
       await usersApi.update(assignId, { locationId: selected.id });
-    } catch {
-      setAllUsers(prev => prev.map(u => u.id === assignId ? { ...u, locationId: selected.id } : u));
-      writeUsersToStorage(prev => prev.map(u => u.id === assignId ? { ...u, locationId: selected.id } : u));
-      closeProviderModal(); showToast('Provider assigned to location');
+    } catch (err) {
+      setProviderError(err?.message || 'Failed to assign provider. Please try again.');
       setProviderLoading(false); return;
     }
-    await loadUsers(); closeProviderModal(); showToast('Provider assigned to location');
+    await loadUsers(); closeProviderModal(); showToast('✅ Provider assigned to location');
     setProviderLoading(false);
   };
 
@@ -391,15 +321,11 @@ export default function MultiLocationManagement() {
     try {
       const base = (form.firstName + '.' + form.lastName).toLowerCase().replace(/[^a-z0-9._-]/g, '');
       await usersApi.create({ ...form, username: base || 'provider', password: 'ChangeMe1!', mustChangePassword: true, locationId: selected.id });
-    } catch {
-      const base = (form.firstName + '.' + form.lastName).toLowerCase().replace(/[^a-z0-9._-]/g, '');
-      const newUser = { ...form, id: 'local-' + Date.now(), username: base || 'provider', locationId: selected.id, twoFactorEnabled: true };
-      setAllUsers(prev => [...prev, newUser]);
-      writeUsersToStorage(prev => [...prev, newUser]);
-      closeProviderModal(); showToast('Provider added');
+    } catch (err) {
+      setProviderError(err?.message || 'Failed to add provider. Please try again.');
       setProviderLoading(false); return;
     }
-    await loadUsers(); closeProviderModal(); showToast('Provider added');
+    await loadUsers(); closeProviderModal(); showToast('✅ Provider added');
     setProviderLoading(false);
   };
 
@@ -408,13 +334,11 @@ export default function MultiLocationManagement() {
     setProviderLoading(true); setProviderError('');
     try {
       await usersApi.update(selectedProvider.id, form);
-    } catch {
-      setAllUsers(prev => prev.map(u => u.id === selectedProvider.id ? { ...u, ...form } : u));
-      writeUsersToStorage(prev => prev.map(u => u.id === selectedProvider.id ? { ...u, ...form } : u));
-      closeProviderModal(); showToast('Provider updated');
+    } catch (err) {
+      setProviderError(err?.message || 'Failed to update provider. Please try again.');
       setProviderLoading(false); return;
     }
-    await loadUsers(); closeProviderModal(); showToast('Provider updated');
+    await loadUsers(); closeProviderModal(); showToast('✅ Provider updated');
     setProviderLoading(false);
   };
 
@@ -423,10 +347,8 @@ export default function MultiLocationManagement() {
     setProviderLoading(true);
     try {
       await usersApi.update(selectedProvider.id, { locationId: '' });
-    } catch {
-      setAllUsers(prev => prev.map(u => u.id === selectedProvider.id ? { ...u, locationId: '' } : u));
-      writeUsersToStorage(prev => prev.map(u => u.id === selectedProvider.id ? { ...u, locationId: '' } : u));
-      closeProviderModal(); showToast('Provider removed from location');
+    } catch (err) {
+      closeProviderModal(); showToast(err?.message || 'Failed to remove provider');
       setProviderLoading(false); return;
     }
     await loadUsers(); closeProviderModal(); showToast('Provider removed from location');

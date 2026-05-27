@@ -2,11 +2,6 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext';
 import { useSite } from '../contexts/SiteContext';
 import { users as usersApi } from '../services/api';
-import { users as mockUsersData } from '../data/mockData';
-
-const USERS_STORAGE_KEY = 'clarity_demo_users';
-const saveUsersToStorage = (list) => { try { localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(list)); } catch {} };
-const loadUsersFromStorage = () => { try { const s = localStorage.getItem(USERS_STORAGE_KEY); return s ? JSON.parse(s) : null; } catch { return null; } };
 
 const ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist', 'biller', 'admin'];
 const ROLE_LABELS = {
@@ -387,31 +382,9 @@ export default function UserManagement() {
     setFetchError('');
     try {
       const data = await usersApi.list();
-      // Merge backend results with locally-saved entries (id starts with 'local-')
-      // so users added while offline survive once the backend is reachable.
-      const stored = loadUsersFromStorage() || [];
-      const backendIds = new Set(data.map(u => u.id));
-      const localOnly = stored.filter(u => !backendIds.has(u.id) && String(u.id).startsWith('local-'));
-      const merged = [...data, ...localOnly];
-      setUserList(merged);
-      if (localOnly.length > 0) saveUsersToStorage(localOnly);
-      else { try { localStorage.removeItem(USERS_STORAGE_KEY); } catch {} }
-    } catch {
-      // Backend offline — merge localStorage with any new mock users (by id)
-      const seed = mockUsersData
-        .filter(u => u.role !== 'patient')
-        .map(({ password, epcsPin, ...rest }) => rest);
-      const stored = loadUsersFromStorage();
-      if (stored && stored.length > 0) {
-        const storedIds = new Set(stored.map(u => u.id));
-        const newFromSeed = seed.filter(u => !storedIds.has(u.id));
-        const merged = [...stored, ...newFromSeed];
-        if (newFromSeed.length > 0) saveUsersToStorage(merged);
-        setUserList(merged);
-      } else {
-        setUserList(seed);
-        saveUsersToStorage(seed);
-      }
+      setUserList(data);
+    } catch (err) {
+      setFetchError(err?.message || 'Failed to load users. Check your connection.');
     } finally {
       setLoading(false);
     }
@@ -419,19 +392,15 @@ export default function UserManagement() {
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
-  // Refresh users + locations when the tab regains focus or becomes visible,
-  // so changes made on the Location Management page show up here immediately.
+  // Refresh when the tab regains focus so changes from other pages show up.
   useEffect(() => {
     const refresh = () => { loadUsers(); reloadSites && reloadSites(); };
     const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
-    const onStorage = (e) => { if (e.key === 'clarity_demo_users' || e.key === 'clarity_demo_locations') refresh(); };
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('storage', onStorage);
     return () => {
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('storage', onStorage);
     };
   }, [loadUsers, reloadSites]);
 
@@ -486,24 +455,10 @@ export default function UserManagement() {
   const handleCreate = async (form) => {
     setFormLoading(true);
     setFormError('');
-    const { password: _pw, ...safeForm } = form;
     try {
       await usersApi.create(form);
     } catch (err) {
-      if (err?.code !== 'network') {
-        // Backend returned a real error (auth, validation, conflict) — show in modal
-        setFormError(err?.message || 'Failed to create user. Please try again.');
-        setFormLoading(false);
-        return;
-      }
-      // True network failure — save locally so work isn't lost
-      const newUser = { ...safeForm, id: 'local-' + Date.now() };
-      const stored = loadUsersFromStorage() || [];
-      const updatedLocal = [...stored.filter(u => String(u.id).startsWith('local-')), newUser];
-      saveUsersToStorage(updatedLocal);
-      setUserList(prev => [...prev, newUser]);
-      closeModal();
-      showToast(`User "${form.username}" saved locally (server unreachable)`);
+      setFormError(err?.message || 'Failed to create user. Please try again.');
       setFormLoading(false);
       return;
     }
@@ -516,23 +471,10 @@ export default function UserManagement() {
   const handleUpdate = async (form) => {
     setFormLoading(true);
     setFormError('');
-    const { password: _pw, ...safeForm } = form;
     try {
       await usersApi.update(selectedUser.id, form);
     } catch (err) {
-      if (err?.code !== 'network') {
-        setFormError(err?.message || 'Failed to update user. Please try again.');
-        setFormLoading(false);
-        return;
-      }
-      // Network offline — update local state
-      setUserList(prev => {
-        const next = prev.map(u => u.id === selectedUser.id ? { ...u, ...safeForm } : u);
-        saveUsersToStorage(next);
-        return next;
-      });
-      closeModal();
-      showToast('User updated locally (server unreachable)');
+      setFormError(err?.message || 'Failed to update user. Please try again.');
       setFormLoading(false);
       return;
     }
@@ -546,15 +488,9 @@ export default function UserManagement() {
     setFormLoading(true);
     try {
       await usersApi.remove(selectedUser.id);
-    } catch {
-      // Backend offline — remove from local state and persist
-      setUserList(prev => {
-        const next = prev.filter(u => u.id !== selectedUser.id);
-        saveUsersToStorage(next);
-        return next;
-      });
+    } catch (err) {
       closeModal();
-      showToast(`🗑️ User "${selectedUser.username}" deleted`);
+      showToast(err?.message || 'Failed to delete user');
       setFormLoading(false);
       return;
     }

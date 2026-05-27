@@ -449,7 +449,7 @@ function WaitingRow({ apt, onCheckIn, onNoShow, onCancel, onGoToSession, onCheck
       border:"1px solid #e2e8f0", background:"#fff", marginBottom:8,
       boxShadow:"var(--shadow-sm)", transition:"box-shadow 0.15s" }}
       onMouseEnter={e=>e.currentTarget.style.boxShadow="var(--shadow-md)"}
-      onMouseLeave={e=>e.currentTarget.style.boxShadow="var(--shadow-sm)">
+      onMouseLeave={e=>e.currentTarget.style.boxShadow="var(--shadow-sm)"}>
       <div style={{ width:5, background:c.border, flexShrink:0, alignSelf:"stretch" }} />
       <div style={{ flex:1, padding:"11px 14px", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
         {/* time */}

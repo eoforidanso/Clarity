@@ -80,22 +80,14 @@ export function SiteProvider({ children }) {
     locationsApi.list()
       .then(locs => {
         if (Array.isArray(locs) && locs.length > 0) {
-          setDynamicSites(locs.filter(l => l.status !== 'Inactive').map(dbLocToSite));
+          const fromApi = locs.filter(l => l.status !== 'Inactive').map(dbLocToSite);
+          const apiIds = new Set(fromApi.map(l => l.id));
+          const fallbackOnly = SITES_FALLBACK.filter(l => l.id !== 'all' && !apiIds.has(l.id));
+          setDynamicSites([...fromApi, ...fallbackOnly]);
         }
       })
       .catch(() => {
-        // Backend offline — check if MultiLocationManagement persisted locations locally
-        try {
-          const raw = localStorage.getItem('clarity_demo_locations');
-          if (raw) {
-            const stored = JSON.parse(raw);
-            if (Array.isArray(stored) && stored.length > 0) {
-              setDynamicSites(stored.filter(l => l.status !== 'Inactive').map(dbLocToSite));
-              return;
-            }
-          }
-        } catch { /* keep fallback */ }
-        // No local overrides — keep the static fallback (no-op)
+        // Backend offline — keep SITES_FALLBACK as initial state (no localStorage)
       });
   }, []);
 
