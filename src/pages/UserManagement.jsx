@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSite } from '../contexts/SiteContext';
-import { users as usersApi } from '../services/api';
+import { users as usersApi, locations as locationsApi } from '../services/api';
+import { SITES_FALLBACK } from '../contexts/SiteContext';
 
 const ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist', 'biller', 'admin'];
 const ROLE_LABELS = {
@@ -348,11 +349,32 @@ function DeleteConfirmModal({ user, onConfirm, onClose, loading }) {
 
 export default function UserManagement() {
   const { currentUser } = useAuth();
-  const { availableSites, reloadSites } = useSite();
-  const locationOptions = useMemo(
-    () => (availableSites || []).filter(s => s.id !== 'all'),
-    [availableSites]
+  const { reloadSites } = useSite();
+  const [locationOptions, setLocationOptions] = useState(
+    SITES_FALLBACK.filter(s => s.id !== 'all')
   );
+
+  const loadLocations = useCallback(async () => {
+    try {
+      const locs = await locationsApi.list();
+      if (Array.isArray(locs) && locs.length > 0) {
+        const active = locs.filter(l => l.status !== 'Inactive').map(l => ({
+          id: l.id,
+          name: l.name,
+          shortName: l.shortName || l.name,
+          type: l.type || 'Primary',
+        }));
+        // Merge: API first, then any SITES_FALLBACK entries not in DB
+        const apiIds = new Set(active.map(l => l.id));
+        const fallback = SITES_FALLBACK.filter(l => l.id !== 'all' && !apiIds.has(l.id));
+        setLocationOptions([...active, ...fallback]);
+      }
+    } catch {
+      // keep SITES_FALLBACK as initial state
+    }
+  }, []);
+
+  useEffect(() => { loadLocations(); }, [loadLocations]);
   const [userList, setUserList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
@@ -395,10 +417,11 @@ export default function UserManagement() {
   // Reload locations whenever this page mounts so newly-added locations from
   // the Location Management page show up in the dropdown immediately.
   useEffect(() => { reloadSites && reloadSites(); }, [reloadSites]);
+  useEffect(() => { loadLocations(); }, [loadLocations]);
 
   // Refresh when the tab regains focus so changes from other pages show up.
   useEffect(() => {
-    const refresh = () => { loadUsers(); reloadSites && reloadSites(); };
+    const refresh = () => { loadUsers(); loadLocations(); reloadSites && reloadSites(); };
     const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', onVisible);
