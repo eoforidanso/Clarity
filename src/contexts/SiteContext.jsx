@@ -46,7 +46,7 @@ function dbLocToSite(loc) {
 const ROLE_SITE_ACCESS = {
   admin:      ['all'],
   front_desk: ['all'],
-  nurse:      ['all'],
+  nurse:      null, // resolved per-user from currentUser.locationId
   prescriber: null, // resolved per-user from currentUser.locationId
   therapist:  null, // resolved per-user from currentUser.locationId
   patient:    [],
