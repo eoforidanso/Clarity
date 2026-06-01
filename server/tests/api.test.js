@@ -13,11 +13,33 @@ import encounterRoutes from '../routes/encounters.js';
 import fhirRoutes from '../routes/fhir.js';
 import documentRoutes from '../routes/documents.js';
 import auditLogRoutes from '../routes/auditLog.js';
+import adminRoutes from '../routes/admin.js';
 import { errorHandler } from '../middleware/errorHandler.js';
 
 let app;
 let authToken;
 let adminToken;
+
+async function loginWith2FA(username, password) {
+  const res = await request(app).post('/api/auth/login').send({ username, password });
+  expect(res.status).to.equal(200);
+
+  if (res.body.requiresTwoFactor) {
+    expect(res.body.tempToken).to.be.a('string');
+    expect(res.body.mockCode).to.be.a('string');
+
+    const verifyRes = await request(app)
+      .post('/api/auth/2fa/verify')
+      .send({ tempToken: res.body.tempToken, code: res.body.mockCode });
+
+    expect(verifyRes.status).to.equal(200);
+    expect(verifyRes.body.token).to.be.a('string');
+    return verifyRes.body;
+  }
+
+  expect(res.body.token).to.be.a('string');
+  return res.body;
+}
 
 // Build test app
 function createApp() {
@@ -33,6 +55,7 @@ function createApp() {
   testApp.use('/api/fhir', fhirRoutes);
   testApp.use('/api/documents', documentRoutes);
   testApp.use('/api/audit-log', auditLogRoutes);
+  testApp.use('/api/admin', adminRoutes);
   testApp.use(errorHandler);
   return testApp;
 }
@@ -68,25 +91,21 @@ describe('Clarity EHR Backend Tests', function() {
     });
 
     it('should login as prescriber (dr.chris)', async () => {
-      const res = await request(app).post('/api/auth/login').send({ username: 'dr.chris', password: 'Pass123!' });
-      expect(res.status).to.equal(200);
-      expect(res.body.token).to.be.a('string');
-      expect(res.body.user.role).to.equal('prescriber');
-      expect(res.body.user.firstName).to.equal('Chris');
-      authToken = res.body.token;
+      const data = await loginWith2FA('dr.chris', 'Pass123!');
+      expect(data.user.role).to.equal('prescriber');
+      expect(data.user.firstName).to.equal('Chris');
+      authToken = data.token;
     });
 
     it('should login as admin', async () => {
-      const res = await request(app).post('/api/auth/login').send({ username: 'admin', password: 'Pass123!' });
-      expect(res.status).to.equal(200);
-      expect(res.body.user.role).to.equal('admin');
-      adminToken = res.body.token;
+      const data = await loginWith2FA('admin', 'Pass123!');
+      expect(data.user.role).to.equal('admin');
+      adminToken = data.token;
     });
 
     it('should login as therapist (april.t)', async () => {
-      const res = await request(app).post('/api/auth/login').send({ username: 'april.t', password: 'Pass123!' });
-      expect(res.status).to.equal(200);
-      expect(res.body.user.role).to.equal('therapist');
+      const data = await loginWith2FA('april.t', 'Pass123!');
+      expect(data.user.role).to.equal('therapist');
     });
 
     it('should get current user with valid token', async () => {
@@ -108,6 +127,55 @@ describe('Clarity EHR Backend Tests', function() {
     it('should logout successfully', async () => {
       const res = await request(app).post('/api/auth/logout').set('Authorization', `Bearer ${authToken}`);
       expect(res.status).to.equal(200);
+    });
+
+    it('should access admin locations via combined admin route', async () => {
+      const res = await request(app).get('/api/admin/locations').set('Authorization', `Bearer ${authToken}`);
+      expect(res.status).to.equal(200);
+      expect(res.body).to.be.an('array');
+    });
+
+    it('should access admin users via combined admin route as admin', async () => {
+      const res = await request(app).get('/api/admin/users').set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).to.equal(200);
+      expect(res.body).to.be.an('array');
+    });
+
+    it('should create and delete a user via /api/admin/users', async () => {
+      const username = `testuser${Date.now()}`;
+      const email = `${username}@example.com`;
+      const createRes = await request(app).post('/api/admin/users').set('Authorization', `Bearer ${adminToken}`).send({
+        username,
+        password: 'Test1234!',
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'front_desk',
+        email,
+        twoFactorEnabled: false,
+        mustChangePassword: false,
+      });
+      expect(createRes.status).to.equal(201);
+      expect(createRes.body.id).to.be.a('string');
+      const userId = createRes.body.id;
+
+      const deleteRes = await request(app).delete(`/api/admin/users/${userId}`).set('Authorization', `Bearer ${adminToken}`);
+      expect(deleteRes.status).to.equal(200);
+    });
+
+    it('should create and delete a location via /api/admin/locations', async () => {
+      const name = `Test Location ${Date.now()}`;
+      const createRes = await request(app).post('/api/admin/locations').set('Authorization', `Bearer ${adminToken}`).send({
+        name,
+        shortName: `Test ${Date.now()}`,
+        type: 'Satellite',
+        status: 'Active',
+      });
+      expect(createRes.status).to.equal(201);
+      expect(createRes.body.id).to.be.a('string');
+      const locationId = createRes.body.id;
+
+      const deleteRes = await request(app).delete(`/api/admin/locations/${locationId}`).set('Authorization', `Bearer ${adminToken}`);
+      expect(deleteRes.status).to.equal(200);
     });
 
     it('should verify EPCS PIN', async () => {

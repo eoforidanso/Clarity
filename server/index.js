@@ -52,6 +52,7 @@ import fhirRoutes from './routes/fhir.js';
 import billingRoutes from './routes/billing.js';
 import userRoutes from './routes/users.js';
 import locationRoutes from './routes/locations.js';
+import adminRoutes from './routes/admin.js';
 import dosespotRoutes from './routes/dosespot.js';
 
 const app = express();
@@ -163,6 +164,7 @@ app.use('/api/audit-log', auditLogRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/fhir', fhirRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/dosespot', dosespotRoutes);

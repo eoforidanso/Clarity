@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSite } from '../contexts/SiteContext';
-import { locations as locationsApi, users as usersApi } from '../services/api';
+import { admin } from '../services/api';
 import { SITES_FALLBACK } from '../contexts/SiteContext';
 
 const TYPES = ['Primary', 'Satellite', 'Virtual'];
@@ -248,7 +248,7 @@ export default function MultiLocationManagement() {
   const load = useCallback(async () => {
     setLoading(true); setFetchErr('');
     try {
-      const data = await locationsApi.list();
+      const data = await admin.locations.list();
       if (Array.isArray(data) && data.length > 0) {
         setLocationData(data);
       } else {
@@ -261,7 +261,7 @@ export default function MultiLocationManagement() {
 
   const loadUsers = useCallback(async () => {
     try {
-      const data = await usersApi.list();
+      const data = await admin.users.list();
       if (Array.isArray(data)) setAllUsers(data.filter(u => u.role !== 'patient' && u.role !== 'admin'));
     } catch { /* users are supplementary here; silently ignore */ }
   }, []);
@@ -272,21 +272,21 @@ export default function MultiLocationManagement() {
 
   const handleAdd = async (form) => {
     setFormLoading(true); setFormError('');
-    try { await locationsApi.create(form); await load(); reloadSites(); closeModal(); showToast('✅ Location added'); }
+    try { await admin.locations.create(form); await load(); reloadSites(); closeModal(); showToast('✅ Location added'); }
     catch (err) { setFormError(err?.message || 'Failed to add location. Please try again.'); }
     finally { setFormLoading(false); }
   };
 
   const handleUpdate = async (form) => {
     setFormLoading(true); setFormError('');
-    try { await locationsApi.update(selected.id, form); await load(); reloadSites(); closeModal(); showToast('✅ Location updated'); }
+    try { await admin.locations.update(selected.id, form); await load(); reloadSites(); closeModal(); showToast('✅ Location updated'); }
     catch (err) { setFormError(err?.message || 'Failed to update location. Please try again.'); }
     finally { setFormLoading(false); }
   };
 
   const handleDelete = async () => {
     setFormLoading(true);
-    try { await locationsApi.remove(selected.id); await load(); reloadSites(); closeModal(); showToast('Location deleted'); }
+    try { await admin.locations.remove(selected.id); await load(); reloadSites(); closeModal(); showToast('Location deleted'); }
     catch (err) { closeModal(); showToast(err?.message || 'Failed to delete location'); }
     finally { setFormLoading(false); }
   };
@@ -306,7 +306,7 @@ export default function MultiLocationManagement() {
     if (!assignId || !selected) return;
     setProviderLoading(true); setProviderError('');
     try {
-      await usersApi.update(assignId, { locationId: selected.id });
+      await admin.users.update(assignId, { locationId: selected.id });
     } catch (err) {
       setProviderError(err?.message || 'Failed to assign provider. Please try again.');
       setProviderLoading(false); return;
@@ -320,7 +320,7 @@ export default function MultiLocationManagement() {
     setProviderLoading(true); setProviderError('');
     try {
       const base = (form.firstName + '.' + form.lastName).toLowerCase().replace(/[^a-z0-9._-]/g, '');
-      await usersApi.create({ ...form, username: base || 'provider', password: 'ChangeMe1!', mustChangePassword: true, locationId: selected.id });
+      await admin.users.create({ ...form, username: base || 'provider', password: 'ChangeMe1!', mustChangePassword: true, locationId: selected.id });
     } catch (err) {
       setProviderError(err?.message || 'Failed to add provider. Please try again.');
       setProviderLoading(false); return;
@@ -333,7 +333,7 @@ export default function MultiLocationManagement() {
     if (!selectedProvider) return;
     setProviderLoading(true); setProviderError('');
     try {
-      await usersApi.update(selectedProvider.id, form);
+      await admin.users.update(selectedProvider.id, form);
     } catch (err) {
       setProviderError(err?.message || 'Failed to update provider. Please try again.');
       setProviderLoading(false); return;
@@ -346,7 +346,7 @@ export default function MultiLocationManagement() {
     if (!selectedProvider) return;
     setProviderLoading(true);
     try {
-      await usersApi.update(selectedProvider.id, { locationId: '' });
+      await admin.users.update(selectedProvider.id, { locationId: '' });
     } catch (err) {
       closeProviderModal(); showToast(err?.message || 'Failed to remove provider');
       setProviderLoading(false); return;

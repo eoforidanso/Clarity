@@ -300,6 +300,12 @@ export const users = {
   update: (id, data) => put(`/users/${id}`, data),
   remove: (id) => del(`/users/${id}`),
   resetPassword: (id, newPassword) => post(`/users/${id}/reset-password`, { newPassword }),
+  unlock: (id) => post(`/users/${id}/unlock`, {}),
+};
+
+export const admin = {
+  users,
+  locations,
 };
 
 // ─── Audit Log ───────────────────────────────────────

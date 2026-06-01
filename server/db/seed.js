@@ -41,7 +41,7 @@ export default async function seed() {
   const insertMedDb = db.prepare(`INSERT INTO medication_database (id, name, class, doses, routes, is_controlled, schedule) VALUES (?,?,?,?,?,?,?)`);
   const insertBtgLog = db.prepare(`INSERT INTO btg_audit_log (id, patient_id, patient_name, accessed_by, accessed_by_name, reason, timestamp, approved) VALUES (?,?,?,?,?,?,?,?)`);
 
-  const transaction = db.transaction(() => {
+  await db.transaction(async () => {
     // ── Users ──
     // WARNING: These are seed-only credentials for development/demo.
   // Never deploy a production database seeded with these accounts.
@@ -476,7 +476,6 @@ export default async function seed() {
     console.log('  inbox messages, smart phrases, channels, BTG log, medication database.');
   });
 
-  transaction();
   console.log('Database seeding complete!');
 }
 

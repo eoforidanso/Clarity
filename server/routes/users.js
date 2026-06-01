@@ -252,6 +252,32 @@ router.post('/:id/reset-password', authenticate, authorize(...ADMIN_ROLES), asyn
   res.json({ message: 'Password reset successfully' });
 });
 
+// ── POST /api/users/:id/unlock ──────────────────────────────────────────
+// Unlock a user stuck in forced password change. Clears must_change_password flag.
+// Admin/front_desk only.
+router.post('/:id/unlock', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
+  const { id } = req.params;
+
+  const user = await db.prepare('SELECT id FROM users WHERE id = ? AND role != ?').get(id, 'patient');
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  await db.prepare("UPDATE users SET must_change_password = 0, updated_at = datetime('now') WHERE id = ?").run(id);
+
+  logAuditEvent({
+    userId: req.user.id,
+    userName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
+    userRole: req.user.role,
+    action: 'USER_UNLOCKED',
+    resourceType: 'user',
+    resourceId: id,
+    details: { reason: 'Cleared forced password change flag' },
+    ipAddress: req.ip || '',
+    userAgent: req.get('User-Agent') || '',
+  });
+
+  res.json({ message: 'User account unlocked successfully' });
+});
+
 // ── DELETE /api/users/:id ───────────────────────────────────────────────
 // Delete a staff user. Cannot delete yourself.
 router.delete('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {

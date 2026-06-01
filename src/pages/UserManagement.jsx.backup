@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSite } from '../contexts/SiteContext';
-import { admin } from '../services/api';
-
+import { users as usersApi, locations as locationsApi } from '../services/api';
+import { SITES_FALLBACK } from '../contexts/SiteContext';
 
 const ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist', 'biller', 'admin'];
 const ROLE_LABELS = {
@@ -262,7 +262,7 @@ function ResetPasswordModal({ user, onClose }) {
     setError('');
     setLoading(true);
     try {
-      await admin.users.resetPassword(user.id, pwd);
+      await usersApi.resetPassword(user.id, pwd);
       setDone(true);
     } catch (err) {
       setError(err.message);
@@ -375,11 +375,13 @@ function DeleteConfirmModal({ user, onConfirm, onClose, loading }) {
 export default function UserManagement() {
   const { currentUser } = useAuth();
   const { reloadSites } = useSite();
-  const [locationOptions, setLocationOptions] = useState([]);
+  const [locationOptions, setLocationOptions] = useState(
+    SITES_FALLBACK.filter(s => s.id !== 'all')
+  );
 
   const loadLocations = useCallback(async () => {
     try {
-      const locs = await admin.locations.list();
+      const locs = await locationsApi.list();
       if (Array.isArray(locs) && locs.length > 0) {
         const active = locs.filter(l => l.status !== 'Inactive').map(l => ({
           id: l.id,
@@ -392,8 +394,8 @@ export default function UserManagement() {
         const fallback = SITES_FALLBACK.filter(l => l.id !== 'all' && !apiIds.has(l.id));
         setLocationOptions([...active, ...fallback]);
       }
-    } catch (err) {
-      console.error('loadLocations failed:', err);
+    } catch {
+      // keep SITES_FALLBACK as initial state
     }
   }, []);
 
@@ -426,7 +428,7 @@ export default function UserManagement() {
     setLoading(true);
     setFetchError('');
     try {
-      const data = await admin.users.list();
+      const data = await usersApi.list();
       setUserList(data);
     } catch (err) {
       setFetchError(err?.message || 'Failed to load users. Check your connection.');
@@ -511,7 +513,7 @@ export default function UserManagement() {
     setFormLoading(true);
     setFormError('');
     try {
-      await admin.users.create(form);
+      await usersApi.create(form);
     } catch (err) {
       setFormError(err?.message || 'Failed to create user. Please try again.');
       setFormLoading(false);
@@ -527,7 +529,7 @@ export default function UserManagement() {
     setFormLoading(true);
     setFormError('');
     try {
-      await admin.users.update(selectedUser.id, form);
+      await usersApi.update(selectedUser.id, form);
     } catch (err) {
       setFormError(err?.message || 'Failed to update user. Please try again.');
       setFormLoading(false);
@@ -542,7 +544,7 @@ export default function UserManagement() {
   const handleDelete = async () => {
     setFormLoading(true);
     try {
-      await admin.users.remove(selectedUser.id);
+      await usersApi.remove(selectedUser.id);
     } catch (err) {
       closeModal();
       showToast(err?.message || 'Failed to delete user');
@@ -558,7 +560,7 @@ export default function UserManagement() {
   const handleUnlock = async () => {
     setFormLoading(true);
     try {
-      await admin.users.unlock(selectedUser.id);
+      await usersApi.unlock(selectedUser.id);
       await loadUsers();
       closeModal();
       showToast(`🔓 User "${selectedUser.username}" unlocked successfully`);
