@@ -2870,6 +2870,7 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   height: auto !important;
   align-items: stretch;
   margin-top: -20px;
+  margin-bottom: 32px;
 }
 
 /* ── Left: Brand panel ── */
