@@ -8,7 +8,7 @@ import SystemStatus from '../components/SystemStatus';
 const CERTS = ['HIPAA', 'EPCS', 'ONC', '42 CFR Part 2'];
 
 const DEMO_ACCOUNTS = [
-  { role: 'Prescriber',   username: 'dr.chris',    password: 'Pass123!', name: 'Dr. Chris L.',      icon: '🩺', color: '#3b82f6', desc: 'Full clinical access — notes, e-prescribe, charts' },
+  { role: 'Prescriber',   username: 'dr.danso',    password: 'Pass123!', name: 'Dr. Danso',      icon: '🩺', color: '#3b82f6', desc: 'Full clinical access — notes, e-prescribe, charts' },
   { role: 'Therapist',    username: 'april.t',     password: 'Pass123!', name: 'April T., LCSW',    icon: '🧠', color: '#8b5cf6', desc: 'Therapy sessions, treatment plans, assessments' },
   { role: 'Nurse / MA',   username: 'nurse.kelly', password: 'Pass123!', name: 'Kelly Chen, RN',    icon: '💉', color: '#10b981', desc: 'Vitals, triage, medication reconciliation' },
   { role: 'Front Desk',   username: 'baz',         password: 'Pass123!', name: 'Baz',               icon: '🗓️', color: '#f59e0b', desc: 'Scheduling, check-in, patient registration' },
@@ -79,7 +79,7 @@ export default function LoginPage() {
   const handleStartGuidedDemo = () => {
     setDemoLoading('guided');
     clearLoginError();
-    const result = loginDemo('dr.chris', 'Pass123!');
+    const result = loginDemo('dr.danso', 'Pass123!');
     if (result?.ok) {
       startDemo();
       navigate('/dashboard');
