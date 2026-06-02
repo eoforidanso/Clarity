@@ -36,7 +36,7 @@ export const DEMO_BLOCKED_ROUTES = [
   '/contract-variance', '/fee-schedule', '/payer-profiles',
 ];
 
-export const DEMO_BLOCKED_PREFIX = ['/admin', '/developer'];
+export const DEMO_BLOCKED_PREFIX = ['/admin', '/developer', '/edi', '/api'];
 
 const DemoContext = createContext(null);
 

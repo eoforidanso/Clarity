@@ -13,35 +13,16 @@ import { demoRateLimit } from './demoRateLimit';
 
 // API path patterns that are blocked in demo
 const BLOCKED_API_PATTERNS = [
-  // Clearinghouse engine
+  // Block ALL /edi/* routes
+  /^\/edi\//,
   /\/api\/edi\//,
-  /\/api\/clearinghouse/,
-  /\/api\/837/,
-  /\/api\/835/,
-  /\/api\/270/,
-  /\/api\/271/,
-  /\/api\/999/,
-  /\/api\/routing/,
-  /\/api\/transport/,
-  /\/api\/sftp/,
-  /\/api\/payers\/[^/]+\/credentials/,
-  // Developer / API
-  /\/api\/webhooks/,
-  /\/api\/integrations/,
-  /\/api\/marketplace/,
-  /\/api\/hie/,
-  // Admin & system
-  /\/api\/admin\//,
-  /\/api\/users/,
-  /\/api\/auth\/register/,
-  /\/api\/auth\/change-password/,
-  /\/api\/audit/,
-  /\/api\/roles/,
-  /\/api\/permissions/,
-  // Export / download
-  /\/api\/export/,
-  /\/api\/download/,
-  /\/api\/reports\/.*\/export/,
+  // Block ALL /developer/* routes
+  /^\/developer\//,
+  // Block ALL /api/* except auth login/verify
+  /^\/api\/(?!auth\/login|auth\/verify)/,
+  // Extra explicit blocks for safety
+  /\/api\/clearinghouse/, /\/api\/sftp/, /\/api\/routing/, /\/api\/transport/,
+  /\/api\/export/,        /\/api\/download/, /\/api\/reports\/.*\/export/,
 ];
 
 // Methods blocked in demo (no writes except read-only)
