@@ -3,9 +3,11 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { getNavPrefs, getAIFeatures } from '../pages/Settings';
+import { useDemo } from '../demo/DemoContext';
 
 export default function Sidebar() {
   const { currentUser, logout } = useAuth();
+  const { isDemo } = useDemo();
   const { inboxMessages, selectedPatient, openCharts, appointments } = usePatient();
   const location = useLocation();
   const navigate = useNavigate();
@@ -313,48 +315,94 @@ export default function Sidebar() {
       </div>
 
       {/* ── DOMAIN: CLEARINGHOUSE ── */}
-      <div className="sidebar-section">
-        <div
-          className="sidebar-section-title"
-          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', borderLeft: '3px solid #14b8a6', paddingLeft: 6 }}
-          onClick={() => toggleSection('clearinghouse')}
-        >
-          <span style={{ color: '#5eead4' }}>🔀 Clearinghouse</span>
-          <span style={{ fontSize: 9, opacity: 0.6 }}>{expanded.clearinghouse ? '▼' : '▶'}</span>
+      {isDemo ? (
+        <div style={{
+          margin: '4px 10px 8px',
+          padding: '11px 13px',
+          borderRadius: 9,
+          background: 'rgba(20,184,166,0.07)',
+          border: '1px solid rgba(20,184,166,0.2)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+            <span style={{ fontSize: 11 }}>🔀</span>
+            <span style={{ fontSize: 10, fontWeight: 800, color: '#5eead4', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Clearinghouse</span>
+            <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(239,68,68,0.15)', color: '#fca5a5' }}>Demo</span>
+          </div>
+          <p style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5, margin: '0 0 7px' }}>
+            EDI Transport, 837P, 835 ERA, and routing tools are available in live environments.
+          </p>
+          <a href="mailto:info@clarity-ehr.com?subject=Clarity EHR Demo Request"
+            style={{ fontSize: 10, fontWeight: 700, color: '#5eead4', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+            Request full access →
+          </a>
         </div>
-        {expanded.clearinghouse && (
-        <ul className="sidebar-nav">
-          {navItem('/edi-transport',  '🔌', 'EDI Transport')}
-          {navItem('/edi-routing',    '🔀', 'EDI Routing Engine')}
-          {navItem('/edi-837',        '⚙️', '837P Generator')}
-          {navItem('/edi-999',        '✅', '999 / 277CA Parser')}
-          {navItem('/edi-270',        '🔍', '270 / 271 Engine')}
-          {navItem('/edi-835',        '💰', '835 ERA Listener')}
-          {navItem('/edi-monitoring', '📡', 'EDI Monitoring')}
-          {navItem('/edi-api',        '🌐', 'EDI API Portal')}
-        </ul>
-        )}
-      </div>
+      ) : (
+        <div className="sidebar-section">
+          <div
+            className="sidebar-section-title"
+            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', borderLeft: '3px solid #14b8a6', paddingLeft: 6 }}
+            onClick={() => toggleSection('clearinghouse')}
+          >
+            <span style={{ color: '#5eead4' }}>🔀 Clearinghouse</span>
+            <span style={{ fontSize: 9, opacity: 0.6 }}>{expanded.clearinghouse ? '▼' : '▶'}</span>
+          </div>
+          {expanded.clearinghouse && (
+          <ul className="sidebar-nav">
+            {navItem('/edi-transport',  '🔌', 'EDI Transport')}
+            {navItem('/edi-routing',    '🔀', 'EDI Routing Engine')}
+            {navItem('/edi-837',        '⚙️', '837P Generator')}
+            {navItem('/edi-999',        '✅', '999 / 277CA Parser')}
+            {navItem('/edi-270',        '🔍', '270 / 271 Engine')}
+            {navItem('/edi-835',        '💰', '835 ERA Listener')}
+            {navItem('/edi-monitoring', '📡', 'EDI Monitoring')}
+            {navItem('/edi-api',        '🌐', 'EDI API Portal')}
+          </ul>
+          )}
+        </div>
+      )}
 
       {/* ── DOMAIN: DEVELOPER / API ── */}
-      <div className="sidebar-section">
-        <div
-          className="sidebar-section-title"
-          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', borderLeft: '3px solid #f97316', paddingLeft: 6 }}
-          onClick={() => toggleSection('api')}
-        >
-          <span style={{ color: '#fdba74' }}>🔧 Developer / API</span>
-          <span style={{ fontSize: 9, opacity: 0.6 }}>{expanded.api ? '▼' : '▶'}</span>
+      {isDemo ? (
+        <div style={{
+          margin: '0 10px 12px',
+          padding: '11px 13px',
+          borderRadius: 9,
+          background: 'rgba(249,115,22,0.07)',
+          border: '1px solid rgba(249,115,22,0.2)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+            <span style={{ fontSize: 11 }}>🔧</span>
+            <span style={{ fontSize: 10, fontWeight: 800, color: '#fdba74', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Developer / API</span>
+            <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(239,68,68,0.15)', color: '#fca5a5' }}>Demo</span>
+          </div>
+          <p style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5, margin: '0 0 7px' }}>
+            API docs, network integrations, and developer tools are available in live environments.
+          </p>
+          <a href="mailto:info@clarity-ehr.com?subject=Clarity EHR Demo Request"
+            style={{ fontSize: 10, fontWeight: 700, color: '#fdba74', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+            Request full access →
+          </a>
         </div>
-        {expanded.api && (
-        <ul className="sidebar-nav">
-          {navItem('/api-docs',             '📖', 'API Documentation')}
-          {navItem('/network-integrations', '🌐', 'Network Integrations')}
-          {navItem('/care-everywhere',      '🔄', 'Care Everywhere (HIE)')}
-          {navItem('/marketplace',          '🏪', 'App Marketplace')}
-        </ul>
-        )}
-      </div>
+      ) : (
+        <div className="sidebar-section">
+          <div
+            className="sidebar-section-title"
+            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', borderLeft: '3px solid #f97316', paddingLeft: 6 }}
+            onClick={() => toggleSection('api')}
+          >
+            <span style={{ color: '#fdba74' }}>🔧 Developer / API</span>
+            <span style={{ fontSize: 9, opacity: 0.6 }}>{expanded.api ? '▼' : '▶'}</span>
+          </div>
+          {expanded.api && (
+          <ul className="sidebar-nav">
+            {navItem('/api-docs',             '📖', 'API Documentation')}
+            {navItem('/network-integrations', '🌐', 'Network Integrations')}
+            {navItem('/care-everywhere',      '🔄', 'Care Everywhere (HIE)')}
+            {navItem('/marketplace',          '🏪', 'App Marketplace')}
+          </ul>
+          )}
+        </div>
+      )}
 
       {/* ── ADMINISTRATION ── */}
       <div className="sidebar-section">
