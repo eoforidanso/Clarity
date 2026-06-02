@@ -13,15 +13,32 @@ import { demoRateLimit } from './demoRateLimit';
 
 // API path patterns that are blocked in demo
 const BLOCKED_API_PATTERNS = [
+  // Clearinghouse engine
+  /\/api\/edi\//,
+  /\/api\/clearinghouse/,
+  /\/api\/837/,
+  /\/api\/835/,
+  /\/api\/270/,
+  /\/api\/271/,
+  /\/api\/999/,
+  /\/api\/routing/,
+  /\/api\/transport/,
+  /\/api\/sftp/,
+  /\/api\/payers\/[^/]+\/credentials/,
+  // Developer / API
+  /\/api\/webhooks/,
+  /\/api\/integrations/,
+  /\/api\/marketplace/,
+  /\/api\/hie/,
+  // Admin & system
   /\/api\/admin\//,
   /\/api\/users/,
   /\/api\/auth\/register/,
   /\/api\/auth\/change-password/,
-  /\/api\/edi\//,
-  /\/api\/clearinghouse/,
-  /\/api\/payers\/[^/]+\/credentials/,
-  /\/api\/webhooks/,
   /\/api\/audit/,
+  /\/api\/roles/,
+  /\/api\/permissions/,
+  // Export / download
   /\/api\/export/,
   /\/api\/download/,
   /\/api\/reports\/.*\/export/,

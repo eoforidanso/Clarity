@@ -7,20 +7,33 @@ import { demoRateLimit } from './demoRateLimit';
 
 // ── Routes blocked in demo mode ───────────────────────────────────────────────
 export const DEMO_BLOCKED_ROUTES = [
-  // Clearinghouse internals
-  '/edi-monitoring', '/edi-api-portal', '/edi-transport', '/edi-routing',
-  '/edi-837-generator', '/edi-835-listener', '/edi-270-engine', '/edi-999-parser',
-  '/batch-claim-submission', '/clearinghouse',
-  // Admin & system controls
+  // ── Clearinghouse — ALL blocked ─────────────────────────────────────────────
+  '/edi-transport',          // EDI Transport Layer
+  '/edi-routing',            // EDI Routing Engine
+  '/edi-837',                // 837P Generator
+  '/edi-999',                // 999 / 277CA Parser
+  '/edi-270',                // 270 / 271 Engine
+  '/edi-835',                // 835 ERA Listener
+  '/edi-monitoring',         // EDI Monitoring
+  '/edi-api',                // EDI API Portal
+  '/batch-claim-submission', // Batch claim submission
+  '/scrubber-rules',         // Scrubber rules engine
+
+  // ── Developer / API — ALL blocked ───────────────────────────────────────────
+  '/api-docs',               // API Documentation
+  '/network-integrations',   // Network Integrations
+  '/care-everywhere',        // Care Everywhere (HIE)
+  '/marketplace',            // App Marketplace
+
+  // ── Admin & system controls ─────────────────────────────────────────────────
   '/user-management', '/role-permissions', '/audit-trail', '/btg-audit-log',
   '/admin-toolkit', '/multi-location-management',
-  // Architecture / API
-  '/api-documentation', '/network-integrations',
-  // AI engine
+
+  // ── AI / RCM intelligence ────────────────────────────────────────────────────
   '/clinical-decision-support', '/population-health', '/care-gaps',
-  // Billing details
+
+  // ── Billing internals ────────────────────────────────────────────────────────
   '/contract-variance', '/fee-schedule', '/payer-profiles',
-  '/scrubber-rules', '/edi-api-portal',
 ];
 
 export const DEMO_BLOCKED_PREFIX = ['/admin', '/developer'];
