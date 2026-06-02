@@ -2986,17 +2986,28 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 
 /* ── Form fields ── */
 .lf-group { margin-bottom: 20px; position: relative; }
+/* Extra breathing room when a system notice sits above the first field */
+.login-server-note + form .lf-group:first-child,
+.lf-group:first-of-type { margin-top: 8px; }
 
-/* Floating label wrapper */
+/* Floating label wrapper — must be the positioning context, not password-field-wrapper */
 .lf-float-wrapper {
   position: relative;
+}
+/* Override: password-field-wrapper inside lf-float-wrapper must NOT create a new stacking context */
+.lf-float-wrapper > .password-field-wrapper {
+  position: static;
+}
+/* Re-anchor password-toggle to lf-float-wrapper */
+.lf-float-wrapper .password-toggle {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
 }
 .lf-float-label {
   position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
   font-size: 14px; font-weight: 500; color: #94a3b8;
   pointer-events: none; transition: all 0.18s cubic-bezier(0.4,0,0.2,1);
   background: transparent; padding: 0 2px; line-height: 1;
-  white-space: nowrap;
+  white-space: nowrap; z-index: 1;
 }
 /* Floated state — input has value or is focused */
 .lf-float-wrapper.has-value .lf-float-label,

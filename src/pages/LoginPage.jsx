@@ -422,6 +422,7 @@ export default function LoginPage() {
                 aria-labelledby="signin-heading"
                 noValidate
                 className={shakeForm ? 'login-form--shake' : undefined}
+                style={{ marginTop: 16 }}
               >
                 {/* Username — floating label */}
                 <div className="lf-group">
