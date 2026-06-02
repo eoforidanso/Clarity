@@ -354,16 +354,16 @@ function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggl
    VERTICAL TIMELINE WRAPPER
 ══════════════════════════════════════════════ */
 // ── Capacity thresholds ────────────────────────────────────────────────────────
-const WARNING_THRESHOLD = 0.7; // 70% — soft yellow
-const FULL_THRESHOLD    = 0.9; // 90% — soft red
-const MAX_SLOTS_PER_HOUR = 3;  // typical max concurrent appointments per hour
+const WARNING_THRESHOLD = 0.7; // 70%
+const FULL_THRESHOLD    = 0.9; // 90%
+const DEFAULT_CAPACITY  = 3;   // max slots per hour (used when provider capacity unknown)
 
-function getCapacityClass(count) {
-  const ratio = count / MAX_SLOTS_PER_HOUR;
+const getSlotStatus = (count, capacity = DEFAULT_CAPACITY) => {
+  const ratio = count / capacity;
   if (ratio >= FULL_THRESHOLD)    return "full";
   if (ratio >= WARNING_THRESHOLD) return "warning";
   return "";
-}
+};
 
 function ScheduleTimeline({ appts, todayKey, isToday, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType }) {
   const now = new Date();
@@ -401,7 +401,7 @@ function ScheduleTimeline({ appts, todayKey, isToday, onOpenChart, onCheckIn, on
       <div style={{ position: "absolute", left: 44, top: 0, bottom: 0, width: 2, background: "linear-gradient(180deg, #e2e8f0 0%, #e2e8f0 100%)", borderRadius: 1 }} />
 
       {grouped.map(([hour, hourAppts]) => {
-        const capacityClass = getCapacityClass(hourAppts.length);
+        const capacityClass = getSlotStatus(hourAppts.length, DEFAULT_CAPACITY);
         const dotColor = capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : "#e2e8f0";
         const dotBorder = capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : "#cbd5e1";
         return (
