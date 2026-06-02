@@ -136,121 +136,182 @@ export default function Dashboard() {
   const activeThemeId = localStorage.getItem('clarity_theme') || 'clinical-blue';
   const activeThemeLabel = activeThemeId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
+  // Minutes until next appointment
+  const minsUntilNext = useMemo(() => {
+    if (!nextAppt?.time) return null;
+    const [hh, mm] = nextAppt.time.split(':').map(Number);
+    const now = new Date();
+    const apptMins = hh * 60 + mm;
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const diff = apptMins - nowMins;
+    return diff > 0 && diff < 180 ? diff : null;
+  }, [nextAppt]);
+
   return (
     <div className="fade-in">
-      {/* Greeting */}
-      <div className="dashboard-greeting">
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px' }}>
-            {greeting}, {currentUser?.firstName}
-          </h1>
-          <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--primary)', opacity: 0.85, letterSpacing: '-0.2px', margin: '2px 0 4px', maxWidth: 400 }}>Clarity — Designed for healing</p>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-            {remaining > 0 && <span style={{ color: 'var(--primary)', fontWeight: 600 }}>· {roleSubtext[currentUser?.role] || `${remaining} remaining today`}</span>}
-            <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'var(--purple-light)', color: 'var(--purple)', fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>Academic Medical Center</span>
-          </p>
+
+      {/* ── TIER 1: Greeting + critical alerts ─────────────────────────── */}
+      <div style={{ marginBottom: 16, padding: '18px 22px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            {/* Primary greeting */}
+            <h1 style={{ margin: 0, fontSize: 30, fontWeight: 900, letterSpacing: '-0.8px', color: '#0f172a', lineHeight: 1.1 }}>
+              {greeting}, {currentUser?.firstName}.
+            </h1>
+            {/* Date — Tier 1 prominence */}
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--primary)', margin: '4px 0 2px', letterSpacing: '-0.2px' }}>
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {remaining > 0 && <span style={{ color: '#475569' }}>{roleSubtext[currentUser?.role] || `${remaining} remaining today`}</span>}
+              <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'var(--purple-light)', color: 'var(--purple)', fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>Academic Medical Center</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button className="btn btn-primary btn-sm" onClick={() => navigate('/patients')}>🔍 Find Patient</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => navigate('/schedule')}>📅 Full Schedule</button>
+            <button className="btn btn-secondary btn-sm dashboard-export-btn" onClick={() => navigate('/analytics')}>📤 Export</button>
+          </div>
         </div>
-        <div className="dashboard-greeting-actions">
-          <button className="btn btn-primary btn-sm" onClick={() => navigate('/patients')}>🔍 Find Patient</button>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/schedule')}>📅 Full Schedule</button>
-          <button className="btn btn-secondary btn-sm dashboard-export-btn" onClick={() => navigate('/analytics')}>📤 Export</button>
+
+        {/* Critical alerts — inline in Tier 1 */}
+        {(urgentMessages.length > 0 || clinicalAlerts.some(a => a.severity === 'danger')) && (
+          <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {urgentMessages.length > 0 && (
+              <div
+                onClick={() => navigate('/inbox')}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: 8, cursor: 'pointer', flex: 1, minWidth: 220 }}>
+                <span style={{ fontSize: 16 }}>🚨</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: '#991b1b' }}>{urgentMessages.length} urgent message{urgentMessages.length > 1 ? 's' : ''}</div>
+                  <div style={{ fontSize: 11, color: '#b91c1c', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{urgentMessages[0]?.subject}</div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#991b1b' }}>View →</span>
+              </div>
+            )}
+            {clinicalAlerts.filter(a => a.severity === 'danger').map((alert, i) => (
+              <div key={i}
+                onClick={() => alert.patientId && navigate(`/chart/${alert.patientId}/summary`)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: '#fff7ed', border: '1.5px solid #fed7aa', borderRadius: 8, cursor: alert.patientId ? 'pointer' : 'default' }}>
+                <span style={{ fontSize: 14 }}>⏰</span>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#c2410c' }}>{alert.label}</div>
+                  <div style={{ fontSize: 11, color: '#ea580c' }}>{alert.text}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── TIER 1: Next Appointment + Next Telehealth side-by-side ──────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+
+        {/* Next Appointment — hero card */}
+        <div
+          onClick={() => nextAppt && goToPatient(nextAppt)}
+          style={{
+            background: nextAppt ? 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)' : '#f8fafc',
+            borderRadius: 12, padding: '20px 22px', cursor: nextAppt ? 'pointer' : 'default',
+            border: nextAppt ? 'none' : '1px solid #e2e8f0',
+            boxShadow: nextAppt ? '0 4px 20px rgba(15,23,42,0.18)' : 'none',
+            transition: 'transform 150ms, box-shadow 150ms',
+            position: 'relative', overflow: 'hidden',
+          }}
+          onMouseEnter={e => nextAppt && (e.currentTarget.style.transform = 'translateY(-2px)', e.currentTarget.style.boxShadow = '0 8px 28px rgba(15,23,42,0.24)')}
+          onMouseLeave={e => nextAppt && (e.currentTarget.style.transform = '', e.currentTarget.style.boxShadow = '0 4px 20px rgba(15,23,42,0.18)')}
+        >
+          {/* subtle background glow */}
+          {nextAppt && <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: 'rgba(99,102,241,0.15)', pointerEvents: 'none' }} />}
+          <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.8, color: nextAppt ? 'rgba(148,163,184,0.9)' : 'var(--text-muted)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <MetricIcon type="calendar" /> Next Appointment
+          </div>
+          {nextAppt ? (
+            <>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#f1f5f9', letterSpacing: '-0.5px', lineHeight: 1.2, marginBottom: 4 }}>{nextAppt.patientName}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', marginBottom: 8 }}>{fmtTime(nextAppt.time)} · {nextAppt.type}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className={`badge ${statusBadge(nextAppt.status)}`}>{nextAppt.status}</span>
+                {minsUntilNext !== null && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: minsUntilNext <= 10 ? '#f87171' : '#60a5fa', background: 'rgba(255,255,255,0.08)', padding: '2px 8px', borderRadius: 6 }}>
+                    in {minsUntilNext} min
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4 }}>No upcoming appointments</div>
+          )}
         </div>
-        {/* Active theme color bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }} title={`Active theme: ${activeThemeLabel}`}>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: 0.3, textTransform: 'uppercase' }}>Theme</span>
-          {['--primary', '--primary-dark', '--sidebar-bg'].map(v => (
-            <div key={v} style={{ width: 14, height: 14, borderRadius: 3, background: `var(${v})`, border: '1px solid rgba(0,0,0,0.12)', flexShrink: 0 }} />
-          ))}
-          <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500 }}>{activeThemeLabel}</span>
+
+        {/* Next Telehealth — hero card */}
+        <div
+          onClick={() => nextTelehealth && handleGoToSession(nextTelehealth)}
+          style={{
+            background: nextTelehealth ? 'linear-gradient(135deg, #0d4f4a 0%, #0f766e 100%)' : '#f8fafc',
+            borderRadius: 12, padding: '20px 22px', cursor: nextTelehealth ? 'pointer' : 'default',
+            border: nextTelehealth ? 'none' : '1px solid #e2e8f0',
+            boxShadow: nextTelehealth ? '0 4px 20px rgba(13,79,74,0.22)' : 'none',
+            transition: 'transform 150ms, box-shadow 150ms',
+            position: 'relative', overflow: 'hidden',
+          }}
+          onMouseEnter={e => nextTelehealth && (e.currentTarget.style.transform = 'translateY(-2px)', e.currentTarget.style.boxShadow = '0 8px 28px rgba(13,79,74,0.3)')}
+          onMouseLeave={e => nextTelehealth && (e.currentTarget.style.transform = '', e.currentTarget.style.boxShadow = '0 4px 20px rgba(13,79,74,0.22)')}
+        >
+          {nextTelehealth && <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: 'rgba(20,184,166,0.15)', pointerEvents: 'none' }} />}
+          <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.8, color: nextTelehealth ? 'rgba(148,163,184,0.9)' : 'var(--text-muted)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <MetricIcon type="camera" /> Next Telehealth
+          </div>
+          {nextTelehealth ? (
+            <>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#f0fdfa', letterSpacing: '-0.5px', lineHeight: 1.2, marginBottom: 4 }}>{nextTelehealth.patientName}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#99f6e4', marginBottom: 10 }}>{fmtTime(nextTelehealth.time)}</div>
+              <button
+                className="btn btn-sm"
+                style={{ background: '#14b8a6', color: '#fff', border: 'none', fontWeight: 700, fontSize: 12, padding: '6px 16px', borderRadius: 7 }}
+                onClick={e => { e.stopPropagation(); handleGoToSession(nextTelehealth); }}
+              >
+                📹 Join Session →
+              </button>
+            </>
+          ) : (
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4 }}>No telehealth sessions</div>
+          )}
         </div>
       </div>
 
-      {/* Urgent attention banner */}
-      {urgentMessages.length > 0 && (
-        <div className="alert alert-danger" style={{ marginBottom: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }} onClick={() => navigate('/inbox')}>
-          <div>
-            <strong>⚠️ {urgentMessages.length} urgent message{urgentMessages.length > 1 ? 's' : ''} require attention</strong>
-            <span style={{ marginLeft: 8, opacity: 0.8, fontSize: 12 }}>{urgentMessages[0]?.subject}</span>
-          </div>
-          <span style={{ fontSize: 12, fontWeight: 600 }}>View →</span>
-        </div>
-      )}
-
-      {/* Stat strip */}
-      <div className="stagger dashboard-stats-grid">
-        {stats.map((s) => (
-          <div key={s.label} className={`stat-card row ${s.color} fade-in`}>
-            <div className={`stat-icon ${s.color}`}><MetricIcon type={s.iconType} /></div>
-            <div className="stat-info">
-              <h3>{s.value}</h3>
-              <p>{s.label}</p>
-            </div>
+      {/* ── TIER 2: Glassmorphism metric strip ───────────────────────────── */}
+      <div style={{
+        display: 'flex', gap: 0, marginBottom: 16,
+        background: 'rgba(255,255,255,0.72)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: '1px solid rgba(226,232,240,0.8)',
+        borderRadius: 12,
+        boxShadow: '0 2px 12px rgba(15,23,42,0.06)',
+        overflow: 'hidden',
+      }}>
+        {stats.map((s, i) => (
+          <div key={s.label} style={{
+            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: '12px 8px',
+            borderRight: i < stats.length - 1 ? '1px solid rgba(226,232,240,0.7)' : 'none',
+          }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{s.value}</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', marginTop: 3, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.4 }}>{s.label}</div>
           </div>
         ))}
-      </div>
-
-      {/* Next Up mini-cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
-        {/* Next Appointment */}
-        <div className="card" style={{ cursor: nextAppt ? 'pointer' : 'default' }} onClick={() => nextAppt && goToPatient(nextAppt)}>
-          <div style={{ padding: '12px 14px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--primary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <MetricIcon type="calendar" />
-              Next Appointment
-            </div>
-            {nextAppt ? (
-              <>
-                <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>{nextAppt.patientName}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{fmtTime(nextAppt.time)} · {nextAppt.type}</div>
-                <span className={`badge ${statusBadge(nextAppt.status)}`} style={{ marginTop: 6, display: 'inline-block' }}>{nextAppt.status}</span>
-              </>
-            ) : (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4 }}>No upcoming appointments</div>
-            )}
+        {/* Tasks chip in same strip */}
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          padding: '12px 8px',
+          borderLeft: '1px solid rgba(226,232,240,0.7)',
+          cursor: 'pointer',
+        }} onClick={() => navigate('/tasks')}>
+          <div style={{ fontSize: 22, fontWeight: 900, color: tasks.filter(t => !t.done).length > 0 ? '#d97706' : '#22c55e', lineHeight: 1 }}>
+            {tasks.filter(t => !t.done).length}
           </div>
-        </div>
-
-        {/* Next Telehealth */}
-        <div className="card" style={{ cursor: nextTelehealth ? 'pointer' : 'default' }} onClick={() => nextTelehealth && handleGoToSession(nextTelehealth)}>
-          <div style={{ padding: '12px 14px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--teal)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <MetricIcon type="camera" />
-              Next Telehealth
-            </div>
-            {nextTelehealth ? (
-              <>
-                <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>{nextTelehealth.patientName}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{fmtTime(nextTelehealth.time)}</div>
-                <button className="btn btn-sm btn-outline" style={{ marginTop: 6, fontSize: 11, padding: '2px 10px', color: 'var(--teal)', borderColor: 'var(--teal)' }}
-                  onClick={(e) => { e.stopPropagation(); handleGoToSession(nextTelehealth); }}>
-                  Join Session →
-                </button>
-              </>
-            ) : (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4 }}>No telehealth sessions</div>
-            )}
-          </div>
-        </div>
-
-        {/* Next Task */}
-        <div className="card">
-          <div style={{ padding: '12px 14px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--warning)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <MetricIcon type="clipboard" />
-              Next Task
-            </div>
-            {tasks.filter(t => !t.done)[0] ? (
-              <>
-                <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.3 }}>{tasks.filter(t => !t.done)[0].text}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  {tasks.filter(t => !t.done).length} task{tasks.filter(t => !t.done).length !== 1 ? 's' : ''} remaining
-                </div>
-              </>
-            ) : (
-              <div style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600, marginTop: 4 }}>✅ All tasks complete</div>
-            )}
-          </div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', marginTop: 3, textTransform: 'uppercase', letterSpacing: 0.4 }}>Tasks</div>
         </div>
       </div>
 
@@ -617,30 +678,26 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Clinical Alerts */}
-          {(clinicalAlerts.length > 0) && (
-            <div className="card" style={{ borderColor: 'var(--warning)', borderWidth: 1.5 }}>
+          {/* Non-critical clinical alerts (warnings only — danger shown above fold) */}
+          {clinicalAlerts.filter(a => a.severity !== 'danger').length > 0 && (
+            <div className="card" style={{ borderColor: '#fbbf24', borderWidth: 1.5 }}>
               <div className="card-header" style={{ background: 'linear-gradient(180deg, #fffbeb, #fef3c7)' }}>
                 <h2 style={{ fontSize: 13, color: '#92400e' }}>⚠️ Clinical Alerts</h2>
-                <span style={{ fontSize: 11, background: '#fde68a', color: '#92400e', padding: '1px 7px', borderRadius: 10, fontWeight: 700 }}>{clinicalAlerts.length}</span>
+                <span style={{ fontSize: 11, background: '#fde68a', color: '#92400e', padding: '1px 7px', borderRadius: 10, fontWeight: 700 }}>{clinicalAlerts.filter(a => a.severity !== 'danger').length}</span>
               </div>
               <div className="card-body no-pad">
-                {clinicalAlerts.map((alert, i) => (
+                {clinicalAlerts.filter(a => a.severity !== 'danger').map((alert, i, arr) => (
                   <div
                     key={i}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: i < clinicalAlerts.length - 1 ? '1px solid var(--border-light)' : 'none', cursor: alert.patientId ? 'pointer' : 'default' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border-light)' : 'none', cursor: alert.patientId ? 'pointer' : 'default' }}
                     onClick={() => alert.patientId && navigate(`/chart/${alert.patientId}/summary`)}
                   >
                     <span style={{ fontSize: 14, flexShrink: 0 }}>
-                      {alert.type === 'vitals' ? '🩺' : alert.type === 'lab' ? '🧪' : alert.type === 'overdue' ? '⏰' : '⚠️'}
+                      {alert.type === 'vitals' ? '🩺' : alert.type === 'lab' ? '🧪' : '⚠️'}
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: alert.severity === 'danger' ? 'var(--danger)' : alert.severity === 'warning' ? '#92400e' : 'var(--text-primary)' }}>
-                        {alert.label}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {alert.text}
-                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>{alert.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{alert.text}</div>
                     </div>
                     {alert.patientId && <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 600 }}>View →</span>}
                   </div>

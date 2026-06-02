@@ -1,5 +1,10 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import {
+  patients as mockPatients,
+  appointments as mockAppointments,
+  inboxMessages as mockInboxMessages,
+} from '../data/mockData';
+import {
   patients as patientsApi,
   allergies as allergiesApi,
   problems as problemsApi,
@@ -24,7 +29,7 @@ function arrayToMap(patientId, arr, existing) {
 
 export function PatientProvider({ children }) {
   /* ────── Core state ────── */
-  const [patients, setPatients] = useState([]);
+  const [patients, setPatients] = useState(mockPatients || []);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const MAX_OPEN_CHARTS = 4;
   const [openCharts, setOpenCharts] = useState([]);
@@ -36,8 +41,8 @@ export function PatientProvider({ children }) {
   const [labResults, setLabResults] = useState({});
   const [assessmentScores, setAssessmentScores] = useState({});
   const [orders, setOrders] = useState({});
-  const [inboxMessages, setInboxMessages] = useState([]);
-  const [appointments, setAppointments] = useState([]);
+  const [inboxMessages, setInboxMessages] = useState(mockInboxMessages || []);
+  const [appointments, setAppointments] = useState(mockAppointments || []);
   const [btgAuditLog, setBtgAuditLog] = useState([]);
   const [btgAccessGranted, setBtgAccessGranted] = useState({});
   const [encounters, setEncounters] = useState({});

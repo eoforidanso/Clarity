@@ -235,75 +235,183 @@ function MiniCalendar({ selectedDate, onSelect, aptsByDate, blockedByDate }) {
 }
 
 /* ══════════════════════════════════════════════
-   APPOINTMENT CARD (Schedule tab)
+   URGENCY HELPERS
 ══════════════════════════════════════════════ */
-function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType }) {
+const isControlledSubstance = apt =>
+  /\b(adderall|ritalin|xanax|valium|klonopin|ativan|oxycodone|hydrocodone|opioid|benzo|stimulant|controlled)\b/i.test(apt.reason || "");
+
+const isInsuranceFailure = apt =>
+  /\b(insurance fail|denied|eligib|auth fail|not covered|reject)\b/i.test(apt.reason || "");
+
+function urgencyStyle(apt) {
+  if (isInsuranceFailure(apt))   return { border: "2px solid #ef4444", bg: "#fff5f5", badge: { text: "Insurance Issue", bg: "#fee2e2", color: "#991b1b" } };
+  if (isControlledSubstance(apt)) return { border: "2px solid #f59e0b", bg: "#fffbeb", badge: { text: "Controlled Rx", bg: "#fef3c7", color: "#92400e" } };
+  if (apt.visitType === "Telehealth") return { border: "2px solid #6366f1", bg: "#f5f3ff", badge: null };
+  return null;
+}
+
+/* ══════════════════════════════════════════════
+   TIMELINE APPOINTMENT CARD (Schedule tab)
+══════════════════════════════════════════════ */
+function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, isCurrent }) {
   const c = getTypeColor(apt);
   const ss = getStatusStyle(apt.status);
   const initials = apt.patientName?.split(" ").map(n => n[0]).join("").slice(0,2) || "?";
   const pc = provColor(apt.provider);
+  const urg = urgencyStyle(apt);
+  const isDone = apt.status === "Completed" || apt.status === "Cancelled" || apt.status === "No Show";
+
+  // Primary CTA
+  let primaryCTA = null;
+  if (apt.visitType === "Telehealth" && !isDone) {
+    primaryCTA = <button onClick={() => onGoToSession(apt)} style={{ padding:"6px 14px", borderRadius:7, fontSize:12, fontWeight:800, border:"none", background:"#6366f1", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>📹 Join Session</button>;
+  } else if (apt.status === "Checked In" || apt.status === "In Progress") {
+    primaryCTA = <button onClick={() => onGoToSession(apt)} style={{ padding:"6px 14px", borderRadius:7, fontSize:12, fontWeight:800, border:"none", background:"#16a34a", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>🩺 Open Chart</button>;
+  } else if ((apt.status === "Scheduled" || apt.status === "Confirmed") && apt.date === todayKey) {
+    primaryCTA = <button onClick={() => onCheckIn(apt)} style={{ padding:"6px 14px", borderRadius:7, fontSize:12, fontWeight:800, border:"none", background:"#22c55e", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>✓ Check In</button>;
+  } else if (apt.patientId) {
+    primaryCTA = <button onClick={() => onOpenChart(apt)} style={{ padding:"6px 14px", borderRadius:7, fontSize:12, fontWeight:700, border:"1px solid #e2e8f0", background:"#f8fafc", color:"#475569", cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>📋 Open Chart</button>;
+  }
+
   return (
-    <div style={{ display:"flex", gap:0, borderRadius:10, overflow:"hidden", cursor:"default",
-      border:"1px solid #e2e8f0", background:"#fff", boxShadow:"var(--shadow-sm)",
-      marginBottom:8, transition:"all 0.15s" }}
-      onMouseEnter={e => { e.currentTarget.style.boxShadow="var(--shadow-md)"; e.currentTarget.style.transform="translateY(-1px)"; }}
-      onMouseLeave={e => { e.currentTarget.style.boxShadow="var(--shadow-sm)"; e.currentTarget.style.transform="none"; }}>
-      <div style={{ width:5, background:c.border, flexShrink:0 }} />
-      <div style={{ flex:1, padding:"12px 16px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap" }}>
-          <span style={{ fontSize:13, fontWeight:800, color:c.text, fontVariantNumeric:"tabular-nums", minWidth:75 }}>{fmtTime12(apt.time)}</span>
-          <span style={{ fontSize:10.5, fontWeight:700, padding:"2px 9px", borderRadius:20, background:ss.bg, color:ss.color, display:"flex", alignItems:"center", gap:4 }}>
-            <span style={{ width:5, height:5, borderRadius:"50%", background:ss.dot, display:"inline-block",
-              animation:apt.status==="Checked In"?"pulse-dot 2s ease-in-out infinite":"none" }} />{apt.status}
+    <div style={{
+      display: "flex", gap: 0,
+      borderRadius: 10, overflow: "hidden",
+      border: isCurrent
+        ? "2px solid #6366f1"
+        : urg ? urg.border : "1px solid #e2e8f0",
+      background: isCurrent ? "#f5f3ff" : urg ? urg.bg : "#fff",
+      boxShadow: isCurrent
+        ? "0 0 0 3px rgba(99,102,241,0.15), var(--shadow-sm)"
+        : "var(--shadow-sm)",
+      transition: "all 0.15s",
+      opacity: isDone ? 0.6 : 1,
+    }}
+      onMouseEnter={e => { if (!isDone) { e.currentTarget.style.boxShadow = isCurrent ? "0 0 0 3px rgba(99,102,241,0.2), var(--shadow-md)" : "var(--shadow-md)"; e.currentTarget.style.transform = "translateX(2px)"; } }}
+      onMouseLeave={e => { e.currentTarget.style.boxShadow = isCurrent ? "0 0 0 3px rgba(99,102,241,0.15), var(--shadow-sm)" : "var(--shadow-sm)"; e.currentTarget.style.transform = "none"; }}>
+      {/* Color stripe */}
+      <div style={{ width: 5, background: isCurrent ? "#6366f1" : c.border, flexShrink: 0 }} />
+      <div style={{ flex: 1, padding: "12px 14px" }}>
+
+        {/* Row 1: status chips + urgency badge + duration */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: ss.bg, color: ss.color, display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: ss.dot, display: "inline-block", animation: apt.status === "Checked In" ? "pulse-dot 2s ease-in-out infinite" : "none" }} />
+            {apt.status}
           </span>
-          <span style={{ fontSize:10.5, padding:"2px 8px", borderRadius:20, background:c.light, color:c.text, fontWeight:600 }}>
-            {apt.visitType==="Telehealth" ? "📹 Telehealth" : "🏥 "+(apt.type||"Visit")}
-          </span>
-          <span style={{ marginLeft:"auto", fontSize:10.5, color:"var(--text-muted)", fontWeight:500 }}>
-            {apt.duration||30} min{apt.room ? " · "+apt.room : ""}
-          </span>
+          {apt.visitType === "Telehealth" && (
+            <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#ede9fe", color: "#5b21b6" }}>📹 Telehealth</span>
+          )}
+          {apt.type && apt.visitType !== "Telehealth" && (
+            <span style={{ fontSize: 10.5, padding: "2px 8px", borderRadius: 20, background: c.light, color: c.text, fontWeight: 600 }}>{apt.type}</span>
+          )}
+          {urg?.badge && (
+            <span style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 9px", borderRadius: 20, background: urg.badge.bg, color: urg.badge.color }}>⚠ {urg.badge.text}</span>
+          )}
+          {isCurrent && (
+            <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 20, background: "#6366f1", color: "#fff", marginLeft: "auto" }}>▶ Now</span>
+          )}
+          <span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: isCurrent ? 0 : "auto" }}>{apt.duration || 30} min{apt.room ? " · " + apt.room : ""}</span>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:38, height:38, borderRadius:"50%", flexShrink:0,
-            background:`linear-gradient(135deg,${c.border},${c.dot})`, color:"#fff",
-            display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13 }}>{initials}</div>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontWeight:700, fontSize:14, color:"var(--text-primary)", marginBottom:2 }}>{apt.patientName}</div>
-            <div style={{ fontSize:11.5, color:"var(--text-muted)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-              {apt.reason||"No reason listed"}
-            </div>
+
+        {/* Row 2: avatar + patient info + provider + primary CTA */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* Patient avatar */}
+          <div style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, background: `linear-gradient(135deg,${c.border},${c.dot})`, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, boxShadow: isCurrent ? "0 0 0 3px rgba(99,102,241,0.3)" : "none" }}>
+            {initials}
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:7, background:"#f8fafc",
-            border:`1px solid ${pc}25`, borderRadius:8, padding:"5px 10px", flexShrink:0 }}>
-            <div style={{ width:24, height:24, borderRadius:"50%", background:pc, color:"#fff",
-              display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:800 }}>
-              {apt.providerName?.split(" ").map(n=>n[0]).join("").slice(0,2)||"?"}
-            </div>
-            <span style={{ fontSize:11, fontWeight:600, color:pc, maxWidth:110, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{apt.providerName}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 14, color: "var(--text-primary)", marginBottom: 1 }}>{apt.patientName}</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{apt.reason || "No reason listed"}</div>
           </div>
+          {/* Provider chip */}
+          <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#f8fafc", border: `1px solid ${pc}25`, borderRadius: 8, padding: "4px 8px", flexShrink: 0 }}>
+            <div style={{ width: 22, height: 22, borderRadius: "50%", background: pc, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 800 }}>
+              {apt.providerName?.split(" ").map(n => n[0]).join("").slice(0,2) || "?"}
+            </div>
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: pc, maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{apt.providerName}</span>
+          </div>
+          {/* Primary CTA */}
+          <div onClick={e => e.stopPropagation()}>{primaryCTA}</div>
         </div>
-        <div style={{ display:"flex", gap:6, marginTop:10, flexWrap:"wrap" }} onClick={e=>e.stopPropagation()}>
-          {apt.patientId && <button className="btn btn-sm btn-ghost" onClick={() => onOpenChart(apt)} style={{ fontSize:11 }}>📋 Open Chart</button>}
-          {(apt.status==="Scheduled"||apt.status==="Confirmed") && apt.date===todayKey && (
-            <button className="btn btn-sm btn-success" onClick={() => onCheckIn(apt)} style={{ fontSize:11 }}>✓ Check In</button>
-          )}
-          {(apt.status==="Checked In"||apt.status==="In Progress") && (
-            <button className="btn btn-sm btn-success" onClick={() => onGoToSession(apt)} style={{ fontSize:11 }}>🩺 Go to Session</button>
-          )}
-          {apt.visitType==="Telehealth" && apt.status!=="Completed" && (
-            <button className="btn btn-sm" style={{ background:"#7c3aed", color:"#fff", fontSize:11, border:"none", borderRadius:6, padding:"4px 12px", cursor:"pointer" }}>📹 Join Call</button>
-          )}
-          {apt.status!=="Completed" && apt.status!=="Cancelled" && apt.status!=="No Show" && (
-            <button className="btn btn-sm" onClick={() => onToggleVisitType(apt)}
-              style={{ fontSize:11, border:`1px solid ${apt.visitType==="Telehealth"?"#3b82f6":"#8b5cf6"}`,
-                background:apt.visitType==="Telehealth"?"#eff6ff":"#f5f3ff",
-                color:apt.visitType==="Telehealth"?"#1d4ed8":"#6d28d9",
-                borderRadius:6, padding:"4px 12px", cursor:"pointer" }}>
-              {apt.visitType==="Telehealth" ? "🏥 Switch to In-Person" : "📹 Switch to Telehealth"}
+
+        {/* Row 3: secondary actions */}
+        <div style={{ display: "flex", gap: 5, marginTop: 8, flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>
+          {apt.patientId && <button onClick={() => onOpenChart(apt)} style={{ padding: "3px 10px", borderRadius: 6, fontSize: 10.5, fontWeight: 600, border: "1px solid #e2e8f0", background: "transparent", color: "var(--text-secondary)", cursor: "pointer" }}>📋 Chart</button>}
+          {apt.status !== "Completed" && apt.status !== "Cancelled" && apt.status !== "No Show" && (
+            <button onClick={() => onToggleVisitType(apt)}
+              style={{ padding: "3px 10px", borderRadius: 6, fontSize: 10.5, fontWeight: 600, cursor: "pointer", border: `1px solid ${apt.visitType === "Telehealth" ? "#3b82f6" : "#8b5cf6"}`, background: "transparent", color: apt.visitType === "Telehealth" ? "#1d4ed8" : "#6d28d9" }}>
+              {apt.visitType === "Telehealth" ? "🏥 In-Person" : "📹 Telehealth"}
             </button>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   VERTICAL TIMELINE WRAPPER
+══════════════════════════════════════════════ */
+function ScheduleTimeline({ appts, todayKey, isToday, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType }) {
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+
+  // Find the current (next upcoming non-completed) appointment
+  const currentAptId = useMemo(() => {
+    const upcoming = appts
+      .filter(a => a.status !== "Completed" && a.status !== "Cancelled" && a.status !== "No Show")
+      .sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+    // Prefer "In Progress" / "Checked In", else next future
+    const active = upcoming.find(a => a.status === "In Progress" || a.status === "Checked In");
+    if (active) return active.id;
+    const next = upcoming.find(a => {
+      const [h, m] = (a.time || "0:0").split(":").map(Number);
+      return (h * 60 + m) >= nowMins;
+    });
+    return next?.id || null;
+  }, [appts, nowMins]);
+
+  // Group by hour for time markers
+  const grouped = useMemo(() => {
+    const map = new Map();
+    [...appts].sort((a, b) => (a.time || "").localeCompare(b.time || "")).forEach(apt => {
+      const hour = apt.time ? apt.time.split(":")[0].padStart(2, "0") + ":00" : "unknown";
+      if (!map.has(hour)) map.set(hour, []);
+      map.get(hour).push(apt);
+    });
+    return Array.from(map.entries());
+  }, [appts]);
+
+  return (
+    <div style={{ position: "relative", paddingLeft: 72 }}>
+      {/* Vertical line */}
+      <div style={{ position: "absolute", left: 44, top: 0, bottom: 0, width: 2, background: "linear-gradient(180deg, #e2e8f0 0%, #e2e8f0 100%)", borderRadius: 1 }} />
+
+      {grouped.map(([hour, hourAppts]) => (
+        <div key={hour} style={{ marginBottom: 4 }}>
+          {/* Hour marker */}
+          <div style={{ position: "relative", marginBottom: 8, display: "flex", alignItems: "center" }}>
+            <div style={{ position: "absolute", left: -72, width: 72, display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end", paddingRight: 14 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                {hour !== "unknown" ? fmtTime12(hour).replace(":00", "") : "—"}
+              </span>
+              {/* Timeline dot */}
+              <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#e2e8f0", border: "2px solid #cbd5e1", flexShrink: 0, zIndex: 1 }} />
+            </div>
+          </div>
+
+          {/* Cards for this hour */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+            {hourAppts.map(apt => (
+              <AptCard key={apt.id} apt={apt} todayKey={todayKey}
+                isCurrent={isToday && apt.id === currentAptId}
+                onOpenChart={onOpenChart} onCheckIn={onCheckIn}
+                onGoToSession={onGoToSession} onToggleVisitType={onToggleVisitType} />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -2056,11 +2164,15 @@ export default function Schedule() {
                     </div>
                   ) : (
                     <div key={activeDate} style={{ animation:"fade-slide-in 0.22s ease both" }}>
-                      {dateAppts.map(apt=>(
-                        <AptCard key={apt.id} apt={apt} todayKey={todayKey}
-                          onOpenChart={handleOpenChart} onCheckIn={handleCheckIn} onGoToSession={handleGoToSession}
-                          onToggleVisitType={handleToggleVisitType} />
-                      ))}
+                      <ScheduleTimeline
+                        appts={dateAppts}
+                        todayKey={todayKey}
+                        isToday={activeDate === todayKey}
+                        onOpenChart={handleOpenChart}
+                        onCheckIn={handleCheckIn}
+                        onGoToSession={handleGoToSession}
+                        onToggleVisitType={handleToggleVisitType}
+                      />
                     </div>
                   )}
                 </div>
