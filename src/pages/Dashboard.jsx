@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { DemoDisabled } from '../demo/DemoGuard';
+import { useDemo } from '../demo/DemoContext';
+import { useTour } from '../demo/DemoGuidedTourProvider';
 
 /* ── Metric SVG icons ───────────────────────────────────────── */
 const SZ = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6', strokeLinecap: 'round', strokeLinejoin: 'round' };
@@ -17,6 +19,8 @@ function MetricIcon({ type }) { return METRIC_SVGS[type] ?? null; }
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
+  const { isDemo } = useDemo();
+  const { startTour } = useTour();
   const { appointments, inboxMessages, patients, selectPatient, updateAppointmentStatus } = usePatient();
   const navigate = useNavigate();
   const [hoveredAction, setHoveredAction] = useState(null);
@@ -171,6 +175,15 @@ export default function Dashboard() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <button className="btn btn-primary btn-sm" onClick={() => navigate('/patients')}>🔍 Find Patient</button>
             <button className="btn btn-secondary btn-sm" onClick={() => navigate('/schedule')}>📅 Full Schedule</button>
+            {isDemo && (
+              <button
+                className="btn btn-sm"
+                onClick={startTour}
+                style={{ background: 'linear-gradient(135deg,#6366f1,#0891b2)', color: '#fff', border: 'none', fontWeight: 700 }}
+              >
+                ▶ Guided Tour
+              </button>
+            )}
             <DemoDisabled reason="Data export is disabled in demo mode">
             <button className="btn btn-secondary btn-sm dashboard-export-btn" onClick={() => navigate('/analytics')}>📤 Export</button>
           </DemoDisabled>

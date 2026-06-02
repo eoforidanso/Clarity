@@ -79,9 +79,17 @@ export default function DemoBar() {
         )}
 
         <div style={{ marginLeft: sessionStats ? 8 : 'auto', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-          <button onClick={() => setTourMinimized(m => !m)}
-            style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
-            {tourMinimized ? '▶ Tour' : '▾ Tour'}
+          {/* Guided Tour button */}
+          <button
+            onClick={startTour}
+            style={{
+              padding: '3px 10px', borderRadius: 5, border: '1px solid rgba(99,102,241,0.5)',
+              background: 'rgba(99,102,241,0.15)', color: '#a5b4fc',
+              fontSize: 10, fontWeight: 700, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            ▶ Guided Tour
           </button>
           <button onClick={exitDemo}
             style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
