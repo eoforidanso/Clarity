@@ -127,7 +127,7 @@ export async function initializeDatabase() {
       password_hash TEXT NOT NULL,
       first_name TEXT NOT NULL,
       last_name TEXT DEFAULT '',
-      role TEXT NOT NULL CHECK(role IN ('prescriber','nurse','front_desk','patient','therapist','admin')),
+      role TEXT NOT NULL CHECK(role IN ('prescriber','nurse','front_desk','patient','therapist','admin','biller')),
       credentials TEXT DEFAULT '',
       specialty TEXT DEFAULT '',
       npi TEXT DEFAULT '',
