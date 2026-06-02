@@ -138,7 +138,8 @@ export const users = [
   {
     id: 'u12',
     username: 'dr.emelia',
-    password: 'Pass123!',
+    password: 'Welcome2026',
+    mustChangePassword: true,
     firstName: 'Emelia',
     lastName: 'Appiagyei',
     role: 'prescriber',
