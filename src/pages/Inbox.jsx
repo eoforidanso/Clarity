@@ -3,6 +3,30 @@ import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
 
+// ── Category grouping ─────────────────────────────────────────────────────────
+const CATEGORY_MAP = {
+  'Check-in Alert':    'System Alerts',
+  'Prior Auth':        'System Alerts',
+  'Lab Result':        'System Alerts',
+  'Rx Refill Request': 'Pharmacy',
+  'Patient Message':   'Patient Messages',
+  'Referral Response': 'Patient Messages',
+  'Staff Message':     'Patient Messages',
+};
+
+const CATEGORY_META = {
+  'System Alerts':   { icon: '🔔', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5' },
+  'Pharmacy':        { icon: '💊', color: '#7c3aed', bg: '#f5f3ff', border: '#c4b5fd' },
+  'Patient Messages':{ icon: '💬', color: '#0369a1', bg: '#f0f9ff', border: '#7dd3fc' },
+};
+
+// ── Severity helpers ──────────────────────────────────────────────────────────
+function SeverityDot({ msg }) {
+  if (msg.urgent)              return <span title="Urgent"  style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', flexShrink: 0, boxShadow: '0 0 0 2px #fee2e2' }} />;
+  if (msg.status === 'Unread') return <span title="Unread"  style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6', flexShrink: 0 }} />;
+  return                              <span title="Read"    style={{ width: 8, height: 8, borderRadius: '50%', background: '#e2e8f0', flexShrink: 0 }} />;
+}
+
 const TYPE_TAG_COLORS = {
   'Rx Refill Request': { bg: '#f0fdf4', color: '#166534', border: '#86efac' },
   'Lab Result':        { bg: '#fdf4ff', color: '#7c3aed', border: '#e9d5ff' },
@@ -378,7 +402,7 @@ export default function Inbox() {
         </div>
         )} {/* end patient column */}
 
-        {/* Message List Column */}
+        {/* Message List Column — grouped by category */}
         {(!isMobile || mobilePanel === 1) && (
         <div style={{ background: 'white', overflowY: 'auto', borderRight: isMobile ? 'none' : '1px solid var(--border)' }}>
           {isMobile && (
@@ -387,7 +411,6 @@ export default function Inbox() {
               ← Back to Patients
             </button>
           )}
-          {/* Message list column header */}
           {selectedPatientId && (
             <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border)', background:'#fafbfc', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
               <span style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.3px' }}>Messages</span>
@@ -400,52 +423,116 @@ export default function Inbox() {
               {selectedPatientId ? 'No messages for this patient' : 'No messages match your filters'}
             </div>
           )}
-          {filteredMessages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`inbox-item ${selectedId === msg.id ? 'active' : ''} ${msg.status === 'Unread' ? 'unread' : ''}`}
-              onClick={() => handleSelectMessage(msg)}
-              style={{
-                borderBottom: '1px solid var(--border)',
-                borderRight: 'none',
-                borderRadius: '0',
-                transition: 'background 0.12s',
-                borderLeft: msg.urgent
-                  ? '4px solid #ef4444'
-                  : msg.status === 'Unread'
-                  ? '3px solid #3b82f6'
-                  : 'none',
-                background: selectedId === msg.id
-                  ? '#eff6ff'
-                  : msg.urgent && msg.status === 'Unread'
-                  ? '#fff5f5'
-                  : 'transparent',
-              }}
-              onMouseEnter={e => { if (selectedId !== msg.id) e.currentTarget.style.background = '#f8fafc'; }}
-              onMouseLeave={e => { if (selectedId !== msg.id) e.currentTarget.style.background = msg.urgent && msg.status === 'Unread' ? '#fff5f5' : 'transparent'; }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  padding: '2px 8px', borderRadius: 'var(--radius-chip)', fontSize: 10.5, fontWeight: 700,
-                  background: TYPE_TAG_COLORS[msg.type]?.bg || '#f1f5f9',
-                  color: TYPE_TAG_COLORS[msg.type]?.color || '#475569',
-                  border: `1px solid ${TYPE_TAG_COLORS[msg.type]?.border || '#e2e8f0'}`,
-                }}>
-                  <TypeIcon type={msg.type} size={10} />
-                  {msg.type}
-                </span>
-                {msg.urgent && <span className="badge badge-danger" style={{ fontSize: 10 }}>URGENT</span>}
-              </div>
-              <div style={{ fontWeight: msg.urgent || msg.status === 'Unread' ? 800 : 600, fontSize: msg.status === 'Unread' ? 15 : 14, marginBottom: 3, color: msg.urgent ? '#7f1d1d' : 'var(--text-primary)', lineHeight: 1.45 }}>
-                {msg.subject}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 300, color: 'rgba(71,85,105,0.65)', marginTop: 4 }}>
-                <span>{msg.from}</span>
-                <span>{msg.date}</span>
-              </div>
-            </div>
-          ))}
+
+          {/* Group messages by category */}
+          {(() => {
+            const grouped = {};
+            filteredMessages.forEach(msg => {
+              const cat = CATEGORY_MAP[msg.type] || 'Patient Messages';
+              if (!grouped[cat]) grouped[cat] = [];
+              grouped[cat].push(msg);
+            });
+            const order = ['System Alerts', 'Pharmacy', 'Patient Messages'];
+            return order.filter(cat => grouped[cat]?.length > 0).map(cat => {
+              const meta = CATEGORY_META[cat];
+              const msgs = grouped[cat];
+              const urgentInGroup = msgs.filter(m => m.urgent).length;
+              const unreadInGroup = msgs.filter(m => m.status === 'Unread').length;
+              return (
+                <div key={cat}>
+                  {/* Category header */}
+                  <div style={{ padding: '8px 14px 6px', background: meta.bg, borderBottom: `1px solid ${meta.border}`, borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6, position: 'sticky', top: 0, zIndex: 2 }}>
+                    <span style={{ fontSize: 13 }}>{meta.icon}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: meta.color, textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1 }}>{cat}</span>
+                    <span style={{ fontSize: 11, color: meta.color, opacity: 0.7 }}>{msgs.length}</span>
+                    {urgentInGroup > 0 && (
+                      <span style={{ fontSize: 10, fontWeight: 700, background: '#ef4444', color: '#fff', borderRadius: 4, padding: '1px 6px' }}>
+                        {urgentInGroup} urgent
+                      </span>
+                    )}
+                    {unreadInGroup > 0 && urgentInGroup === 0 && (
+                      <span style={{ fontSize: 10, fontWeight: 700, background: '#3b82f6', color: '#fff', borderRadius: 4, padding: '1px 6px' }}>
+                        {unreadInGroup} new
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Messages in category */}
+                  {msgs.map(msg => {
+                    const tapAction = refillAction[msg.id] || msg.status;
+                    return (
+                      <div
+                        key={msg.id}
+                        onClick={() => handleSelectMessage(msg)}
+                        style={{
+                          padding: '10px 14px',
+                          borderBottom: '1px solid var(--border)',
+                          cursor: 'pointer',
+                          borderLeft: msg.urgent ? '4px solid #ef4444' : msg.status === 'Unread' ? '3px solid #3b82f6' : '3px solid transparent',
+                          background: selectedId === msg.id ? '#eff6ff' : msg.urgent && msg.status === 'Unread' ? '#fff5f5' : 'transparent',
+                          transition: 'background 0.12s',
+                        }}
+                        onMouseEnter={e => { if (selectedId !== msg.id) e.currentTarget.style.background = '#f8fafc'; }}
+                        onMouseLeave={e => { if (selectedId !== msg.id) e.currentTarget.style.background = msg.urgent && msg.status === 'Unread' ? '#fff5f5' : 'transparent'; }}
+                      >
+                        {/* Row 1: severity dot + subject + urgent badge */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, marginBottom: 3 }}>
+                          <div style={{ paddingTop: 5 }}><SeverityDot msg={msg} /></div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: msg.urgent || msg.status === 'Unread' ? 800 : 600, fontSize: 13, color: msg.urgent ? '#7f1d1d' : '#0f172a', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {msg.subject}
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>{msg.from}</span>
+                              <span>{msg.date}</span>
+                            </div>
+                          </div>
+                          {msg.urgent && <span style={{ fontSize: 9, fontWeight: 800, background: '#ef4444', color: '#fff', borderRadius: 3, padding: '2px 5px', flexShrink: 0 }}>URGENT</span>}
+                        </div>
+
+                        {/* Row 2: 1-tap action buttons */}
+                        <div style={{ display: 'flex', gap: 5, marginLeft: 15, marginTop: 5, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+                          {msg.type === 'Rx Refill Request' && (
+                            tapAction === 'Approved' ? (
+                              <span style={{ fontSize: 10, fontWeight: 700, color: '#166534', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 4, padding: '2px 8px' }}>✓ Approved</span>
+                            ) : tapAction === 'Denied' ? (
+                              <span style={{ fontSize: 10, fontWeight: 700, color: '#991b1b', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 4, padding: '2px 8px' }}>✗ Denied</span>
+                            ) : (
+                              <>
+                                <button onClick={() => handleApproveRefill(msg)} style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 5, border: '1px solid #86efac', background: '#dcfce7', color: '#166534', cursor: 'pointer' }}>✓ Approve Refill</button>
+                                <button onClick={() => handleDenyRefill(msg)} style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 5, border: '1px solid #fca5a5', background: '#fee2e2', color: '#991b1b', cursor: 'pointer' }}>✗ Deny</button>
+                              </>
+                            )
+                          )}
+                          {(msg.type === 'Lab Result' || msg.type === 'Patient Message' || msg.type === 'Referral Response') && msg.patient && (
+                            <button
+                              onClick={() => { selectPatient(msg.patient); navigate(msg.type === 'Lab Result' ? `/chart/${msg.patient}/labs` : `/chart/${msg.patient}`); }}
+                              style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 5, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1e40af', cursor: 'pointer' }}>
+                              📋 View Chart
+                            </button>
+                          )}
+                          {msg.type === 'Prior Auth' && (
+                            <button
+                              onClick={() => { handleSelectMessage(msg); }}
+                              style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 5, border: '1px solid #fca5a5', background: '#fef2f2', color: '#991b1b', cursor: 'pointer' }}>
+                              ⚡ Resolve
+                            </button>
+                          )}
+                          {msg.type === 'Check-in Alert' && (
+                            <button
+                              onClick={() => { handleSelectMessage(msg); }}
+                              style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 5, border: '1px solid #a5f3fc', background: '#ecfeff', color: '#0e7490', cursor: 'pointer' }}>
+                              ✓ Acknowledge
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            });
+          })()}
         </div>
         )} {/* end message list column */}
 
