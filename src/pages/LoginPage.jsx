@@ -716,55 +716,6 @@ export default function LoginPage() {
           @keyframes spin { to { transform: rotate(360deg); } }
         `}</style>
 
-        {/* ── Hero separator ── */}
-        <div className="login-hero-separator" aria-hidden="true" />
-
-        {/* ── Feature cards ── */}
-        <div className="login-feature-section" aria-label="Key platform capabilities">
-
-          {/* Clinical Workflows */}
-          <div className="login-feature-card">
-            <div className="login-feature-card-header">
-              <div className="login-feature-card-icon" style={{ background: '#eff6ff' }}>🩺</div>
-              <span className="login-feature-card-title">Clinical Workflows</span>
-            </div>
-            <p className="login-feature-card-desc">Ambient documentation, SOAP notes, e-prescribing, and care gap tracking — purpose-built for behavioral health.</p>
-            <div className="login-feature-card-chips">
-              <span className="login-feature-card-chip" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1.5px solid #bfdbfe' }}>Ambient Scribe</span>
-              <span className="login-feature-card-chip" style={{ background: '#f0fdf4', color: '#166534', border: '1.5px solid #bbf7d0' }}>EPCS</span>
-              <span className="login-feature-card-chip" style={{ background: '#fdf4ff', color: '#7e22ce', border: '1.5px solid #e9d5ff' }}>AI Assist</span>
-            </div>
-          </div>
-
-          {/* Billing & RCM */}
-          <div className="login-feature-card">
-            <div className="login-feature-card-header">
-              <div className="login-feature-card-icon" style={{ background: '#f0fdf4' }}>💳</div>
-              <span className="login-feature-card-title">Billing & RCM</span>
-            </div>
-            <p className="login-feature-card-desc">End-to-end revenue cycle management — from superbill capture to ERA posting and denial management.</p>
-            <div className="login-feature-card-chips">
-              <span className="login-feature-card-chip" style={{ background: '#f0fdf4', color: '#166534', border: '1.5px solid #bbf7d0' }}>Auto-Post ERAs</span>
-              <span className="login-feature-card-chip" style={{ background: '#fff7ed', color: '#9a3412', border: '1.5px solid #fed7aa' }}>Denial Mgmt</span>
-              <span className="login-feature-card-chip" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1.5px solid #bfdbfe' }}>Eligibility</span>
-            </div>
-          </div>
-
-          {/* Clearinghouse Engine */}
-          <div className="login-feature-card">
-            <div className="login-feature-card-header">
-              <div className="login-feature-card-icon" style={{ background: '#fdf4ff' }}>⚡</div>
-              <span className="login-feature-card-title">Clearinghouse Engine</span>
-            </div>
-            <p className="login-feature-card-desc">Built-in EDI pipeline with 837/835/270 support, real-time claim scrubbing, and multi-payer routing.</p>
-            <div className="login-feature-card-chips">
-              <span className="login-feature-card-chip" style={{ background: '#fdf4ff', color: '#7e22ce', border: '1.5px solid #e9d5ff' }}>EDI 837/835</span>
-              <span className="login-feature-card-chip" style={{ background: '#fff7ed', color: '#9a3412', border: '1.5px solid #fed7aa' }}>Claim Scrubber</span>
-              <span className="login-feature-card-chip" style={{ background: '#f0fdf4', color: '#166534', border: '1.5px solid #bbf7d0' }}>270/271</span>
-            </div>
-          </div>
-
-        </div>
       </main>
 
       {/* ── Footer ── */}
