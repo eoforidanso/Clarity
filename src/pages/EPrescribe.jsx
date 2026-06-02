@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
-import { DemoDisabled } from '../demo/DemoGuard';
+import { DemoDisabled, DemoSafe } from '../demo/DemoGuard';
 import { medicationDatabase, pharmacies, users, problems, allergies } from '../data/mockData';
 import { rxnorm as rxnormApi, openfda as openfdaApi, locations as locationsApi, nppes as nppesApi, dosespot as dosespotApi } from '../services/api';
 import { useSite } from '../contexts/SiteContext';
@@ -1816,8 +1816,8 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                 <div><span className="text-muted text-xs">SIG:</span><div>{rx.sig || `Take ${rx.dose} by ${selectedMed.routes[0].toLowerCase()} ${rx.frequency.toLowerCase()}`}</div></div>
                 <div><span className="text-muted text-xs">Qty / Refills:</span><div>{rx.quantity} / {rx.refills}</div></div>
                 <div><span className="text-muted text-xs">Diagnosis:</span><div className={rx.diagnosis ? 'font-bold' : 'text-muted'}>{rx.diagnosis ? `${rx.diagnosisCode ? rx.diagnosisCode + ' — ' : ''}${rx.diagnosis}` : '⚠ Required'}</div></div>
-                <div><span className="text-muted text-xs">Prescriber:</span><div>{currentUser?.credentials} {currentUser?.firstName} {currentUser?.lastName} | NPI: {currentUser?.npi}</div></div>
-                <div><span className="text-muted text-xs">DEA:</span><div>{currentUser?.deaNumber}</div></div>
+                <div><span className="text-muted text-xs">Prescriber:</span><div>{currentUser?.credentials} {currentUser?.firstName} {currentUser?.lastName} | NPI: <DemoSafe mask="██████████">{currentUser?.npi}</DemoSafe></div></div>
+                <div><span className="text-muted text-xs">DEA:</span><div><DemoSafe mask="████████">{currentUser?.deaNumber}</DemoSafe></div></div>
               </div>
             </div>
 
@@ -1960,7 +1960,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                 </div>
                 <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
                   Prescriber: <strong>{currentUser?.credentials} {currentUser?.firstName} {currentUser?.lastName}</strong><br />
-                  DEA: <strong>{currentUser?.deaNumber}</strong> | NPI: <strong>{currentUser?.npi}</strong>
+                  DEA: <strong><DemoSafe mask="████████">{currentUser?.deaNumber}</DemoSafe></strong> | NPI: <strong><DemoSafe mask="██████████">{currentUser?.npi}</DemoSafe></strong>
                 </p>
                 {/* Demo hint */}
                 <div style={{ background: '#fefce8', border: '1px solid #fde047', borderRadius: 8, padding: '8px 14px', marginBottom: 16, fontSize: 12, textAlign: 'center' }}>

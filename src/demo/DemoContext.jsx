@@ -1,5 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { setDemoFlag, clearDemoFlag } from './demoFeatureFlag';
+import { installDemoInterceptor, uninstallDemoInterceptor } from './demoApiInterceptor';
+import { installExportGuard } from './demoExportGuard';
+import { demoRateLimit } from './demoRateLimit';
 
 // ── Routes blocked in demo mode ───────────────────────────────────────────────
 export const DEMO_BLOCKED_ROUTES = [
@@ -94,12 +98,25 @@ export function DemoProvider({ children }) {
     setTourStep(0);
     setTourActive(true);
     setTourMinimized(false);
+    // Activate global feature flag
+    setDemoFlag(true);
+    // Install API interceptor (blocks writes, sanitizes responses)
+    installDemoInterceptor();
+    // Install export guard (blocks all downloads/print)
+    installExportGuard();
+    console.info('[Demo] Demo mode activated — restrictions enabled');
   }, []);
 
   const exitDemo = useCallback(() => {
     setIsDemo(false);
     setTourActive(false);
     setTourStep(0);
+    // Clear flag and uninstall interceptor
+    clearDemoFlag();
+    uninstallDemoInterceptor();
+    // Send session analytics and clear
+    demoRateLimit.clearSession();
+    console.info('[Demo] Demo mode deactivated');
   }, []);
 
   const nextStep = useCallback(() => {
@@ -142,11 +159,19 @@ export function DemoRouteGuard() {
 
   useEffect(() => {
     if (!isDemo) return;
+
     const path = location.pathname;
+
+    // Log navigation for session analytics
+    demoRateLimit.logNavigation(path);
+
+    // Block restricted routes
     const blocked =
       DEMO_BLOCKED_ROUTES.some(r => path === r || path.startsWith(r + '/')) ||
       DEMO_BLOCKED_PREFIX.some(p => path.startsWith(p));
+
     if (blocked) {
+      demoRateLimit.logBlocked(path, 'NAVIGATE');
       navigate('/dashboard', { replace: true, state: { demoBlocked: true } });
     }
   }, [isDemo, location.pathname, navigate]);

@@ -1,11 +1,22 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDemo, TOUR_STEPS } from './DemoContext';
+import { demoRateLimit } from './demoRateLimit';
 
 export default function DemoBar() {
   const { isDemo, exitDemo, tourActive, setTourActive, tourStep, goToStep,
           tourMinimized, setTourMinimized, currentTourStop, nextStep, prevStep } = useDemo();
   const navigate = useNavigate();
+  const [sessionStats, setSessionStats] = useState(null);
+
+  // Refresh session stats every 30s
+  useEffect(() => {
+    if (!isDemo) return;
+    const update = () => setSessionStats(demoRateLimit.getSummary());
+    update();
+    const id = setInterval(update, 30_000);
+    return () => clearInterval(id);
+  }, [isDemo]);
 
   if (!isDemo) return null;
 
@@ -73,7 +84,20 @@ export default function DemoBar() {
           </span>
         )}
 
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+        {/* Session stats */}
+        {sessionStats && (
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, fontSize: 10, color: 'rgba(255,255,255,0.45)', flexShrink: 0 }}>
+            <span title="Session duration">⏱ {sessionStats.duration}</span>
+            <span title="Pages visited">📄 {sessionStats.pagesVisited}p</span>
+            {sessionStats.blockedCount > 0 && (
+              <span title={`${sessionStats.blockedCount} restricted access attempts`} style={{ color: '#f87171' }}>
+                🔒 {sessionStats.blockedCount}
+              </span>
+            )}
+          </div>
+        )}
+
+        <div style={{ marginLeft: sessionStats ? 8 : 'auto', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
           {/* Tour toggle */}
           <button onClick={() => setTourMinimized(m => !m)}
             style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
