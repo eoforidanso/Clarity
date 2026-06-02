@@ -4,6 +4,15 @@ import { useAuth } from '../contexts/AuthContext';
 import SystemStatus from '../components/SystemStatus';
 
 const CERTS = ['HIPAA', 'EPCS', 'ONC', '42 CFR Part 2'];
+
+const DEMO_ACCOUNTS = [
+  { role: 'Prescriber',   username: 'dr.chris',    password: 'Pass123!', name: 'Dr. Chris L.',      icon: '🩺', color: '#3b82f6', desc: 'Full clinical access — notes, e-prescribe, charts' },
+  { role: 'Therapist',    username: 'april.t',     password: 'Pass123!', name: 'April T., LCSW',    icon: '🧠', color: '#8b5cf6', desc: 'Therapy sessions, treatment plans, assessments' },
+  { role: 'Nurse / MA',   username: 'nurse.kelly', password: 'Pass123!', name: 'Kelly Chen, RN',    icon: '💉', color: '#10b981', desc: 'Vitals, triage, medication reconciliation' },
+  { role: 'Front Desk',   username: 'baz',         password: 'Pass123!', name: 'Baz',               icon: '🗓️', color: '#f59e0b', desc: 'Scheduling, check-in, patient registration' },
+  { role: 'Biller',       username: 'biller1',     password: 'Pass123!', name: 'Sandra Okonkwo',    icon: '💳', color: '#ec4899', desc: 'Claims, ERA posting, denial management' },
+  { role: 'Admin',        username: 'harriet',     password: 'Pass123!', name: 'Harriet Appiah',    icon: '⚙️', color: '#64748b', desc: 'Full system access — users, settings, analytics' },
+];
 const MAX_ATTEMPTS = 5;
 
 const IconNetwork = () => (
@@ -50,6 +59,23 @@ export default function LoginPage() {
   const [fieldErrors, setFieldErrors] = useState({});       // inline empty-field errors
   const usernameRef = useRef(null);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('login-theme') === 'dark');
+  const [showDemo, setShowDemo] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(null);
+
+  const handleDemoLogin = async (account) => {
+    setDemoLoading(account.username);
+    setUsername(account.username);
+    setPassword(account.password);
+    setFieldErrors({});
+    try {
+      const result = await login(account.username, account.password);
+      if (result?.ok) {
+        if (result.mustChangePassword) setShowPasswordChange(true);
+        else navigate('/dashboard');
+      }
+    } catch { /* noop */ }
+    setDemoLoading(null);
+  };
   useEffect(() => {
     localStorage.setItem('login-theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
@@ -586,6 +612,106 @@ export default function LoginPage() {
           </div>
 
         </div>
+
+        {/* ── Demo Access Panel ── */}
+        <div style={{ width: '100%', maxWidth: 1040, margin: '0 auto' }}>
+          <button
+            type="button"
+            onClick={() => setShowDemo(d => !d)}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 8, padding: '11px 0',
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              color: '#64748b', fontSize: 13, fontWeight: 600,
+              transition: 'color 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = '#0891b2'}
+            onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            {showDemo ? 'Hide demo accounts' : 'Try a demo — explore Clarity without signing up'}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s', transform: showDemo ? 'rotate(180deg)' : 'rotate(0deg)' }}><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+
+          {showDemo && (
+            <div style={{
+              background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16,
+              padding: 24, marginBottom: 24,
+              boxShadow: '0 4px 24px rgba(15,23,42,0.07)',
+              animation: 'demo-panel-in 0.2s ease',
+            }}>
+              <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>
+                  🎯 Explore Clarity EHR — No account needed
+                </div>
+                <div style={{ fontSize: 12, color: '#64748b' }}>
+                  Click any role below to sign in instantly with demo data
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+                {DEMO_ACCOUNTS.map(acc => (
+                  <button
+                    key={acc.username}
+                    type="button"
+                    onClick={() => handleDemoLogin(acc)}
+                    disabled={demoLoading === acc.username}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
+                      border: `1.5px solid ${acc.color}25`,
+                      background: `${acc.color}08`,
+                      textAlign: 'left', transition: 'all 0.15s',
+                      opacity: demoLoading && demoLoading !== acc.username ? 0.5 : 1,
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = `${acc.color}15`; e.currentTarget.style.borderColor = `${acc.color}55`; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = `${acc.color}08`; e.currentTarget.style.borderColor = `${acc.color}25`; e.currentTarget.style.transform = 'none'; }}
+                  >
+                    {/* Icon */}
+                    <div style={{
+                      width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                      background: `${acc.color}18`, display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontSize: 18,
+                    }}>
+                      {demoLoading === acc.username ? (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={acc.color} strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                      ) : acc.icon}
+                    </div>
+                    {/* Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{acc.name}</span>
+                        <span style={{
+                          fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4,
+                          background: `${acc.color}20`, color: acc.color, letterSpacing: 0.3,
+                          textTransform: 'uppercase',
+                        }}>{acc.role}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.3 }}>{acc.desc}</div>
+                    </div>
+                    {/* Arrow */}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={acc.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ marginTop: 16, padding: '10px 14px', background: '#fafafa', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                  Demo accounts use sample patient data only. No real PHI is stored or transmitted.
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <style>{`
+          @keyframes demo-panel-in {
+            from { opacity: 0; transform: translateY(-8px); }
+            to   { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes spin { to { transform: rotate(360deg); } }
+        `}</style>
 
         {/* ── Hero separator ── */}
         <div className="login-hero-separator" aria-hidden="true" />
