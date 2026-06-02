@@ -375,9 +375,10 @@ function DeleteConfirmModal({ user, onConfirm, onClose, loading }) {
 export default function UserManagement() {
   const { currentUser } = useAuth();
   const { reloadSites } = useSite();
-  const [locationOptions, setLocationOptions] = useState([]);
+  const [locationOptions, setLocationOptions] = useState(SITES_FALLBACK.filter(l => l.id !== 'all'));
 
   const loadLocations = useCallback(async () => {
+    const fallbackOnly = SITES_FALLBACK.filter(l => l.id !== 'all');
     try {
       const locs = await admin.locations.list();
       if (Array.isArray(locs) && locs.length > 0) {
@@ -389,11 +390,13 @@ export default function UserManagement() {
         }));
         // Merge: API first, then any SITES_FALLBACK entries not in DB
         const apiIds = new Set(active.map(l => l.id));
-        const fallback = SITES_FALLBACK.filter(l => l.id !== 'all' && !apiIds.has(l.id));
-        setLocationOptions([...active, ...fallback]);
+        const extra = fallbackOnly.filter(l => !apiIds.has(l.id));
+        setLocationOptions([...active, ...extra]);
+      } else {
+        setLocationOptions(fallbackOnly);
       }
     } catch (err) {
-      console.error('loadLocations failed:', err);
+      setLocationOptions(fallbackOnly);
     }
   }, []);
 
