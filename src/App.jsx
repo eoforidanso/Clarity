@@ -1,6 +1,8 @@
 import React, { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { DemoProvider, useDemo } from './demo/DemoContext';
+import DemoBar from './demo/DemoBar';
 import { PatientProvider } from './contexts/PatientContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { TrainingProvider } from './contexts/TrainingContext';
@@ -136,7 +138,7 @@ function ProtectedLayout() {
   return (
     <SiteProvider>
     <TelehealthProvider>
-    <PatientProvider>
+    <PatientProvider demoMode={currentUser?.isDemo}>
       <NotificationProvider>
         <div className="app-layout">
           {/* Skip to content (accessibility) */}
@@ -253,6 +255,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <DemoProvider>
       <TrainingProvider>
       <AuthProvider>
         <Routes>
@@ -353,6 +356,8 @@ export default function App() {
         </Routes>
       </AuthProvider>
       </TrainingProvider>
+      <DemoBar />
+      </DemoProvider>
     </BrowserRouter>
   );
 }

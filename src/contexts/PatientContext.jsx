@@ -4,6 +4,7 @@ import {
   appointments as mockAppointments,
   inboxMessages as mockInboxMessages,
 } from '../data/mockData';
+import { DEMO_PATIENTS, DEMO_APPOINTMENTS, DEMO_INBOX } from '../demo/demoData';
 import {
   patients as patientsApi,
   allergies as allergiesApi,
@@ -27,9 +28,9 @@ function arrayToMap(patientId, arr, existing) {
   return { ...existing, [patientId]: arr };
 }
 
-export function PatientProvider({ children }) {
+export function PatientProvider({ children, demoMode = false }) {
   /* ────── Core state ────── */
-  const [patients, setPatients] = useState(mockPatients || []);
+  const [patients, setPatients] = useState(demoMode ? DEMO_PATIENTS : (mockPatients || []));
   const [selectedPatient, setSelectedPatient] = useState(null);
   const MAX_OPEN_CHARTS = 4;
   const [openCharts, setOpenCharts] = useState([]);
@@ -41,8 +42,8 @@ export function PatientProvider({ children }) {
   const [labResults, setLabResults] = useState({});
   const [assessmentScores, setAssessmentScores] = useState({});
   const [orders, setOrders] = useState({});
-  const [inboxMessages, setInboxMessages] = useState(mockInboxMessages || []);
-  const [appointments, setAppointments] = useState(mockAppointments || []);
+  const [inboxMessages, setInboxMessages] = useState(demoMode ? DEMO_INBOX : (mockInboxMessages || []));
+  const [appointments, setAppointments] = useState(demoMode ? DEMO_APPOINTMENTS : (mockAppointments || []));
   const [btgAuditLog, setBtgAuditLog] = useState([]);
   const [btgAccessGranted, setBtgAccessGranted] = useState({});
   const [encounters, setEncounters] = useState({});

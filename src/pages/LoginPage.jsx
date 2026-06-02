@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useDemo } from '../demo/DemoContext';
+import { DEMO_USER } from '../demo/demoData';
 import SystemStatus from '../components/SystemStatus';
 
 const CERTS = ['HIPAA', 'EPCS', 'ONC', '42 CFR Part 2'];
@@ -61,6 +63,7 @@ export default function LoginPage() {
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('login-theme') === 'dark');
   const [showDemo, setShowDemo] = useState(false);
   const [demoLoading, setDemoLoading] = useState(null);
+  const { startDemo } = useDemo();
 
   const handleDemoLogin = async (account) => {
     setDemoLoading(account.username);
@@ -72,6 +75,19 @@ export default function LoginPage() {
       if (result?.ok) {
         if (result.mustChangePassword) setShowPasswordChange(true);
         else navigate('/dashboard');
+      }
+    } catch { /* noop */ }
+    setDemoLoading(null);
+  };
+
+  const handleStartGuidedDemo = async () => {
+    setDemoLoading('guided');
+    try {
+      // Log in as demo prescriber and activate guided tour
+      const result = await login('dr.chris', 'Pass123!');
+      if (result?.ok) {
+        startDemo();
+        navigate('/dashboard');
       }
     } catch { /* noop */ }
     setDemoLoading(null);
@@ -615,23 +631,44 @@ export default function LoginPage() {
 
         {/* ── Demo Access Panel ── */}
         <div style={{ width: '100%', maxWidth: 1040, margin: '0 auto' }}>
-          <button
-            type="button"
-            onClick={() => setShowDemo(d => !d)}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 8, padding: '11px 0',
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              color: '#64748b', fontSize: 13, fontWeight: 600,
-              transition: 'color 0.15s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.color = '#0891b2'}
-            onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            {showDemo ? 'Hide demo accounts' : 'Try a demo — explore Clarity without signing up'}
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s', transform: showDemo ? 'rotate(180deg)' : 'rotate(0deg)' }}><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
+          {/* Guided Demo CTA */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleStartGuidedDemo}
+              disabled={demoLoading === 'guided'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 22px', borderRadius: 10,
+                background: 'linear-gradient(135deg, #0f172a, #1e3a5f)',
+                border: 'none', cursor: 'pointer', color: '#fff',
+                fontSize: 13, fontWeight: 700, transition: 'all 0.15s',
+                boxShadow: '0 4px 14px rgba(15,23,42,0.2)',
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+            >
+              {demoLoading === 'guided'
+                ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              }
+              {demoLoading === 'guided' ? 'Loading demo…' : '🎯 Start Guided Tour'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDemo(d => !d)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
+                borderRadius: 10, border: '1px solid #e2e8f0', background: '#f8fafc',
+                cursor: 'pointer', color: '#475569', fontSize: 13, fontWeight: 600, transition: 'color 0.15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = '#0891b2'}
+              onMouseLeave={e => e.currentTarget.style.color = '#475569'}
+            >
+              👤 Pick a role
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s', transform: showDemo ? 'rotate(180deg)' : 'rotate(0)' }}><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
 
           {showDemo && (
             <div style={{
