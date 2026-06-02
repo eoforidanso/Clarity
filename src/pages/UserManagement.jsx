@@ -26,7 +26,7 @@ const EMPTY_FORM = {
   firstName: '', lastName: '', username: '', email: '',
   password: '', role: 'front_desk', credentials: '',
   specialty: '', npi: '', deaNumber: '', twoFactorEnabled: true,
-  mustChangePassword: false, locationId: 'loc1',
+  mustChangePassword: false, locationId: '',
 };
 
 function RoleBadge({ role }) {
@@ -381,7 +381,7 @@ export default function UserManagement() {
     try {
       const locs = await admin.locations.list();
       if (Array.isArray(locs) && locs.length > 0) {
-        const active = locs.filter(l => l.status !== 'Inactive').map(l => ({
+        const active = locs.filter(l => l.status !== 'Inactive' && l.id !== 'all').map(l => ({
           id: l.id,
           name: l.name,
           shortName: l.shortName || l.name,
@@ -703,7 +703,7 @@ export default function UserManagement() {
                         {u.deaNumber && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>DEA: <span style={{ fontFamily: 'monospace' }}>{u.deaNumber}</span></span>}
                       </div>
                     )}
-                    {u.locationId && u.locationId !== 'loc1' && (
+                    {u.locationId && (
                       <div style={{ marginTop: 3 }}>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>📍 {locationOptions.find(l => l.id === u.locationId)?.shortName || u.locationId}</span>
                       </div>
@@ -785,7 +785,7 @@ export default function UserManagement() {
               npi: selectedUser.npi || '',
               deaNumber: selectedUser.deaNumber || '',
               twoFactorEnabled: selectedUser.twoFactorEnabled,
-              locationId: selectedUser.locationId || 'loc1',
+              locationId: selectedUser.locationId || locationOptions[0]?.id || '',
             }}
             onSave={handleUpdate}
             onCancel={closeModal}
