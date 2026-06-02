@@ -2866,7 +2866,8 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   display: flex; width: 100%; max-width: 1040px; min-height: 580px;
   background: #fff; border-radius: 24px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.13), 0 1px 3px rgba(0,0,0,0.06);
-  overflow: hidden;
+  overflow: visible; /* don't clip taller content in Chrome */
+  align-items: stretch;
 }
 
 /* ── Left: Brand panel ── */
@@ -2879,6 +2880,7 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
     linear-gradient(150deg, #0a1020 0%, #0f1729 25%, #152340 55%, #1a3560 100%);
   display: flex; align-items: center; justify-content: center; padding: 44px 40px;
   position: relative; overflow: hidden;
+  border-radius: 24px 0 0 24px;
 }
 
 /* Ambient glow orb behind cross */
@@ -2947,10 +2949,12 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 
 /* ── Right: Form panel ── */
 .login-form-panel {
-  flex: 1; display: flex; align-items: center; justify-content: center;
-  padding: 56px 52px 44px;
+  flex: 1; display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 44px 40px;
   border-left: 1px solid rgba(0,0,0,0.06);
   background: linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%);
+  overflow-y: auto; /* allow scroll in Chrome when content is tall */
+  border-radius: 0 24px 24px 0;
 }
 .login-form-inner {
   width: 100%; max-width: 400px;
@@ -2960,7 +2964,8 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   border-radius: 20px;
   border: 1px solid rgba(255,255,255,0.9);
   box-shadow: 0 8px 32px rgba(15,23,42,0.08), 0 1px 0 rgba(255,255,255,0.8) inset;
-  padding: 36px 36px 28px;
+  padding: 32px 32px 24px;
+  margin: auto 0; /* vertically center when content is shorter than panel */
 }
 .login-form-header { margin-bottom: 28px; }
 .login-form-header-row {
