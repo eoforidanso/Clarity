@@ -251,14 +251,14 @@ export default function LoginPage() {
               </div>
 
               <div className="product-frame" aria-hidden="true">
-                <div className="product-frame-screen" style={{ padding: 0, lineHeight: 0 }}>
-                <img
-                  src="/clarity-preview.png"
-                  alt="Clarity EHR Schedule view"
-                  style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 8 }}
-                />
-                {/* legacy SVG kept below but hidden — swap target was the SVG block */}
-                <svg viewBox="0 0 280 218" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'none' }}>
+                <div className="product-frame-bar">
+                  <span className="product-frame-dot" />
+                  <span className="product-frame-dot" />
+                  <span className="product-frame-dot" />
+                  <span className="product-frame-url">clarity-ehr.com/dashboard</span>
+                </div>
+                <div className="product-frame-screen">
+                <svg viewBox="0 0 280 218" fill="none" xmlns="http://www.w3.org/2000/svg">
                   {/* Orbit rings */}
                   <circle cx="140" cy="109" r="98" stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
                   <circle cx="140" cy="109" r="72" stroke="rgba(255,255,255,0.09)" strokeWidth="1"/>
