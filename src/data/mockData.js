@@ -135,6 +135,21 @@ export const users = [
     locationId: 'loc-victory',
   },
 
+  {
+    id: 'u12',
+    username: 'dr.emelia',
+    password: 'Pass123!',
+    firstName: 'Emelia',
+    lastName: 'Appiagyei',
+    role: 'prescriber',
+    credentials: 'NP',
+    specialty: 'Psychiatry',
+    npi: '1306240841',
+    email: 'emappiagyei@msn.com',
+    twoFactorEnabled: true,
+    locationId: 'loc2',
+  },
+
   // ── Patient portal accounts ──────────────────────────────────
   { id: 'pat-p1', username: 'james.anderson', password: 'Pass123!', firstName: 'James', lastName: 'Anderson', role: 'patient', patientId: 'p1', email: 'james.anderson@email.com', twoFactorEnabled: true },
   { id: 'pat-p2', username: 'maria.garcia',   password: 'Pass123!', firstName: 'Maria', lastName: 'Garcia',   role: 'patient', patientId: 'p2', email: 'maria.garcia@email.com', twoFactorEnabled: true },
