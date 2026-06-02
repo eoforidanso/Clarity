@@ -4,10 +4,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { getNavPrefs, getAIFeatures } from '../pages/Settings';
 import { useDemo } from '../demo/DemoContext';
+import { useTour } from '../demo/DemoGuidedTourProvider';
 
 export default function Sidebar() {
   const { currentUser, logout } = useAuth();
   const { isDemo } = useDemo();
+  const { isNavLocked } = useTour();
   const { inboxMessages, selectedPatient, openCharts, appointments } = usePatient();
   const location = useLocation();
   const navigate = useNavigate();
@@ -76,7 +78,13 @@ export default function Sidebar() {
 
   const navItem = (to, icon, label, badge) => (
     <li key={to}>
-      <NavLink to={to} className={({ isActive }) => isActive ? 'active' : ''}>
+      <NavLink
+        to={to}
+        className={({ isActive }) => isActive ? 'active' : ''}
+        onClick={isNavLocked ? (e) => e.preventDefault() : undefined}
+        style={isNavLocked ? { pointerEvents: 'none', opacity: 0.45, cursor: 'default' } : undefined}
+        tabIndex={isNavLocked ? -1 : undefined}
+      >
         <span className="sidebar-nav-icon">{icon}</span>
         {label}
         {badge != null && badge > 0 && <span className="nav-badge">{badge}</span>}

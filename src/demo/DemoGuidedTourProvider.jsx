@@ -138,12 +138,15 @@ export default function DemoGuidedTourProvider({ children }) {
     if (!isDemo && active) stopTour();
   }, [isDemo]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const isNavLocked = active; // when tour is active, navigation is locked
+
   const value = {
     active, stepIdx, currentStep, minimized,
     setMinimized, startTour, stopTour, next, prev, goTo,
     totalSteps: TOUR_STEPS.length,
     progress: Math.round((stepIdx / (TOUR_STEPS.length - 1)) * 100),
     setNavigate,
+    isNavLocked,
   };
 
   return (
