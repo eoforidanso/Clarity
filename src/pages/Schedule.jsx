@@ -1655,6 +1655,8 @@ export default function Schedule() {
   const [selectedDate, setSelectedDate] = useState(() => toKey(TODAY));
   const [providerFilter, setProviderFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("All");
+  // Reset provider filter when site changes so a provider from another location isn't stuck
+  useEffect(() => { setProviderFilter("all"); }, [activeSiteId]);
   const [showModal, setShowModal] = useState(false);
   const [viewMode, setViewMode] = useState('day');
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
@@ -1737,6 +1739,18 @@ export default function Schedule() {
     const base = allAppts.filter(a=>a.date===activeDate);
     return PROVIDERS.map(p=>({...p, apts:base.filter(a=>a.provider===p.id)})).filter(p=>p.apts.length>0);
   }, [allAppts, activeDate]);
+
+  // Providers visible in the filter sidebar — only those with appts at the active site,
+  // or all providers when no site filter is active
+  const siteProviders = useMemo(() => {
+    if (!isFiltered) return PROVIDERS;
+    // When a site is selected: only providers who have at least one appointment
+    // in allAppts (already filtered to this site) OR whose locationId matches
+    const provIdsWithAppts = new Set(allAppts.map(a => a.provider));
+    return PROVIDERS.filter(p =>
+      provIdsWithAppts.has(p.id) || p.locationId === activeSiteId
+    );
+  }, [isFiltered, allAppts, activeSiteId]);
 
   const handleOpenChart  = useCallback(apt => { if(apt.patientId){selectPatient(apt.patientId);navigate(`/chart/${apt.patientId}/summary`);} }, [selectPatient,navigate]);
   const handleCheckIn    = useCallback(apt => { updateAppointmentStatus(apt.id,"Checked In");if(apt.patientId)selectPatient(apt.patientId);navigate(`/session/${apt.id}`); }, [updateAppointmentStatus,selectPatient,navigate]);
@@ -1947,7 +1961,7 @@ export default function Schedule() {
               <div style={{ ...card({ padding:"12px" }) }}>
                 <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.5px", color:"var(--text-muted)", marginBottom:8 }}>Filter by Provider</div>
                 <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
-                  {[{id:"all",firstName:"All",lastName:"Providers",credentials:""},...PROVIDERS].map(p => {
+                  {[{id:"all",firstName:"All",lastName:"Providers",credentials:""},...siteProviders].map(p => {
                     const cnt = p.id==="all" ? allAppts.filter(a=>a.date===activeDate).length : allAppts.filter(a=>a.date===activeDate&&a.provider===p.id).length;
                     const pc = p.id==="all"?"#6366f1":provColor(p.id);
                     const isSel = providerFilter===p.id;
