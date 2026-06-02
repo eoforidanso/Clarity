@@ -115,6 +115,8 @@ import ForcePasswordChange from './components/ForcePasswordChange';
 
 function ProtectedLayout() {
   const { isAuthenticated, sessionChecking, currentUser } = useAuth();
+  const { isDemo } = useDemo();
+  const { isActive: isTourActive } = useGuidedTour();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const location = useLocation();
 
@@ -174,13 +176,14 @@ function ProtectedLayout() {
           </button>
         </div>
         <ToastContainer />
-        <NotificationPanel />
-        <CommandPalette />
-        <SessionTimeout />
-        <OnboardingTour />
-        <KeyboardShortcuts />
-        <AIClinicalAssistant />
-        <VoiceAssistant />
+        {/* Suppress all overlays during guided demo tour */}
+        {!isTourActive && <NotificationPanel />}
+        {!isTourActive && <CommandPalette />}
+        {!isTourActive && <SessionTimeout />}
+        {!isTourActive && <OnboardingTour />}
+        {!isTourActive && <KeyboardShortcuts />}
+        {!isTourActive && <AIClinicalAssistant />}
+        {!isTourActive && <VoiceAssistant />}
       </NotificationProvider>
     </PatientProvider>
     </TelehealthProvider>
