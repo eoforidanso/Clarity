@@ -302,12 +302,7 @@ export default function LoginPage() {
                 <p>HIPAA-compliant electronic health records for outpatient behavioral health.</p>
               </div>
 
-              <div className="login-brand-pills">
-                <span>MFA Protected</span>
-                <span>42 CFR Part 2</span>
-                <span>EPCS Certified</span>
-                <span>Audit Logged</span>
-              </div>
+              {/* brand pills removed — moved below form */}
             </div>
           </div>
 
@@ -533,27 +528,48 @@ export default function LoginPage() {
               </form>
 
               <div className="lf-footer">
-                <p className="lf-security-notice" role="note" aria-label="Security notice">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                  AES-256 · HIPAA compliant · All access monitored
-                </p>
-                <p className="lf-support">
-                  <a href="mailto:support@clarity-ehr.org" className="lf-support-link">IT Support</a>
-                  <span aria-hidden="true">·</span>
-                  <a href="tel:+15554007748" className="lf-support-link">(555) 400-7748</a>
-                  <span aria-hidden="true">·</span>
-                  <a href="https://status.clarity-ehr.com" target="_blank" rel="noopener noreferrer" className="lf-support-link lf-status-link">
-                    <span
-                      className={`lf-status-dot${serverDown ? ' lf-status-dot--degraded' : ' lf-status-dot--operational'}`}
-                      aria-hidden="true"
-                    />
+
+                {/* Security certification pills */}
+                <div className="lf-cert-pills" role="list" aria-label="Security certifications">
+                  {[
+                    { icon: '🔐', label: 'MFA',       tip: 'Multi-factor authentication required for all users' },
+                    { icon: '🏥', label: 'HIPAA',     tip: 'Full HIPAA Privacy & Security Rule compliance' },
+                    { icon: '💊', label: 'EPCS',      tip: 'Electronic Prescribing of Controlled Substances certified' },
+                    { icon: '🔒', label: '42 CFR Pt2',tip: 'Substance use disorder records protected under federal law' },
+                    { icon: '📋', label: 'Audit Log', tip: 'All access and modifications are logged and auditable' },
+                  ].map(b => (
+                    <span key={b.label} className="lf-cert-pill" role="listitem" title={b.tip} aria-label={`${b.label}: ${b.tip}`}>
+                      <span aria-hidden="true">{b.icon}</span> {b.label}
+                      <span className="lf-cert-tooltip" aria-hidden="true">{b.tip}</span>
+                    </span>
+                  ))}
+                </div>
+
+                {/* Security + IT support row */}
+                <div className="lf-support-row">
+                  <span className="lf-security-line" role="note">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    AES-256 · HIPAA · All access monitored
+                  </span>
+                  <a href="tel:+15554007748" className="lf-it-card" aria-label="Call IT Support at (555) 400-7748">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6 6l.96-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.73 16z"/></svg>
+                    IT Support · (555) 400-7748
+                  </a>
+                  <a href="https://status.clarity-ehr.com" target="_blank" rel="noopener noreferrer" className="lf-status-badge" aria-label={`System status: ${serverDown ? 'Degraded' : 'Operational'}`}>
+                    <span className={`lf-status-dot${serverDown ? ' lf-status-dot--degraded' : ' lf-status-dot--operational'}`} aria-hidden="true" />
                     {serverDown ? 'Degraded' : 'Operational'}
                   </a>
-                </p>
-                <p className="lf-patient-link">
-                  Are you a patient?{' '}
-                  <Link to="/patient-portal-login">Sign in to the Patient Portal →</Link>
-                </p>
+                </div>
+
+                {/* Patient Portal CTA */}
+                <div className="lf-patient-cta">
+                  <span className="lf-patient-label">Are you a patient?</span>
+                  <Link to="/patient-portal-login" className="lf-patient-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    Sign in to Patient Portal
+                  </Link>
+                </div>
+
               </div>
             </div>
           </div>

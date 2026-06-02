@@ -3073,23 +3073,80 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 }
 
 /* ── Form footer ── */
-.lf-footer { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; }
-.lf-security-notice {
-  display: flex; align-items: center; gap: 5px;
-  font-size: 11px; color: #64748b; margin: 0;
+.lf-footer { margin-top: 24px; display: flex; flex-direction: column; gap: 14px; }
+
+/* ── Security certification pills ── */
+.lf-cert-pills {
+  display: flex; flex-wrap: wrap; gap: 6px;
 }
-.lf-security-notice svg { flex-shrink: 0; color: #0891b2; }
-.lf-support {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  font-size: 11.5px; color: #94a3b8; margin: 0;
+.lf-cert-pill {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10.5px; font-weight: 700; color: #475569;
+  background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 99px;
+  padding: 3px 10px; cursor: default;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
 }
-.lf-support-link {
-  color: #0891b2; font-weight: 600; text-decoration: none; transition: color 0.15s;
+.lf-cert-pill:hover { background: #e0f2fe; border-color: #7dd3fc; color: #0369a1; }
+.lf-cert-tooltip {
+  display: none; position: absolute; bottom: calc(100% + 6px); left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b; color: #f1f5f9; font-size: 11px; font-weight: 500;
+  padding: 6px 10px; border-radius: 7px; white-space: nowrap; max-width: 220px;
+  white-space: normal; text-align: center; line-height: 1.4;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.22); pointer-events: none; z-index: 10;
 }
-.lf-support-link:hover { color: #0e7490; text-decoration: underline; }
-.lf-patient-link { font-size: 12px; color: #64748b; margin: 0; }
-.lf-patient-link a { color: #0891b2; font-weight: 600; text-decoration: none; }
-.lf-patient-link a:hover { text-decoration: underline; }
+.lf-cert-tooltip::after {
+  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: #1e293b;
+}
+.lf-cert-pill:hover .lf-cert-tooltip { display: block; }
+
+/* ── Support row ── */
+.lf-support-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.lf-security-line {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10.5px; color: #94a3b8; flex: 1;
+}
+.lf-security-line svg { color: #0891b2; flex-shrink: 0; }
+.lf-it-card {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; color: #475569;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 7px;
+  padding: 4px 9px; text-decoration: none; transition: all 0.15s;
+  white-space: nowrap;
+}
+.lf-it-card:hover { background: #f0f9ff; border-color: #7dd3fc; color: #0369a1; }
+.lf-it-card svg { flex-shrink: 0; color: #0891b2; }
+.lf-status-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; text-decoration: none; transition: color 0.15s;
+  white-space: nowrap;
+  color: #64748b;
+}
+.lf-status-badge:hover { color: #0f172a; }
+
+/* ── Patient Portal CTA ── */
+.lf-patient-cta {
+  display: flex; align-items: center; gap: 10px;
+  padding-top: 12px; border-top: 1px solid #f1f5f9;
+}
+.lf-patient-label { font-size: 12px; color: #94a3b8; white-space: nowrap; }
+.lf-patient-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 700; color: #0891b2;
+  background: #f0f9ff; border: 1.5px solid #bae6fd; border-radius: 8px;
+  padding: 6px 14px; text-decoration: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.12s;
+}
+.lf-patient-btn:hover {
+  background: #e0f2fe; border-color: #7dd3fc; color: #0369a1;
+  transform: translateY(-1px);
+}
+.lf-patient-btn svg { flex-shrink: 0; }
 
 /* ── Session check banner (light theme) ── */
 .session-check-banner {
