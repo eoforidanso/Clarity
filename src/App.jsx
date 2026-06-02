@@ -1,7 +1,7 @@
 import React, { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { DemoProvider, useDemo } from './demo/DemoContext';
+import { DemoProvider, useDemo, DemoRouteGuard } from './demo/DemoContext';
 import DemoBar from './demo/DemoBar';
 import { PatientProvider } from './contexts/PatientContext';
 import { NotificationProvider } from './contexts/NotificationContext';
@@ -150,6 +150,7 @@ function ProtectedLayout() {
           </div>
           <div className="main-area">
             <Header />
+            <DemoRouteGuard />
             <main id="main-content" className="main-content" role="main">
               <ErrorBoundary>
               <Suspense fallback={

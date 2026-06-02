@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTraining } from '../contexts/TrainingContext';
 import { useAuth } from '../contexts/AuthContext';
+import DemoGuard, { DemoDisabled } from '../demo/DemoGuard';
+import { useDemo } from '../demo/DemoContext';
 
 /* ─── Theme Presets ──────────────────────────────────────── */
 const THEMES = [
@@ -329,18 +331,21 @@ export default function Settings() {
     setUploadPreview(null);
   };
 
+  const { isDemo } = useDemo();
+
   /* ── Render helpers ────────────────── */
-  const sections = [
-    { id: 'theme', icon: '🎨', label: 'Color Theme' },
-    { id: 'signature', icon: '✍️', label: 'Electronic Signature' },
-    { id: 'notifications', icon: '🔔', label: 'Notifications' },
-    { id: 'shortcuts', icon: '⌨️', label: 'Keyboard Shortcuts' },
-    { id: 'accessibility', icon: '♿', label: 'Accessibility' },
-    { id: 'ai-features', icon: '🤖', label: 'AI Features' },
-    { id: 'navigation', icon: '🧭', label: 'Navigation' },
-    { id: 'training', icon: '🎓', label: 'Training Mode' },
-    { id: 'about', icon: 'ℹ️', label: 'About' },
+  const allSections = [
+    { id: 'theme', icon: '🎨', label: 'Color Theme', demoAllowed: true },
+    { id: 'signature', icon: '✍️', label: 'Electronic Signature', demoAllowed: false },
+    { id: 'notifications', icon: '🔔', label: 'Notifications', demoAllowed: true },
+    { id: 'shortcuts', icon: '⌨️', label: 'Keyboard Shortcuts', demoAllowed: true },
+    { id: 'accessibility', icon: '♿', label: 'Accessibility', demoAllowed: true },
+    { id: 'ai-features', icon: '🤖', label: 'AI Features', demoAllowed: false },
+    { id: 'navigation', icon: '🧭', label: 'Navigation', demoAllowed: true },
+    { id: 'training', icon: '🎓', label: 'Training Mode', demoAllowed: false },
+    { id: 'about', icon: 'ℹ️', label: 'About', demoAllowed: true },
   ];
+  const sections = isDemo ? allSections.filter(s => s.demoAllowed) : allSections;
 
   return (
     <div style={{ display: 'flex', gap: 0, height: '100%', overflow: 'hidden' }}>

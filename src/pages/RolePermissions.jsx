@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import DemoGuard from '../demo/DemoGuard';
 
 // ─── Role Definitions ─────────────────────────────────────────────────────────
 const ROLES = [
@@ -180,7 +181,7 @@ function ToggleSwitch({ on, onChange, disabled = false }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function RolePermissions() {
+function RolePermissions_Inner() {
   const [selectedRoleId, setSelectedRoleId] = useState('physician');
   const [matrix, setMatrix] = useState(() => deepCopyMatrix(DEFAULT_MATRIX));
   const [clinicAccess, setClinicAccess] = useState(() => deepCopyClinic(DEFAULT_CLINIC_ACCESS));
@@ -508,4 +509,8 @@ export default function RolePermissions() {
       </div>
     </div>
   );
+}
+
+export default function RolePermissions(props) {
+  return <DemoGuard reason="admin"><RolePermissions_Inner {...props} /></DemoGuard>;
 }

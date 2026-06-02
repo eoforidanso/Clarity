@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import DemoGuard from '../demo/DemoGuard';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const BASE_URL = 'https://api.clarity-ehr.com/edi/v1';
@@ -192,7 +193,7 @@ const TIER_COLORS = {
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export default function EDIApiPortal() {
+function EDIApiPortal_Inner() {
   const [tab, setTab]                   = useState('overview');
   const [expandedGroup, setExpandedGroup] = useState('Claims');
   const [selectedEp, setSelectedEp]     = useState(null);
@@ -1593,4 +1594,8 @@ curl -X POST '${BASE_URL}/claims/batch' \\
       )}
     </div>
   );
+}
+
+export default function EDIApiPortal(props) {
+  return <DemoGuard reason="clearinghouse"><EDIApiPortal_Inner {...props} /></DemoGuard>;
 }

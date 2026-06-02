@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DemoGuard from '../demo/DemoGuard';
 
 const API_ENDPOINTS = [
   // Auth
@@ -50,7 +51,7 @@ const METHOD_COLORS = {
   DELETE: { bg: '#fef2f2', color: '#dc2626' },
 };
 
-export default function APIDocumentation() {
+function APIDocumentation_Inner() {
   const [expandedGroup, setExpandedGroup] = useState('Authentication');
   const [search, setSearch] = useState('');
   const [selectedEndpoint, setSelectedEndpoint] = useState(null);
@@ -199,4 +200,8 @@ export default function APIDocumentation() {
       </div>
     </div>
   );
+}
+
+export default function APIDocumentation(props) {
+  return <DemoGuard reason="architecture"><APIDocumentation_Inner {...props} /></DemoGuard>;
 }

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import DemoGuard from '../demo/DemoGuard';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TX_TYPES = ['837P', '835', '270/271', '999/277CA', '276/277', '820'];
@@ -68,7 +69,7 @@ function UptimeBar({ pct }) {
 
 const fmtDt = (d) => new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-export default function EDIMonitoring() {
+function EDIMonitoring_Inner() {
   const [alerts, setAlerts] = useState(SEED_ALERTS);
   const [rules, setRules] = useState(SEED_RULES);
   const [pipeline] = useState(SEED_PIPELINE);
@@ -567,4 +568,8 @@ export default function EDIMonitoring() {
       )}
     </div>
   );
+}
+
+export default function EDIMonitoring(props) {
+  return <DemoGuard reason="clearinghouse"><EDIMonitoring_Inner {...props} /></DemoGuard>;
 }

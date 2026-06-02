@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import DemoGuard from '../demo/DemoGuard';
 import { useAuth } from '../contexts/AuthContext';
 import { useSite, SITES_FALLBACK } from '../contexts/SiteContext';
 import { admin } from '../services/api';
@@ -372,7 +373,7 @@ function DeleteConfirmModal({ user, onConfirm, onClose, loading }) {
   );
 }
 
-export default function UserManagement() {
+function UserManagement_Inner() {
   const { currentUser } = useAuth();
   const { reloadSites } = useSite();
   const [locationOptions, setLocationOptions] = useState(SITES_FALLBACK.filter(l => l.id !== 'all'));
@@ -830,4 +831,8 @@ export default function UserManagement() {
       )}
     </div>
   );
+}
+
+export default function UserManagement(props) {
+  return <DemoGuard reason="admin"><UserManagement_Inner {...props} /></DemoGuard>;
 }

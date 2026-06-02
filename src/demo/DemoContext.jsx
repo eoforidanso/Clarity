@@ -1,4 +1,25 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+
+// ── Routes blocked in demo mode ───────────────────────────────────────────────
+export const DEMO_BLOCKED_ROUTES = [
+  // Clearinghouse internals
+  '/edi-monitoring', '/edi-api-portal', '/edi-transport', '/edi-routing',
+  '/edi-837-generator', '/edi-835-listener', '/edi-270-engine', '/edi-999-parser',
+  '/batch-claim-submission', '/clearinghouse',
+  // Admin & system controls
+  '/user-management', '/role-permissions', '/audit-trail', '/btg-audit-log',
+  '/admin-toolkit', '/multi-location-management',
+  // Architecture / API
+  '/api-documentation', '/network-integrations',
+  // AI engine
+  '/clinical-decision-support', '/population-health', '/care-gaps',
+  // Billing details
+  '/contract-variance', '/fee-schedule', '/payer-profiles',
+  '/scrubber-rules', '/edi-api-portal',
+];
+
+export const DEMO_BLOCKED_PREFIX = ['/admin', '/developer'];
 
 const DemoContext = createContext(null);
 
@@ -108,4 +129,27 @@ export function useDemo() {
   const ctx = useContext(DemoContext);
   if (!ctx) throw new Error('useDemo must be inside DemoProvider');
   return ctx;
+}
+
+/**
+ * DemoRouteGuard — place inside Router context.
+ * Redirects blocked routes to /dashboard when demo is active.
+ */
+export function DemoRouteGuard() {
+  const { isDemo } = useDemo();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isDemo) return;
+    const path = location.pathname;
+    const blocked =
+      DEMO_BLOCKED_ROUTES.some(r => path === r || path.startsWith(r + '/')) ||
+      DEMO_BLOCKED_PREFIX.some(p => path.startsWith(p));
+    if (blocked) {
+      navigate('/dashboard', { replace: true, state: { demoBlocked: true } });
+    }
+  }, [isDemo, location.pathname, navigate]);
+
+  return null;
 }

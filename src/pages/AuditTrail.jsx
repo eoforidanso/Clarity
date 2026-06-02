@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import DemoGuard from '../demo/DemoGuard';
 import { useAuth } from '../contexts/AuthContext';
 
 const ACTIVITY_TYPES = {
@@ -36,7 +37,7 @@ const MOCK_ACTIVITIES = [
   { id: 'a16', type: 'login', user: 'Nurse Kelly', userId: 'u4', detail: 'Logged in from 192.168.1.55', ip: '192.168.1.55', timestamp: '2026-04-15T07:55:00' },
 ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-export default function AuditTrail() {
+function AuditTrail_Inner() {
   const { currentUser } = useAuth();
   const [filter, setFilter] = useState('all');
   const [userFilter, setUserFilter] = useState('all');
@@ -176,4 +177,8 @@ export default function AuditTrail() {
       </div>
     </div>
   );
+}
+
+export default function AuditTrail(props) {
+  return <DemoGuard reason="admin"><AuditTrail_Inner {...props} /></DemoGuard>;
 }
