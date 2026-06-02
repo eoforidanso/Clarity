@@ -353,6 +353,18 @@ function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggl
 /* ══════════════════════════════════════════════
    VERTICAL TIMELINE WRAPPER
 ══════════════════════════════════════════════ */
+// ── Capacity thresholds ────────────────────────────────────────────────────────
+const WARNING_THRESHOLD = 0.7; // 70% — soft yellow
+const FULL_THRESHOLD    = 0.9; // 90% — soft red
+const MAX_SLOTS_PER_HOUR = 3;  // typical max concurrent appointments per hour
+
+function getCapacityClass(count) {
+  const ratio = count / MAX_SLOTS_PER_HOUR;
+  if (ratio >= FULL_THRESHOLD)    return "full";
+  if (ratio >= WARNING_THRESHOLD) return "warning";
+  return "";
+}
+
 function ScheduleTimeline({ appts, todayKey, isToday, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType }) {
   const now = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
@@ -388,30 +400,48 @@ function ScheduleTimeline({ appts, todayKey, isToday, onOpenChart, onCheckIn, on
       {/* Vertical line */}
       <div style={{ position: "absolute", left: 44, top: 0, bottom: 0, width: 2, background: "linear-gradient(180deg, #e2e8f0 0%, #e2e8f0 100%)", borderRadius: 1 }} />
 
-      {grouped.map(([hour, hourAppts]) => (
-        <div key={hour} style={{ marginBottom: 4 }}>
-          {/* Hour marker */}
-          <div style={{ position: "relative", marginBottom: 8, display: "flex", alignItems: "center" }}>
-            <div style={{ position: "absolute", left: -72, width: 72, display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end", paddingRight: 14 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                {hour !== "unknown" ? fmtTime12(hour).replace(":00", "") : "—"}
-              </span>
-              {/* Timeline dot */}
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#e2e8f0", border: "2px solid #cbd5e1", flexShrink: 0, zIndex: 1 }} />
+      {grouped.map(([hour, hourAppts]) => {
+        const capacityClass = getCapacityClass(hourAppts.length);
+        const dotColor = capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : "#e2e8f0";
+        const dotBorder = capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : "#cbd5e1";
+        return (
+          <div key={hour} className={`calendar-slot${capacityClass ? " " + capacityClass : ""}`} style={{ marginBottom: 4, borderRadius: 8, transition: "background-color 0.25s ease" }}>
+            {/* Hour marker */}
+            <div style={{ position: "relative", marginBottom: 8, display: "flex", alignItems: "center" }}>
+              <div style={{ position: "absolute", left: -72, width: 72, display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end", paddingRight: 14 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                  {hour !== "unknown" ? fmtTime12(hour).replace(":00", "") : "—"}
+                </span>
+                {/* Timeline dot — color-coded by capacity */}
+                <div style={{ width: 10, height: 10, borderRadius: "50%", background: dotColor, border: `2px solid ${dotBorder}`, flexShrink: 0, zIndex: 1, transition: "background 0.25s ease" }} />
+              </div>
+              {/* Capacity badge */}
+              {capacityClass && (
+                <span style={{
+                  position: "absolute", right: 0,
+                  fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 4,
+                  background: capacityClass === "full" ? "rgba(220,53,69,0.12)" : "rgba(255,193,7,0.15)",
+                  color: capacityClass === "full" ? "#dc3545" : "#b45309",
+                  border: `1px solid ${capacityClass === "full" ? "rgba(220,53,69,0.3)" : "rgba(255,193,7,0.4)"}`,
+                  textTransform: "uppercase", letterSpacing: "0.4px",
+                }}>
+                  {capacityClass === "full" ? "● Full" : "● Busy"}
+                </span>
+              )}
+            </div>
+
+            {/* Cards for this hour */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+              {hourAppts.map(apt => (
+                <AptCard key={apt.id} apt={apt} todayKey={todayKey}
+                  isCurrent={isToday && apt.id === currentAptId}
+                  onOpenChart={onOpenChart} onCheckIn={onCheckIn}
+                  onGoToSession={onGoToSession} onToggleVisitType={onToggleVisitType} />
+              ))}
             </div>
           </div>
-
-          {/* Cards for this hour */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-            {hourAppts.map(apt => (
-              <AptCard key={apt.id} apt={apt} todayKey={todayKey}
-                isCurrent={isToday && apt.id === currentAptId}
-                onOpenChart={onOpenChart} onCheckIn={onCheckIn}
-                onGoToSession={onGoToSession} onToggleVisitType={onToggleVisitType} />
-            ))}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

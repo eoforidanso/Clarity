@@ -2497,6 +2497,22 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 /* ══════════════════════════════════════════════════════════════
    DASHBOARD — APPOINTMENT ROWS
 ══════════════════════════════════════════════════════════════ */
+/* ── Calendar slot capacity indicators ───────────────────────────────────── */
+.calendar-slot {
+  transition: background-color 0.25s ease, color 0.25s ease;
+  border-radius: 8px;
+}
+.calendar-slot.warning {
+  background-color: rgba(255, 193, 7, 0.07);
+  border-left: 3px solid #ffc107;
+  padding-left: 6px;
+}
+.calendar-slot.full {
+  background-color: rgba(220, 53, 69, 0.07);
+  border-left: 3px solid #dc3545;
+  padding-left: 6px;
+}
+
 .appt-row {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 16px; border-bottom: 1px solid var(--border-light);
