@@ -2873,6 +2873,15 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   margin-bottom: 48px;
 }
 
+/* ── layout wrapper ── */
+.login-card {
+  min-height: 100vh;
+  height: auto;
+  display: flex;
+  align-items: stretch;
+  overflow: visible;
+}
+
 /* ── Left: Brand panel ── */
 .login-brand-panel {
   width: 42%; flex-shrink: 0;
@@ -2955,18 +2964,20 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   flex: 1;
   min-height: 100vh;
   height: auto;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-  padding-top: 48px;
-  padding-left: 44px;
-  padding-right: 44px;
-  padding-bottom: 64px;
-  overflow-y: auto;
+  padding: 48px 44px 80px 44px;
   border-left: 1px solid rgba(0,0,0,0.06);
   background: linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%);
   border-radius: 0 24px 24px 0;
+}
+
+/* ── role picker spacing ── */
+.lf-footer {
+  margin-bottom: 48px;
 }
 .login-form-inner {
   width: 100%; max-width: 400px;
