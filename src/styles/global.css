@@ -2862,24 +2862,20 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
   padding: 52px 24px 48px; gap: 28px;
 }
+/* ── Login card (layout wrapper) ── */
 .login-card {
-  display: flex; width: 100%; max-width: 1040px; min-height: 100vh;
+  display: flex;
+  width: 100%;
+  max-width: 1040px;
+  min-height: 100vh;
   height: auto;
-  background: #fff; border-radius: 24px;
+  background: #fff;
+  border-radius: 24px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.13), 0 1px 3px rgba(0,0,0,0.06);
   overflow: visible;
   align-items: stretch;
   margin-top: -20px;
   margin-bottom: 48px;
-}
-
-/* ── layout wrapper ── */
-.login-card {
-  min-height: 100vh;
-  height: auto;
-  display: flex;
-  align-items: stretch;
-  overflow: visible;
 }
 
 /* ── Left: Brand panel ── */
@@ -2975,8 +2971,9 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   border-radius: 0 24px 24px 0;
 }
 
-/* ── role picker spacing ── */
-.lf-footer {
+/* ── role picker / footer spacing ──
+.lf-footer bottom margin is set in the main lf-footer block below */
+.lf-footer-spacer {
   margin-bottom: 48px;
 }
 .login-form-inner {
@@ -3130,7 +3127,7 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 }
 
 /* ── Form footer ── */
-.lf-footer { margin-top: 20px; display: flex; flex-direction: column; gap: 12px; }
+.lf-footer { margin-top: 20px; margin-bottom: 48px; display: flex; flex-direction: column; gap: 12px; }
 
 /* ── System status strip — directly below Sign In button ── */
 .lf-status-strip {
