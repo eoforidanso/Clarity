@@ -58,25 +58,25 @@ function Modal({ title, onClose, children }) {
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
         zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 16,
+        padding: 16, backdropFilter: 'blur(2px)',
       }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{
-        background: 'var(--bg-card)', borderRadius: 12, width: '100%', maxWidth: 560,
-        boxShadow: '0 24px 60px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column',
+        background: '#ffffff', borderRadius: 12, width: '100%', maxWidth: 560,
+        boxShadow: '0 24px 60px rgba(0,0,0,0.35)', display: 'flex', flexDirection: 'column',
         maxHeight: '90vh',
       }}>
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '18px 22px', borderBottom: '1px solid var(--border)',
+          padding: '18px 22px', borderBottom: '1px solid #e2e8f0',
         }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{title}</h3>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>{title}</h3>
           <button onClick={onClose} style={{
             background: 'none', border: 'none', fontSize: 20, cursor: 'pointer',
-            color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px',
+            color: '#94a3b8', lineHeight: 1, padding: '0 4px',
           }}>×</button>
         </div>
         <div style={{ padding: '20px 22px', overflowY: 'auto', flex: 1 }}>
@@ -647,7 +647,7 @@ export default function UserManagement() {
           {search || roleFilter !== 'all' ? 'No users match your filters.' : 'No staff users found.'}
         </div>
       ) : (
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ background: 'var(--surface, #ffffff)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
@@ -820,7 +820,7 @@ export default function UserManagement() {
       {toast && (
         <div style={{
           position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          background: 'var(--surface, #ffffff)', border: '1px solid var(--border)',
           borderRadius: 10, padding: '10px 20px', boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
           zIndex: 2000, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
           animation: 'fadeIn 0.2s ease',
