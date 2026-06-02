@@ -401,11 +401,13 @@ function ScheduleTimeline({ appts, todayKey, isToday, onOpenChart, onCheckIn, on
       <div style={{ position: "absolute", left: 44, top: 0, bottom: 0, width: 2, background: "linear-gradient(180deg, #e2e8f0 0%, #e2e8f0 100%)", borderRadius: 1 }} />
 
       {grouped.map(([hour, hourAppts]) => {
-        const capacityClass = getSlotStatus(hourAppts.length, DEFAULT_CAPACITY);
+        const slotCount    = hourAppts.length;
+        const slotCapacity = DEFAULT_CAPACITY;
+        const capacityClass = getSlotStatus(slotCount, slotCapacity);
         const dotColor = capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : "#e2e8f0";
         const dotBorder = capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : "#cbd5e1";
         return (
-          <div key={hour} className={`calendar-slot${capacityClass ? " " + capacityClass : ""}`} style={{ marginBottom: 4, borderRadius: 8, transition: "background-color 0.25s ease" }}>
+          <div key={hour} className={`calendar-slot ${capacityClass}`} style={{ marginBottom: 4, borderRadius: 8 }}>
             {/* Hour marker */}
             <div style={{ position: "relative", marginBottom: 8, display: "flex", alignItems: "center" }}>
               <div style={{ position: "absolute", left: -72, width: 72, display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end", paddingRight: 14 }}>
@@ -415,19 +417,26 @@ function ScheduleTimeline({ appts, todayKey, isToday, onOpenChart, onCheckIn, on
                 {/* Timeline dot — color-coded by capacity */}
                 <div style={{ width: 10, height: 10, borderRadius: "50%", background: dotColor, border: `2px solid ${dotBorder}`, flexShrink: 0, zIndex: 1, transition: "background 0.25s ease" }} />
               </div>
-              {/* Capacity badge */}
-              {capacityClass && (
-                <span style={{
-                  position: "absolute", right: 0,
-                  fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 4,
-                  background: capacityClass === "full" ? "rgba(220,53,69,0.12)" : "rgba(255,193,7,0.15)",
-                  color: capacityClass === "full" ? "#dc3545" : "#b45309",
-                  border: `1px solid ${capacityClass === "full" ? "rgba(220,53,69,0.3)" : "rgba(255,193,7,0.4)"}`,
-                  textTransform: "uppercase", letterSpacing: "0.4px",
+              {/* count/capacity + status badge */}
+              <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5 }}>
+                <span className="count" style={{
+                  fontSize: 10, fontWeight: 700, color: capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#b45309" : "#94a3b8",
+                  fontVariantNumeric: "tabular-nums",
                 }}>
-                  {capacityClass === "full" ? "● Full" : "● Busy"}
+                  {slotCount}/{slotCapacity}
                 </span>
-              )}
+                {capacityClass && (
+                  <span style={{
+                    fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 4,
+                    background: capacityClass === "full" ? "rgba(220,53,69,0.12)" : "rgba(255,193,7,0.15)",
+                    color: capacityClass === "full" ? "#dc3545" : "#b45309",
+                    border: `1px solid ${capacityClass === "full" ? "rgba(220,53,69,0.3)" : "rgba(255,193,7,0.4)"}`,
+                    textTransform: "uppercase", letterSpacing: "0.4px",
+                  }}>
+                    {capacityClass === "full" ? "● Full" : "● Busy"}
+                  </span>
+                )}
+              </span>
             </div>
 
             {/* Cards for this hour */}

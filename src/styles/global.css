@@ -2499,18 +2499,24 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 ══════════════════════════════════════════════════════════════ */
 /* ── Calendar slot capacity indicators ───────────────────────────────────── */
 .calendar-slot {
-  transition: background-color 0.25s ease, color 0.25s ease;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
   border-radius: 8px;
 }
 .calendar-slot.warning {
-  background-color: rgba(255, 193, 7, 0.07);
+  background-color: rgba(255, 193, 7, 0.08);
   border-left: 3px solid #ffc107;
   padding-left: 6px;
 }
 .calendar-slot.full {
-  background-color: rgba(220, 53, 69, 0.07);
   border-left: 3px solid #dc3545;
   padding-left: 6px;
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%   { background-color: rgba(220, 53, 69, 0.18); }
+  50%  { background-color: rgba(220, 53, 69, 0.28); }
+  100% { background-color: rgba(220, 53, 69, 0.18); }
 }
 
 .appt-row {
