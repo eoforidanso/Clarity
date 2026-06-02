@@ -315,28 +315,7 @@ export default function Sidebar() {
       </div>
 
       {/* ── DOMAIN: CLEARINGHOUSE ── */}
-      {isDemo ? (
-        <div style={{
-          margin: '4px 10px 8px',
-          padding: '11px 13px',
-          borderRadius: 9,
-          background: 'rgba(20,184,166,0.07)',
-          border: '1px solid rgba(20,184,166,0.2)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-            <span style={{ fontSize: 11 }}>🔀</span>
-            <span style={{ fontSize: 10, fontWeight: 800, color: '#5eead4', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Clearinghouse</span>
-            <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(239,68,68,0.15)', color: '#fca5a5' }}>Demo</span>
-          </div>
-          <p style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5, margin: '0 0 7px' }}>
-            EDI Transport, 837P, 835 ERA, and routing tools are available in live environments.
-          </p>
-          <a href="mailto:info@clarity-ehr.com?subject=Clarity EHR Demo Request"
-            style={{ fontSize: 10, fontWeight: 700, color: '#5eead4', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-            Request full access →
-          </a>
-        </div>
-      ) : (
+      {!isDemo && (
         <div className="sidebar-section">
           <div
             className="sidebar-section-title"
@@ -362,28 +341,7 @@ export default function Sidebar() {
       )}
 
       {/* ── DOMAIN: DEVELOPER / API ── */}
-      {isDemo ? (
-        <div style={{
-          margin: '0 10px 12px',
-          padding: '11px 13px',
-          borderRadius: 9,
-          background: 'rgba(249,115,22,0.07)',
-          border: '1px solid rgba(249,115,22,0.2)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-            <span style={{ fontSize: 11 }}>🔧</span>
-            <span style={{ fontSize: 10, fontWeight: 800, color: '#fdba74', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Developer / API</span>
-            <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(239,68,68,0.15)', color: '#fca5a5' }}>Demo</span>
-          </div>
-          <p style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5, margin: '0 0 7px' }}>
-            API docs, network integrations, and developer tools are available in live environments.
-          </p>
-          <a href="mailto:info@clarity-ehr.com?subject=Clarity EHR Demo Request"
-            style={{ fontSize: 10, fontWeight: 700, color: '#fdba74', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-            Request full access →
-          </a>
-        </div>
-      ) : (
+      {!isDemo && (
         <div className="sidebar-section">
           <div
             className="sidebar-section-title"
