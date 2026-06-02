@@ -133,7 +133,9 @@ export function DemoProvider({ children }) {
     uninstallClickGuard();
     // Send session analytics and clear
     demoRateLimit.clearSession();
-    console.info('[Demo] Demo mode deactivated');
+    console.info('[Demo] Demo mode deactivated — redirecting to login');
+    // Redirect to login and reload to clear all state
+    window.location.href = '/login';
   }, []);
 
   const nextStep = useCallback(() => {
