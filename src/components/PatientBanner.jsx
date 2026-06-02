@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../contexts/PatientContext';
+import PatientPhotoUpload from './PatientPhotoUpload';
 
 export default function PatientBanner() {
   const { selectedPatient, allergies, problemList, vitalSigns, meds } = usePatient();
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
 
   if (!selectedPatient) return null;
 
@@ -36,7 +38,28 @@ export default function PatientBanner() {
       {/* ── Primary Bar ──────────────────────────── */}
       <div className="athena-banner-primary">
         <div className="athena-banner-left">
-          <div className="athena-banner-avatar">{initials}</div>
+          {/* Patient photo — click to upload */}
+          <div
+            className="athena-banner-avatar-wrap"
+            onClick={() => setShowPhotoModal(true)}
+            title="Click to update patient photo"
+            role="button"
+            tabIndex={0}
+            onKeyDown={e => e.key === 'Enter' && setShowPhotoModal(true)}
+            aria-label="Update patient photo"
+          >
+            {p.photo ? (
+              <img src={p.photo} alt={`${p.firstName} ${p.lastName}`} className="athena-banner-avatar-img" />
+            ) : (
+              <div className="athena-banner-avatar">{initials}</div>
+            )}
+            <div className="athena-banner-avatar-overlay" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </div>
+          </div>
+          {showPhotoModal && (
+            <PatientPhotoUpload patient={p} onClose={() => setShowPhotoModal(false)} />
+          )}
           <div className="athena-banner-id">
             <div className="athena-banner-name">
               {p.lastName}, {p.firstName}

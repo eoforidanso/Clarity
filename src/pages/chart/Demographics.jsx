@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePatient } from '../../contexts/PatientContext';
 import { useAuth } from '../../contexts/AuthContext';
+import PatientPhotoUpload from '../../components/PatientPhotoUpload';
 
 const GENDERS = ['Male', 'Female', 'Non-binary', 'Transgender Male', 'Transgender Female', 'Other', 'Prefer not to say'];
 const PRONOUNS = ['He/Him', 'She/Her', 'They/Them', 'Other'];
@@ -51,6 +52,7 @@ export default function Demographics({ patientId }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
 
   useEffect(() => {
     if (selectedPatient) setForm(toForm(selectedPatient));
@@ -163,8 +165,55 @@ export default function Demographics({ patientId }) {
     </div>
   );
 
+  const initials = `${p.firstName?.[0] || ''}${p.lastName?.[0] || ''}`;
+
   return (
     <div className="athena-demographics">
+
+      {/* ── Patient Photo ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, padding: '14px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10 }}>
+        <div
+          onClick={() => setShowPhotoModal(true)}
+          style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }}
+          title="Click to update patient photo"
+          role="button" tabIndex={0}
+          onKeyDown={e => e.key === 'Enter' && setShowPhotoModal(true)}
+          aria-label="Update patient photo"
+        >
+          {p.photo ? (
+            <img src={p.photo} alt={`${p.firstName} ${p.lastName}`}
+              style={{ width: 72, height: 72, borderRadius: 10, objectFit: 'cover', border: '2px solid #e2e8f0', display: 'block' }} />
+          ) : (
+            <div style={{ width: 72, height: 72, borderRadius: 10, background: 'linear-gradient(135deg,#3b82f6,#6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800, color: '#fff', border: '2px solid #e2e8f0' }}>
+              {initials}
+            </div>
+          )}
+          <div style={{ position: 'absolute', inset: 0, borderRadius: 10, background: 'rgba(0,0,0,0)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700, transition: 'background 0.15s', opacity: 0 }}
+            className="photo-hover-overlay">
+          </div>
+          <div style={{ position: 'absolute', bottom: -4, right: -4, width: 22, height: 22, borderRadius: '50%', background: '#0891b2', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.2)', border: '2px solid #fff' }}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 2 }}>Patient Photo</div>
+          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+            {p.photo ? 'Photo on file · Click to update' : 'No photo on file · Click to upload'}
+          </div>
+          <button onClick={() => setShowPhotoModal(true)}
+            style={{ padding: '5px 14px', borderRadius: 7, fontSize: 12, fontWeight: 700, border: '1px solid #bae6fd', background: '#f0f9ff', color: '#0891b2', cursor: 'pointer' }}>
+            {p.photo ? '📷 Update Photo' : '📷 Upload Photo'}
+          </button>
+          {p.photo && (
+            <button onClick={() => { const { updatePatientPhoto } = require('../../contexts/PatientContext'); }}
+              style={{ marginLeft: 6, padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 600, border: '1px solid #fca5a5', background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}
+              onClick={() => setShowPhotoModal(true)}>
+              Remove
+            </button>
+          )}
+        </div>
+        {showPhotoModal && <PatientPhotoUpload patient={p} onClose={() => setShowPhotoModal(false)} />}
+      </div>
 
       {/* ── Edit / Save toolbar ── */}
       {canEdit && (

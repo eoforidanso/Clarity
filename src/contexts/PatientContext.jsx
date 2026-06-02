@@ -57,7 +57,16 @@ export function PatientProvider({ children }) {
     (async () => {
       try {
         const apiPatients = await patientsApi.list({});
-        if (Array.isArray(apiPatients)) setPatients(apiPatients);
+        if (Array.isArray(apiPatients)) {
+          // Merge any locally stored photos
+          const withPhotos = apiPatients.map(p => {
+            try {
+              const stored = localStorage.getItem(`clarity_pt_photo_${p.id}`);
+              return stored ? { ...p, photo: stored } : p;
+            } catch { return p; }
+          });
+          setPatients(withPhotos);
+        }
       } catch { /* backend unavailable */ }
 
       try {
@@ -154,6 +163,18 @@ export function PatientProvider({ children }) {
     setPatients((prev) => prev.map((p) => (p.id === patientId ? merged : p)));
     setSelectedPatient((cur) => (cur?.id === patientId ? merged : cur));
     return merged;
+  }, []);
+
+  // Photo stored in localStorage (base64) — no backend upload needed
+  const updatePatientPhoto = useCallback((patientId, dataUrl) => {
+    try { localStorage.setItem(`clarity_pt_photo_${patientId}`, dataUrl); } catch { /* storage full */ }
+    const patch = { photo: dataUrl };
+    setPatients((prev) => prev.map((p) => p.id === patientId ? { ...p, ...patch } : p));
+    setSelectedPatient((cur) => cur?.id === patientId ? { ...cur, ...patch } : cur);
+  }, []);
+
+  const getPatientPhoto = useCallback((patientId) => {
+    try { return localStorage.getItem(`clarity_pt_photo_${patientId}`) || null; } catch { return null; }
   }, []);
 
   /* ────── Allergies ────── */
@@ -466,6 +487,8 @@ export function PatientProvider({ children }) {
         selectPatient,
         addPatient,
         updatePatient,
+        updatePatientPhoto,
+        getPatientPhoto,
         openCharts,
         openChart,
         closeChart,
