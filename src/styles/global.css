@@ -2870,7 +2870,7 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   overflow: visible;
   align-items: stretch;
   margin-top: -20px;
-  margin-bottom: 32px;
+  margin-bottom: 48px;
 }
 
 /* ── Left: Brand panel ── */
@@ -2955,7 +2955,6 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   flex: 1;
   min-height: 100vh;
   height: auto;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -2964,6 +2963,7 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   padding-left: 44px;
   padding-right: 44px;
   padding-bottom: 64px;
+  overflow-y: auto;
   border-left: 1px solid rgba(0,0,0,0.06);
   background: linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%);
   border-radius: 0 24px 24px 0;

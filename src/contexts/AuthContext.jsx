@@ -210,6 +210,22 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  // ── Demo Login — always uses mock, ignores backend/2FA ──────────────────
+  const loginDemo = useCallback((username, password) => {
+    const mockUser = mockUsers.find(u => u.username === username && u.password === password);
+    if (!mockUser) return { ok: false };
+    const { password: _pw, epcsPin: _pin, ...safeUser } = mockUser;
+    const enriched = {
+      ...safeUser,
+      name: safeUser.name || `${safeUser.firstName} ${safeUser.lastName || ''}`.trim(),
+    };
+    setCurrentUser(enriched);
+    setIsAuthenticated(true);
+    setAuthMode('mock');
+    lastActivityRef.current = Date.now();
+    return { ok: true, mustChangePassword: !!enriched.mustChangePassword };
+  }, []);
+
   // ── Complete Two-Factor Login ─────────────────────────
   const completeTwoFactor = useCallback(async (tempToken, code) => {
     try {
@@ -325,6 +341,7 @@ export function AuthProvider({ children }) {
         serverDown,
         clearLoginError: () => setLoginError(''),
         login,
+        loginDemo,
         logout,
         refreshUser,
         changePassword,

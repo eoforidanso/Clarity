@@ -39,7 +39,7 @@ function getErrorConfig(msg) {
 }
 
 export default function LoginPage() {
-  const { login, completeTwoFactor, changePassword: authChangePassword,
+  const { login, loginDemo, completeTwoFactor, changePassword: authChangePassword,
           loginError, clearLoginError, serverDown,
           sessionChecking, cancelSessionCheck } = useAuth();
   const navigate = useNavigate();
@@ -65,31 +65,25 @@ export default function LoginPage() {
   const [demoLoading, setDemoLoading] = useState(null);
   const { startDemo } = useDemo();
 
-  const handleDemoLogin = async (account) => {
+  const handleDemoLogin = (account) => {
     setDemoLoading(account.username);
-    setUsername(account.username);
-    setPassword(account.password);
+    clearLoginError();
     setFieldErrors({});
-    try {
-      const result = await login(account.username, account.password);
-      if (result?.ok) {
-        if (result.mustChangePassword) setShowPasswordChange(true);
-        else navigate('/dashboard');
-      }
-    } catch { /* noop */ }
+    const result = loginDemo(account.username, account.password);
+    if (result?.ok) {
+      navigate('/dashboard');
+    }
     setDemoLoading(null);
   };
 
-  const handleStartGuidedDemo = async () => {
+  const handleStartGuidedDemo = () => {
     setDemoLoading('guided');
-    try {
-      // Log in as demo prescriber and activate guided tour
-      const result = await login('dr.chris', 'Pass123!');
-      if (result?.ok) {
-        startDemo();
-        navigate('/dashboard');
-      }
-    } catch { /* noop */ }
+    clearLoginError();
+    const result = loginDemo('dr.chris', 'Pass123!');
+    if (result?.ok) {
+      startDemo();
+      navigate('/dashboard');
+    }
     setDemoLoading(null);
   };
   useEffect(() => {
