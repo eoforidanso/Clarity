@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { DemoDisabled } from '../demo/DemoGuard';
 import { useDemo } from '../demo/DemoContext';
-import { useTour } from '../demo/DemoGuidedTourProvider';
+import { useGuidedTour } from '../demo/DemoGuidedTourProvider';
 
 /* ── Metric SVG icons ───────────────────────────────────────── */
 const SZ = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6', strokeLinecap: 'round', strokeLinejoin: 'round' };
@@ -20,7 +20,7 @@ function MetricIcon({ type }) { return METRIC_SVGS[type] ?? null; }
 export default function Dashboard() {
   const { currentUser } = useAuth();
   const { isDemo } = useDemo();
-  const { startTour } = useTour();
+  const { start: startTour } = useGuidedTour();
   const { appointments, inboxMessages, patients, selectPatient, updateAppointmentStatus } = usePatient();
   const navigate = useNavigate();
   const [hoveredAction, setHoveredAction] = useState(null);

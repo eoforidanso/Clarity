@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDemo } from './DemoContext';
-import { useTour, TOUR_STEPS } from './DemoGuidedTourProvider';
+import { useGuidedTour, TOUR_STEPS } from './DemoGuidedTourProvider';
 import { demoRateLimit } from './demoRateLimit';
 
 export default function DemoBar() {
   const { isDemo, exitDemo } = useDemo();
   const { active: tourActive, stepIdx: tourStep, goTo: goToStep,
           minimized: tourMinimized, setMinimized: setTourMinimized,
-          startTour } = useTour();
+          start: startTour, active: isActive } = useGuidedTour();
   const navigate = useNavigate();
   const [sessionStats, setSessionStats] = useState(null);
 

@@ -4,12 +4,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { getNavPrefs, getAIFeatures } from '../pages/Settings';
 import { useDemo } from '../demo/DemoContext';
-import { useTour } from '../demo/DemoGuidedTourProvider';
+import { useGuidedTour } from '../demo/DemoGuidedTourProvider';
 
 export default function Sidebar() {
   const { currentUser, logout } = useAuth();
   const { isDemo } = useDemo();
-  const { isNavLocked } = useTour();
+  const { isNavLocked } = useGuidedTour();
   const { inboxMessages, selectedPatient, openCharts, appointments } = usePatient();
   const location = useLocation();
   const navigate = useNavigate();

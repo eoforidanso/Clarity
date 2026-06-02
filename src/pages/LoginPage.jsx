@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useDemo } from '../demo/DemoContext';
-import { useTour } from '../demo/DemoGuidedTourProvider';
+import { useGuidedTour } from '../demo/DemoGuidedTourProvider';
 import { DEMO_USER } from '../demo/demoData';
 import SystemStatus from '../components/SystemStatus';
 
@@ -65,7 +65,7 @@ export default function LoginPage() {
   const [showDemo, setShowDemo] = useState(false);
   const [demoLoading, setDemoLoading] = useState(null);
   const { startDemo } = useDemo();
-  const { startTour } = useTour();
+  const { start: startTour } = useGuidedTour();
 
   const handleDemoLogin = (account) => {
     setDemoLoading(account.username);
