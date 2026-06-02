@@ -35,7 +35,7 @@ export default function Dashboard() {
   ), [appointments, currentUser]);
 
   const myUnread = useMemo(() => (inboxMessages || []).filter(
-    (m) => !m.read && (m.to === currentUser?.id || currentUser?.role === 'front_desk' || currentUser?.role === 'admin')
+    (m) => !m.read && (m.to === currentUser?.id || m.to === 'demo-u1' || currentUser?.role === 'front_desk' || currentUser?.role === 'admin')
   ), [inboxMessages, currentUser]);
 
   const checkedIn     = todayAppts.filter((a) => a.status === 'Checked In').length;

@@ -20,7 +20,7 @@ export const users = [
     locationId: 'loc-apmg',
   },
   {
-    id: 'u1-danso',
+    id: 'demo-u1',
     username: 'dr.danso',
     password: 'Pass123!',
     firstName: 'Dr.',
