@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigat
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DemoProvider, useDemo, DemoRouteGuard } from './demo/DemoContext';
 import DemoBar from './demo/DemoBar';
+import DemoGuidedTourProvider from './demo/DemoGuidedTourProvider';
 import { PatientProvider } from './contexts/PatientContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { TrainingProvider } from './contexts/TrainingContext';
@@ -257,6 +258,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <DemoProvider>
+      <DemoGuidedTourProvider>
       <TrainingProvider>
       <AuthProvider>
         <Routes>
@@ -358,6 +360,7 @@ export default function App() {
       </AuthProvider>
       </TrainingProvider>
       <DemoBar />
+      </DemoGuidedTourProvider>
       </DemoProvider>
     </BrowserRouter>
   );

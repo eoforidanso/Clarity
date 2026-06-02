@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useDemo } from '../demo/DemoContext';
+import { useTour } from '../demo/DemoGuidedTourProvider';
 import { DEMO_USER } from '../demo/demoData';
 import SystemStatus from '../components/SystemStatus';
 
@@ -64,6 +65,7 @@ export default function LoginPage() {
   const [showDemo, setShowDemo] = useState(false);
   const [demoLoading, setDemoLoading] = useState(null);
   const { startDemo } = useDemo();
+  const { startTour } = useTour();
 
   const handleDemoLogin = (account) => {
     setDemoLoading(account.username);
@@ -81,7 +83,8 @@ export default function LoginPage() {
     clearLoginError();
     const result = loginDemo('dr.danso', 'Pass123!');
     if (result?.ok) {
-      startDemo();
+      startDemo();   // activates demo restrictions
+      startTour();   // starts the guided tour overlay
       navigate('/dashboard');
     }
     setDemoLoading(null);
