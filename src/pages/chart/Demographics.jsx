@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { usePatient } from '../../contexts/PatientContext';
 import { useAuth } from '../../contexts/AuthContext';
 import PatientPhotoUpload from '../../components/PatientPhotoUpload';
+import { DemoSafe, DemoDisabled } from '../../demo/DemoGuard';
+import { useDemo } from '../../demo/DemoContext';
 
 const GENDERS = ['Male', 'Female', 'Non-binary', 'Transgender Male', 'Transgender Female', 'Other', 'Prefer not to say'];
 const PRONOUNS = ['He/Him', 'She/Her', 'They/Them', 'Other'];
@@ -224,17 +226,21 @@ export default function Demographics({ patientId }) {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {!editing ? (
-              <button className="btn btn-secondary" style={{ fontSize: 13, padding: '6px 16px' }} onClick={() => setEditing(true)}>
-                ✏️ Edit Demographics
-              </button>
+              <DemoDisabled reason="Editing patient demographics is disabled in demo mode">
+                <button className="btn btn-secondary" style={{ fontSize: 13, padding: '6px 16px' }} onClick={() => setEditing(true)}>
+                  ✏️ Edit Demographics
+                </button>
+              </DemoDisabled>
             ) : (
               <>
                 <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: '6px 14px' }} onClick={handleCancel} disabled={saving}>
                   Cancel
                 </button>
-                <button type="button" className="btn btn-primary" style={{ fontSize: 13, padding: '6px 18px' }} onClick={handleSave} disabled={saving}>
-                  {saving ? 'Saving…' : '💾 Save Changes'}
-                </button>
+                <DemoDisabled reason="Saving patient data is disabled in demo mode">
+                  <button type="button" className="btn btn-primary" style={{ fontSize: 13, padding: '6px 18px' }} onClick={handleSave} disabled={saving}>
+                    {saving ? 'Saving…' : '💾 Save Changes'}
+                  </button>
+                </DemoDisabled>
               </>
             )}
           </div>
@@ -275,7 +281,7 @@ export default function Demographics({ patientId }) {
                 <Field label="Race" value={p.race} />
                 <Field label="Ethnicity" value={p.ethnicity} />
                 <Field label="Preferred Language" value={p.language} />
-                <Field label="SSN" value={p.ssn} />
+                <Field label="SSN" value={<DemoSafe mask="███-██-████">{p.ssn}</DemoSafe>} />
               </>}
             </div>
           </div>
@@ -338,8 +344,8 @@ export default function Demographics({ patientId }) {
                 <EField label="Copay ($)" field="insurancePrimaryCopay" />
               </> : <>
                 <Field label="Plan" value={p.insurance?.primary?.name} />
-                <Field label="Member ID" value={p.insurance?.primary?.memberId} />
-                <Field label="Group Number" value={p.insurance?.primary?.groupNumber} />
+                <Field label="Member ID" value={<DemoSafe mask="██████████">{p.insurance?.primary?.memberId}</DemoSafe>} />
+                <Field label="Group Number" value={<DemoSafe mask="████████">{p.insurance?.primary?.groupNumber}</DemoSafe>} />
                 <Field label="Copay" value={p.insurance?.primary?.copay ? `$${p.insurance.primary.copay}` : '—'} />
               </>}
             </div>

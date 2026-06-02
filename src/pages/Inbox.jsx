@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
+import { DemoDisabled } from '../demo/DemoGuard';
 
 // ── Category grouping ─────────────────────────────────────────────────────────
 const CATEGORY_MAP = {
@@ -616,10 +617,12 @@ export default function Inbox() {
                   <button className="btn btn-outline btn-sm" onClick={() => handleMarkUnread(selectedMessage.id)}>
                     📩 Mark Unread
                   </button>
-                  <button className="btn btn-outline btn-sm" onClick={() => updateMessageStatus(selectedMessage.id, 'Archived')}
-                    style={{ color: '#6b7280', borderColor: '#d1d5db' }}>
-                    🗃 Archive
-                  </button>
+                  <DemoDisabled reason="Archiving messages is disabled in demo mode">
+                    <button className="btn btn-outline btn-sm" onClick={() => updateMessageStatus(selectedMessage.id, 'Archived')}
+                      style={{ color: '#6b7280', borderColor: '#d1d5db' }}>
+                      🗃 Archive
+                    </button>
+                  </DemoDisabled>
                   {selectedMessage.type === 'Rx Refill Request' && (() => {
                     const action = refillAction[selectedMessage.id] || selectedMessage.status;
                     if (action === 'Approved') {

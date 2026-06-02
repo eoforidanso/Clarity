@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import DemoGuard, { DemoDisabled } from '../demo/DemoGuard';
 
 // ─── Claims Timeline Mock Data ────────────────────────────────────────────────
 const CLAIM_STAGES = [
@@ -784,6 +785,7 @@ export default function BillingDashboard() {
           </div>
 
           {/* ERA Auto-Posting Activity */}
+          <DemoGuard reason="clearinghouse">
           <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '18px 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div>
@@ -821,6 +823,7 @@ export default function BillingDashboard() {
               </tbody>
             </table>
           </div>
+          </DemoGuard>
 
           {/* Color-coded Status Summary */}
           <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '18px 20px' }}>

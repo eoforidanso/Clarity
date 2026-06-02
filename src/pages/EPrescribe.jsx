@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
+import { DemoDisabled } from '../demo/DemoGuard';
 import { medicationDatabase, pharmacies, users, problems, allergies } from '../data/mockData';
 import { rxnorm as rxnormApi, openfda as openfdaApi, locations as locationsApi, nppes as nppesApi, dosespot as dosespotApi } from '../services/api';
 import { useSite } from '../contexts/SiteContext';
@@ -395,10 +396,12 @@ function StaffRefillRequest() {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn btn-primary btn-lg" onClick={handleSubmit} disabled={!canSubmit}
-                title={!canSubmit ? 'Select a patient and medication first' : ''}>
-                📨 Send to Provider Inbox
-              </button>
+              <DemoDisabled reason="Transmitting prescriptions is disabled in demo mode — no real Rx will be sent">
+                <button className="btn btn-primary btn-lg" onClick={handleSubmit} disabled={!canSubmit}
+                  title={!canSubmit ? 'Select a patient and medication first' : ''}>
+                  📨 Send to Provider Inbox
+                </button>
+              </DemoDisabled>
             </div>
           </>
         )

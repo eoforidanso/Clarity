@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../contexts/PatientContext';
 import PatientPhotoUpload from './PatientPhotoUpload';
+import { DemoSafe } from '../demo/DemoGuard';
 
 export default function PatientBanner() {
   const { selectedPatient, allergies, problemList, vitalSigns, meds } = usePatient();
@@ -64,7 +65,7 @@ export default function PatientBanner() {
             <div className="athena-banner-name">
               {p.lastName}, {p.firstName}
               <span className="athena-banner-demo">{age}{genderShort}</span>
-              <span className="athena-banner-mrn">MRN: {p.mrn}</span>
+              <span className="athena-banner-mrn">MRN: <DemoSafe mask="███-████">{p.mrn}</DemoSafe></span>
               {p.isBTG && <span className="athena-flag-critical">🔒 BTG</span>}
             </div>
             <div className="athena-banner-subline">
@@ -75,7 +76,7 @@ export default function PatientBanner() {
               <span className="athena-sep">|</span>
               <span>PCP: {p.pcp || '—'}</span>
               <span className="athena-sep">|</span>
-              <span>Ins: {p.insurance?.primary?.name || 'Self-Pay'}</span>
+              <span>Ins: {p.insurance?.primary?.name || 'Self-Pay'} <DemoSafe mask="·ID ████████">{p.insurance?.primary?.memberId ? `· ID ${p.insurance.primary.memberId}` : ''}</DemoSafe></span>
               {p.lastVisit && <><span className="athena-sep">|</span><span>Last visit: {p.lastVisit}</span></>}
               {p.nextAppointment && <><span className="athena-sep">|</span><span>Next: {p.nextAppointment}</span></>}
             </div>

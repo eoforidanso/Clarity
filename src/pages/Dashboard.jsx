@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
+import { DemoDisabled } from '../demo/DemoGuard';
 
 /* ── Metric SVG icons ───────────────────────────────────────── */
 const SZ = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6', strokeLinecap: 'round', strokeLinejoin: 'round' };
@@ -170,7 +171,9 @@ export default function Dashboard() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <button className="btn btn-primary btn-sm" onClick={() => navigate('/patients')}>🔍 Find Patient</button>
             <button className="btn btn-secondary btn-sm" onClick={() => navigate('/schedule')}>📅 Full Schedule</button>
+            <DemoDisabled reason="Data export is disabled in demo mode">
             <button className="btn btn-secondary btn-sm dashboard-export-btn" onClick={() => navigate('/analytics')}>📤 Export</button>
+          </DemoDisabled>
           </div>
         </div>
 
