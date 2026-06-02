@@ -536,6 +536,11 @@ body:has(.patient-portal-root) { overflow: auto; overflow-x: hidden; }
 body:has(.patient-portal-root) #root { height: auto; min-height: 100%; }
 .patient-portal-root { min-height: 100vh; overflow-x: hidden; }
 
+/* Login page — allow vertical scroll (body overflow:hidden blocks it otherwise) */
+body:has(.login-page) { overflow-y: auto; overflow-x: hidden; }
+body:has(.login-page) #root { height: auto; min-height: 100%; }
+.login-page { min-height: 100vh; overflow-x: hidden; }
+
 a { text-decoration: none; color: var(--primary); }
 button { font-family: var(--font); cursor: pointer; border: none; background: none; font-size: 14px; }
 input, select, textarea { font-family: var(--font); font-size: 13px; }
