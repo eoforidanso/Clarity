@@ -2869,6 +2869,7 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   overflow: visible !important;
   height: auto !important;
   align-items: stretch;
+  margin-top: -20px;
 }
 
 /* ── Left: Brand panel ── */
@@ -2952,8 +2953,8 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 .login-form-panel {
   flex: 1; display: flex; flex-direction: column; justify-content: flex-start;
   align-items: center;
-  padding-top: 48px;
-  padding-left: 44px; padding-right: 44px; padding-bottom: 40px;
+  padding-top: 64px;
+  padding-left: 44px; padding-right: 44px; padding-bottom: 32px;
   border-left: 1px solid rgba(0,0,0,0.06);
   background: linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%);
   overflow-y: auto;
@@ -3362,7 +3363,7 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   .login-brand-illustration { display: none; }
   .product-frame { display: none; }
   .login-brand-tagline h2 { font-size: 24px; }
-  .login-form-panel { padding: 36px 28px 32px; }
+  .login-form-panel { padding-top: 32px; padding-bottom: 32px; padding-left: 28px; padding-right: 28px; }
   .login-form-inner { max-width: 100%; }
   /* Hide nav badges when layout stacks — brand panel shows compliance pills */
   .login-topnav-badges { display: none; }
