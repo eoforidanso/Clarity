@@ -5,72 +5,72 @@ import { useAuth } from '../contexts/AuthContext';
 /* ─── Theme Presets ──────────────────────────────────────── */
 const THEMES = [
   {
-    id: 'default',
-    label: 'Clinical Blue',
+    id: 'default', label: 'Clinical Blue', mood: 'Calm',
+    gradient: 'linear-gradient(135deg, #0066cc 0%, #004999 100%)',
+    accent: '#0066cc', cardBg: '#e8f2ff',
     colors: {
       '--primary': '#0066cc', '--primary-dark': '#004999', '--primary-light': '#e8f2ff',
       '--primary-hover': '#005ab5', '--bg-sidebar': '#0f1729',
     },
   },
   {
-    id: 'teal',
-    label: 'Teal Calm',
+    id: 'teal', label: 'Teal Calm', mood: 'Calm',
+    gradient: 'linear-gradient(135deg, #0d9488 0%, #0c7a6e 100%)',
+    accent: '#0d9488', cardBg: '#f0fdfa',
     colors: {
       '--primary': '#0d9488', '--primary-dark': '#0f766e', '--primary-light': '#f0fdfa',
       '--primary-hover': '#0f766e', '--bg-sidebar': '#0c1a1a',
     },
   },
   {
-    id: 'purple',
-    label: 'Royal Purple',
-    colors: {
-      '--primary': '#7c3aed', '--primary-dark': '#6d28d9', '--primary-light': '#f5f3ff',
-      '--primary-hover': '#6d28d9', '--bg-sidebar': '#1a1025',
-    },
-  },
-  {
-    id: 'forest',
-    label: 'Forest Green',
-    colors: {
-      '--primary': '#15803d', '--primary-dark': '#166534', '--primary-light': '#f0fdf4',
-      '--primary-hover': '#166534', '--bg-sidebar': '#0d1a12',
-    },
-  },
-  {
-    id: 'rose',
-    label: 'Warm Rose',
-    colors: {
-      '--primary': '#be123c', '--primary-dark': '#9f1239', '--primary-light': '#fff1f2',
-      '--primary-hover': '#9f1239', '--bg-sidebar': '#1a0f12',
-    },
-  },
-  {
-    id: 'slate',
-    label: 'Dark Slate',
-    colors: {
-      '--primary': '#475569', '--primary-dark': '#334155', '--primary-light': '#f1f5f9',
-      '--primary-hover': '#334155', '--bg-sidebar': '#111318',
-    },
-  },
-  {
-    id: 'amber',
-    label: 'Amber Warm',
-    colors: {
-      '--primary': '#d97706', '--primary-dark': '#b45309', '--primary-light': '#fffbeb',
-      '--primary-hover': '#b45309', '--bg-sidebar': '#1a1408',
-    },
-  },
-  {
-    id: 'ocean',
-    label: 'Deep Ocean',
+    id: 'ocean', label: 'Deep Ocean', mood: 'Calm',
+    gradient: 'linear-gradient(135deg, #0284c7 0%, #075985 100%)',
+    accent: '#0284c7', cardBg: '#f0f9ff',
     colors: {
       '--primary': '#0284c7', '--primary-dark': '#0369a1', '--primary-light': '#f0f9ff',
       '--primary-hover': '#0369a1', '--bg-sidebar': '#0a1628',
     },
   },
   {
-    id: 'dark',
-    label: '🌙 Dark Mode',
+    id: 'purple', label: 'Royal Purple', mood: 'Bold',
+    gradient: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)',
+    accent: '#7c3aed', cardBg: '#f5f3ff',
+    colors: {
+      '--primary': '#7c3aed', '--primary-dark': '#6d28d9', '--primary-light': '#f5f3ff',
+      '--primary-hover': '#6d28d9', '--bg-sidebar': '#1a1025',
+    },
+  },
+  {
+    id: 'forest', label: 'Forest Green', mood: 'Bold',
+    gradient: 'linear-gradient(135deg, #15803d 0%, #0f5f2e 100%)',
+    accent: '#15803d', cardBg: '#f0fdf4',
+    colors: {
+      '--primary': '#15803d', '--primary-dark': '#166534', '--primary-light': '#f0fdf4',
+      '--primary-hover': '#166534', '--bg-sidebar': '#0d1a12',
+    },
+  },
+  {
+    id: 'amber', label: 'Amber Warm', mood: 'Bold',
+    gradient: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+    accent: '#d97706', cardBg: '#fffbeb',
+    colors: {
+      '--primary': '#d97706', '--primary-dark': '#b45309', '--primary-light': '#fffbeb',
+      '--primary-hover': '#b45309', '--bg-sidebar': '#1a1408',
+    },
+  },
+  {
+    id: 'slate', label: 'Dark Slate', mood: 'Dark',
+    gradient: 'linear-gradient(135deg, #475569 0%, #1e293b 100%)',
+    accent: '#475569', cardBg: '#f1f5f9',
+    colors: {
+      '--primary': '#475569', '--primary-dark': '#334155', '--primary-light': '#f1f5f9',
+      '--primary-hover': '#334155', '--bg-sidebar': '#111318',
+    },
+  },
+  {
+    id: 'dark', label: 'Dark Mode', mood: 'Dark',
+    gradient: 'linear-gradient(135deg, #1e293b 0%, #020617 100%)',
+    accent: '#60a5fa', cardBg: '#1e293b',
     colors: {
       '--primary': '#60a5fa', '--primary-dark': '#3b82f6', '--primary-light': '#1e293b',
       '--primary-hover': '#3b82f6', '--bg-sidebar': '#020617',
@@ -81,6 +81,13 @@ const THEMES = [
       '--shadow-sm': '0 1px 3px rgba(0,0,0,0.3)', '--shadow': '0 4px 6px rgba(0,0,0,0.4)',
     },
   },
+];
+
+/* ─── Theme mood groups ───────────────────────────────────── */
+const THEME_GROUPS = [
+  { mood: 'Calm',  icon: '🌊', desc: 'Focused, clinical, and easy on the eyes' },
+  { mood: 'Bold',  icon: '⚡', desc: 'Vibrant and energetic for long sessions'   },
+  { mood: 'Dark',  icon: '🌙', desc: 'Low-light environments and night shifts'   },
 ];
 
 const STORAGE_KEY_THEME    = 'clarity_theme';
@@ -158,6 +165,8 @@ export default function Settings() {
   const [selectedTheme, setSelectedTheme] = useState(stored?.id || 'default');
   const [hoveredTheme, setHoveredTheme] = useState(null);
   const [themeToast, setThemeToast] = useState(null);
+  const [previewKey, setPreviewKey] = useState(0);
+  const [justApplied, setJustApplied] = useState(null);
   const toastTimerRef = useRef(null);
   const swatchGridRef = useRef(null);
 
@@ -207,6 +216,9 @@ export default function Settings() {
   const handleThemeSelect = (id) => {
     setSelectedTheme(id);
     applyTheme(id);
+    setPreviewKey(k => k + 1);
+    setJustApplied(id);
+    setTimeout(() => setJustApplied(null), 1200);
     const preset = THEMES.find((t) => t.id === id);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setThemeToast(preset?.label || id);
@@ -366,148 +378,283 @@ export default function Settings() {
         {/* ─── Color Theme ─── */}
         {activeSection === 'theme' && (
           <div>
-            <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 6, color: 'var(--text-primary)' }}>
-              Color Theme
-            </h2>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24 }}>
-              Choose a color scheme for the application. Changes apply immediately.
-            </p>
-
-            <div
-              ref={swatchGridRef}
-              role="radiogroup"
-              aria-label="Color themes"
-              style={{
-                display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-                gap: 16,
-              }}
-            >
-              {THEMES.map((t, idx) => {
-                const active = selectedTheme === t.id;
-                const hovered = hoveredTheme === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    role="radio"
-                    aria-checked={active}
-                    aria-label={`${t.label} theme`}
-                    tabIndex={active ? 0 : -1}
-                    onClick={() => handleThemeSelect(t.id)}
-                    onMouseEnter={() => setHoveredTheme(t.id)}
-                    onMouseLeave={() => setHoveredTheme(null)}
-                    onKeyDown={(e) => handleSwatchKeyDown(e, idx)}
-                    style={{
-                      border: active
-                        ? `2px solid ${t.colors['--primary']}`
-                        : `1px solid ${hovered ? t.colors['--primary'] + '60' : 'var(--border)'}`,
-                      borderRadius: 12, padding: 16, cursor: 'pointer',
-                      background: active ? t.colors['--primary-light'] : 'var(--bg-white)',
-                      textAlign: 'left',
-                      transition: 'all 0.18s ease',
-                      transform: hovered && !active ? 'scale(1.02)' : 'scale(1)',
-                      boxShadow: active
-                        ? `0 0 0 3px ${hexToMid(t.colors['--primary'], 0.15)}`
-                        : hovered
-                          ? `0 4px 16px ${hexToMid(t.colors['--primary'], 0.18)}, 0 2px 4px rgba(0,0,0,0.06)`
-                          : 'var(--shadow-xs)',
-                    }}
-                  >
-                    {/* Color preview strip */}
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-                      <div style={{
-                        width: 32, height: 32, borderRadius: 8,
-                        background: t.colors['--primary'],
-                        border: '1px solid rgba(0,0,0,0.1)',
-                      }} />
-                      <div style={{
-                        width: 32, height: 32, borderRadius: 8,
-                        background: t.colors['--primary-dark'],
-                        border: '1px solid rgba(0,0,0,0.1)',
-                      }} />
-                      <div style={{
-                        width: 32, height: 32, borderRadius: 8,
-                        background: t.colors['--bg-sidebar'],
-                        border: '1px solid rgba(0,0,0,0.15)',
-                      }} />
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
-                      {t.label}
-                    </div>
-                    {active && (
-                      <div style={{
-                        marginTop: 6, fontSize: 11, fontWeight: 600,
-                        color: t.colors['--primary'], display: 'flex', alignItems: 'center', gap: 4,
-                      }}>
-                        ✓ Active
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
+            {/* Section header */}
+            <div style={{ marginBottom: 32 }}>
+              <h2 style={{ fontSize: 26, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text-primary)', margin: 0 }}>
+                🎨 Color Theme
+              </h2>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 6, marginBottom: 0 }}>
+                Personalize your workspace — changes apply instantly across the entire app
+              </p>
+              <div style={{ marginTop: 16, height: 1, background: 'linear-gradient(90deg, var(--border) 0%, transparent 100%)' }} />
             </div>
 
-            {/* Keyboard hint */}
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, marginBottom: 0 }}>
-              ← → ↑ ↓ navigate · Enter to select · Esc to dismiss focus
+            {/* Theme groups */}
+            {THEME_GROUPS.map(group => {
+              const groupThemes = THEMES.filter(t => t.mood === group.mood);
+              return (
+                <div key={group.mood} style={{ marginBottom: 36 }}>
+                  {/* Group label */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <span style={{ fontSize: 16 }}>{group.icon}</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.2px' }}>{group.mood}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{group.desc}</div>
+                    </div>
+                  </div>
+
+                  {/* Cards grid */}
+                  <div
+                    ref={group.mood === 'Calm' ? swatchGridRef : null}
+                    role="radiogroup"
+                    aria-label={`${group.mood} themes`}
+                    style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 20 }}
+                  >
+                    {groupThemes.map((t) => {
+                      const active = selectedTheme === t.id;
+                      const hovered = hoveredTheme === t.id;
+                      const applied = justApplied === t.id;
+                      const isDark = t.id === 'dark';
+                      const globalIdx = THEMES.findIndex(th => th.id === t.id);
+                      return (
+                        <button
+                          key={t.id}
+                          role="radio"
+                          aria-checked={active}
+                          aria-label={`${t.label} theme`}
+                          tabIndex={active ? 0 : -1}
+                          onClick={() => handleThemeSelect(t.id)}
+                          onMouseEnter={() => setHoveredTheme(t.id)}
+                          onMouseLeave={() => setHoveredTheme(null)}
+                          onKeyDown={(e) => handleSwatchKeyDown(e, globalIdx)}
+                          style={{
+                            position: 'relative',
+                            border: active
+                              ? `2px solid ${t.accent}`
+                              : `1.5px solid ${hovered ? t.accent + '55' : 'var(--border)'}`,
+                            borderRadius: 14, padding: 0, cursor: 'pointer',
+                            background: 'var(--bg-white)',
+                            textAlign: 'left', overflow: 'hidden',
+                            transition: 'all 0.18s cubic-bezier(0.34,1.56,0.64,1)',
+                            transform: hovered && !active ? 'translateY(-3px)' : active ? 'translateY(-1px)' : 'translateY(0)',
+                            boxShadow: active
+                              ? `0 0 0 4px ${hexToMid(t.accent, 0.18)}, 0 8px 24px ${hexToMid(t.accent, 0.22)}`
+                              : hovered
+                                ? `0 8px 28px ${hexToMid(t.accent, 0.20)}, 0 2px 8px rgba(0,0,0,0.08)`
+                                : '0 1px 4px rgba(0,0,0,0.06)',
+                          }}
+                        >
+                          {/* Gradient header — mini app preview */}
+                          <div style={{
+                            background: t.gradient, padding: '14px 14px 10px',
+                            position: 'relative', overflow: 'hidden',
+                          }}>
+                            {/* Glow orb */}
+                            <div style={{
+                              position: 'absolute', width: 80, height: 80, borderRadius: '50%',
+                              background: 'rgba(255,255,255,0.08)', top: -20, right: -20,
+                              pointerEvents: 'none',
+                            }} />
+                            {/* Mini sidebar + content mockup */}
+                            <div style={{ display: 'flex', gap: 6, height: 52 }}>
+                              {/* Mini sidebar */}
+                              <div style={{
+                                width: 28, background: t.colors['--bg-sidebar'],
+                                borderRadius: 5, padding: '4px 3px', flexShrink: 0,
+                              }}>
+                                {[1,0.4,0.4].map((op, i) => (
+                                  <div key={i} style={{
+                                    height: 4, borderRadius: 2, marginBottom: 3,
+                                    background: i === 0
+                                      ? hexToMid(t.accent, 0.7)
+                                      : 'rgba(255,255,255,0.18)',
+                                    width: i === 0 ? '100%' : `${70 + i * 10}%`,
+                                  }} />
+                                ))}
+                              </div>
+                              {/* Mini content */}
+                              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {/* Header bar */}
+                                <div style={{
+                                  height: 10, borderRadius: 3,
+                                  background: 'rgba(255,255,255,0.25)',
+                                }} />
+                                {/* Two cards */}
+                                <div style={{ display: 'flex', gap: 4, flex: 1 }}>
+                                  {[1, 0.7].map((op, i) => (
+                                    <div key={i} style={{
+                                      flex: 1, borderRadius: 3,
+                                      background: `rgba(255,255,255,${op * 0.18})`,
+                                    }} />
+                                  ))}
+                                </div>
+                                {/* Button row */}
+                                <div style={{ display: 'flex', gap: 3 }}>
+                                  <div style={{ width: 24, height: 5, borderRadius: 2, background: 'rgba(255,255,255,0.85)' }} />
+                                  <div style={{ width: 18, height: 5, borderRadius: 2, background: 'rgba(255,255,255,0.3)' }} />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card body */}
+                          <div style={{ padding: '12px 14px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
+                                {t.label}
+                              </div>
+                              {/* Animated checkmark */}
+                              {active && (
+                                <div style={{
+                                  width: 20, height: 20, borderRadius: '50%',
+                                  background: t.accent, display: 'flex', alignItems: 'center',
+                                  justifyContent: 'center', flexShrink: 0,
+                                  animation: applied ? 'theme-check-pop 0.4s cubic-bezier(0.34,1.56,0.64,1)' : 'none',
+                                }}>
+                                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                    <path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                            {/* Colour swatches row */}
+                            <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
+                              <div style={{ width: 14, height: 14, borderRadius: 3, background: t.accent, border: '1px solid rgba(0,0,0,0.1)' }} />
+                              <div style={{ width: 14, height: 14, borderRadius: 3, background: t.colors['--primary-dark'], border: '1px solid rgba(0,0,0,0.1)' }} />
+                              <div style={{ width: 14, height: 14, borderRadius: 3, background: t.colors['--bg-sidebar'], border: '1px solid rgba(0,0,0,0.15)' }} />
+                              <div style={{ width: 14, height: 14, borderRadius: 3, background: t.cardBg, border: '1px solid rgba(0,0,0,0.08)' }} />
+                            </div>
+                          </div>
+
+                          {/* Active glow overlay */}
+                          {active && (
+                            <div style={{
+                              position: 'absolute', inset: 0, borderRadius: 14, pointerEvents: 'none',
+                              boxShadow: `inset 0 0 0 2px ${t.accent}`,
+                            }} />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, marginBottom: 24 }}>
+              ← → ↑ ↓ navigate · Enter / Space to apply · Esc to dismiss focus
             </p>
 
-            {/* Theme Preview Panel */}
+            {/* Live Preview Panel */}
             {(() => {
-              const activeT = THEMES.find((t) => t.id === selectedTheme);
+              const activeT = THEMES.find(t => t.id === selectedTheme);
               if (!activeT) return null;
               return (
-                <div style={{ marginTop: 24, padding: 20, borderRadius: 14, border: '1px solid var(--border)', background: 'var(--bg-white)' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 16 }}>
-                    Preview · {activeT.label}
+                <div
+                  key={previewKey}
+                  style={{
+                    borderRadius: 16, border: `1px solid var(--border)`,
+                    overflow: 'hidden', background: 'var(--bg-white)',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.07)',
+                    animation: 'theme-preview-fade 0.2s ease',
+                  }}
+                >
+                  {/* Preview header */}
+                  <div style={{
+                    padding: '14px 20px', borderBottom: '1px solid var(--border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Live Preview
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: activeT.accent, marginTop: 1 }}>
+                        {activeT.label}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        document.documentElement.requestFullscreen?.();
+                      }}
+                      style={{
+                        padding: '5px 12px', borderRadius: 7, border: `1.5px solid ${activeT.accent}40`,
+                        background: `${activeT.accent}10`, color: activeT.accent, fontSize: 11, fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⛶ Full Screen Preview
+                    </button>
                   </div>
-                  <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                    {/* Buttons */}
-                    <div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>Buttons</div>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <div style={{ padding: '7px 16px', borderRadius: 7, background: activeT.colors['--primary'], color: '#fff', fontSize: 12, fontWeight: 600 }}>Primary</div>
-                        <div style={{ padding: '7px 14px', borderRadius: 7, border: `1.5px solid ${activeT.colors['--primary']}`, color: activeT.colors['--primary'], fontSize: 12, fontWeight: 600 }}>Outline</div>
+
+                  {/* Preview body */}
+                  <div style={{ display: 'flex', height: 200 }}>
+                    {/* Mock sidebar */}
+                    <div style={{ width: 130, background: activeT.colors['--bg-sidebar'], padding: '14px 10px', flexShrink: 0 }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, paddingLeft: 6 }}>
+                        Navigation
                       </div>
+                      {[
+                        { label: '📊 Dashboard', active: true },
+                        { label: '📅 Schedule',  active: false },
+                        { label: '🔍 Patients',  active: false },
+                        { label: '📬 Inbox',     active: false },
+                      ].map(item => (
+                        <div key={item.label} style={{
+                          padding: '6px 8px', borderRadius: 6, marginBottom: 2, fontSize: 10, fontWeight: item.active ? 700 : 400,
+                          background: item.active ? hexToMid(activeT.accent, 0.2) : 'transparent',
+                          color: item.active ? activeT.accent : 'rgba(255,255,255,0.45)',
+                          borderLeft: item.active ? `3px solid ${activeT.accent}` : '3px solid transparent',
+                        }}>
+                          {item.label}
+                        </div>
+                      ))}
                     </div>
-                    {/* Tabs */}
-                    <div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>Tabs</div>
-                      <div style={{ display: 'flex', borderBottom: `2px solid ${hexToMid(activeT.colors['--primary'], 0.15)}` }}>
-                        {['Overview', 'History', 'Notes'].map((tab, i) => (
-                          <div key={tab} style={{
-                            padding: '5px 14px', fontSize: 11, fontWeight: i === 0 ? 700 : 500, cursor: 'default',
-                            color: i === 0 ? activeT.colors['--primary'] : 'var(--text-secondary)',
-                            borderBottom: i === 0 ? `2px solid ${activeT.colors['--primary']}` : '2px solid transparent',
-                            marginBottom: -2,
+
+                    {/* Mock content */}
+                    <div style={{ flex: 1, padding: '14px 20px', background: 'var(--bg)', overflow: 'hidden' }}>
+                      {/* Mock header bar */}
+                      <div style={{
+                        height: 32, borderRadius: 8, background: 'var(--bg-white)',
+                        border: '1px solid var(--border)', display: 'flex', alignItems: 'center',
+                        padding: '0 12px', gap: 8, marginBottom: 12,
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                      }}>
+                        <div style={{ width: 60, height: 7, borderRadius: 3, background: activeT.accent, opacity: 0.8 }} />
+                        <div style={{ flex: 1 }} />
+                        <div style={{ width: 22, height: 22, borderRadius: '50%', background: activeT.gradient }} />
+                      </div>
+
+                      {/* Mock cards */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                        {[
+                          { label: "Today's Appts", value: '8', color: activeT.accent },
+                          { label: 'Checked In',    value: '3', color: activeT.colors['--primary-dark'] },
+                          { label: 'Unread',        value: '2', color: activeT.accent },
+                        ].map(card => (
+                          <div key={card.label} style={{
+                            borderRadius: 8, padding: '10px 10px 8px',
+                            background: 'var(--bg-white)', border: '1px solid var(--border)',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                           }}>
-                            {tab}
+                            <div style={{ fontSize: 18, fontWeight: 900, color: card.color, lineHeight: 1 }}>{card.value}</div>
+                            <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 3, fontWeight: 600 }}>{card.label}</div>
                           </div>
                         ))}
                       </div>
-                    </div>
-                    {/* Sidebar */}
-                    <div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>Sidebar</div>
-                      <div style={{ width: 110, borderRadius: 8, background: activeT.colors['--bg-sidebar'], padding: '8px 6px' }}>
-                        {['Dashboard', 'Schedule', 'Patients'].map((item, i) => (
-                          <div key={item} style={{
-                            padding: '5px 8px', borderRadius: 6, marginBottom: 2, fontSize: 10, fontWeight: i === 0 ? 700 : 400,
-                            background: i === 0 ? hexToMid(activeT.colors['--primary'], 0.25) : 'transparent',
-                            color: i === 0 ? activeT.colors['--primary'] : 'rgba(255,255,255,0.45)',
-                          }}>
-                            {item}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    {/* Card */}
-                    <div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>Card</div>
-                      <div style={{ width: 150, border: `1px solid ${hexToMid(activeT.colors['--primary'], 0.2)}`, borderRadius: 10, padding: 12, background: activeT.colors['--primary-light'] }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: activeT.colors['--primary'], marginBottom: 3 }}>Patient Card</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8 }}>Next appt: 10:30 AM</div>
-                        <div style={{ height: 4, borderRadius: 2, background: hexToMid(activeT.colors['--primary'], 0.2) }}>
-                          <div style={{ width: '65%', height: '100%', borderRadius: 2, background: activeT.colors['--primary'] }} />
+
+                      {/* Mock button row */}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                        <div style={{
+                          padding: '5px 14px', borderRadius: 6,
+                          background: activeT.accent, color: '#fff', fontSize: 10, fontWeight: 700,
+                        }}>
+                          + New Encounter
+                        </div>
+                        <div style={{
+                          padding: '5px 12px', borderRadius: 6,
+                          border: `1.5px solid ${activeT.accent}`, color: activeT.accent, fontSize: 10, fontWeight: 600,
+                        }}>
+                          View Schedule
                         </div>
                       </div>
                     </div>
@@ -516,7 +663,7 @@ export default function Settings() {
               );
             })()}
 
-            {/* Reset button */}
+            {/* Reset */}
             <div style={{ marginTop: 24 }}>
               <button
                 onClick={() => handleThemeSelect('default')}
@@ -524,11 +671,27 @@ export default function Settings() {
                   padding: '8px 18px', borderRadius: 8, border: '1px solid var(--border)',
                   background: 'var(--bg-white)', fontSize: 13, fontWeight: 600,
                   cursor: 'pointer', color: 'var(--text-secondary)',
+                  transition: 'all 0.15s',
                 }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
               >
-                Reset to Default
+                ↺ Reset to Clinical Blue
               </button>
             </div>
+
+            {/* Keyframe styles */}
+            <style>{`
+              @keyframes theme-check-pop {
+                0%   { transform: scale(0); opacity: 0; }
+                60%  { transform: scale(1.3); opacity: 1; }
+                100% { transform: scale(1); opacity: 1; }
+              }
+              @keyframes theme-preview-fade {
+                from { opacity: 0; transform: translateY(6px); }
+                to   { opacity: 1; transform: translateY(0); }
+              }
+            `}</style>
           </div>
         )}
 
