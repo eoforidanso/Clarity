@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import SystemStatus from '../components/SystemStatus';
@@ -404,6 +404,23 @@ export default function LoginPage() {
                 })()}
               </div>
 
+              {/* System Notice — yellow alert bar above fields */}
+              {serverDown && loginAttempts === 0 && !loginError && (
+                <div className="login-server-note" role="alert" aria-live="polite">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span className="login-server-note-label">⚠ System Notice</span>
+                    <span style={{ fontSize: 10, color: '#92400e', opacity: 0.7 }}>
+                      Updated {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <span>The server is currently experiencing delays. You may still attempt to sign in.</span>
+                  <a href="https://status.clarity-ehr.com" target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 12, fontWeight: 700, color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
+                    View system status →
+                  </a>
+                </div>
+              )}
+
               <form
                 onSubmit={handleSubmit}
                 autoComplete="on"
@@ -411,32 +428,38 @@ export default function LoginPage() {
                 noValidate
                 className={shakeForm ? 'login-form--shake' : undefined}
               >
+                {/* Username — floating label */}
                 <div className="lf-group">
-                  <label className="lf-label" htmlFor="login-username">Username</label>
-                  <input
-                    ref={usernameRef}
-                    id="login-username"
-                    type="text"
-                    className={`lf-input${fieldErrors.username ? ' lf-input--error' : ''}`}
-                    value={username}
-                    onChange={(e) => { setUsername(e.target.value); if (fieldErrors.username) setFieldErrors(f => ({...f, username: ''})); }}
-                    placeholder="Enter your username"
-                    autoComplete="username"
-                    required
-                    aria-required="true"
-                    aria-invalid={fieldErrors.username ? 'true' : 'false'}
-                    aria-describedby={fieldErrors.username ? 'username-error' : undefined}
-                    autoFocus
-                    enterKeyHint="next"
-                  />
-                  {fieldErrors.username
-                    ? <span id="username-error" className="field-error" role="alert">{fieldErrors.username}</span>
-                    : !username && <span className="field-hint" aria-hidden="true">Required</span>}
+                  <div className={`lf-float-wrapper${username ? ' has-value' : ''}${fieldErrors.username ? ' has-error' : ''}`}>
+                    <label className="lf-float-label" htmlFor="login-username">Username</label>
+                    <input
+                      ref={usernameRef}
+                      id="login-username"
+                      type="text"
+                      className={`lf-input${fieldErrors.username ? ' lf-input--error' : ''}`}
+                      value={username}
+                      onChange={(e) => { setUsername(e.target.value); if (fieldErrors.username) setFieldErrors(f => ({...f, username: ''})); }}
+                      placeholder="e.g. dr.jane"
+                      autoComplete="username"
+                      required
+                      aria-required="true"
+                      aria-invalid={fieldErrors.username ? 'true' : 'false'}
+                      aria-describedby={fieldErrors.username ? 'username-error' : undefined}
+                      autoFocus
+                      enterKeyHint="next"
+                    />
+                  </div>
+                  {fieldErrors.username && (
+                    <span id="username-error" className="field-error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 5, fontSize: 12, color: '#ef4444', fontWeight: 600 }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      {fieldErrors.username}
+                    </span>
+                  )}
                 </div>
 
+                {/* Password — floating label + show/hide toggle */}
                 <div className="lf-group">
                   <div className="lf-label-row">
-                    <label className="lf-label" htmlFor="login-password">Password</label>
                     <button
                       type="button"
                       className="lf-forgot"
@@ -446,45 +469,51 @@ export default function LoginPage() {
                       Forgot password?
                     </button>
                   </div>
-                  <div className="password-field-wrapper">
-                    <input
-                      id="login-password"
-                      type={showPassword ? 'text' : 'password'}
-                      className={`lf-input${fieldErrors.password ? ' lf-input--error' : ''}`}
-                      value={password}
-                      onChange={(e) => { setPassword(e.target.value); if (fieldErrors.password) setFieldErrors(f => ({...f, password: ''})); }}
-                      placeholder="Enter your password"
-                      autoComplete="current-password"
-                      required
-                      aria-required="true"
-                      aria-invalid={fieldErrors.password ? 'true' : 'false'}
-                      aria-describedby={fieldErrors.password ? 'password-error' : undefined}
-                      enterKeyHint="go"
-                    />
-                    <button
-                      type="button"
-                      className="password-toggle"
-                      onClick={() => setShowPassword(v => !v)}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      tabIndex={0}
-                    >
-                      {showPassword ? (
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                          <line x1="1" y1="1" x2="23" y2="23"/>
-                        </svg>
-                      ) : (
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                          <circle cx="12" cy="12" r="3"/>
-                        </svg>
-                      )}
-                    </button>
+                  <div className={`lf-float-wrapper${password ? ' has-value' : ''}${fieldErrors.password ? ' has-error' : ''}`}>
+                    <label className="lf-float-label" htmlFor="login-password">Password</label>
+                    <div className="password-field-wrapper">
+                      <input
+                        id="login-password"
+                        type={showPassword ? 'text' : 'password'}
+                        className={`lf-input${fieldErrors.password ? ' lf-input--error' : ''}`}
+                        value={password}
+                        onChange={(e) => { setPassword(e.target.value); if (fieldErrors.password) setFieldErrors(f => ({...f, password: ''})); }}
+                        placeholder="Min 8 chars, 1 uppercase, 1 number"
+                        autoComplete="current-password"
+                        required
+                        aria-required="true"
+                        aria-invalid={fieldErrors.password ? 'true' : 'false'}
+                        aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+                        enterKeyHint="go"
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle"
+                        onClick={() => setShowPassword(v => !v)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        tabIndex={0}
+                      >
+                        {showPassword ? (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                            <line x1="1" y1="1" x2="23" y2="23"/>
+                          </svg>
+                        ) : (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                   </div>
-                  {fieldErrors.password
-                    ? <span id="password-error" className="field-error" role="alert">{fieldErrors.password}</span>
-                    : !password && <span className="field-hint" aria-hidden="true">Required</span>}
+                  {fieldErrors.password && (
+                    <span id="password-error" className="field-error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 5, fontSize: 12, color: '#ef4444', fontWeight: 600 }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      {fieldErrors.password}
+                    </span>
+                  )}
                 </div>
 
                 <button
@@ -501,13 +530,6 @@ export default function LoginPage() {
                   ) : 'Sign In'}
                 </button>
 
-                {serverDown && loginAttempts === 0 && !loginError && (
-                  <div className="login-server-note" role="note">
-                    <span className="login-server-note-label">System Notice</span>
-                    <span>The server is currently experiencing delays. You may still attempt to sign in or{' '}
-                    <a href="https://status.clarity-ehr.com" target="_blank" rel="noopener noreferrer">check system status ↗</a>.</span>
-                  </div>
-                )}
               </form>
 
               <div className="lf-footer">
