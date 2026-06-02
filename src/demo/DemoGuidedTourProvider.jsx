@@ -161,12 +161,9 @@ export default function DemoGuidedTourProvider({ children }) {
     return () => window.removeEventListener('keydown', handler, true);
   }, [isActive]);
 
-  // ── Auto-start when isDemo becomes true ────────────────────────────────────
+  // ── Stop tour when demo mode exits ──────────────────────────────────────────
+  // (auto-start removed — tour is started explicitly via start() in LoginPage)
   useEffect(() => {
-    if (isDemo && !isActive) {
-      const t = setTimeout(start, 400);
-      return () => clearTimeout(t);
-    }
     if (!isDemo && isActive) stop();
   }, [isDemo]); // eslint-disable-line react-hooks/exhaustive-deps
 

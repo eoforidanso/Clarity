@@ -83,9 +83,12 @@ export default function LoginPage() {
     clearLoginError();
     const result = loginDemo('dr.danso', 'Pass123!');
     if (result?.ok) {
-      startDemo();   // activates demo restrictions
-      startTour();   // starts the guided tour overlay
       navigate('/dashboard');
+      // Small delay so navigation settles before activating restrictions
+      setTimeout(() => {
+        startDemo();  // activates demo restrictions + click guard
+        startTour();  // starts the guided tour overlay
+      }, 150);
     }
     setDemoLoading(null);
   };
@@ -576,6 +579,7 @@ export default function LoginPage() {
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                   <button
                     type="button"
+                    data-demo-allowed
                     onClick={handleStartGuidedDemo}
                     disabled={demoLoading === 'guided'}
                     style={{
