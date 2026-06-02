@@ -48,7 +48,9 @@ export default function OnboardingTour() {
 
   useEffect(() => {
     const completed = localStorage.getItem(STORAGE_KEY);
-    if (!completed) {
+    // Suppress app tour in demo mode — the guided demo tour handles onboarding
+    const isDemo = localStorage.getItem('clarity_demo_active') === 'true' || window.__CLARITY_DEMO__;
+    if (!completed && !isDemo) {
       setTimeout(() => setIsVisible(true), 1500);
     }
   }, []);
