@@ -172,6 +172,8 @@ function TourOverlay() {
   if (minimized) {
     return (
       <button
+        data-demo-allowed
+        className="demo-tour-card"
         onClick={() => setMinimized(false)}
         style={{
           position: 'fixed', bottom: 20, right: 20, zIndex: 9001,
@@ -192,6 +194,8 @@ function TourOverlay() {
 
   return (
     <div
+      className="demo-tour-card"
+      data-demo-allowed
       style={{
         position: 'fixed', bottom: 24, right: 24, zIndex: 9001,
         width: 340, background: '#fff', borderRadius: 16,

@@ -178,6 +178,7 @@ export default function Dashboard() {
             {isDemo && (
               <button
                 className="btn btn-sm"
+                data-demo-allowed
                 onClick={startTour}
                 style={{ background: 'linear-gradient(135deg,#6366f1,#0891b2)', color: '#fff', border: 'none', fontWeight: 700 }}
               >

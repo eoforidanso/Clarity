@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { setDemoFlag, clearDemoFlag } from './demoFeatureFlag';
 import { installDemoInterceptor, uninstallDemoInterceptor } from './demoApiInterceptor';
 import { installExportGuard } from './demoExportGuard';
+import { installClickGuard, uninstallClickGuard } from './demoClickGuard';
 import { demoRateLimit } from './demoRateLimit';
 
 // ── Routes blocked in demo mode ───────────────────────────────────────────────
@@ -117,6 +118,8 @@ export function DemoProvider({ children }) {
     installDemoInterceptor();
     // Install export guard (blocks all downloads/print)
     installExportGuard();
+    // Install click guard (blocks all buttons except tour + nav)
+    installClickGuard();
     console.info('[Demo] Demo mode activated — restrictions enabled');
   }, []);
 
@@ -127,6 +130,7 @@ export function DemoProvider({ children }) {
     // Clear flag and uninstall interceptor
     clearDemoFlag();
     uninstallDemoInterceptor();
+    uninstallClickGuard();
     // Send session analytics and clear
     demoRateLimit.clearSession();
     console.info('[Demo] Demo mode deactivated');

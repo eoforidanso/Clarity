@@ -29,7 +29,7 @@ export default function DemoBar() {
   return (
     <>
       {/* ── Persistent top banner ── */}
-      <div style={{
+      <div className="demo-bar" style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9000,
         background: 'linear-gradient(90deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)',
         borderBottom: '1px solid rgba(99,102,241,0.4)',
@@ -81,6 +81,8 @@ export default function DemoBar() {
         <div style={{ marginLeft: sessionStats ? 8 : 'auto', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
           {/* Guided Tour button */}
           <button
+            id="demo-tour-btn"
+            data-demo-allowed
             onClick={startTour}
             style={{
               padding: '3px 10px', borderRadius: 5, border: '1px solid rgba(99,102,241,0.5)',
@@ -91,7 +93,10 @@ export default function DemoBar() {
           >
             ▶ Guided Tour
           </button>
-          <button onClick={exitDemo}
+          <button
+            id="demo-exit-btn"
+            data-demo-allowed
+            onClick={exitDemo}
             style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
             ✕ Exit Demo
           </button>
