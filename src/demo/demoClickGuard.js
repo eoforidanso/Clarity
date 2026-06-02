@@ -22,38 +22,29 @@
 
 import { isDemoMode } from './demoFeatureFlag';
 
-const ALLOWED_SELECTORS = [
-  '[data-demo-allowed]',
-  '.demo-bar',
-  '.demo-bar *',
+// Only elements inside the tour card or explicitly marked are allowed
+const TOUR_SELECTORS = [
   '.demo-tour-card',
   '.demo-tour-card *',
-  '[data-tour-nav]',
-  'a[href]',              // all navigation links
-  '.skip-link',
-  '#demo-exit-btn',
   '#demo-tour-btn',
+  '#demo-exit-btn',
+  '[data-demo-allowed]',
 ];
-
-const BLOCKED_TAGS = ['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'];
 
 let _installed = false;
 let _toastTimeout = null;
 
-function isAllowed(el) {
+function isInsideTour(el) {
   if (!el || el === document.body) return false;
-  for (const sel of ALLOWED_SELECTORS) {
+  for (const sel of TOUR_SELECTORS) {
     try { if (el.matches(sel)) return true; } catch { /* noop */ }
   }
-  // Walk up the tree
-  if (el.parentElement) return isAllowed(el.parentElement);
-  return false;
+  return el.parentElement ? isInsideTour(el.parentElement) : false;
 }
 
 function showBlockedToast() {
-  // Debounce — don't spam toasts
   if (_toastTimeout) return;
-  _toastTimeout = setTimeout(() => { _toastTimeout = null; }, 1500);
+  _toastTimeout = setTimeout(() => { _toastTimeout = null; }, 1800);
 
   const existing = document.getElementById('demo-click-toast');
   if (existing) return;
@@ -64,18 +55,18 @@ function showBlockedToast() {
   toast.style.cssText = `
     position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
     z-index: 99998; background: #1e293b; color: #f1f5f9;
-    padding: 9px 18px; border-radius: 9px;
-    font-size: 12px; font-weight: 600; font-family: system-ui, sans-serif;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.25);
-    border: 1px solid rgba(99,102,241,0.35);
-    display: flex; align-items: center; gap: 8px;
+    padding: 10px 20px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; font-family: system-ui, sans-serif;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.3);
+    border: 1px solid rgba(99,102,241,0.4);
+    display: flex; align-items: center; gap: 10px;
     pointer-events: none;
     animation: demo-click-toast-in 0.15s ease;
     white-space: nowrap;
   `;
   toast.innerHTML = `
-    <span style="font-size:14px">👋</span>
-    Follow the <strong style="color:#a5b4fc">Guided Tour</strong> to explore Clarity
+    <span style="font-size:16px">👋</span>
+    Use the <strong style="color:#a5b4fc">Guided Tour</strong> to explore Clarity
   `;
 
   if (!document.getElementById('demo-click-toast-style')) {
@@ -83,7 +74,7 @@ function showBlockedToast() {
     style.id = 'demo-click-toast-style';
     style.textContent = `
       @keyframes demo-click-toast-in {
-        from { opacity:0; transform:translateX(-50%) translateY(8px); }
+        from { opacity:0; transform:translateX(-50%) translateY(10px); }
         to   { opacity:1; transform:translateX(-50%) translateY(0); }
       }
     `;
@@ -91,25 +82,12 @@ function showBlockedToast() {
   }
 
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 2000);
+  setTimeout(() => toast.remove(), 2500);
 }
 
-function handleClick(e) {
+function blockEvent(e) {
   if (!isDemoMode()) return;
-  const target = e.target;
-  if (!target) return;
-
-  // Allow all links (navigation)
-  if (target.closest('a[href]')) return;
-
-  // Check if element or ancestor is allowed
-  if (isAllowed(target)) return;
-
-  // Block if it's an interactive element
-  const tag = target.tagName;
-  const closestInteractive = target.closest('button, input, select, textarea, [role="button"], [onclick]');
-  if (!closestInteractive) return;
-
+  if (isInsideTour(e.target)) return;
   e.preventDefault();
   e.stopPropagation();
   e.stopImmediatePropagation();
@@ -119,19 +97,23 @@ function handleClick(e) {
 export function installClickGuard() {
   if (_installed) return;
   _installed = true;
-  document.addEventListener('click', handleClick, true);   // capture phase
-  document.addEventListener('mousedown', (e) => {
+  // Block clicks on everything except the tour
+  document.addEventListener('click',     blockEvent, true);
+  document.addEventListener('mousedown', blockEvent, true);
+  document.addEventListener('mouseup',   blockEvent, true);
+  document.addEventListener('keydown', (e) => {
     if (!isDemoMode()) return;
-    const el = e.target?.closest('button, input, select, textarea');
-    if (el && !isAllowed(el)) {
+    // Allow Escape and tour keyboard nav; block Enter/Space on non-tour elements
+    if (e.key === 'Escape') return;
+    if (isInsideTour(e.target)) return;
+    if (['Enter', ' '].includes(e.key)) {
       e.preventDefault();
       e.stopImmediatePropagation();
     }
   }, true);
-  console.info('[DemoClickGuard] installed — interactive elements blocked');
+  console.info('[DemoClickGuard] installed — only tour interactions allowed');
 }
 
 export function uninstallClickGuard() {
   _installed = false;
-  // Note: full removal requires page reload — acceptable on demo exit
 }
