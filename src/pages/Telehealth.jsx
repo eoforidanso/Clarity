@@ -40,58 +40,219 @@ const PROVIDER_ATTESTATION_ITEMS = [
 
 /* ─── Quick Start Modal ─────────────────────────────────────────────── */
 function QuickStartModal({ apt, patient, onStart, onCancel }) {
-  const [patientLocation, setPatientLocation] = useState('');
+  const { user } = useAuth();
+  const API = import.meta.env.VITE_API_URL || '/api';
 
-  const handleStart = () => {
-    onStart({
-      timestamp: isoNow(),
-      patientName: patient ? `${patient.firstName} ${patient.lastName}` : apt.patientName,
-      patientLocation: patientLocation.trim() || 'Not provided',
-      aptId: apt.id,
-    });
+  const [patientLocation, setPatientLocation]       = useState('');
+  const [recordingConsent, setRecordingConsent]     = useState(''); // 'granted'|'denied'|'not_asked'
+  const [consentMethod, setConsentMethod]           = useState('verbal');
+  const [saving, setSaving]                         = useState(false);
+  const [error, setError]                           = useState('');
+
+  // Compliance checklist
+  const [checklist, setChecklist] = useState({
+    locationConfirmed: false,
+    consentExplained:  false,
+    privacyReminded:   false,
+    emergencyProtocol: false,
+  });
+  const toggleCheck = (key) => setChecklist(p => ({ ...p, [key]: !p[key] }));
+
+  const allChecked    = Object.values(checklist).every(Boolean);
+  const canStart      = allChecked && recordingConsent !== '' && patientLocation.trim() !== '';
+
+  const handleStart = async () => {
+    if (!canStart) return;
+    setSaving(true);
+    setError('');
+    const sessionId = `sess-${apt.id}-${Date.now()}`;
+    const patientName = patient ? `${patient.firstName} ${patient.lastName}` : apt.patientName;
+    try {
+      const res = await fetch(`${API}/appointments/telehealth-consent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          sessionId,
+          appointmentId:         apt.id,
+          patientId:             patient?.id || apt.patientId,
+          patientName,
+          patientLocation:       patientLocation.trim(),
+          recordingConsent,
+          recordingConsentMethod: consentMethod,
+          providerConfirmed:     true,
+          complianceChecklist:   checklist,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save consent');
+      onStart({
+        timestamp:      isoNow(),
+        patientName,
+        patientLocation: patientLocation.trim(),
+        aptId:           apt.id,
+        sessionId,
+        consentId:       data.consentId,
+        recordingConsent,
+      });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
+  const checkItems = [
+    { key: 'locationConfirmed',  label: 'Confirmed patient\'s current physical location' },
+    { key: 'consentExplained',   label: 'Explained telehealth consent and patient rights' },
+    { key: 'privacyReminded',    label: 'Reminded patient of privacy and HIPAA rights' },
+    { key: 'emergencyProtocol',  label: 'Reviewed emergency protocol and local services' },
+  ];
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 20 }}>
-      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 480, boxShadow: '0 24px 64px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 520, boxShadow: '0 24px 64px rgba(0,0,0,0.3)', overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+
         {/* Header */}
-        <div style={{ background: 'linear-gradient(135deg,#1e3a5f,#2563eb)', padding: '18px 24px' }}>
-          <div style={{ fontWeight: 900, color: '#fff', fontSize: 16 }}>📹 Start Telehealth Session</div>
-          <div style={{ fontSize: 12, color: '#bfdbfe', marginTop: 3 }}>HIPAA-compliant video visit · Illinois Telehealth Act compliant</div>
+        <div style={{ background: 'linear-gradient(135deg,#1e3a5f,#2563eb)', padding: '18px 24px', flexShrink: 0 }}>
+          <div style={{ fontWeight: 900, color: '#fff', fontSize: 16 }}>📹 Telehealth Session Consent</div>
+          <div style={{ fontSize: 12, color: '#bfdbfe', marginTop: 3 }}>HIPAA-compliant · Illinois Telehealth Act compliant · Audit-logged</div>
         </div>
+
         {/* Patient bar */}
-        <div style={{ background: '#f0f9ff', borderBottom: '1px solid #bae6fd', padding: '10px 24px', display: 'flex', gap: 20, fontSize: 13, flexWrap: 'wrap' }}>
+        <div style={{ background: '#f0f9ff', borderBottom: '1px solid #bae6fd', padding: '10px 24px', display: 'flex', gap: 20, fontSize: 13, flexWrap: 'wrap', flexShrink: 0 }}>
           <span>👤 <strong>{apt.patientName}</strong></span>
           <span>🕐 {apt.time}</span>
-          {apt.reason && <span>📍 {apt.reason}</span>}
+          {apt.reason && <span>📋 {apt.reason}</span>}
         </div>
-        {/* Body */}
-        <div style={{ padding: '20px 24px' }}>
-          <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#0369a1', marginBottom: 18 }}>
-            ℹ️ <strong>Patient telehealth consent</strong> is collected at registration. Provider compliance reminders are listed on the Telehealth page.
-          </div>
-          <div>
+
+        {/* Scrollable body */}
+        <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+
+          {error && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#dc2626', marginBottom: 16 }}>
+              ⚠️ {error}
+            </div>
+          )}
+
+          {/* Location */}
+          <div style={{ marginBottom: 20 }}>
             <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>
-              Patient's Current Physical Location
-              <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 6 }}>(recommended for safety &amp; emergencies)</span>
+              Patient's Current Physical Location <span style={{ color: '#ef4444' }}>*</span>
+              <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 4 }}>(required for safety &amp; emergencies)</span>
             </label>
             <input
               type="text"
-              placeholder="e.g., Chicago, IL"
+              placeholder="e.g., 123 Main St, Chicago, IL"
               value={patientLocation}
               onChange={e => setPatientLocation(e.target.value)}
               autoFocus
               style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+              onFocus={e => e.target.style.borderColor = '#3b82f6'}
+              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
             />
           </div>
+
+          {/* Recording consent */}
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 8 }}>
+              Session Recording Consent <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                { val: 'granted',   icon: '✅', label: 'Patient consents to recording', desc: 'Patient verbally agreed this session may be recorded', color: '#16a34a', bg: '#f0fdf4', border: '#86efac' },
+                { val: 'denied',    icon: '🚫', label: 'Patient declines recording',    desc: 'Session will not be recorded — consent denied',         color: '#dc2626', bg: '#fef2f2', border: '#fca5a5' },
+                { val: 'not_asked', icon: '⏭️', label: 'Recording not applicable',      desc: 'No recording planned for this session type',             color: '#6b7280', bg: '#f9fafb', border: '#d1d5db' },
+              ].map(opt => (
+                <label key={opt.val} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 14px',
+                  borderRadius: 8, border: `1.5px solid ${recordingConsent === opt.val ? opt.border : '#e5e7eb'}`,
+                  background: recordingConsent === opt.val ? opt.bg : '#fff',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}>
+                  <input type="radio" name="recordingConsent" value={opt.val}
+                    checked={recordingConsent === opt.val}
+                    onChange={() => setRecordingConsent(opt.val)}
+                    style={{ marginTop: 2, accentColor: opt.color }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: opt.color }}>{opt.icon} {opt.label}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{opt.desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {recordingConsent === 'granted' && (
+              <div style={{ marginTop: 10 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Consent method</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[['verbal','🗣️ Verbal'],['written','✍️ Written'],['waived','🤝 Waived']].map(([v, l]) => (
+                    <label key={v} style={{
+                      flex: 1, textAlign: 'center', padding: '7px', borderRadius: 7, cursor: 'pointer',
+                      border: `1.5px solid ${consentMethod === v ? '#3b82f6' : '#e5e7eb'}`,
+                      background: consentMethod === v ? '#eff6ff' : '#fff',
+                      fontSize: 12, fontWeight: 600, color: consentMethod === v ? '#1d4ed8' : '#374151',
+                    }}>
+                      <input type="radio" name="consentMethod" value={v} checked={consentMethod === v}
+                        onChange={() => setConsentMethod(v)} style={{ display: 'none' }} />
+                      {l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Compliance checklist */}
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 8 }}>
+              Provider Compliance Checklist <span style={{ color: '#ef4444' }}>*</span>
+              <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 4 }}>— all items required before starting</span>
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {checkItems.map(({ key, label }) => (
+                <label key={key} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
+                  borderRadius: 8, border: `1.5px solid ${checklist[key] ? '#86efac' : '#e5e7eb'}`,
+                  background: checklist[key] ? '#f0fdf4' : '#f9fafb',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}>
+                  <input type="checkbox" checked={checklist[key]}
+                    onChange={() => toggleCheck(key)}
+                    style={{ width: 15, height: 15, accentColor: '#16a34a', cursor: 'pointer' }} />
+                  <span style={{ fontSize: 12, fontWeight: checklist[key] ? 600 : 400, color: checklist[key] ? '#15803d' : '#374151' }}>
+                    {label}
+                  </span>
+                  {checklist[key] && <span style={{ marginLeft: 'auto', fontSize: 14 }}>✅</span>}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Progress indicator */}
+          {!canStart && (
+            <div style={{ marginTop: 14, padding: '8px 12px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, fontSize: 11, color: '#92400e' }}>
+              ⚠️ Complete all required fields to start the session:{' '}
+              {!patientLocation.trim() && '• Patient location '}
+              {!recordingConsent && '• Recording consent '}
+              {!allChecked && '• Compliance checklist'}
+            </div>
+          )}
         </div>
+
         {/* Footer */}
-        <div style={{ padding: '14px 24px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', background: '#f8fafc' }}>
-          <button onClick={onCancel} style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', fontSize: 13, cursor: 'pointer', color: '#374151' }}>
+        <div style={{ padding: '14px 24px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', background: '#f8fafc', flexShrink: 0 }}>
+          <button onClick={onCancel} disabled={saving} style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', fontSize: 13, cursor: 'pointer', color: '#374151' }}>
             Cancel
           </button>
-          <button onClick={handleStart} style={{ padding: '9px 22px', borderRadius: 8, background: 'linear-gradient(135deg,#7c3aed,#6d28d9)', color: '#fff', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
-            📹 Start Session
+          <button onClick={handleStart} disabled={!canStart || saving} style={{
+            padding: '9px 22px', borderRadius: 8, fontWeight: 800, fontSize: 13, border: 'none',
+            background: canStart && !saving ? 'linear-gradient(135deg,#7c3aed,#6d28d9)' : '#d1d5db',
+            color: canStart && !saving ? '#fff' : '#9ca3af',
+            cursor: canStart && !saving ? 'pointer' : 'not-allowed',
+            boxShadow: canStart ? '0 2px 8px rgba(109,40,217,0.3)' : 'none',
+          }}>
+            {saving ? '⏳ Saving…' : '📹 Start Session'}
           </button>
         </div>
       </div>

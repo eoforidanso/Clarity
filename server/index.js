@@ -55,6 +55,7 @@ import userRoutes from './routes/users.js';
 import locationRoutes from './routes/locations.js';
 import adminRoutes from './routes/admin.js';
 import dosespotRoutes from './routes/dosespot.js';
+import patientPortalRoutes from './routes/patientPortal.js';
 
 const app = express();
 
@@ -195,6 +196,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/dosespot', dosespotRoutes);
+app.use('/api/patient-portal', patientPortalRoutes);
 
 // SPA fallback — serve index.html for all non-API routes
 app.get('*', (_req, res) => {
