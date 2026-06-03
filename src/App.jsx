@@ -56,6 +56,7 @@ const PatientPortalBilling = lazy(() => import('./pages/PatientPortalBilling'));
 const QualityMeasures = lazy(() => import('./pages/QualityMeasures'));
 const DocumentManagement = lazy(() => import('./pages/DocumentManagement'));
 const AuditTrail = lazy(() => import('./pages/AuditTrail'));
+const SecurityConsole = lazy(() => import('./pages/SecurityConsole'));
 const ReferralManagement = lazy(() => import('./pages/ReferralManagement'));
 const PriorAuthTracking = lazy(() => import('./pages/PriorAuthTracking'));
 const TreatmentPlans = lazy(() => import('./pages/TreatmentPlans'));
@@ -311,6 +312,7 @@ export default function App() {
             <Route path="/quality-measures" element={<QualityMeasures />} />
             <Route path="/documents" element={<DocumentManagement />} />
             <Route path="/audit-trail" element={<AuditTrail />} />
+            <Route path="/security-console" element={<SecurityConsole />} />
             <Route path="/referrals" element={<ReferralManagement />} />
             <Route path="/prior-auth" element={<PriorAuthTracking />} />
             <Route path="/treatment-plans" element={<TreatmentPlans />} />

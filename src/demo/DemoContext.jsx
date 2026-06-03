@@ -28,7 +28,7 @@ export const DEMO_BLOCKED_ROUTES = [
 
   // ── Admin & system controls ─────────────────────────────────────────────────
   '/user-management', '/role-permissions', '/audit-trail', '/btg-audit-log',
-  '/admin-toolkit', '/multi-location-management',
+  '/admin-toolkit', '/multi-location-management', '/security-console',
 
   // ── AI / RCM intelligence ────────────────────────────────────────────────────
   '/clinical-decision-support', '/population-health', '/care-gaps',

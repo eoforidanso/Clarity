@@ -398,7 +398,8 @@ export default function Sidebar() {
           {navItem('/multi-location',         '🏢', 'Multi-Location')}
           {navItem('/practice-marketing',     '📢', 'Marketing & Reputation')}
           {navItem('/ehr-comparison',         '🏆', 'EHR Comparison')}
-          {isAdminOrFrontDesk && navItem('/audit-trail',       '📜', 'Audit Trail')}
+          {isAdminOrFrontDesk && navItem('/audit-trail',        '📜', 'Audit Trail')}
+          {isAdmin           && navItem('/security-console',   '🛡️', 'Security Console')}
           {isAdminOrFrontDesk && navItem('/btg-audit',         '🔓', 'BTG Audit Log')}
           {isAdminOrFrontDesk && navItem('/role-permissions',  '🔐', 'Role Permissions')}
           {isAdminOrFrontDesk && navItem('/user-management',   '👥', 'User Management')}

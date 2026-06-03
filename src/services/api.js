@@ -316,6 +316,11 @@ export const admin = {
 };
 
 // ─── Audit Log ───────────────────────────────────────
+export const security = {
+  events:  (limit = 100, action) => get(`/security/events?limit=${limit}${action ? `&action=${action}` : ''}`),
+  summary: () => get('/security/summary'),
+};
+
 export const auditLog = {
   list: (params) => get(`/audit-log?${new URLSearchParams(params)}`),
   forPatient: (patientId, params) => get(`/audit-log/patient/${patientId}?${new URLSearchParams(params || {})}`),
