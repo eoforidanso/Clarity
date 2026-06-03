@@ -49,3 +49,67 @@ export function authorize(...roles) {
     next();
   };
 }
+
+/**
+ * requiresElevated — gates sensitive actions behind re-authentication.
+ *
+ * Client must include the elevated token from POST /auth/reauth in one of:
+ *   - Authorization: Elevated <elevatedToken>
+ *   - X-Elevated-Token: <elevatedToken>
+ *   - req.body.elevatedToken
+ *
+ * Sensitive actions to protect:
+ *   - Deleting patient records
+ *   - Changing user roles / permissions
+ *   - Exporting PHI / bulk data
+ *   - EPCS prescription signing
+ *   - Break-the-Glass (BTG) access
+ *   - Admin destructive operations
+ */
+export function requiresElevated(req, res, next) {
+  // Extract elevated token from multiple sources
+  const authHeader   = req.headers.authorization || '';
+  const headerToken  = authHeader.startsWith('Elevated ') ? authHeader.slice(9) : null;
+  const xToken       = req.headers['x-elevated-token'];
+  const bodyToken    = req.body?.elevatedToken;
+  const token        = headerToken || xToken || bodyToken;
+
+  if (!token) {
+    return res.status(401).json({
+      error: 'Elevated authentication required',
+      hint: 'POST /api/auth/reauth with your password or OTP to obtain an elevatedToken',
+      code: 'ELEVATED_REQUIRED',
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(token, config.jwtSecret);
+
+    if (!decoded.elevated) {
+      return res.status(403).json({
+        error: 'Token does not carry elevated privileges',
+        code: 'NOT_ELEVATED',
+      });
+    }
+
+    // Token must belong to the authenticated user
+    if (req.user && decoded.userId !== req.user.id) {
+      return res.status(403).json({
+        error: 'Elevated token does not match authenticated user',
+        code: 'TOKEN_USER_MISMATCH',
+      });
+    }
+
+    req.elevated = true;
+    req.elevatedAt = new Date(decoded.iat * 1000).toISOString();
+    next();
+  } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        error: 'Elevated session expired — re-authenticate to continue',
+        code: 'ELEVATED_EXPIRED',
+      });
+    }
+    return res.status(401).json({ error: 'Invalid elevated token', code: 'ELEVATED_INVALID' });
+  }
+}

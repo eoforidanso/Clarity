@@ -427,4 +427,90 @@ router.post('/2fa/disable', authenticate, async (req, res) => {
   res.json({ message: '2FA disabled successfully' });
 });
 
+// ── POST /auth/reauth ─────────────────────────────────────────────────────────
+// Re-authenticate to obtain a short-lived elevated token (5 min).
+// Used before sensitive actions: delete patient, change role, export PHI,
+// EPCS signing, override BTG access.
+//
+// Accepts:  { password: string }  — password re-entry
+//           { otp: string }       — OTP code sent via 2FA channel
+//
+// Returns:  { elevatedToken: string, expiresAt: ISO }
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/reauth', authenticate, async (req, res) => {
+  const userId = req.user.id;
+  const { password, otp } = req.body;
+
+  if (!password && !otp) {
+    return res.status(400).json({ error: 'password or otp is required' });
+  }
+
+  try {
+    // ── Path 1: Password re-entry ────────────────────────────────────────────
+    if (password) {
+      const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId);
+      if (!row) return res.status(401).json({ error: 'User not found' });
+
+      const valid = await bcrypt.compare(password, row.password_hash);
+      if (!valid) {
+        logAuditEvent({
+          userId, action: 'REAUTH_FAILED', resourceType: 'auth',
+          details: 'Invalid password on re-authentication', ip: req.ip,
+        });
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+    }
+
+    // ── Path 2: OTP re-entry ─────────────────────────────────────────────────
+    if (otp) {
+      const user = db.prepare(
+        'SELECT email_otp, email_otp_expires, email_otp_attempts FROM users WHERE id = ?'
+      ).get(userId);
+
+      if (!user?.email_otp || !user?.email_otp_expires) {
+        return res.status(401).json({ error: 'No OTP pending — request a new one via /auth/generate-epcs-otp' });
+      }
+      if (new Date(user.email_otp_expires) < new Date()) {
+        return res.status(401).json({ error: 'OTP expired' });
+      }
+      if ((user.email_otp_attempts || 0) >= 5) {
+        db.prepare("UPDATE users SET email_otp = NULL, email_otp_expires = NULL, email_otp_attempts = 0 WHERE id = ?").run(userId);
+        return res.status(429).json({ error: 'Too many OTP attempts — request a new code' });
+      }
+
+      const storedBuf  = Buffer.from(String(user.email_otp).padEnd(6, ' '));
+      const enteredBuf = Buffer.from(String(otp).padEnd(6, ' '));
+
+      if (storedBuf.length !== enteredBuf.length || !crypto.timingSafeEqual(storedBuf, enteredBuf)) {
+        db.prepare('UPDATE users SET email_otp_attempts = email_otp_attempts + 1 WHERE id = ?').run(userId);
+        return res.status(401).json({ error: 'Invalid OTP' });
+      }
+
+      // Clear OTP after use
+      db.prepare("UPDATE users SET email_otp = NULL, email_otp_expires = NULL, email_otp_attempts = 0 WHERE id = ?").run(userId);
+    }
+
+    // ── Issue elevated token (5 min, single-use flag) ────────────────────────
+    const ELEVATED_TTL_SECS = 5 * 60;
+    const expiresAt = new Date(Date.now() + ELEVATED_TTL_SECS * 1000).toISOString();
+
+    const elevatedToken = jwt.sign(
+      { userId, role: req.user.role, elevated: true },
+      config.jwtSecret,
+      { expiresIn: ELEVATED_TTL_SECS }
+    );
+
+    logAuditEvent({
+      userId, action: 'REAUTH_SUCCESS', resourceType: 'auth',
+      details: `Elevated session granted via ${otp ? 'OTP' : 'password'} — expires ${expiresAt}`,
+      ip: req.ip,
+    });
+
+    return res.json({ elevatedToken, expiresAt, expiresInSeconds: ELEVATED_TTL_SECS });
+  } catch (err) {
+    console.error('[reauth]', err);
+    return res.status(500).json({ error: 'Re-authentication failed' });
+  }
+});
+
 export default router;
