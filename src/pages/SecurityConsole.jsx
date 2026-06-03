@@ -53,22 +53,25 @@ export default function SecurityConsole() {
   const [events,    setEvents]    = useState([]);
   const [summary,   setSummary]   = useState(null);
   const [anomalies, setAnomalies] = useState([]);
+  const [sessions,  setSessions]  = useState([]);
   const [filter,    setFilter]    = useState('ALL');
-  const [activeTab, setActiveTab] = useState('events'); // 'events' | 'anomalies'
+  const [activeTab, setActiveTab] = useState('events'); // 'events' | 'anomalies' | 'sessions'
   const [loading,   setLoading]   = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [evRes, sumRes, anomRes] = await Promise.all([
-        fetch(`${API}/security/events?limit=100`, { credentials: 'include' }),
-        fetch(`${API}/security/summary`,           { credentials: 'include' }),
-        fetch(`${API}/security/anomalies?limit=50`,{ credentials: 'include' }),
+      const [evRes, sumRes, anomRes, sessRes] = await Promise.all([
+        fetch(`${API}/security/events?limit=100`,  { credentials: 'include' }),
+        fetch(`${API}/security/summary`,            { credentials: 'include' }),
+        fetch(`${API}/security/anomalies?limit=50`, { credentials: 'include' }),
+        fetch(`${API}/security/sessions`,           { credentials: 'include' }),
       ]);
       if (evRes.ok)   setEvents(await evRes.json());
       if (sumRes.ok)  setSummary(await sumRes.json());
       if (anomRes.ok) setAnomalies(await anomRes.json());
+      if (sessRes.ok) setSessions(await sessRes.json());
       setLastRefresh(new Date());
     } catch { /* offline */ }
     setLoading(false);
@@ -77,6 +80,17 @@ export default function SecurityConsole() {
   const resolveAnomaly = async (id) => {
     await fetch(`${API}/security/anomalies/${id}/resolve`, { method: 'PATCH', credentials: 'include' });
     setAnomalies(a => a.filter(x => x.id !== id));
+  };
+
+  const revokeSession = async (id) => {
+    await fetch(`${API}/security/sessions/${id}`, { method: 'DELETE', credentials: 'include' });
+    setSessions(s => s.filter(x => x.id !== id));
+  };
+
+  const revokeAllSessions = async () => {
+    if (!window.confirm('Revoke ALL active sessions? Everyone will be logged out immediately.')) return;
+    await fetch(`${API}/security/sessions`, { method: 'DELETE', credentials: 'include' });
+    setSessions([]);
   };
 
   useEffect(() => { load(); const t = setInterval(load, 30_000); return () => clearInterval(t); }, [load]);
@@ -145,7 +159,8 @@ export default function SecurityConsole() {
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: '#f8fafc', borderRadius: 10, padding: 4, border: '1px solid var(--border)', width: 'fit-content' }}>
         {[
           { key: 'events',    label: 'Security Events', count: events.length },
-          { key: 'anomalies', label: 'Anomalies',        count: openAnomalies, alert: critAnomalies > 0 },
+          { key: 'anomalies', label: 'Anomalies',        count: openAnomalies,      alert: critAnomalies > 0 },
+        { key: 'sessions',  label: 'Active Sessions',  count: sessions.length,    alert: sessions.some(s => s.isElevated) },
         ].map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
             padding: '6px 16px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer',
@@ -211,6 +226,68 @@ export default function SecurityConsole() {
                           </button>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Sessions panel */}
+        {activeTab === 'sessions' && (
+          <div style={{ background: 'var(--bg-white)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 13, fontWeight: 800 }}>
+                🔐 Active Sessions
+                <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 8 }}>{sessions.length} online</span>
+              </div>
+              <button onClick={revokeAllSessions} style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid #fca5a5', background: '#fef2f2', color: '#dc2626', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                ⛔ Revoke All
+              </button>
+            </div>
+            <div style={{ maxHeight: 520, overflowY: 'auto' }}>
+              {sessions.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No active sessions</div>
+              ) : sessions.map((s, i) => {
+                const ua = s.userAgent || '';
+                const browser = ua.includes('Chrome') ? '🌐 Chrome' : ua.includes('Firefox') ? '🦊 Firefox' : ua.includes('Safari') ? '🧭 Safari' : '💻 Browser';
+                const os = ua.includes('Mac') ? 'macOS' : ua.includes('Windows') ? 'Windows' : ua.includes('iPhone') ? 'iPhone' : ua.includes('Android') ? 'Android' : 'Unknown';
+                return (
+                  <div key={s.id} style={{
+                    padding: '12px 16px',
+                    borderBottom: i < sessions.length - 1 ? '1px solid var(--border-light)' : 'none',
+                    background: s.isElevated ? '#fffbeb' : s.isCurrent ? '#f0f9ff' : 'transparent',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      {/* Avatar */}
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: `linear-gradient(135deg, #6366f1, #0891b2)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
+                        {(s.name || '?')[0].toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{s.name}</span>
+                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: '#f1f5f9', color: '#475569', fontWeight: 700 }}>{s.role}</span>
+                          {s.isCurrent && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: '#dbeafe', color: '#1d4ed8', fontWeight: 800 }}>YOU</span>}
+                          {s.isElevated && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: '#fef3c7', color: '#b45309', fontWeight: 800 }}>⚡ ELEVATED</span>}
+                          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>{timeSince(s.lastSeenAt)}</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                          <span style={{ fontFamily: 'monospace' }}>{s.ip || 'no IP'}</span>
+                          <span>{browser} · {os}</span>
+                          {s.locationName && <span>📍 {s.locationName}</span>}
+                        </div>
+                        {s.isElevated && s.elevatedExpiresAt && (
+                          <div style={{ fontSize: 10, color: '#b45309', marginTop: 3 }}>
+                            ⚡ Elevated until {new Date(s.elevatedExpiresAt).toLocaleTimeString()}
+                          </div>
+                        )}
+                      </div>
+                      {!s.isCurrent && (
+                        <button onClick={() => revokeSession(s.id)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#ef4444', fontSize: 10, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                          Revoke
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

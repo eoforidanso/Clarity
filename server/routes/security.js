@@ -63,6 +63,56 @@ router.get('/summary', (_req, res) => {
   res.json({ summary, topIps, actors, generatedAt: new Date().toISOString() });
 });
 
+// ── SESSIONS ──────────────────────────────────────────────────────────────────
+
+// GET /api/security/sessions — active sessions with user details
+router.get('/sessions', (req, res) => {
+  const rows = db.prepare(`
+    SELECT
+      s.id, s.user_id, s.ip_address, s.user_agent,
+      s.created_at, s.last_seen_at, s.is_elevated,
+      s.elevated_expires_at, s.location_id,
+      u.first_name, u.last_name, u.role, u.email,
+      l.name as location_name
+    FROM sessions s
+    LEFT JOIN users u ON u.id = s.user_id
+    LEFT JOIN locations l ON l.id = s.location_id
+    WHERE s.is_active = 1
+    ORDER BY s.last_seen_at DESC NULLS LAST
+    LIMIT 100
+  `).all();
+
+  res.json(rows.map(r => ({
+    id:                 r.id,
+    userId:             r.user_id,
+    name:               `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Unknown',
+    role:               r.role || 'unknown',
+    email:              r.email || '',
+    ip:                 r.ip_address || '',
+    userAgent:          r.user_agent || '',
+    locationId:         r.location_id || '',
+    locationName:       r.location_name || '',
+    createdAt:          r.created_at,
+    lastSeenAt:         r.last_seen_at || r.created_at,
+    isElevated:         r.is_elevated === 1,
+    elevatedExpiresAt:  r.elevated_expires_at || null,
+    isCurrent:          r.user_id === req.user.id,
+  })));
+});
+
+// DELETE /api/security/sessions/:id — revoke a single session
+router.delete('/sessions/:id', (req, res) => {
+  const { id } = req.params;
+  db.prepare(`UPDATE sessions SET is_active = 0 WHERE id = ?`).run(id);
+  res.status(204).end();
+});
+
+// DELETE /api/security/sessions — revoke ALL sessions (emergency)
+router.delete('/sessions', (req, res) => {
+  const count = db.prepare(`UPDATE sessions SET is_active = 0 WHERE is_active = 1`).run();
+  res.json({ revoked: count.changes, message: 'All sessions revoked — everyone must re-login' });
+});
+
 // GET /api/security/anomalies — open anomalies
 router.get('/anomalies', (req, res) => {
   const status = req.query.status || 'open';

@@ -42,6 +42,22 @@ export async function authenticate(req, res, next) {
     req.user = { ...user, elevated: decoded.elevated === true };
     req.access = buildAccess(user); // role + location scope for every request
 
+    // Heartbeat: update session last_seen_at + elevated state
+    if (decoded.sessionId) {
+      const isElevated        = decoded.elevated === true ? 1 : 0;
+      const elevatedExpiresAt = decoded.elevated ? new Date(decoded.exp * 1000).toISOString() : null;
+      try {
+        db.prepare(`
+          UPDATE sessions
+          SET last_seen_at = datetime('now'),
+              is_elevated = ?,
+              elevated_expires_at = ?,
+              location_id = ?
+          WHERE id = ? AND is_active = 1
+        `).run(isElevated, elevatedExpiresAt, user.location_id || null, decoded.sessionId);
+      } catch { /* non-blocking */ }
+    }
+
     // Server-side enforcement: block all API calls except auth endpoints until password is changed
     if (user.must_change_password) {
       const allowed = ['/api/auth/change-password', '/api/auth/logout', '/api/auth/me'];

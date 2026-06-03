@@ -26,6 +26,12 @@ export function applyMigrations() {
       ip         TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now'))
     )`,
+  // Session tracking columns
+  `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS last_seen_at TEXT`,
+  `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_elevated INTEGER DEFAULT 0`,
+  `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS elevated_expires_at TEXT`,
+  `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS location_id TEXT`,
+
   // Triggers to make audit_logs append-only (no UPDATE or DELETE allowed)
   `CREATE TRIGGER IF NOT EXISTS audit_logs_no_update
      BEFORE UPDATE ON audit_logs
