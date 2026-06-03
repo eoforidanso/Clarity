@@ -63,9 +63,10 @@ export default function Sidebar() {
   const isAdmin = currentUser?.role === 'admin';
   const isAdminOrFrontDesk = isFrontDesk || isAdmin;
   const isTherapist = currentUser?.role === 'therapist';
-  // Prescriptive authority: can access Medications, Orders, eRx
+  // Capability matrix (matches ChartPage ROLE_CAPABILITIES)
+  const NON_PRESCRIBING = ['therapist', 'front_desk', 'biller', 'patient'];
   const canPrescribe = currentUser?.prescriptive_authority !== false &&
-    !['therapist', 'front_desk', 'biller', 'patient'].includes(currentUser?.role);
+    !NON_PRESCRIBING.includes(currentUser?.role);
 
   const initials = currentUser
     ? `${currentUser.firstName?.[0] || ''}${currentUser.lastName?.[0] || ''}`

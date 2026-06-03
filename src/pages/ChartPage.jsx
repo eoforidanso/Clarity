@@ -18,35 +18,46 @@ import LabResults from './chart/LabResults';
 import Encounters from './chart/Encounters';
 import PatientStatus, { getPatientStatusRecord } from './chart/PatientStatus';
 
-const ALL_CHART_TABS = [
-  { key: 'summary',      label: '📋 Summary',        component: ChartSummary },
-  { key: 'encounters',   label: '🗒️ Encounters',      component: Encounters },
-  { key: 'demographics', label: '👤 Demographics',    component: Demographics },
-  { key: 'allergies',    label: '⚠️ Allergies',        component: Allergies },
-  { key: 'problems',     label: '🩺 Problems',         component: ProblemList },
-  { key: 'vitals',       label: '💓 Vitals',           component: Vitals },
-  { key: 'medications',  label: '💊 Medications',      component: Medications, requiresPrescriptive: true },
-  { key: 'orders',       label: '📝 Orders',           component: Orders,      requiresPrescriptive: true },
-  { key: 'assessments',  label: '📊 Assessments',      component: Assessments },
-  { key: 'immunizations',label: '💉 Immunizations',    component: Immunizations },
-  { key: 'labs',         label: '🔬 Labs',             component: LabResults },
-  { key: 'status',       label: '🚫 Patient Status',   component: PatientStatus },
-];
+// ── Role capability matrix ───────────────────────────────────────────────────
+const ROLE_CAPABILITIES = {
+  prescriber:  { canViewMeds: true,  canPrescribe: true,  canOrder: true  },
+  therapist:   { canViewMeds: true,  canPrescribe: false, canOrder: false },
+  front_desk:  { canViewMeds: true,  canPrescribe: false, canOrder: false },
+  nurse:       { canViewMeds: true,  canPrescribe: false, canOrder: false },
+  biller:      { canViewMeds: false, canPrescribe: false, canOrder: false },
+  admin:       { canViewMeds: true,  canPrescribe: false, canOrder: false },
+  patient:     { canViewMeds: false, canPrescribe: false, canOrder: false },
+};
 
-/**
- * Role-based prescriptive authority check.
- * Therapists and non-prescribing roles cannot access Medications / Orders / eRx.
- */
-export function hasPrescriptiveAuthority(user) {
-  if (!user) return false;
-  if (user.prescriptive_authority === false) return false;
-  const NON_PRESCRIBING = ['therapist', 'front_desk', 'biller', 'patient'];
-  return !NON_PRESCRIBING.includes(user.role);
+export function getCapabilities(user) {
+  if (!user) return ROLE_CAPABILITIES.patient;
+  const base = ROLE_CAPABILITIES[user.role] ?? ROLE_CAPABILITIES.patient;
+  if (user.prescriptive_authority === false) return { ...base, canPrescribe: false, canOrder: false };
+  return base;
 }
 
+export function hasPrescriptiveAuthority(user) {
+  return getCapabilities(user).canPrescribe;
+}
+
+const ALL_CHART_TABS = [
+  { key: 'summary',      label: '📋 Summary',       component: ChartSummary  },
+  { key: 'encounters',   label: '🗒️ Encounters',     component: Encounters    },
+  { key: 'demographics', label: '👤 Demographics',   component: Demographics  },
+  { key: 'allergies',    label: '⚠️ Allergies',       component: Allergies     },
+  { key: 'problems',     label: '🩺 Problems',        component: ProblemList   },
+  { key: 'vitals',       label: '💓 Vitals',          component: Vitals        },
+  { key: 'medications',  label: '💊 Medications',     component: Medications,  requiresCap: 'canViewMeds' },
+  { key: 'orders',       label: '📝 Orders',          component: Orders,       requiresCap: 'canOrder'    },
+  { key: 'assessments',  label: '📊 Assessments',     component: Assessments  },
+  { key: 'immunizations',label: '💉 Immunizations',   component: Immunizations },
+  { key: 'labs',         label: '🔬 Labs',            component: LabResults    },
+  { key: 'status',       label: '🚫 Patient Status',  component: PatientStatus },
+];
+
 function getVisibleTabs(user) {
-  const canPrescribe = hasPrescriptiveAuthority(user);
-  return ALL_CHART_TABS.filter(t => !t.requiresPrescriptive || canPrescribe);
+  const caps = getCapabilities(user);
+  return ALL_CHART_TABS.filter(t => !t.requiresCap || caps[t.requiresCap]);
 }
 
 // Keep alias for existing references
@@ -267,14 +278,14 @@ export default function ChartPage() {
   }
 
   const p = selectedPatient;
-  const canPrescribe = hasPrescriptiveAuthority(currentUser);
+  const caps = getCapabilities(currentUser);
   const visibleTabs = getVisibleTabs(currentUser);
 
-  // Redirect away from restricted tabs if user lacks prescriptive authority
+  // Redirect to summary if user lands on a tab they lack capability for
   const activeTab = (() => {
     const requested = tab || 'summary';
-    const restrictedTabs = ['medications', 'orders'];
-    if (!canPrescribe && restrictedTabs.includes(requested)) return 'summary';
+    const tabDef = ALL_CHART_TABS.find(t => t.key === requested);
+    if (tabDef?.requiresCap && !caps[tabDef.requiresCap]) return 'summary';
     return requested;
   })();
 
