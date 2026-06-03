@@ -18,7 +18,7 @@ const EMPTY_FORM = {
 };
 
 const card = {
-  background: 'var(--bg-card)', borderRadius: 14,
+  background: '#ffffff', borderRadius: 14,
   border: '1px solid var(--border)', padding: 20,
   boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
 };
@@ -49,10 +49,10 @@ function Modal({ title, onClose, children }) {
   }, [onClose]);
   return (
     <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backdropFilter: 'blur(2px)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ background: 'var(--bg-card)', borderRadius: 14, width: '100%', maxWidth: 640, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+      <div style={{ background: '#ffffff', borderRadius: 14, width: '100%', maxWidth: 640, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px', borderBottom: '1px solid var(--border)' }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{title}</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-muted)', padding: '0 4px' }}>x</button>
@@ -398,7 +398,7 @@ export default function MultiLocationManagement() {
         {tabs.map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
             padding: '10px 20px', borderRadius: '10px 10px 0 0', border: 'none',
-            background: activeTab === t.key ? 'var(--bg-card)' : 'transparent',
+            background: activeTab === t.key ? '#ffffff' : 'transparent',
             color: activeTab === t.key ? '#4f46e5' : 'var(--text-muted)',
             fontWeight: activeTab === t.key ? 800 : 600, fontSize: 13, cursor: 'pointer',
             borderBottom: activeTab === t.key ? '2px solid #4f46e5' : '2px solid transparent',
@@ -686,7 +686,7 @@ export default function MultiLocationManagement() {
       {toast && (
         <div style={{
           position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-          background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
+          background: '#ffffff', border: '1px solid var(--border)', borderRadius: 10,
           padding: '10px 20px', boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
           zIndex: 2000, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
         }}>
