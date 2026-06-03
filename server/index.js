@@ -210,6 +210,10 @@ async function start() {
   const { applyMigrations } = await import('./db/softDelete.js');
   applyMigrations();
 
+  // Start security monitor — alerts on IDOR, brute force, critical actions
+  const { startSecurityMonitor } = await import('./security/alerting.js');
+  startSecurityMonitor(60_000); // check every 60 seconds
+
   // Warn if default seed credentials are still present in production
   if (config.nodeEnv === 'production') {
     try {

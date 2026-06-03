@@ -56,6 +56,11 @@ export function logAudit({ actorId, actorName = '', action, targetId = null, tar
     INSERT INTO audit_logs (id, actor_id, actor_name, action, target_id, target_type, details, ip)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(uuidv4(), actorId, actorName, action, targetId, targetType, JSON.stringify(details), ip);
+
+  // Fire immediate alert for critical actions (non-blocking)
+  import('../security/alerting.js')
+    .then(({ alertOnAction }) => alertOnAction(action, { actorId, actorName, targetId, ip }))
+    .catch(() => {/* alerting must never crash the main flow */});
 }
 
 // ── Active scope helpers ───────────────────────────────────────────────────────
