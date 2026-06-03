@@ -38,8 +38,23 @@ export function requirePatientAccess(req, res, next) {
       action:    'IDOR_BLOCKED',
       targetId:  patientId,
       targetType:'patient',
-      details:   { role, method: req.method, path: req.path },
-      ip:        req.realIp || req.ip,
+      details: {
+        // Actor context
+        role,
+        actorLocation:    req.user.location_id || null,
+        // Request
+        method:           req.method,
+        path:             req.path,
+        userAgent:        req.headers['user-agent']?.slice(0, 120) || null,
+        // Patient context
+        patientLocation:  patient.primary_location || null,
+        assignedProvider: patient.assigned_provider || null,
+        // Why it was blocked
+        reason: !isAssigned && !sameLocation
+          ? 'not_assigned_and_different_location'
+          : !isAssigned ? 'not_assigned_provider' : 'different_location',
+      },
+      ip: req.realIp || req.ip,
     });
     return res.status(403).json({ error: 'Access denied — not your patient' });
   }

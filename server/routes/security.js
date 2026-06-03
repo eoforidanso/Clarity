@@ -63,4 +63,48 @@ router.get('/summary', (_req, res) => {
   res.json({ summary, topIps, actors, generatedAt: new Date().toISOString() });
 });
 
+// GET /api/security/anomalies — open anomalies
+router.get('/anomalies', (req, res) => {
+  const status = req.query.status || 'open';
+  const limit  = Math.min(parseInt(req.query.limit) || 50, 200);
+
+  try {
+    const rows = db.prepare(`
+      SELECT * FROM anomalies WHERE status = ? ORDER BY detected_at DESC LIMIT ?
+    `).all(status, limit);
+
+    res.json(rows.map(r => ({
+      id: r.id, ruleId: r.rule_id, severity: r.severity,
+      title: r.title, description: r.description,
+      actorId: r.actor_id, actorName: r.actor_name,
+      ip: r.ip, eventCount: r.event_count, windowMin: r.window_min,
+      status: r.status, detectedAt: r.detected_at, resolvedAt: r.resolved_at,
+      rawEvents: (() => { try { return JSON.parse(r.raw_events); } catch { return []; } })(),
+    })));
+  } catch {
+    res.json([]); // table may not exist yet
+  }
+});
+
+// PATCH /api/security/anomalies/:id/resolve
+router.patch('/anomalies/:id/resolve', (req, res) => {
+  try {
+    db.prepare(`UPDATE anomalies SET status='resolved', resolved_at=datetime('now') WHERE id=?`).run(req.params.id);
+    res.json({ ok: true });
+  } catch { res.status(500).json({ error: 'Failed' }); }
+});
+
+// GET /api/security/anomalies/summary — open count by severity
+router.get('/anomalies/summary', (_req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT severity, COUNT(*) as cnt FROM anomalies WHERE status='open' GROUP BY severity
+    `).all();
+    const byRule = db.prepare(`
+      SELECT rule_id, COUNT(*) as cnt FROM anomalies WHERE status='open' GROUP BY rule_id ORDER BY cnt DESC
+    `).all();
+    res.json({ bySeverity: Object.fromEntries(rows.map(r => [r.severity, r.cnt])), byRule });
+  } catch { res.json({ bySeverity: {}, byRule: [] }); }
+});
+
 export default router;

@@ -3,6 +3,19 @@ import { useAuth } from '../contexts/AuthContext';
 
 const API = import.meta.env?.VITE_API_URL || '/api';
 
+const RULE_META = {
+  R01_IP_SCANNING:      { icon: '🔍', label: 'IP Scanning',         color: '#f97316' },
+  R02_BULK_ACCESS:      { icon: '📂', label: 'Bulk Patient Access',  color: '#f97316' },
+  R03_BRUTE_FORCE:      { icon: '💥', label: 'Brute Force',          color: '#dc2626' },
+  R04_REPEATED_TARGET:  { icon: '🎯', label: 'Repeated Targeting',   color: '#f97316' },
+  R05_OFF_HOURS:        { icon: '🌙', label: 'Off-Hours Access',      color: '#f59e0b' },
+  R06_REAUTH_HAMMER:    { icon: '🔐', label: 'Reauth Hammering',      color: '#f97316' },
+  R07_PRIVILEGE_PROBE:  { icon: '⛔', label: 'Privilege Probe',       color: '#f97316' },
+  R08_SESSION_REUSE:    { icon: '🌐', label: 'Multi-IP Session',      color: '#f59e0b' },
+};
+const SEV_COLOR = { CRITICAL: '#dc2626', HIGH: '#f97316', MEDIUM: '#f59e0b', LOW: '#3b82f6' };
+const SEV_BG    = { CRITICAL: '#fef2f2', HIGH: '#fff7ed',  MEDIUM: '#fffbeb', LOW: '#eff6ff' };
+
 // ── Severity config ───────────────────────────────────────────────────────────
 const SEVERITY = {
   IDOR_BLOCKED:              { level: 'HIGH',     color: '#f97316', bg: '#fff7ed', icon: '🚫' },
@@ -37,25 +50,34 @@ const timeSince = (iso) => {
 // ── Main component ────────────────────────────────────────────────────────────
 export default function SecurityConsole() {
   const { currentUser } = useAuth();
-  const [events,  setEvents]  = useState([]);
-  const [summary, setSummary] = useState(null);
-  const [filter,  setFilter]  = useState('ALL');
-  const [loading, setLoading] = useState(true);
+  const [events,    setEvents]    = useState([]);
+  const [summary,   setSummary]   = useState(null);
+  const [anomalies, setAnomalies] = useState([]);
+  const [filter,    setFilter]    = useState('ALL');
+  const [activeTab, setActiveTab] = useState('events'); // 'events' | 'anomalies'
+  const [loading,   setLoading]   = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [evRes, sumRes] = await Promise.all([
+      const [evRes, sumRes, anomRes] = await Promise.all([
         fetch(`${API}/security/events?limit=100`, { credentials: 'include' }),
-        fetch(`${API}/security/summary`,          { credentials: 'include' }),
+        fetch(`${API}/security/summary`,           { credentials: 'include' }),
+        fetch(`${API}/security/anomalies?limit=50`,{ credentials: 'include' }),
       ]);
-      if (evRes.ok)  setEvents(await evRes.json());
-      if (sumRes.ok) setSummary(await sumRes.json());
+      if (evRes.ok)   setEvents(await evRes.json());
+      if (sumRes.ok)  setSummary(await sumRes.json());
+      if (anomRes.ok) setAnomalies(await anomRes.json());
       setLastRefresh(new Date());
     } catch { /* offline */ }
     setLoading(false);
   }, []);
+
+  const resolveAnomaly = async (id) => {
+    await fetch(`${API}/security/anomalies/${id}/resolve`, { method: 'PATCH', credentials: 'include' });
+    setAnomalies(a => a.filter(x => x.id !== id));
+  };
 
   useEffect(() => { load(); const t = setInterval(load, 30_000); return () => clearInterval(t); }, [load]);
 
@@ -71,8 +93,10 @@ export default function SecurityConsole() {
   }
 
   const filtered = filter === 'ALL' ? events : events.filter(e => e.action === filter);
-  const criticalCount = events.filter(e => SEVERITY[e.action]?.level === 'CRITICAL').length;
-  const highCount     = events.filter(e => SEVERITY[e.action]?.level === 'HIGH').length;
+  const criticalCount   = events.filter(e => SEVERITY[e.action]?.level === 'CRITICAL').length;
+  const highCount       = events.filter(e => SEVERITY[e.action]?.level === 'HIGH').length;
+  const openAnomalies   = anomalies.filter(a => a.status === 'open').length;
+  const critAnomalies   = anomalies.filter(a => a.severity === 'CRITICAL').length;
 
   return (
     <div className="fade-in" style={{ padding: '0 0 32px' }}>
@@ -105,7 +129,8 @@ export default function SecurityConsole() {
             { label: 'IDOR Blocked', value: summary.summary.IDOR_BLOCKED?.last24h || 0,    color: '#f97316', bg: '#fff7ed', icon: '🚫' },
             { label: 'Login Failed', value: summary.summary.LOGIN_FAILED?.last24h || 0,    color: '#f59e0b', bg: '#fffbeb', icon: '⚠️' },
             { label: 'Reauth Failed',value: summary.summary.REAUTH_FAILED?.last24h || 0,   color: '#f97316', bg: '#fff7ed', icon: '🔐' },
-            { label: 'Critical',     value: criticalCount,                                  color: '#dc2626', bg: '#fef2f2', icon: '🚨' },
+            { label: 'Critical',     value: criticalCount,  color: '#dc2626', bg: '#fef2f2', icon: '🚨' },
+            { label: 'Anomalies',    value: openAnomalies,  color: openAnomalies > 0 ? '#7c3aed' : '#64748b', bg: openAnomalies > 0 ? '#f5f3ff' : '#f8fafc', icon: '🧠' },
           ].map(s => (
             <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.color}30`, borderRadius: 10, padding: '12px 14px' }}>
               <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
@@ -116,11 +141,86 @@ export default function SecurityConsole() {
         </div>
       )}
 
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: '#f8fafc', borderRadius: 10, padding: 4, border: '1px solid var(--border)', width: 'fit-content' }}>
+        {[
+          { key: 'events',    label: 'Security Events', count: events.length },
+          { key: 'anomalies', label: 'Anomalies',        count: openAnomalies, alert: critAnomalies > 0 },
+        ].map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
+            padding: '6px 16px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            border: 'none', transition: 'all 0.15s',
+            background: activeTab === t.key ? '#fff' : 'transparent',
+            color: activeTab === t.key ? '#0f172a' : '#64748b',
+            boxShadow: activeTab === t.key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            {t.label}
+            {t.count > 0 && (
+              <span style={{ fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 10, background: t.alert ? '#fef2f2' : '#f1f5f9', color: t.alert ? '#dc2626' : '#64748b' }}>
+                {t.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {/* Two-column layout */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20, alignItems: 'start' }}>
 
+        {/* Anomalies feed */}
+        {activeTab === 'anomalies' && (
+          <div style={{ background: 'var(--bg-white)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)' }}>
+                🧠 Detected Anomalies
+                <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 8 }}>Rules run every 5 min · {openAnomalies} open</span>
+              </div>
+            </div>
+            <div style={{ maxHeight: 520, overflowY: 'auto' }}>
+              {anomalies.length === 0 ? (
+                <div style={{ padding: 48, textAlign: 'center' }}>
+                  <div style={{ fontSize: 36, marginBottom: 10 }}>✅</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' }}>No anomalies detected</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>8 rules checking every 5 minutes</div>
+                </div>
+              ) : anomalies.map((a, i) => {
+                const meta = RULE_META[a.ruleId] || { icon: '⚠️', label: a.ruleId, color: '#64748b' };
+                const sc = SEV_COLOR[a.severity] || '#64748b';
+                const sb = SEV_BG[a.severity]    || '#f8fafc';
+                return (
+                  <div key={a.id} style={{
+                    padding: '14px 16px', borderBottom: i < anomalies.length - 1 ? '1px solid var(--border-light)' : 'none',
+                    background: sb,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 8, background: sc + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{meta.icon}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: sc }}>{a.title}</span>
+                          <span style={{ fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: sc + '18', color: sc }}>{a.severity}</span>
+                          <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 'auto' }}>{timeSince(a.detectedAt)}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 6 }}>{a.description}</div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          {a.ip && <span style={{ fontSize: 10, fontFamily: 'monospace', background: '#f1f5f9', padding: '2px 6px', borderRadius: 4, color: '#475569' }}>{a.ip}</span>}
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{a.eventCount} events · {a.windowMin}m window</span>
+                          <span style={{ fontSize: 10, color: '#94a3b8' }}>{a.ruleId}</span>
+                          <button onClick={() => resolveAnomaly(a.id)} style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer' }}>
+                            ✓ Resolve
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Events feed */}
-        <div style={{ background: 'var(--bg-white)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+        {activeTab === 'events' && <div style={{ background: 'var(--bg-white)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
           {/* Filter bar */}
           <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {['ALL', 'IDOR_BLOCKED', 'REAUTH_FAILED', 'LOGIN_FAILED', 'USER_DELETED', 'JWT_TAMPER_ATTEMPT'].map(f => (
@@ -174,7 +274,7 @@ export default function SecurityConsole() {
               );
             })}
           </div>
-        </div>
+        </div>}
 
         {/* Right panel */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

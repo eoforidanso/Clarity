@@ -216,6 +216,10 @@ async function start() {
   const { startSecurityMonitor } = await import('./security/alerting.js');
   startSecurityMonitor(60_000); // check every 60 seconds
 
+  // Start anomaly detection — rule-based, every 5 minutes
+  const { startAnomalyScheduler } = await import('./security/anomalyDetector.js');
+  startAnomalyScheduler(5 * 60_000);
+
   // Warn if default seed credentials are still present in production
   if (config.nodeEnv === 'production') {
     try {
