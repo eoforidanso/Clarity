@@ -230,7 +230,7 @@ router.post('/change-password', authenticate, async (req, res) => {
     return res.status(400).json({ error: 'New password must contain at least one uppercase letter and one number' });
   }
 
-  const user = await db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.user.id);
+  const user = await db.prepare('SELECT password_hash FROM users WHERE id = $1').get(req.user.id);
   if (!user || !bcrypt.compareSync(currentPassword, user.password_hash)) {
     return res.status(401).json({ error: 'Current password is incorrect' });
   }
@@ -241,7 +241,7 @@ router.post('/change-password', authenticate, async (req, res) => {
   }
 
   const newHash = bcrypt.hashSync(newPassword, 12);
-  await db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = datetime(\'now\') WHERE id = ?').run(newHash, req.user.id);
+  await db.prepare('UPDATE users SET password_hash = $1, must_change_password = 0, updated_at = NOW() WHERE id = $2').run(newHash, req.user.id);
 
   logAuditEvent({
     userId: req.user.id,

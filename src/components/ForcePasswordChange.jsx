@@ -2,10 +2,24 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 const rules = [
-  { test: (p) => p.length >= 8,           label: 'At least 8 characters' },
-  { test: (p) => /[A-Z]/.test(p),         label: 'One uppercase letter' },
-  { test: (p) => /[0-9]/.test(p),         label: 'One number' },
-  { test: (p) => /[^A-Za-z0-9]/.test(p), label: 'One special character (recommended)' },
+  { test: (p) => p.length >= 8,            label: 'At least 8 characters',               req: true  },
+  { test: (p) => /[A-Z]/.test(p),          label: 'One uppercase letter',                req: true  },
+  { test: (p) => /[0-9]/.test(p),          label: 'One number',                          req: true  },
+  { test: (p) => /[^A-Za-z0-9]/.test(p),  label: 'One special character (!@#$…)',        req: false },
+  { test: (p) => p.length >= 12,           label: 'At least 12 characters (recommended)', req: false },
+];
+
+function strengthScore(p) {
+  if (!p) return 0;
+  return rules.filter(r => r.test(p)).length;
+}
+const STRENGTH = [
+  { label: '',         color: '#e5e7eb' },
+  { label: 'Weak',     color: '#ef4444' },
+  { label: 'Fair',     color: '#f97316' },
+  { label: 'Good',     color: '#f59e0b' },
+  { label: 'Strong',   color: '#22c55e' },
+  { label: 'Very strong', color: '#10b981' },
 ];
 
 export default function ForcePasswordChange() {
@@ -17,7 +31,9 @@ export default function ForcePasswordChange() {
   const [saving, setSaving]     = useState(false);
   const [done, setDone]         = useState(false);
 
-  const valid = rules.slice(0, 3).every(r => r.test(next));
+  const valid   = rules.filter(r => r.req).every(r => r.test(next));
+  const score   = strengthScore(next);
+  const strength = STRENGTH[Math.min(score, 5)];
   const matches = next === confirm;
 
   const handleSubmit = async (e) => {
@@ -87,6 +103,16 @@ export default function ForcePasswordChange() {
         </div>
 
         <form onSubmit={handleSubmit} style={{ padding: '22px 24px' }}>
+          {/* Default password hint */}
+          <div style={{
+            background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8,
+            padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#92400e',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <span style={{ fontSize: 16 }}>💡</span>
+            <span>Your temporary password is <strong style={{ fontFamily: 'monospace', letterSpacing: 1 }}>Welcome2026!</strong></span>
+          </div>
+
           <div style={{ marginBottom: 14 }}>
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
               Current Password
@@ -94,6 +120,7 @@ export default function ForcePasswordChange() {
             <input
               type="password" style={inputStyle} value={current} autoComplete="current-password"
               onChange={e => setCurrent(e.target.value)} required
+              placeholder="Enter Welcome2026!"
             />
           </div>
           <div style={{ marginBottom: 14 }}>
@@ -105,6 +132,26 @@ export default function ForcePasswordChange() {
               onChange={e => setNext(e.target.value)} required
             />
           </div>
+          {/* Strength meter */}
+          {next && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                {[1,2,3,4,5].map(i => (
+                  <div key={i} style={{
+                    flex: 1, height: 4, borderRadius: 99,
+                    background: i <= score ? strength.color : '#e5e7eb',
+                    transition: 'background 0.2s',
+                  }} />
+                ))}
+              </div>
+              {strength.label && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: strength.color }}>
+                  {strength.label}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
               Confirm New Password
