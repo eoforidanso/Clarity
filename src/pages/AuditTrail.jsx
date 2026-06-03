@@ -1,6 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import DemoGuard from '../demo/DemoGuard';
 import { useAuth } from '../contexts/AuthContext';
+
+const API = import.meta.env.VITE_API_URL || '/api';
 
 const ACTIVITY_TYPES = {
   chart_open: { icon: '📂', label: 'Chart Opened', color: 'var(--info)', bg: 'var(--info-light)' },
@@ -39,27 +41,59 @@ const MOCK_ACTIVITIES = [
 
 function AuditTrail_Inner() {
   const { currentUser } = useAuth();
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter]       = useState('all');
   const [userFilter, setUserFilter] = useState('all');
-  const [search, setSearch] = useState('');
-  const [refreshed, setRefreshed] = useState(false);
+  const [search, setSearch]       = useState('');
+  const [activities, setActivities] = useState(MOCK_ACTIVITIES);
+  const [loading, setLoading]     = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(null);
+  const [dateFrom, setDateFrom]   = useState('');
+  const [dateTo, setDateTo]       = useState('');
 
-  const handleRefresh = () => {
-    setRefreshed(true);
-    setTimeout(() => setRefreshed(false), 2000);
-  };
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: 200 });
+      if (dateFrom) params.set('startDate', dateFrom);
+      if (dateTo)   params.set('endDate', dateTo);
+      const res = await fetch(`${API}/audit-log?${params}`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        // Normalise API response to match local shape
+        const normalised = data.map(r => ({
+          id:        r.id,
+          type:      (r.action || '').toLowerCase().replace(/_/g, '_'),
+          user:      r.actorName || r.actor_name || r.userId || '—',
+          userId:    r.actorId  || r.actor_id,
+          detail:    r.details  ? (typeof r.details === 'string' ? r.details : JSON.stringify(r.details)) : (r.action || ''),
+          patient:   r.targetType === 'patient' ? r.targetId : '',
+          ip:        r.ipAddress || r.ip || '',
+          timestamp: r.createdAt || r.created_at,
+        }));
+        if (normalised.length > 0) setActivities(normalised);
+      }
+    } catch { /* offline — keep mock data */ }
+    setLoading(false);
+    setLastRefresh(new Date());
+  }, [dateFrom, dateTo]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleRefresh = () => load();
 
   const exportCSV = () => {
     const cols = ['timestamp', 'user', 'type', 'detail', 'patient', 'ip'];
+    const header = ['Timestamp', 'User', 'Action Type', 'Detail', 'Patient', 'IP Address'];
     const rows = filtered.map(a =>
-      cols.map(c => JSON.stringify((a[c] || '').toString())).join(',')
+      cols.map(c => `"${(a[c] || '').toString().replace(/"/g, '""')}"`)
+           .join(',')
     );
-    const csv = [cols.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
+    const csv = [header.join(','), ...rows].join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url;
-    link.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.href  = url;
+    link.download = `clarity-audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -67,7 +101,7 @@ function AuditTrail_Inner() {
   };
 
   const filtered = useMemo(() => {
-    return MOCK_ACTIVITIES.filter(a => {
+    return activities.filter(a => {
       if (filter !== 'all' && a.type !== filter) return false;
       if (userFilter !== 'all' && a.userId !== userFilter) return false;
       if (search) {
@@ -80,7 +114,7 @@ function AuditTrail_Inner() {
 
   const typeCounts = useMemo(() => {
     const counts = {};
-    MOCK_ACTIVITIES.forEach(a => { counts[a.type] = (counts[a.type] || 0) + 1; });
+    activities.forEach(a => { counts[a.type] = (counts[a.type] || 0) + 1; });
     return counts;
   }, []);
 
@@ -93,15 +127,25 @@ function AuditTrail_Inner() {
             Complete record of all user actions for HIPAA compliance and security monitoring.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary btn-sm" onClick={exportCSV}>📤 Export CSV</button>
-          <button className="btn btn-primary btn-sm" onClick={handleRefresh}>{refreshed ? '✅ Refreshed' : '🔄 Refresh'}</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }} />
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>to</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }} />
+          <button className="btn btn-secondary btn-sm" onClick={exportCSV} disabled={filtered.length === 0}>
+            📤 Export CSV {filtered.length > 0 && `(${filtered.length})`}
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={handleRefresh} disabled={loading}>
+            {loading ? '⏳ Loading…' : lastRefresh ? '🔄 Refresh' : '🔄 Load Live'}
+          </button>
+          {lastRefresh && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Updated {lastRefresh.toLocaleTimeString()}</span>}
         </div>
       </div>
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 20 }}>
-        <div className="stat-card row blue fade-in"><div className="stat-icon blue">📜</div><div className="stat-info"><h3>{MOCK_ACTIVITIES.length}</h3><p>Total Events</p></div></div>
+        <div className="stat-card row blue fade-in"><div className="stat-icon blue">📜</div><div className="stat-info"><h3>{activities.length}</h3><p>Total Events</p></div></div>
         <div className="stat-card row green fade-in"><div className="stat-icon green">🔐</div><div className="stat-info"><h3>{typeCounts.login || 0}</h3><p>Logins</p></div></div>
         <div className="stat-card row teal fade-in"><div className="stat-icon teal">📂</div><div className="stat-info"><h3>{typeCounts.chart_open || 0}</h3><p>Charts Opened</p></div></div>
         <div className="stat-card row yellow fade-in"><div className="stat-icon yellow">✏️</div><div className="stat-info"><h3>{typeCounts.chart_edit || 0}</h3><p>Chart Edits</p></div></div>

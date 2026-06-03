@@ -133,6 +133,59 @@ export function fingerprintDevice(req) {
   return { fingerprint, platform: osLabel, browser: browserLabel, userAgent: ua.slice(0, 512) };
 }
 
+// ── Device trust email to user ────────────────────────────────────────────────
+async function sendNewDeviceEmail(userId, userName, { browser, platform, ip, geo }) {
+  if (!process.env.RESEND_API_KEY) return;
+
+  // Look up user email
+  const user = await db.prepare(`SELECT email FROM users WHERE id = $1`).get(userId);
+  if (!user?.email) return;
+
+  const ts = new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: process.env.RESEND_FROM || 'noreply@clarity-ehr.com',
+      to: user.email,
+      subject: '🔐 New sign-in to your Clarity EHR account',
+      html: `
+        <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#f8fafc;border-radius:12px">
+          <div style="text-align:center;margin-bottom:28px">
+            <div style="font-size:40px;margin-bottom:8px">🖥️</div>
+            <h2 style="color:#0d2444;font-size:20px;margin:0">New device sign-in</h2>
+          </div>
+          <p style="color:#374151;font-size:15px">Hi ${userName},</p>
+          <p style="color:#374151;font-size:15px">
+            We noticed a sign-in to your Clarity EHR account from a device we haven't seen before.
+          </p>
+          <div style="background:#fff;border:1.5px solid #e0e7ef;border-radius:10px;padding:20px;margin:20px 0">
+            <table style="width:100%;font-size:13px;border-collapse:collapse">
+              <tr><td style="color:#6b7280;padding:4px 0;width:120px">Browser</td><td style="font-weight:600;color:#111827">${browser}</td></tr>
+              <tr><td style="color:#6b7280;padding:4px 0">Platform</td><td style="font-weight:600;color:#111827">${platform}</td></tr>
+              <tr><td style="color:#6b7280;padding:4px 0">Location</td><td style="font-weight:600;color:#111827">${geo.city || '—'}, ${geo.country || '—'}</td></tr>
+              <tr><td style="color:#6b7280;padding:4px 0">IP Address</td><td style="font-weight:600;color:#111827;font-family:monospace">${ip}</td></tr>
+              <tr><td style="color:#6b7280;padding:4px 0">Time</td><td style="font-weight:600;color:#111827">${ts}</td></tr>
+            </table>
+          </div>
+          <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:14px;margin-bottom:20px">
+            <p style="color:#dc2626;font-size:13px;font-weight:600;margin:0">
+              ⚠️ If this wasn't you, contact your administrator immediately and change your password.
+            </p>
+          </div>
+          <p style="color:#9ca3af;font-size:11px;text-align:center">
+            Clarity EHR · HIPAA-compliant · If you recognise this sign-in, no action is needed.
+          </p>
+        </div>
+      `,
+    }),
+  });
+}
+
 // ── Main check — called after successful login ────────────────────────────────
 // Returns { dbDeviceId, geo, fingerprint, platform, browser, isNewDevice, cfThreatScore }
 export async function checkLoginAnomaly(userId, userName, ip, req) {
@@ -183,6 +236,11 @@ export async function checkLoginAnomaly(userId, userName, ip, req) {
         eventCount: 1, windowMin: 0,
         rawEvents: [{ fingerprint, platform, browser, ip, geo }],
       });
+
+      // Email the user directly about the new device login
+      await sendNewDeviceEmail(userId, userName, { browser, platform, ip, geo }).catch(
+        err => console.warn('[geoDevice] new-device email failed:', err.message)
+      );
     }
 
   } else {
