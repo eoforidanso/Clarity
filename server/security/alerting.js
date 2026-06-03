@@ -56,7 +56,7 @@ function shouldAlert(key) {
 }
 
 // ── Alert delivery ────────────────────────────────────────────────────────────
-async function deliverAlert(severity, title, body, context = {}) {
+export async function deliverAlert(severity, title, body, context = {}) {
   const sev  = SEVERITY[severity] || SEVERITY.HIGH;
   const ts   = new Date().toISOString();
 
