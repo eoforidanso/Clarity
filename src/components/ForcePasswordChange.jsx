@@ -46,13 +46,12 @@ export default function ForcePasswordChange() {
     setSaving(true);
     try {
       await changePassword(current, next);
+      // AuthContext.changePassword already sets mustChangePassword: false in state.
+      // Show success screen briefly, then App.jsx re-renders automatically
+      // because currentUser.mustChangePassword is now false — no reload needed.
       setDone(true);
-      setTimeout(() => {
-        if (typeof refreshUser === 'function') refreshUser();
-        else window.location.reload();
-      }, 1800);
     } catch (err) {
-      setError(err.message || 'Failed to change password');
+      setError(err.message || 'Failed to change password. Please try again.');
     } finally {
       setSaving(false);
     }
