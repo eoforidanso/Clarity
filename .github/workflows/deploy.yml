@@ -2,7 +2,7 @@ name: Clarity EHR — CI/CD Pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── 1. BUILD + LINT ──────────────────────────────────────────────────────────
+  # ── 1. BUILD ─────────────────────────────────────────────────────────────────
   build:
     name: Build Frontend
     runs-on: ubuntu-latest
@@ -31,18 +31,69 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_URL: ${{ github.ref == 'refs/heads/main' && secrets.VITE_API_URL || secrets.VITE_API_URL_STAGING }}
 
-      - name: Upload dist artifact
+      - name: Upload dist
         uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-${{ github.sha }}
           path: dist
           retention-days: 1
 
-  # ── 2. DEPLOY FRONTEND → CLOUDFLARE PAGES ───────────────────────────────────
-  deploy-frontend:
-    name: Deploy → Cloudflare Pages
+  # ── 2a. DEPLOY → STAGING (develop branch) ───────────────────────────────────
+  deploy-staging:
+    name: Deploy → Staging
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://staging.clarity-ehr.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist
+
+      - name: Deploy frontend → Cloudflare Pages (staging)
+        run: npx wrangler pages deploy dist --project-name=clarity-ehr-staging --commit-message="staging" --commit-dirty=true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy backend → DO staging (port 5002)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: root
+          key: ${{ secrets.DO_SSH_KEY }}
+          source: "server/routes/,server/middleware/,server/db/,server/security/,server/scripts/,server/index.js,server/config.js"
+          target: /var/www/ehr/server-staging/
+
+      - name: Restart staging API
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: root
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: pm2 restart ehr-api-staging --update-env
+
+      - name: Health check staging
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: root
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+            sleep 8
+            curl -sf http://127.0.0.1:5002/api/health && echo "✅ Staging healthy" || exit 1
+
+  # ── 2b. DEPLOY → PRODUCTION (main branch) ───────────────────────────────────
+  deploy-production:
+    name: Deploy → Production
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
@@ -55,27 +106,16 @@ jobs:
       - name: Download dist
         uses: actions/download-artifact@v4
         with:
-          name: dist
+          name: dist-${{ github.sha }}
           path: dist
 
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy frontend → Cloudflare Pages (production)
         run: npx wrangler pages deploy dist --project-name=clarity-ehr --commit-message="deploy" --commit-dirty=true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-  # ── 3. DEPLOY BACKEND → DIGITAL OCEAN ───────────────────────────────────────
-  deploy-backend:
-    name: Deploy → Digital Ocean
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    environment:
-      name: production
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Copy server files to DO
+      - name: Deploy backend → DO production (port 5001)
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DO_HOST }}
@@ -83,9 +123,8 @@ jobs:
           key: ${{ secrets.DO_SSH_KEY }}
           source: "server/routes/,server/middleware/,server/db/,server/security/,server/scripts/,server/index.js,server/config.js"
           target: /var/www/ehr/
-          strip_components: 0
 
-      - name: Restart API
+      - name: Restart production API
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DO_HOST }}
@@ -93,7 +132,7 @@ jobs:
           key: ${{ secrets.DO_SSH_KEY }}
           script: pm2 restart ehr-api --update-env
 
-      - name: Health check
+      - name: Health check production
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DO_HOST }}
@@ -101,20 +140,21 @@ jobs:
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
             sleep 8
-            curl -sf http://127.0.0.1:5001/api/health && echo "✅ API healthy" || (pm2 logs ehr-api --lines 10 --nostream && exit 1)
+            curl -sf http://127.0.0.1:5001/api/health && echo "✅ Production healthy" || exit 1
 
-  # ── 4. POST-DEPLOY NOTIFICATION ─────────────────────────────────────────────
+  # ── 3. NOTIFY ────────────────────────────────────────────────────────────────
   notify:
-    name: Notify
-    needs: [deploy-frontend, deploy-backend]
+    name: Summary
+    needs: [deploy-staging, deploy-production]
     runs-on: ubuntu-latest
-    if: always() && github.ref == 'refs/heads/main'
+    if: always()
     steps:
       - name: Deployment summary
         run: |
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.event.head_commit.message }}" >> $GITHUB_STEP_SUMMARY
           echo "| Target | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Cloudflare Pages | ${{ needs.deploy-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Digital Ocean    | ${{ needs.deploy-backend.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Commit | ${{ github.event.head_commit.message }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Staging    | ${{ needs.deploy-staging.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Production | ${{ needs.deploy-production.result }} |" >> $GITHUB_STEP_SUMMARY
