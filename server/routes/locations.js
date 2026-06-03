@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate, authorize, requireElevated } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
+import { softDeleteLocation, ensureLocationHasNoDependencies, logAudit, activeScope } from '../db/softDelete.js';
 
 const router = Router();
 const ADMIN_ROLES = ['admin'];
@@ -35,7 +36,7 @@ function rowToObj(r) {
 // Public to authenticated users (all roles need to see the location list)
 router.get('/', authenticate, async (_req, res) => {
   const rows = await db.prepare(
-    `SELECT * FROM locations ORDER BY sort_order ASC, name ASC`
+    `SELECT * FROM locations WHERE ${activeScope} ORDER BY sort_order ASC, name ASC`
   ).all();
   res.json(rows.map(rowToObj));
 });
@@ -156,48 +157,46 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => 
   res.json(rowToObj(updated));
 });
 
-// ── DELETE /api/locations/:id ───────────────────────────────────────────
+// ── DELETE /api/locations/:id (soft delete) ─────────────────────────────
 router.delete('/:id', authenticate, requireElevated, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
   const { id } = req.params;
-  const loc = await db.prepare('SELECT id, name FROM locations WHERE id = ?').get(id);
-  if (!loc) return res.status(404).json({ error: 'Location not found' });
+  const actorName = `${req.user.first_name} ${req.user.last_name || ''}`.trim();
 
-  // Check no patients or users still assigned to this location
-  const patientCount = db.prepare("SELECT COUNT(*) as c FROM patients WHERE location_id = ?").get(id);
-  const userCount    = db.prepare("SELECT COUNT(*) as c FROM users WHERE location_id = ?").get(id);
-  if (patientCount?.c > 0 || userCount?.c > 0) {
-    return res.status(409).json({
-      error: 'Cannot delete location — reassign patients and staff first',
-      patients: patientCount?.c ?? 0,
-      users: userCount?.c ?? 0,
-    });
+  try {
+    const loc = db.prepare(`SELECT id, name FROM locations WHERE id = ? AND ${activeScope}`).get(id);
+    if (!loc) return res.status(404).json({ error: 'Location not found' });
+
+    // Prevent deleting the last active location
+    const activeCount = db.prepare(`SELECT COUNT(*) as c FROM locations WHERE status = 'Active' AND ${activeScope}`).get();
+    if (activeCount.c <= 1) {
+      return res.status(400).json({ error: 'Cannot delete the last active location' });
+    }
+
+    await ensureLocationHasNoDependencies(id);
+    softDeleteLocation(id, req.user.id, actorName, req.ip);
+
+    res.status(204).end();
+  } catch (err) {
+    if (err.message === 'LOCATION_HAS_DEPENDENCIES') {
+      logAudit({
+        actorId: req.user.id, actorName,
+        action: 'LOCATION_DELETE_BLOCKED_DEPENDENCIES',
+        targetId: id, targetType: 'location',
+        details: { users: err.users, patients: err.patients },
+        ip: req.ip,
+      });
+      return res.status(409).json({
+        error: 'Location has active users or patients — reassign them first',
+        users: err.users,
+        patients: err.patients,
+      });
+    }
+    throw err;
   }
-
-  // Prevent deleting the last active location
-  const activeCount = db.prepare("SELECT COUNT(*) as c FROM locations WHERE status = 'Active'").get();
-  if (activeCount.c <= 1) {
-    return res.status(400).json({ error: 'Cannot delete the last active location' });
-  }
-
-  await db.prepare('DELETE FROM locations WHERE id = ?').run(id);
-
-  logAuditEvent({
-    userId: req.user.id,
-    userName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
-    userRole: req.user.role,
-    action: 'LOCATION_DELETED',
-    resourceType: 'location',
-    resourceId: id,
-    details: { name: loc.name },
-    ipAddress: req.ip || '',
-    userAgent: req.get('User-Agent') || '',
-  });
-
-  res.json({ message: 'Location deleted' });
 });
 
 export default router;

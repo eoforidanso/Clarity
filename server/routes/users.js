@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate, authorize, requireElevated } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
+import { softDeleteUser, logAudit, activeScope } from '../db/softDelete.js';
 
 const router = Router();
 const ADMIN_ROLES = ['admin', 'front_desk'];
@@ -61,7 +62,7 @@ router.get('/', authenticate, authorize(...ADMIN_ROLES), async (_req, res) => {
       `SELECT id, username, first_name, last_name, role, credentials, specialty,
               npi, dea_number, email, two_factor_enabled, location_id, created_at, updated_at
        FROM users
-       WHERE role != 'patient'
+       WHERE role != 'patient' AND ${activeScope}
        ORDER BY last_name ASC, first_name ASC`
     )
     .all();
@@ -278,7 +279,7 @@ router.post('/:id/unlock', authenticate, authorize(...ADMIN_ROLES), async (req, 
   res.json({ message: 'User account unlocked successfully' });
 });
 
-// ── DELETE /api/users/:id ───────────────────────────────────────────────
+// ── DELETE /api/users/:id (soft delete) ────────────────────────────────
 router.delete('/:id', authenticate, requireElevated, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
@@ -290,24 +291,13 @@ router.delete('/:id', authenticate, requireElevated, async (req, res) => {
     return res.status(400).json({ error: 'You cannot delete your own account' });
   }
 
-  const user = await db.prepare('SELECT id, username, role FROM users WHERE id = ? AND role != ?').get(id, 'patient');
+  const user = db.prepare(`SELECT id, username, role FROM users WHERE id = ? AND role != ? AND ${activeScope}`).get(id, 'patient');
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  await db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  const actorName = `${req.user.first_name} ${req.user.last_name || ''}`.trim();
+  softDeleteUser(id, req.user.id, actorName, req.ip);
 
-  logAuditEvent({
-    userId: req.user.id,
-    userName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
-    userRole: req.user.role,
-    action: 'USER_DELETED',
-    resourceType: 'user',
-    resourceId: id,
-    details: { username: user.username, role: user.role },
-    ipAddress: req.ip || '',
-    userAgent: req.get('User-Agent') || '',
-  });
-
-  res.json({ message: 'User deleted successfully' });
+  res.status(204).end();
 });
 
 export default router;

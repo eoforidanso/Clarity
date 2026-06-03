@@ -187,6 +187,10 @@ app.use(errorHandler);
 async function start() {
   await initializeDatabase();
 
+  // Apply soft-delete migrations (deleted_at columns + audit_logs table)
+  const { applyMigrations } = await import('./db/softDelete.js');
+  applyMigrations();
+
   // Warn if default seed credentials are still present in production
   if (config.nodeEnv === 'production') {
     try {
