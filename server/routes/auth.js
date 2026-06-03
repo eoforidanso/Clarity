@@ -48,6 +48,8 @@ async function issueFullSession(res, req, user) {
   const userName = `${user.first_name} ${user.last_name || ''}`.trim();
 
   // Geographic + device fingerprint check — awaited so we get dbDeviceId
+  // Attach role to req so geoDevice R11 can check privileged user status
+  req.user = { id: user.id, role: user.role };
   let dbDeviceId = null;
   try {
     const { checkLoginAnomaly } = await import('../security/geoDevice.js');

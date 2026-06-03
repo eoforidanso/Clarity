@@ -14,6 +14,7 @@ const RULE_META = {
   R08_SESSION_REUSE:    { icon: '🌐', label: 'Multi-IP Session',      color: '#f59e0b' },
   R09_NEW_DEVICE:       { icon: '📱', label: 'New Device Login',       color: '#f59e0b' },
   R10_GEO_ANOMALY:      { icon: '🌍', label: 'Geographic Anomaly',     color: '#f97316' },
+  R11_SUSPICIOUS_LOGIN: { icon: '🚨', label: 'High-Risk Login (R11)',   color: '#dc2626' },
 };
 const SEV_COLOR = { CRITICAL: '#dc2626', HIGH: '#f97316', MEDIUM: '#f59e0b', LOW: '#3b82f6' };
 const SEV_BG    = { CRITICAL: '#fef2f2', HIGH: '#fff7ed',  MEDIUM: '#fffbeb', LOW: '#eff6ff' };

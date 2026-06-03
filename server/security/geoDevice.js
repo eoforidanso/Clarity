@@ -3,13 +3,15 @@
  *
  * Flow:
  *   1. fingerprintDevice(req)  → 64-char SHA-256 hex
- *   2. checkLoginAnomaly()     → upserts user_devices, fires R09/R10 anomalies
+ *   2. checkLoginAnomaly()     → upserts user_devices, fires R09/R10/R11 anomalies
  *   3. Returns { dbDeviceId }  → stored as sessions.device_id FK
  *
  * Anomalies:
  *   R09_NEW_DEVICE        MEDIUM — first login from unknown device
  *   R09_SUSPICIOUS_DEVICE HIGH   — re-login from previously flagged device
  *   R10_GEO_ANOMALY       HIGH   — login from new country
+ *   R11_SUSPICIOUS_LOGIN  CRITICAL — new device + new country + low IP reputation + privileged user
+ *                                    → auto-lock: kill sessions, mark device suspicious, email admin
  */
 
 import crypto from 'crypto';
@@ -44,23 +46,55 @@ const geoCache = new Map();
 
 export async function geolocate(ip) {
   if (!ip || ip === '127.0.0.1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
-    return { country: 'Local', countryCode: 'LO', city: 'localhost', lat: 0, lon: 0, isp: 'Local' };
+    return { country: 'Local', countryCode: 'LO', city: 'localhost', lat: 0, lon: 0, isp: 'Local', proxy: false, hosting: false };
   }
   const cached = geoCache.get(ip);
   if (cached && Date.now() - cached.ts < 3_600_000) return cached.data;
   try {
+    // Request proxy + hosting fields for reputation scoring
     const res = await fetch(
-      `http://ip-api.com/json/${ip}?fields=status,country,countryCode,city,lat,lon,isp`,
+      `http://ip-api.com/json/${ip}?fields=status,country,countryCode,city,lat,lon,isp,proxy,hosting`,
       { signal: AbortSignal.timeout(3000) }
     );
     const d = await res.json();
     if (d.status === 'success') {
-      const data = { country: d.country, countryCode: d.countryCode, city: d.city, lat: d.lat, lon: d.lon, isp: d.isp };
+      const data = {
+        country: d.country, countryCode: d.countryCode, city: d.city,
+        lat: d.lat, lon: d.lon, isp: d.isp,
+        proxy: !!d.proxy, hosting: !!d.hosting,
+      };
       geoCache.set(ip, { ts: Date.now(), data });
       return data;
     }
   } catch { /* offline / timeout */ }
-  return { country: 'Unknown', countryCode: '??', city: '', lat: 0, lon: 0, isp: '' };
+  return { country: 'Unknown', countryCode: '??', city: '', lat: 0, lon: 0, isp: '', proxy: false, hosting: false };
+}
+
+// ── IP Reputation Score (0–100, lower = more suspicious) ─────────────────────
+// No paid API needed — derived from ip-api.com fields + ISP heuristics
+export function scoreIpReputation(geo) {
+  let score = 100;
+
+  // Known proxy/VPN → very suspicious
+  if (geo.proxy)   score -= 45;
+  // Hosting/datacenter IP (unlikely to be a real user device)
+  if (geo.hosting) score -= 35;
+
+  // ISP name heuristics — common VPN/hosting providers
+  const isp = (geo.isp || '').toLowerCase();
+  const suspiciousIsps = [
+    'tor ', 'nordvpn', 'expressvpn', 'mullvad', 'privateinternetaccess',
+    'surfshark', 'protonvpn', 'cyberghost', 'ipvanish', 'hide.me',
+    'digitalocean', 'linode', 'vultr', 'hetzner', 'ovh', 'amazon aws',
+    'google cloud', 'microsoft azure', 'cloudflare', 'leaseweb',
+    'serverius', 'choopa', 'as-choopa', 'combahton',
+  ];
+  if (suspiciousIsps.some(s => isp.includes(s))) score -= 30;
+
+  // Unknown country
+  if (geo.countryCode === '??') score -= 20;
+
+  return Math.max(0, score);
 }
 
 // ── Device fingerprint ────────────────────────────────────────────────────────
@@ -196,7 +230,70 @@ export async function checkLoginAnomaly(userId, userName, ip, req) {
     `).run(userId, geo.countryCode);
   }
 
-  return { dbDeviceId, geo, fingerprint, platform, browser, isNewDevice: !existing };
+  // ── R11: Compound high-risk detection ────────────────────────────────────
+  const isNewDevice  = !existing;
+  const isNewCountry = !lastLocation || (
+    lastLocation.country_code !== geo.countryCode &&
+    geo.countryCode !== '??' && geo.countryCode !== 'LO'
+  );
+  const ipReputation   = scoreIpReputation(geo);
+  const PRIVILEGED_ROLES = ['admin', 'prescriber'];
+  const isPrivileged   = PRIVILEGED_ROLES.includes(req.user?.role || '');
+
+  if (isNewDevice && isNewCountry && ipReputation < 30 && isPrivileged) {
+    console.warn(`[R11] CRITICAL: suspicious login for privileged user ${userName} (rep=${ipReputation}, ${geo.countryCode}, ${geo.isp})`);
+
+    // 1. Mark device suspicious immediately
+    if (dbDeviceId) {
+      await db.prepare(`UPDATE user_devices SET trust_state = 'suspicious' WHERE id = $1`).run(dbDeviceId);
+    }
+
+    // 2. Kill ALL active sessions for this user (except session being created — it won't be active yet)
+    const { changes: killedSessions } = await db.prepare(
+      `UPDATE sessions SET is_active = 0 WHERE user_id = $1 AND is_active = 1`
+    ).run(userId);
+
+    // 3. Fire CRITICAL anomaly
+    await insertAnomaly({
+      ruleId: 'R11_SUSPICIOUS_LOGIN', severity: 'CRITICAL',
+      title: `High-Risk Login: ${userName}`,
+      description: `Privileged user ${userName} (${req.user?.role}) signed in from a new device + new country (${geo.city}, ${geo.country}) via a low-reputation IP (score: ${ipReputation}/100, proxy: ${geo.proxy}, hosting: ${geo.hosting}). ${killedSessions} session(s) auto-terminated. Re-authentication required.`,
+      actorId: userId, actorName: userName, ip,
+      eventCount: 1, windowMin: 0,
+      rawEvents: [{ fingerprint, platform, browser, ip, geo, ipReputation, role: req.user?.role, killedSessions }],
+    });
+
+    logAudit({
+      actorId: userId, actorName: userName,
+      action: 'R11_SUSPICIOUS_LOGIN', targetType: 'session',
+      details: { ip, country: geo.country, ipReputation, proxy: geo.proxy, hosting: geo.hosting, killedSessions, role: req.user?.role },
+      ip,
+    });
+
+    // 4. Email admin alert
+    try {
+      const { deliverAlert } = await import('./alerting.js');
+      await deliverAlert('CRITICAL',
+          `High-Risk Login Blocked: ${userName}`,
+          `A privileged user attempted to sign in under suspicious conditions. All sessions have been auto-terminated and the device has been flagged. The user must re-authenticate.`,
+          {
+            user: userName, role: req.user?.role, ip,
+            country: geo.country, city: geo.city, isp: geo.isp,
+            proxy: geo.proxy, hosting: geo.hosting,
+            ipReputationScore: ipReputation,
+            devicesKilledSessions: killedSessions,
+            fingerprint: fingerprint.slice(0, 16) + '…',
+            timestamp: new Date().toISOString(),
+          }
+        );
+    } catch (err) {
+      console.error('[R11] alert delivery failed:', err.message);
+    }
+
+    return { dbDeviceId, geo, fingerprint, platform, browser, isNewDevice: true, r11Triggered: true, killedSessions };
+  }
+
+  return { dbDeviceId, geo, fingerprint, platform, browser, isNewDevice };
 }
 
 // ── Trust management helpers (used by security console routes) ───────────────
