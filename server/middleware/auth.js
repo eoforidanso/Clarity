@@ -60,7 +60,6 @@ export function authorize(...roles) {
   };
 }
 
-/**
 export function requireElevated(req, res, next) {
   if (!req.user?.elevated) {
     return res.status(403).json({ error: 'Re-authentication required' });
