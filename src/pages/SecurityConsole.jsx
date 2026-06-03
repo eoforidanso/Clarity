@@ -56,10 +56,12 @@ export default function SecurityConsole() {
   const [summary,   setSummary]   = useState(null);
   const [anomalies, setAnomalies] = useState([]);
   const [sessions,  setSessions]  = useState([]);
+  const [devices,   setDevices]   = useState([]); // flat list across all users
   const [filter,    setFilter]    = useState('ALL');
-  const [activeTab, setActiveTab] = useState('events'); // 'events' | 'anomalies' | 'sessions'
+  const [activeTab, setActiveTab] = useState('events');
   const [loading,   setLoading]   = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [deviceAction, setDeviceAction] = useState(null); // { id, action } for optimistic UI
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,7 +75,20 @@ export default function SecurityConsole() {
       if (evRes.ok)   setEvents(await evRes.json());
       if (sumRes.ok)  setSummary(await sumRes.json());
       if (anomRes.ok) setAnomalies(await anomRes.json());
-      if (sessRes.ok) setSessions(await sessRes.json());
+      if (sessRes.ok) {
+        const sess = await sessRes.json();
+        setSessions(sess);
+        // Load devices for each unique user in sessions
+        const userIds = [...new Set(sess.map(s => s.userId).filter(Boolean))];
+        const deviceResults = await Promise.all(
+          userIds.map(uid =>
+            fetch(`${API}/security/devices/${uid}`, { credentials: 'include' })
+              .then(r => r.ok ? r.json() : [])
+              .then(devs => devs.map(d => ({ ...d, userId: uid, userName: sess.find(s => s.userId === uid)?.name || uid })))
+          )
+        );
+        setDevices(deviceResults.flat());
+      }
       setLastRefresh(new Date());
     } catch { /* offline */ }
     setLoading(false);
@@ -93,6 +108,26 @@ export default function SecurityConsole() {
     if (!window.confirm('Revoke ALL active sessions? Everyone will be logged out immediately.')) return;
     await fetch(`${API}/security/sessions`, { method: 'DELETE', credentials: 'include' });
     setSessions([]);
+  };
+
+  const deviceTrustAction = async (deviceId, action) => {
+    // action: 'revoke' | 'trust' | 'flag'
+    setDeviceAction({ id: deviceId, action });
+    try {
+      const res = await fetch(`${API}/security/devices/${deviceId}/${action}`, {
+        method: 'POST', credentials: 'include',
+      });
+      if (res.ok) {
+        const trustMap = { revoke: 'revoked', trust: 'trusted', flag: 'suspicious' };
+        setDevices(ds => ds.map(d => d.id === deviceId ? { ...d, trust_state: trustMap[action] } : d));
+        if (action === 'revoke') {
+          // Also remove sessions tied to this device
+          setSessions(s => s.filter(sess => sess.deviceId !== deviceId));
+        }
+      }
+    } finally {
+      setDeviceAction(null);
+    }
   };
 
   useEffect(() => { load(); const t = setInterval(load, 30_000); return () => clearInterval(t); }, [load]);
@@ -161,8 +196,9 @@ export default function SecurityConsole() {
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: '#f8fafc', borderRadius: 10, padding: 4, border: '1px solid var(--border)', width: 'fit-content' }}>
         {[
           { key: 'events',    label: 'Security Events', count: events.length },
-          { key: 'anomalies', label: 'Anomalies',        count: openAnomalies,      alert: critAnomalies > 0 },
-        { key: 'sessions',  label: 'Active Sessions',  count: sessions.length,    alert: sessions.some(s => s.isElevated) },
+          { key: 'anomalies', label: 'Anomalies',        count: openAnomalies,   alert: critAnomalies > 0 },
+          { key: 'sessions',  label: 'Active Sessions',  count: sessions.length, alert: sessions.some(s => s.isElevated) },
+          { key: 'devices',   label: 'Devices',          count: devices.length,  alert: devices.some(d => d.trust_state === 'suspicious' || d.trust_state === 'new') },
         ].map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
             padding: '6px 16px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer',
@@ -299,6 +335,130 @@ export default function SecurityConsole() {
             </div>
           </div>
         )}
+
+        {/* Devices panel */}
+        {activeTab === 'devices' && (() => {
+          const TRUST_META = {
+            trusted:    { label: 'Trusted',    color: '#16a34a', bg: '#f0fdf4', icon: '✅' },
+            new:        { label: 'New',         color: '#f59e0b', bg: '#fffbeb', icon: '🆕' },
+            suspicious: { label: 'Suspicious',  color: '#dc2626', bg: '#fef2f2', icon: '⚠️' },
+            revoked:    { label: 'Revoked',     color: '#94a3b8', bg: '#f8fafc', icon: '🚫' },
+          };
+          // Group by userName
+          const grouped = devices.reduce((acc, d) => {
+            const key = d.userName || d.userId;
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(d);
+            return acc;
+          }, {});
+
+          return (
+            <div style={{ background: 'var(--bg-white)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: 13, fontWeight: 800 }}>
+                  💻 Known Devices
+                  <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 8 }}>
+                    {devices.length} devices · {devices.filter(d => d.trust_state === 'new').length} new · {devices.filter(d => d.trust_state === 'suspicious').length} suspicious
+                  </span>
+                </div>
+                <button onClick={load} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', background: '#fff', color: '#475569', fontSize: 11, cursor: 'pointer' }}>
+                  ↻ Refresh
+                </button>
+              </div>
+
+              {devices.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>💻</div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>No devices recorded yet</div>
+                  <div style={{ fontSize: 12, marginTop: 4 }}>Devices are tracked on each login</div>
+                </div>
+              ) : (
+                <div style={{ maxHeight: 560, overflowY: 'auto' }}>
+                  {Object.entries(grouped).map(([userName, userDevices]) => (
+                    <div key={userName}>
+                      {/* User header */}
+                      <div style={{ padding: '8px 16px', background: '#f8fafc', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#0891b2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 800 }}>
+                          {userName[0].toUpperCase()}
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)' }}>{userName}</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{userDevices.length} device{userDevices.length !== 1 ? 's' : ''}</span>
+                      </div>
+
+                      {/* Devices for this user */}
+                      {userDevices.map((d, i) => {
+                        const trust = TRUST_META[d.trust_state] || TRUST_META.new;
+                        const isActing = deviceAction?.id === d.id;
+                        const platformIcon = d.platform?.includes('iPhone') || d.platform?.includes('Android') ? '📱' :
+                                             d.platform?.includes('Windows') ? '🖥️' : '💻';
+                        return (
+                          <div key={d.id} style={{
+                            padding: '11px 16px 11px 48px',
+                            borderBottom: i < userDevices.length - 1 ? '1px solid var(--border-light)' : 'none',
+                            background: d.trust_state === 'suspicious' ? '#fff8f8' : d.trust_state === 'new' ? '#fffdf0' : 'transparent',
+                            display: 'flex', alignItems: 'center', gap: 10,
+                          }}>
+                            <div style={{ fontSize: 18, flexShrink: 0 }}>{platformIcon}</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                                  {d.browser || '?'} · {d.platform || 'Unknown'}
+                                </span>
+                                <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: trust.bg, color: trust.color, border: `1px solid ${trust.color}30` }}>
+                                  {trust.icon} {trust.label}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                {d.ip && <span style={{ fontFamily: 'monospace' }}>{d.ip}</span>}
+                                {d.country && <span>🌍 {d.country}</span>}
+                                {d.first_seen && <span>First: {timeSince(d.first_seen)}</span>}
+                                {d.last_seen  && <span>Last: {timeSince(d.last_seen)}</span>}
+                              </div>
+                            </div>
+
+                            {/* Action buttons */}
+                            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                              {d.trust_state !== 'trusted' && d.trust_state !== 'revoked' && (
+                                <button
+                                  onClick={() => deviceTrustAction(d.id, 'trust')}
+                                  disabled={isActing}
+                                  style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid #86efac', background: '#f0fdf4', color: '#16a34a', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                  {isActing && deviceAction.action === 'trust' ? '…' : 'Trust'}
+                                </button>
+                              )}
+                              {d.trust_state !== 'suspicious' && d.trust_state !== 'revoked' && (
+                                <button
+                                  onClick={() => deviceTrustAction(d.id, 'flag')}
+                                  disabled={isActing}
+                                  style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid #fde68a', background: '#fffbeb', color: '#d97706', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                  {isActing && deviceAction.action === 'flag' ? '…' : 'Flag'}
+                                </button>
+                              )}
+                              {d.trust_state !== 'revoked' && (
+                                <button
+                                  onClick={() => { if (window.confirm(`Revoke this device? All sessions from ${d.browser} · ${d.platform} will be terminated.`)) deviceTrustAction(d.id, 'revoke'); }}
+                                  disabled={isActing}
+                                  style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fef2f2', color: '#dc2626', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                  {isActing && deviceAction.action === 'revoke' ? '…' : 'Revoke'}
+                                </button>
+                              )}
+                              {d.trust_state === 'revoked' && (
+                                <span style={{ fontSize: 10, color: '#94a3b8', padding: '3px 9px' }}>Revoked</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Events feed */}
         {activeTab === 'events' && <div style={{ background: 'var(--bg-white)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
