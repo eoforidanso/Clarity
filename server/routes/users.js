@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
-import { authenticate, authorize, requiresElevated } from '../middleware/auth.js';
+import { authenticate, authorize, requireElevated } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
 
 const router = Router();
@@ -152,25 +152,8 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
 });
 
 // ── PUT /api/users/:id ──────────────────────────────────────────────────
-// Update a user's profile (not password). Requires elevated token when changing role.
+// Update a user's profile (not password). Admin only.
 router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
-  // If role is being changed, require re-authentication
-  if (req.body.role) {
-    const existing = db.prepare('SELECT role FROM users WHERE id = ?').get(req.params.id);
-    if (existing && existing.role !== req.body.role) {
-      const authHeader = req.headers.authorization || '';
-      const xToken = req.headers['x-elevated-token'];
-      const bodyToken = req.body?.elevatedToken;
-      const elevatedToken = (authHeader.startsWith('Elevated ') ? authHeader.slice(9) : null) || xToken || bodyToken;
-      if (!elevatedToken) {
-        return res.status(401).json({
-          error: 'Elevated authentication required to change user role',
-          code: 'ELEVATED_REQUIRED',
-          hint: 'POST /api/auth/reauth to obtain an elevatedToken',
-        });
-      }
-    }
-  }
   const { id } = req.params;
   const { firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled, locationId } = req.body;
 
@@ -296,8 +279,11 @@ router.post('/:id/unlock', authenticate, authorize(...ADMIN_ROLES), async (req, 
 });
 
 // ── DELETE /api/users/:id ───────────────────────────────────────────────
-// Delete a staff user. Requires re-authentication (elevated token).
-router.delete('/:id', authenticate, authorize(...ADMIN_ROLES), requiresElevated, async (req, res) => {
+router.delete('/:id', authenticate, requireElevated, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
   const { id } = req.params;
 
   if (id === req.user.id) {
