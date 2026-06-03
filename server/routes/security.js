@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth.js';
 import db from '../db/database.js';
+import { setDeviceTrust, getUserDevices } from '../security/geoDevice.js';
 
 const router = Router();
 router.use(authenticate, authorize('admin'));
@@ -167,6 +168,56 @@ router.get('/anomalies/summary', (_req, res) => {
     `).all();
     res.json({ bySeverity: Object.fromEntries(rows.map(r => [r.severity, r.cnt])), byRule });
   } catch { res.json({ bySeverity: {}, byRule: [] }); }
+});
+
+// ── Device management ─────────────────────────────────────────────────────────
+
+// GET /api/security/devices/:userId — list devices for a user
+router.get('/devices/:userId', async (req, res) => {
+  try {
+    const devices = await getUserDevices(req.params.userId);
+    res.json(devices);
+  } catch { res.status(500).json({ error: 'Failed' }); }
+});
+
+// POST /api/security/devices/:id/revoke — revoke device + kill its sessions
+router.post('/devices/:id/revoke', async (req, res) => {
+  const { id } = req.params;
+  try {
+    // 1. Mark device revoked
+    await setDeviceTrust(id, 'revoked');
+
+    // 2. Kill all sessions tied to this device
+    const { changes } = await db.prepare(
+      `UPDATE sessions SET is_active = 0 WHERE device_id = $1 AND is_active = 1`
+    ).run(id);
+
+    res.json({ ok: true, sessionsRevoked: changes });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/security/devices/:id/trust — mark device trusted
+router.post('/devices/:id/trust', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await setDeviceTrust(id, 'trusted');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/security/devices/:id/flag — mark device suspicious
+router.post('/devices/:id/flag', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await setDeviceTrust(id, 'suspicious');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;

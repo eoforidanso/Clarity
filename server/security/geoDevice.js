@@ -1,16 +1,15 @@
 /**
  * Clarity EHR — Geographic Anomaly + Device Fingerprinting
  *
- * Geographic anomaly:
- *   On every login, geolocate the IP and compare against the user's
- *   last known country. Flag if country changed or is entirely new.
+ * Flow:
+ *   1. fingerprintDevice(req)  → 64-char SHA-256 hex
+ *   2. checkLoginAnomaly()     → upserts user_devices, fires R09/R10 anomalies
+ *   3. Returns { dbDeviceId }  → stored as sessions.device_id FK
  *
- * Device fingerprinting:
- *   Hash (User-Agent + Accept-Language + platform hints) → 64-char hex.
- *   Store in user_devices (Postgres). Flag unknown/suspicious devices.
- *
- * Both checks run at login time (POST /auth/login success).
- * Findings go to audit_logs + anomalies table.
+ * Anomalies:
+ *   R09_NEW_DEVICE        MEDIUM — first login from unknown device
+ *   R09_SUSPICIOUS_DEVICE HIGH   — re-login from previously flagged device
+ *   R10_GEO_ANOMALY       HIGH   — login from new country
  */
 
 import crypto from 'crypto';
@@ -18,21 +17,19 @@ import { db } from '../db/database.js';
 import { logAudit } from '../db/softDelete.js';
 import { insertAnomaly } from './anomalyDetector.js';
 
-// ── user_locations table (Postgres) ──────────────────────────────────────────
-// Created at startup if not present. user_devices is managed via migration.
-
+// ── user_locations bootstrap (user_devices created via migration) ─────────────
 export async function ensureGeoTables() {
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS user_locations (
       id           TEXT PRIMARY KEY,
       user_id      TEXT NOT NULL,
       ip           TEXT NOT NULL,
-      country      TEXT DEFAULT '',
-      country_code TEXT DEFAULT '',
-      city         TEXT DEFAULT '',
+      country      TEXT    DEFAULT '',
+      country_code TEXT    DEFAULT '',
+      city         TEXT    DEFAULT '',
       lat          REAL,
       lon          REAL,
-      isp          TEXT DEFAULT '',
+      isp          TEXT    DEFAULT '',
       first_seen   TIMESTAMPTZ DEFAULT NOW(),
       last_seen    TIMESTAMPTZ DEFAULT NOW(),
       login_count  INTEGER DEFAULT 1
@@ -42,37 +39,27 @@ export async function ensureGeoTables() {
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_loc_ip   ON user_locations(ip)`).run();
 }
 
-// ── IP Geolocation (ip-api.com — free, 45 req/min) ───────────────────────────
-const geoCache = new Map(); // { ip → { ts, data } }, 1h TTL
+// ── IP Geolocation ────────────────────────────────────────────────────────────
+const geoCache = new Map();
 
 export async function geolocate(ip) {
   if (!ip || ip === '127.0.0.1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
     return { country: 'Local', countryCode: 'LO', city: 'localhost', lat: 0, lon: 0, isp: 'Local' };
   }
-
   const cached = geoCache.get(ip);
   if (cached && Date.now() - cached.ts < 3_600_000) return cached.data;
-
   try {
     const res = await fetch(
       `http://ip-api.com/json/${ip}?fields=status,country,countryCode,city,lat,lon,isp`,
       { signal: AbortSignal.timeout(3000) }
     );
-    const data = await res.json();
-    if (data.status === 'success') {
-      const result = {
-        country:     data.country,
-        countryCode: data.countryCode,
-        city:        data.city,
-        lat:         data.lat,
-        lon:         data.lon,
-        isp:         data.isp,
-      };
-      geoCache.set(ip, { ts: Date.now(), data: result });
-      return result;
+    const d = await res.json();
+    if (d.status === 'success') {
+      const data = { country: d.country, countryCode: d.countryCode, city: d.city, lat: d.lat, lon: d.lon, isp: d.isp };
+      geoCache.set(ip, { ts: Date.now(), data });
+      return data;
     }
-  } catch { /* timeout or offline — fall through */ }
-
+  } catch { /* offline / timeout */ }
   return { country: 'Unknown', countryCode: '??', city: '', lat: 0, lon: 0, isp: '' };
 }
 
@@ -83,9 +70,7 @@ export function fingerprintDevice(req) {
   const platform = req.headers['sec-ch-ua-platform'] || '';
   const mobile   = req.headers['sec-ch-ua-mobile']   || '';
 
-  // 64-char hex fingerprint stored in user_devices.fingerprint VARCHAR(64)
-  const raw         = [ua, lang, platform, mobile].join('|');
-  const fingerprint = crypto.createHash('sha256').update(raw).digest('hex'); // 64 chars
+  const fingerprint = crypto.createHash('sha256').update([ua, lang, platform, mobile].join('|')).digest('hex');
 
   const osLabel =
     ua.includes('iPhone')   ? 'iPhone'  :
@@ -100,185 +85,129 @@ export function fingerprintDevice(req) {
     ua.includes('Firefox/') ? 'Firefox' :
     ua.includes('Safari/')  ? 'Safari'  : 'Browser';
 
-  return {
-    fingerprint,
-    platform:  osLabel,
-    browser:   browserLabel,
-    userAgent: ua.slice(0, 512),
-  };
+  return { fingerprint, platform: osLabel, browser: browserLabel, userAgent: ua.slice(0, 512) };
 }
 
 // ── Main check — called after successful login ────────────────────────────────
+// Returns { dbDeviceId, geo, fingerprint, platform, browser, isNewDevice }
 export async function checkLoginAnomaly(userId, userName, ip, req) {
   await ensureGeoTables();
 
   const { fingerprint, platform, browser, userAgent } = fingerprintDevice(req);
   const geo = await geolocate(ip);
 
-  // ── Device fingerprint check ──────────────────────────────────────────────
-  const knownDevice = await db.prepare(
+  // ── 1. Check if device already exists ────────────────────────────────────
+  const existing = await db.prepare(
     `SELECT id, trust_state FROM user_devices WHERE user_id = $1 AND fingerprint = $2`
   ).get(userId, fingerprint);
 
-  if (!knownDevice) {
-    // Count existing devices for this user
-    const { c: existingCount } = await db.prepare(
-      `SELECT COUNT(*) AS c FROM user_devices WHERE user_id = $1`
-    ).get(userId) || { c: 0 };
+  let dbDeviceId;
 
-    // Insert new device — trust_state='new' if user has prior devices, else 'trusted'
+  if (!existing) {
+    // ── 2. Insert new device ────────────────────────────────────────────────
+    const existingCount = (await db.prepare(
+      `SELECT COUNT(*) AS c FROM user_devices WHERE user_id = $1`
+    ).get(userId))?.c || 0;
+
     const trustState = Number(existingCount) > 0 ? 'new' : 'trusted';
 
-    await db.prepare(`
+    const inserted = await db.prepare(`
       INSERT INTO user_devices (user_id, fingerprint, user_agent, platform, browser, ip, country, trust_state)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      ON CONFLICT (user_id, fingerprint) DO UPDATE
-        SET last_seen = NOW(), ip = EXCLUDED.ip, country = EXCLUDED.country
-    `).run(userId, fingerprint, userAgent, platform, browser, ip, geo.countryCode, trustState);
+      RETURNING id
+    `).get(userId, fingerprint, userAgent, platform, browser, ip, geo.countryCode, trustState);
 
+    dbDeviceId = inserted?.id;
+
+    // ── 3. Trigger anomaly R09 if not first device ───────────────────────
     if (Number(existingCount) > 0) {
-      // Known user, new device → alert
       logAudit({
         actorId: userId, actorName: userName,
-        action: 'NEW_DEVICE_LOGIN',
-        targetType: 'session',
+        action: 'NEW_DEVICE_LOGIN', targetType: 'session',
         details: { fingerprint, platform, browser, ip, country: geo.country },
         ip,
       });
-
       await insertAnomaly({
-        ruleId:      'R09_NEW_DEVICE',
-        severity:    'MEDIUM',
-        title:       `New Device: ${userName}`,
+        ruleId: 'R09_NEW_DEVICE', severity: 'MEDIUM',
+        title: `New Device: ${userName}`,
         description: `${userName} signed in from an unrecognised ${browser} on ${platform} (${ip} · ${geo.city}, ${geo.country}).`,
-        actorId:     userId,
-        actorName:   userName,
-        ip,
-        eventCount:  1,
-        windowMin:   0,
-        rawEvents:   [{ fingerprint, platform, browser, ip, geo }],
+        actorId: userId, actorName: userName, ip,
+        eventCount: 1, windowMin: 0,
+        rawEvents: [{ fingerprint, platform, browser, ip, geo }],
       });
     }
-  } else {
-    // Known device — bump last_seen and refresh IP/country
-    await db.prepare(`
-      UPDATE user_devices
-      SET last_seen = NOW(), ip = $1, country = $2
-      WHERE user_id = $3 AND fingerprint = $4
-    `).run(ip, geo.countryCode, userId, fingerprint);
 
-    // If device was flagged suspicious and is seen again from same IP — still alert
-    if (knownDevice.trust_state === 'suspicious') {
+  } else {
+    dbDeviceId = existing.id;
+
+    // ── 4. Update last_seen + metadata ──────────────────────────────────────
+    await db.prepare(
+      `UPDATE user_devices SET last_seen = NOW(), ip = $2, country = $3 WHERE id = $1`
+    ).run(dbDeviceId, ip, geo.countryCode);
+
+    // Re-login from suspicious device → HIGH anomaly
+    if (existing.trust_state === 'suspicious') {
       await insertAnomaly({
-        ruleId:      'R09_SUSPICIOUS_DEVICE',
-        severity:    'HIGH',
-        title:       `Suspicious Device Re-login: ${userName}`,
+        ruleId: 'R09_SUSPICIOUS_DEVICE', severity: 'HIGH',
+        title: `Suspicious Device Re-login: ${userName}`,
         description: `${userName} signed in again from a device previously flagged suspicious (${browser} on ${platform}).`,
-        actorId:     userId,
-        actorName:   userName,
-        ip,
-        eventCount:  1,
-        windowMin:   0,
-        rawEvents:   [{ fingerprint, platform, browser, ip, geo }],
+        actorId: userId, actorName: userName, ip,
+        eventCount: 1, windowMin: 0,
+        rawEvents: [{ fingerprint, platform, browser, ip, geo }],
       });
     }
   }
 
   // ── Geographic anomaly check ──────────────────────────────────────────────
   const lastLocation = await db.prepare(`
-    SELECT country_code, country, city
-    FROM user_locations
-    WHERE user_id = $1
-    ORDER BY last_seen DESC
-    LIMIT 1
+    SELECT country_code, country, city FROM user_locations
+    WHERE user_id = $1 ORDER BY last_seen DESC LIMIT 1
   `).get(userId);
 
   if (!lastLocation) {
-    // First ever login — record baseline, no alert
     await db.prepare(`
       INSERT INTO user_locations (id, user_id, ip, country, country_code, city, lat, lon, isp)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `).run(
-      crypto.randomUUID(), userId, ip,
-      geo.country, geo.countryCode, geo.city, geo.lat, geo.lon, geo.isp
-    );
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    `).run(crypto.randomUUID(), userId, ip, geo.country, geo.countryCode, geo.city, geo.lat, geo.lon, geo.isp);
 
-  } else if (
-    lastLocation.country_code !== geo.countryCode &&
-    geo.countryCode !== '??' &&
-    geo.countryCode !== 'LO'
-  ) {
-    // Country changed → alert
+  } else if (lastLocation.country_code !== geo.countryCode && geo.countryCode !== '??' && geo.countryCode !== 'LO') {
     logAudit({
-      actorId: userId, actorName: userName,
-      action: 'GEO_ANOMALY',
-      targetType: 'session',
-      details: {
-        previousCountry: lastLocation.country,
-        previousCity:    lastLocation.city,
-        newCountry:      geo.country,
-        newCity:         geo.city,
-        ip,
-      },
+      actorId: userId, actorName: userName, action: 'GEO_ANOMALY', targetType: 'session',
+      details: { previousCountry: lastLocation.country, previousCity: lastLocation.city, newCountry: geo.country, newCity: geo.city, ip },
       ip,
     });
-
     await insertAnomaly({
-      ruleId:      'R10_GEO_ANOMALY',
-      severity:    'HIGH',
-      title:       `Geographic Anomaly: ${userName}`,
-      description: `${userName} signed in from ${geo.city}, ${geo.country} — previously from ${lastLocation.city || lastLocation.country}. Possible account compromise or travel.`,
-      actorId:     userId,
-      actorName:   userName,
-      ip,
-      eventCount:  1,
-      windowMin:   0,
-      rawEvents:   [{ previous: lastLocation, current: geo }],
+      ruleId: 'R10_GEO_ANOMALY', severity: 'HIGH',
+      title: `Geographic Anomaly: ${userName}`,
+      description: `${userName} signed in from ${geo.city}, ${geo.country} — previously from ${lastLocation.city || lastLocation.country}. Possible account compromise.`,
+      actorId: userId, actorName: userName, ip,
+      eventCount: 1, windowMin: 0,
+      rawEvents: [{ previous: lastLocation, current: geo }],
     });
-
-    // Record new location
     await db.prepare(`
       INSERT INTO user_locations (id, user_id, ip, country, country_code, city, lat, lon, isp)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `).run(
-      crypto.randomUUID(), userId, ip,
-      geo.country, geo.countryCode, geo.city, geo.lat, geo.lon, geo.isp
-    );
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    `).run(crypto.randomUUID(), userId, ip, geo.country, geo.countryCode, geo.city, geo.lat, geo.lon, geo.isp);
 
   } else {
-    // Same country — update last_seen
     await db.prepare(`
-      UPDATE user_locations
-      SET last_seen = NOW(), login_count = login_count + 1
+      UPDATE user_locations SET last_seen = NOW(), login_count = login_count + 1
       WHERE user_id = $1 AND country_code = $2
     `).run(userId, geo.countryCode);
   }
 
-  return {
-    geo,
-    fingerprint,
-    platform,
-    browser,
-    isNewDevice:    !knownDevice,
-    trustState:     knownDevice?.trust_state ?? (Number((await db.prepare('SELECT COUNT(*) AS c FROM user_devices WHERE user_id=$1').get(userId))?.c || 0) > 1 ? 'new' : 'trusted'),
-  };
+  return { dbDeviceId, geo, fingerprint, platform, browser, isNewDevice: !existing };
 }
 
-// ── Trust management (called from security console routes) ───────────────────
-
-export async function setDeviceTrust(userId, fingerprint, trustState) {
-  await db.prepare(`
-    UPDATE user_devices SET trust_state = $1
-    WHERE user_id = $2 AND fingerprint = $3
-  `).run(trustState, userId, fingerprint);
+// ── Trust management helpers (used by security console routes) ───────────────
+export async function setDeviceTrust(deviceId, trustState) {
+  await db.prepare(`UPDATE user_devices SET trust_state = $1 WHERE id = $2`).run(trustState, deviceId);
 }
 
 export async function getUserDevices(userId) {
   return db.prepare(`
     SELECT id, fingerprint, user_agent, platform, browser, ip, country,
            first_seen, last_seen, trust_state
-    FROM user_devices
-    WHERE user_id = $1
-    ORDER BY last_seen DESC
+    FROM user_devices WHERE user_id = $1 ORDER BY last_seen DESC
   `).all(userId);
 }
