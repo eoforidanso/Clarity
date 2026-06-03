@@ -94,4 +94,74 @@ router.delete('/blocked-days/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+// ── Telehealth Recording Consent ─────────────────────────────────────────────
+
+// POST /api/appointments/telehealth-consent
+// Records provider-confirmed recording consent before a session starts.
+router.post('/telehealth-consent', authenticate, async (req, res) => {
+  const {
+    sessionId, appointmentId, patientId, patientName, patientLocation,
+    recordingConsent,        // 'granted' | 'denied' | 'not_asked'
+    recordingConsentMethod,  // 'verbal' | 'written' | 'waived'
+    providerConfirmed,       // boolean
+    complianceChecklist,     // { locationConfirmed, consentExplained, privacyReminded, emergencyProtocol }
+  } = req.body;
+
+  if (!sessionId || !patientName || !recordingConsent || !providerConfirmed) {
+    return res.status(400).json({ error: 'sessionId, patientName, recordingConsent and providerConfirmed are required' });
+  }
+
+  const VALID_CONSENT = ['granted', 'denied', 'not_asked'];
+  const VALID_METHOD  = ['verbal', 'written', 'waived', null, undefined];
+  if (!VALID_CONSENT.includes(recordingConsent)) {
+    return res.status(400).json({ error: 'Invalid recordingConsent value' });
+  }
+  if (!VALID_METHOD.includes(recordingConsentMethod)) {
+    return res.status(400).json({ error: 'Invalid recordingConsentMethod value' });
+  }
+
+  const row = await db.prepare(`
+    INSERT INTO telehealth_consents
+      (session_id, appointment_id, patient_id, provider_id, patient_name,
+       patient_location, recording_consent, recording_consent_method,
+       provider_confirmed, compliance_checklist, ip_address)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+    RETURNING id, consented_at
+  `).get(
+    sessionId,
+    appointmentId || null,
+    patientId || null,
+    req.user.id,
+    patientName,
+    patientLocation || null,
+    recordingConsent,
+    recordingConsentMethod || null,
+    providerConfirmed ? true : false,
+    complianceChecklist ? JSON.stringify(complianceChecklist) : null,
+    req.ip || null,
+  );
+
+  res.status(201).json({ ok: true, consentId: row.id, consentedAt: row.consented_at });
+});
+
+// GET /api/appointments/telehealth-consent/:sessionId
+// Retrieve consent record for a session (for audit / post-session display).
+router.get('/telehealth-consent/:sessionId', authenticate, async (req, res) => {
+  const row = await db.prepare(`
+    SELECT * FROM telehealth_consents WHERE session_id = $1 ORDER BY consented_at DESC LIMIT 1
+  `).get(req.params.sessionId);
+  if (!row) return res.status(404).json({ error: 'No consent record found' });
+  res.json({
+    id: row.id,
+    sessionId: row.session_id,
+    patientName: row.patient_name,
+    patientLocation: row.patient_location,
+    recordingConsent: row.recording_consent,
+    recordingConsentMethod: row.recording_consent_method,
+    providerConfirmed: row.provider_confirmed,
+    complianceChecklist: row.compliance_checklist,
+    consentedAt: row.consented_at,
+  });
+});
+
 export default router;
