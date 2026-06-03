@@ -85,27 +85,23 @@ jobs:
           target: /var/www/ehr/
           strip_components: 0
 
-      - name: Restart + health check
+      - name: Restart API
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: root
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: pm2 restart ehr-api --update-env
+
+      - name: Health check
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DO_HOST }}
           username: root
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
-            pm2 restart ehr-api --update-env
-            # Retry health check up to 10 times (10 seconds total)
-            for i in $(seq 1 10); do
-              sleep 1
-              STATUS=$(curl -s http://127.0.0.1:5001/api/health 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "")
-              if [ "$STATUS" = "ok" ]; then
-                echo "✅ API healthy after ${i}s"
-                exit 0
-              fi
-              echo "Waiting... attempt $i"
-            done
-            echo "❌ Health check failed after 10s"
-            pm2 logs ehr-api --lines 20 --nostream
-            exit 1
+            sleep 8
+            curl -sf http://127.0.0.1:5001/api/health && echo "✅ API healthy" || (pm2 logs ehr-api --lines 10 --nostream && exit 1)
 
   # ── 4. POST-DEPLOY NOTIFICATION ─────────────────────────────────────────────
   notify:
