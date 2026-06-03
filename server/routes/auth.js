@@ -241,7 +241,15 @@ router.post('/change-password', authenticate, async (req, res) => {
   }
 
   const newHash = bcrypt.hashSync(newPassword, 12);
-  await db.prepare('UPDATE users SET password_hash = $1, must_change_password = 0, updated_at = NOW() WHERE id = $2').run(newHash, req.user.id);
+  const result = await db.prepare(
+    'UPDATE users SET password_hash = $1, must_change_password = 0, updated_at = NOW() WHERE id = $2 RETURNING must_change_password'
+  ).get(newHash, req.user.id);
+
+  // Verify the flag actually flipped — if RETURNING shows it's still 1, something went wrong
+  if (result?.must_change_password !== 0) {
+    console.error(`[change-password] RETURNING showed must_change_password != 0 for user ${req.user.id}`);
+    return res.status(500).json({ error: 'Password updated but session flag could not be cleared. Contact your administrator.' });
+  }
 
   logAuditEvent({
     userId: req.user.id,
@@ -253,7 +261,9 @@ router.post('/change-password', authenticate, async (req, res) => {
     userAgent: req.get('User-Agent') || '',
   });
 
-  res.json({ message: 'Password changed successfully' });
+  // Return mustChangePassword: false so the frontend can update state directly
+  // without needing a refreshUser() round-trip — prevents infinite loop on DB lag
+  res.json({ ok: true, message: 'Password changed successfully', mustChangePassword: false });
 });
 
 // POST /api/auth/logout
