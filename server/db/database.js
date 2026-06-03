@@ -1055,15 +1055,15 @@ export async function initializeDatabase() {
   // Ensure Harriet (system admin) exists with the correct role
   await pool.query(`
     INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, epcs_pin_hash, two_factor_enabled, must_change_password, location_id)
-    VALUES ('u5', 'harriet', '$2a$10$Qq3HXdNpQ2.V5P.IqR8adesFPK9JYYkTBUHCu2gIsMVV6vHJ8Xy8i', 'Harriet', 'Appiah', 'admin', '', '', '', '', 'harriet@clarity.health', NULL, TRUE, FALSE, 'loc1')
-    ON CONFLICT (id) DO UPDATE SET role = 'admin', username = EXCLUDED.username, first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, must_change_password = FALSE;
+    VALUES ('u5', 'harriet', '$2a$10$Qq3HXdNpQ2.V5P.IqR8adesFPK9JYYkTBUHCu2gIsMVV6vHJ8Xy8i', 'Harriet', 'Appiah', 'admin', '', '', '', '', 'harriet@clarity.health', NULL, 1, 0, 'loc1')
+    ON CONFLICT DO NOTHING;
   `);
 
   // Ensure Emmanuel (APMG prescriber) exists
   await pool.query(`
     INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, epcs_pin_hash, two_factor_enabled, must_change_password, location_id)
-    VALUES ('u9', 'dr.emmanuel', '$2a$10$Qq3HXdNpQ2.V5P.IqR8adesFPK9JYYkTBUHCu2gIsMVV6vHJ8Xy8i', 'Emmanuel', 'Oforidanso', 'prescriber', 'NP', 'Psychiatric Mental Health', '1376299933', 'MO7223857', 'emmanuel@clarity.health', NULL, TRUE, FALSE, 'loc-apmg')
-    ON CONFLICT (id) DO UPDATE SET location_id = 'loc-apmg';
+    VALUES ('u9', 'dr.emmanuel', '$2a$10$Qq3HXdNpQ2.V5P.IqR8adesFPK9JYYkTBUHCu2gIsMVV6vHJ8Xy8i', 'Emmanuel', 'Oforidanso', 'prescriber', 'NP', 'Psychiatric Mental Health', '1376299933', 'MO7223857', 'emmanuel@clarity.health', NULL, 1, 0, 'loc-apmg')
+    ON CONFLICT DO NOTHING;
   `);
 
   console.log('PostgreSQL schema initialized');
