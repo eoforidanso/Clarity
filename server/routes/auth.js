@@ -44,6 +44,12 @@ const router = Router();
 
 // ── Helper: issue a full authenticated session (cookie + audit log) ──────────
 async function issueFullSession(res, req, user) {
+  // Geographic + device fingerprint check (non-blocking)
+  const ip       = req.realIp || req.ip || '';
+  const userName = `${user.first_name} ${user.last_name || ''}`.trim();
+  import('../security/geoDevice.js')
+    .then(({ checkLoginAnomaly }) => checkLoginAnomaly(user.id, userName, ip, req))
+    .catch(err => console.warn('[geoDevice]', err.message));
   const sessionId = uuidv4();
   const token = jwt.sign({ userId: user.id, role: user.role, sessionId }, config.jwtSecret, { algorithm: 'HS256',
     expiresIn: config.jwtExpiresIn,

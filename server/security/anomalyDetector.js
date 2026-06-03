@@ -58,7 +58,7 @@ function alreadyOpen(ruleId, actorId, ip, cooldownMin = 30) {
   return !!row;
 }
 
-function insertAnomaly({ ruleId, severity, title, description, actorId, actorName, ip, eventCount, windowMin, rawEvents }) {
+export function insertAnomaly({ ruleId, severity, title, description, actorId, actorName, ip, eventCount, windowMin, rawEvents }) {
   if (alreadyOpen(ruleId, actorId, ip)) return null;
 
   const id = uuidv4();
@@ -268,6 +268,7 @@ export function runAnomalyDetection() {
     detectReauthHammering();
     detectPrivilegeProbe();
     detectSessionReuse();
+    // R09/R10 are triggered at login time by geoDevice.js — not re-checked here
   } catch (err) {
     console.error('[anomaly-detector] error:', err.message);
   }

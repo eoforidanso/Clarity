@@ -65,7 +65,7 @@ router.get('/summary', (_req, res) => {
 
 // ── SESSIONS ──────────────────────────────────────────────────────────────────
 
-// GET /api/security/sessions — active sessions with user details
+// GET /api/security/sessions — active sessions with user details + geo
 router.get('/sessions', (req, res) => {
   const rows = db.prepare(`
     SELECT
@@ -73,12 +73,18 @@ router.get('/sessions', (req, res) => {
       s.created_at, s.last_seen_at, s.is_elevated,
       s.elevated_expires_at, s.location_id,
       u.first_name, u.last_name, u.role, u.email,
-      l.name as location_name
+      l.name as location_name,
+      ul.country, ul.city, ul.country_code,
+      ud.device_id, ud.platform, ud.is_trusted
     FROM sessions s
     LEFT JOIN users u ON u.id = s.user_id
     LEFT JOIN locations l ON l.id = s.location_id
+    LEFT JOIN user_locations ul ON ul.user_id = s.user_id
+      AND ul.id = (SELECT id FROM user_locations WHERE user_id = s.user_id ORDER BY last_seen DESC LIMIT 1)
+    LEFT JOIN user_devices ud ON ud.user_id = s.user_id
+      AND ud.id = (SELECT id FROM user_devices WHERE user_id = s.user_id ORDER BY last_seen DESC LIMIT 1)
     WHERE s.is_active = 1
-    ORDER BY s.last_seen_at DESC NULLS LAST
+    ORDER BY COALESCE(s.last_seen_at, s.created_at) DESC
     LIMIT 100
   `).all();
 
@@ -92,6 +98,12 @@ router.get('/sessions', (req, res) => {
     userAgent:          r.user_agent || '',
     locationId:         r.location_id || '',
     locationName:       r.location_name || '',
+    country:            r.country || '',
+    city:               r.city || '',
+    countryCode:        r.country_code || '',
+    deviceId:           r.device_id || '',
+    devicePlatform:     r.platform || '',
+    isTrustedDevice:    r.is_trusted === 1,
     createdAt:          r.created_at,
     lastSeenAt:         r.last_seen_at || r.created_at,
     isElevated:         r.is_elevated === 1,

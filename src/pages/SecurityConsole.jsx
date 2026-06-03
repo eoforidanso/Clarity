@@ -12,6 +12,8 @@ const RULE_META = {
   R06_REAUTH_HAMMER:    { icon: '🔐', label: 'Reauth Hammering',      color: '#f97316' },
   R07_PRIVILEGE_PROBE:  { icon: '⛔', label: 'Privilege Probe',       color: '#f97316' },
   R08_SESSION_REUSE:    { icon: '🌐', label: 'Multi-IP Session',      color: '#f59e0b' },
+  R09_NEW_DEVICE:       { icon: '📱', label: 'New Device Login',       color: '#f59e0b' },
+  R10_GEO_ANOMALY:      { icon: '🌍', label: 'Geographic Anomaly',     color: '#f97316' },
 };
 const SEV_COLOR = { CRITICAL: '#dc2626', HIGH: '#f97316', MEDIUM: '#f59e0b', LOW: '#3b82f6' };
 const SEV_BG    = { CRITICAL: '#fef2f2', HIGH: '#fff7ed',  MEDIUM: '#fffbeb', LOW: '#eff6ff' };
@@ -274,8 +276,10 @@ export default function SecurityConsole() {
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                           <span style={{ fontFamily: 'monospace' }}>{s.ip || 'no IP'}</span>
-                          <span>{browser} · {os}</span>
-                          {s.locationName && <span>📍 {s.locationName}</span>}
+                          <span>{s.devicePlatform || `${browser} · ${os}`}</span>
+                          {s.city && s.country && <span>🌍 {s.city}, {s.country}</span>}
+                          {(!s.city) && s.locationName && <span>📍 {s.locationName}</span>}
+                          {s.isTrustedDevice && <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ Trusted</span>}
                         </div>
                         {s.isElevated && s.elevatedExpiresAt && (
                           <div style={{ fontSize: 10, color: '#b45309', marginTop: 3 }}>
