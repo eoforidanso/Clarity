@@ -14,7 +14,6 @@ const DEMO_ACCOUNTS = [
   { role: 'Nurse / MA',   username: 'nurse.kelly', password: 'Pass123!', name: 'Kelly Chen, RN',    icon: '💉', color: '#10b981', desc: 'Vitals, triage, medication reconciliation' },
   { role: 'Front Desk',   username: 'baz',         password: 'Pass123!', name: 'Baz',               icon: '🗓️', color: '#f59e0b', desc: 'Scheduling, check-in, patient registration' },
   { role: 'Biller',       username: 'biller1',     password: 'Pass123!', name: 'Sandra Okonkwo',    icon: '💳', color: '#ec4899', desc: 'Claims, ERA posting, denial management' },
-  { role: 'Admin',        username: 'harriet',     password: 'Pass123!', name: 'Harriet Appiah',    icon: '⚙️', color: '#64748b', desc: 'Full system access — users, settings, analytics' },
 ];
 const MAX_ATTEMPTS = 5;
 
