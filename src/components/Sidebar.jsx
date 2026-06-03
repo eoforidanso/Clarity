@@ -63,6 +63,9 @@ export default function Sidebar() {
   const isAdmin = currentUser?.role === 'admin';
   const isAdminOrFrontDesk = isFrontDesk || isAdmin;
   const isTherapist = currentUser?.role === 'therapist';
+  // Prescriptive authority: can access Medications, Orders, eRx
+  const canPrescribe = currentUser?.prescriptive_authority !== false &&
+    !['therapist', 'front_desk', 'biller', 'patient'].includes(currentUser?.role);
 
   const initials = currentUser
     ? `${currentUser.firstName?.[0] || ''}${currentUser.lastName?.[0] || ''}`
@@ -258,8 +261,7 @@ export default function Sidebar() {
         <ul className="sidebar-nav">
           {navItem('/telehealth',       '📹', 'Telehealth')}
           {navItem('/group-telehealth', '👥', 'Group Telehealth')}
-          {(isPrescriber || isNurse) && navItem('/prescribe', '💊', 'E-Prescribe')}
-          {isTherapist && navItem('/prescribe', '🔀', 'Refill Requests')}
+          {canPrescribe && navItem('/prescribe', '💊', 'E-Prescribe')}
           {navItem('/smart-phrases',    '⚡', 'Smart Phrases')}
           {navItem('/patient-chat',     '💬', 'Patient Chat')}
           {navItem('/treatment-plans',  '📋', 'Treatment Plans')}

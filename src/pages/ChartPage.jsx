@@ -18,27 +18,39 @@ import LabResults from './chart/LabResults';
 import Encounters from './chart/Encounters';
 import PatientStatus, { getPatientStatusRecord } from './chart/PatientStatus';
 
-const chartTabs = [
-  { key: 'summary', label: '📋 Summary', component: ChartSummary },
-  { key: 'encounters', label: '🗒️ Encounters', component: Encounters },
-  { key: 'demographics', label: '👤 Demographics', component: Demographics },
-  { key: 'allergies', label: '⚠️ Allergies', component: Allergies },
-  { key: 'problems', label: '🩺 Problems', component: ProblemList },
-  { key: 'vitals', label: '💓 Vitals', component: Vitals },
-  { key: 'medications', label: '💊 Medications', component: Medications },
-  { key: 'orders', label: '📝 Orders', component: Orders },
-  { key: 'assessments', label: '📊 Assessments', component: Assessments },
-  { key: 'immunizations', label: '💉 Immunizations', component: Immunizations },
-  { key: 'labs', label: '🔬 Labs', component: LabResults },
-  { key: 'status', label: '🚫 Patient Status', component: PatientStatus },
+const ALL_CHART_TABS = [
+  { key: 'summary',      label: '📋 Summary',        component: ChartSummary },
+  { key: 'encounters',   label: '🗒️ Encounters',      component: Encounters },
+  { key: 'demographics', label: '👤 Demographics',    component: Demographics },
+  { key: 'allergies',    label: '⚠️ Allergies',        component: Allergies },
+  { key: 'problems',     label: '🩺 Problems',         component: ProblemList },
+  { key: 'vitals',       label: '💓 Vitals',           component: Vitals },
+  { key: 'medications',  label: '💊 Medications',      component: Medications, requiresPrescriptive: true },
+  { key: 'orders',       label: '📝 Orders',           component: Orders,      requiresPrescriptive: true },
+  { key: 'assessments',  label: '📊 Assessments',      component: Assessments },
+  { key: 'immunizations',label: '💉 Immunizations',    component: Immunizations },
+  { key: 'labs',         label: '🔬 Labs',             component: LabResults },
+  { key: 'status',       label: '🚫 Patient Status',   component: PatientStatus },
 ];
 
-// Therapist gets read-only labels on clinical tabs they can view but not modify
-const therapistTabLabels = {
-  medications: '💊 Medications 🔒',
-  orders: '📝 Orders 🔒',
-  labs: '🔬 Labs 🔒',
-};
+/**
+ * Role-based prescriptive authority check.
+ * Therapists and non-prescribing roles cannot access Medications / Orders / eRx.
+ */
+export function hasPrescriptiveAuthority(user) {
+  if (!user) return false;
+  if (user.prescriptive_authority === false) return false;
+  const NON_PRESCRIBING = ['therapist', 'front_desk', 'biller', 'patient'];
+  return !NON_PRESCRIBING.includes(user.role);
+}
+
+function getVisibleTabs(user) {
+  const canPrescribe = hasPrescriptiveAuthority(user);
+  return ALL_CHART_TABS.filter(t => !t.requiresPrescriptive || canPrescribe);
+}
+
+// Keep alias for existing references
+const chartTabs = ALL_CHART_TABS;
 
 export default function ChartPage() {
   const { patientId, tab } = useParams();
@@ -255,8 +267,18 @@ export default function ChartPage() {
   }
 
   const p = selectedPatient;
-  const activeTab = tab || 'summary';
-  const ActiveComponent = chartTabs.find((t) => t.key === activeTab)?.component || ChartSummary;
+  const canPrescribe = hasPrescriptiveAuthority(currentUser);
+  const visibleTabs = getVisibleTabs(currentUser);
+
+  // Redirect away from restricted tabs if user lacks prescriptive authority
+  const activeTab = (() => {
+    const requested = tab || 'summary';
+    const restrictedTabs = ['medications', 'orders'];
+    if (!canPrescribe && restrictedTabs.includes(requested)) return 'summary';
+    return requested;
+  })();
+
+  const ActiveComponent = visibleTabs.find((t) => t.key === activeTab)?.component || ChartSummary;
 
   const patAllergies = allergies[patientId] || [];
   const patProblems = problemList[patientId] || [];
@@ -447,19 +469,15 @@ export default function ChartPage() {
       {/* ── Athena-style Chart Navigation Bar ─────────── */}
       <div className="athena-chart-toolbar">
         <div className="athena-chart-tabs">
-          {chartTabs.map((t) => {
-            const isTherapistView = currentUser?.role === 'therapist';
-            const displayLabel = isTherapistView && therapistTabLabels[t.key] ? therapistTabLabels[t.key] : t.label;
-            return (
-              <button
-                key={t.key}
-                className={`athena-tab ${activeTab === t.key ? 'active' : ''}`}
-                onClick={() => navigate(`/chart/${patientId}/${t.key}`)}
-              >
-                {displayLabel}
-              </button>
-            );
-          })}
+          {getVisibleTabs(currentUser).map((t) => (
+            <button
+              key={t.key}
+              className={`athena-tab ${activeTab === t.key ? 'active' : ''}`}
+              onClick={() => navigate(`/chart/${patientId}/${t.key}`)}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {/* Actions toolbar */}
