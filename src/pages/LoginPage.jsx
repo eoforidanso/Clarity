@@ -8,12 +8,12 @@ import SystemStatus from '../components/SystemStatus';
 
 const CERTS = ['HIPAA', 'EPCS', 'ONC', '42 CFR Part 2'];
 
+// Prescriber is accessed via the 🎯 Guided Tour button (Dr. Danso) — not listed here
 const DEMO_ACCOUNTS = [
-  { role: 'Prescriber',   username: 'dr.danso',    password: 'Pass123!', name: 'Dr. Danso',      icon: '🩺', color: '#3b82f6', desc: 'Full clinical access — notes, e-prescribe, charts' },
-  { role: 'Therapist',    username: 'april.t',     password: 'Pass123!', name: 'April T., LCSW',    icon: '🧠', color: '#8b5cf6', desc: 'Therapy sessions, treatment plans, assessments' },
-  { role: 'Nurse / MA',   username: 'nurse.kelly', password: 'Pass123!', name: 'Kelly Chen, RN',    icon: '💉', color: '#10b981', desc: 'Vitals, triage, medication reconciliation' },
-  { role: 'Front Desk',   username: 'baz',         password: 'Pass123!', name: 'Baz',               icon: '🗓️', color: '#f59e0b', desc: 'Scheduling, check-in, patient registration' },
-  { role: 'Biller',       username: 'biller1',     password: 'Pass123!', name: 'Sandra Okonkwo',    icon: '💳', color: '#ec4899', desc: 'Claims, ERA posting, denial management' },
+  { role: 'Therapist',  username: 'april.t',     password: 'Pass123!', name: 'April T., LCSW', icon: '🧠', color: '#8b5cf6', desc: 'Therapy sessions, treatment plans, assessments' },
+  { role: 'Nurse / MA', username: 'nurse.kelly', password: 'Pass123!', name: 'Kelly Chen, RN',  icon: '💉', color: '#10b981', desc: 'Vitals, triage, medication reconciliation' },
+  { role: 'Front Desk', username: 'baz',         password: 'Pass123!', name: 'Baz',             icon: '🗓️', color: '#f59e0b', desc: 'Scheduling, check-in, patient registration' },
+  { role: 'Biller',     username: 'biller1',     password: 'Pass123!', name: 'Sandra Okonkwo',  icon: '💳', color: '#ec4899', desc: 'Claims, ERA posting, denial management' },
 ];
 const MAX_ATTEMPTS = 5;
 
@@ -567,90 +567,34 @@ export default function LoginPage() {
                   ) : 'Sign In'}
                 </button>
 
-                {/* ── Demo divider ── */}
+                {/* ── Guided Tour ── */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0 0' }}>
                   <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
                   <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap' }}>or explore a demo</span>
                   <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
                 </div>
 
-                {/* ── Demo buttons ── */}
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  <button
-                    type="button"
-                    data-demo-allowed
-                    onClick={handleStartGuidedDemo}
-                    disabled={demoLoading === 'guided'}
-                    style={{
-                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                      padding: '10px 0', borderRadius: 9,
-                      background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
-                      border: 'none', cursor: 'pointer', color: '#fff',
-                      fontSize: 12, fontWeight: 700, transition: 'opacity 0.15s',
-                      opacity: demoLoading === 'guided' ? 0.7 : 1,
-                    }}
-                  >
-                    {demoLoading === 'guided'
-                      ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
-                      : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                    }
-                    {demoLoading === 'guided' ? 'Loading…' : '🎯 Guided Tour'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowDemo(d => !d)}
-                    style={{
-                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      padding: '10px 0', borderRadius: 9,
-                      border: '1.5px solid #e2e8f0', background: '#f8fafc',
-                      cursor: 'pointer', color: '#475569', fontSize: 12, fontWeight: 600,
-                    }}
-                  >
-                    👤 Pick a role
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s', transform: showDemo ? 'rotate(180deg)' : 'rotate(0)' }}><polyline points="6 9 12 15 18 9"/></svg>
-                  </button>
-                </div>
-
-                {/* ── Role picker ── */}
-                {showDemo && (
-                  <div style={{
-                    marginTop: 10, borderRadius: 12, border: '1px solid #e2e8f0',
-                    background: '#f8fafc', overflow: 'hidden',
-                    animation: 'demo-panel-in 0.18s ease',
-                  }}>
-                    {DEMO_ACCOUNTS.map((acc, i) => (
-                      <button
-                        key={acc.username}
-                        type="button"
-                        onClick={() => handleDemoLogin(acc)}
-                        disabled={!!demoLoading}
-                        style={{
-                          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                          padding: '10px 14px', border: 'none', borderBottom: i < DEMO_ACCOUNTS.length - 1 ? '1px solid #e2e8f0' : 'none',
-                          background: 'transparent', cursor: 'pointer', textAlign: 'left',
-                          transition: 'background 0.12s',
-                          opacity: demoLoading && demoLoading !== acc.username ? 0.4 : 1,
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.background = `${acc.color}08`}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <div style={{ width: 30, height: 30, borderRadius: 8, background: `${acc.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>
-                          {demoLoading === acc.username
-                            ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={acc.color} strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
-                            : acc.icon}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>{acc.name}</span>
-                            <span style={{ fontSize: 9, fontWeight: 800, padding: '1px 5px', borderRadius: 3, background: `${acc.color}18`, color: acc.color, textTransform: 'uppercase', letterSpacing: 0.3 }}>{acc.role}</span>
-                          </div>
-                          <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{acc.desc}</div>
-                        </div>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={acc.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="9 18 15 12 9 6"/></svg>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <button
+                  type="button"
+                  data-demo-allowed
+                  onClick={handleStartGuidedDemo}
+                  disabled={demoLoading === 'guided'}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    padding: '11px 0', borderRadius: 9, marginTop: 10,
+                    background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
+                    border: 'none', cursor: 'pointer', color: '#fff',
+                    fontSize: 13, fontWeight: 700, transition: 'opacity 0.15s',
+                    opacity: demoLoading === 'guided' ? 0.7 : 1,
+                    boxShadow: '0 2px 10px rgba(15,23,42,0.18)',
+                  }}
+                >
+                  {demoLoading === 'guided'
+                    ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
+                    : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  }
+                  {demoLoading === 'guided' ? 'Loading demo…' : '🎯 Start Guided Tour'}
+                </button>
 
               </form>
 
