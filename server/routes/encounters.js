@@ -1,3 +1,4 @@
+import { requirePatientAccess } from '../middleware/idor.js';
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
@@ -5,6 +6,8 @@ import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
 router.use(authenticate);
+router.use('/:patientId', requirePatientAccess);
+router.use('/:patientId/*', requirePatientAccess);
 
 function formatEncounter(row) {
   return {

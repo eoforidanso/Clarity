@@ -26,6 +26,13 @@ export function applyMigrations() {
       ip         TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now'))
     )`,
+  // Triggers to make audit_logs append-only (no UPDATE or DELETE allowed)
+  `CREATE TRIGGER IF NOT EXISTS audit_logs_no_update
+     BEFORE UPDATE ON audit_logs
+     BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only — updates not permitted'); END`,
+  `CREATE TRIGGER IF NOT EXISTS audit_logs_no_delete
+     BEFORE DELETE ON audit_logs
+     BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only — deletes not permitted'); END`,
     `CREATE INDEX IF NOT EXISTS idx_audit_actor  ON audit_logs(actor_id)`,
     `CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)`,
     `CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_logs(target_id)`,

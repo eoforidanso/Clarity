@@ -57,8 +57,19 @@ import dosespotRoutes from './routes/dosespot.js';
 
 const app = express();
 
-// Trust the first proxy hop (needed for correct req.ip in rate limiters behind nginx/load balancer)
-app.set('trust proxy', 1);
+// Trust only our nginx proxy (127.0.0.1) — NOT arbitrary X-Forwarded-For headers.
+// This prevents IP spoofing in audit logs: attacker sends X-Forwarded-For: 1.2.3.4
+// to fake their origin IP. By trusting only 127.0.0.1 (nginx), req.ip always reflects
+// the real socket IP that nginx received, which nginx already resolved from CF-Connecting-IP.
+app.set('trust proxy', '127.0.0.1');
+
+// Extract verified real IP from nginx-set X-Real-IP header (populated from CF-Connecting-IP by nginx).
+// X-Forwarded-For is NOT used — it's user-controllable.
+app.use((req, _res, next) => {
+  const realIp = req.headers['x-real-ip'];
+  req.realIp = realIp || req.ip; // fallback to socket IP
+  next();
+});
 
 // Security middleware
 app.use(helmet({
