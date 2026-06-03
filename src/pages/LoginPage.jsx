@@ -109,6 +109,9 @@ export default function LoginPage() {
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [twoFAError, setTwoFAError] = useState('');
   const [pendingTempToken, setPendingTempToken] = useState(null);
+  const [bannerDismissed, setBannerDismissed] = useState(
+    () => !!sessionStorage.getItem('clarity_banner_dismissed')
+  );
   const [emailHint, setEmailHint] = useState('');
   const [mockCode, setMockCode] = useState(null);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -372,6 +375,44 @@ export default function LoginPage() {
                 </div>
                 <p className="login-form-sub">Access your Clarity EHR workspace</p>
               </div>
+
+              {/* First-time / temp-password banner
+                  Show until user has dismissed it this session.
+                  Stored in sessionStorage so it reappears on next browser open
+                  but doesn't nag on every page load within the same tab. */}
+              {!bannerDismissed && (
+                <div style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                  padding: '10px 14px', borderRadius: 8, marginBottom: 14,
+                  background: 'rgba(251,191,36,0.08)',
+                  border: '1px solid rgba(251,191,36,0.25)',
+                  position: 'relative',
+                }}>
+                  <span style={{ fontSize: 15, lineHeight: 1, marginTop: 1, flexShrink: 0 }}>💡</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 2 }}>
+                      First time here?
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#78350f', lineHeight: 1.5 }}>
+                      You'll be asked to set a new personal password right after signing in.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sessionStorage.setItem('clarity_banner_dismissed', '1');
+                      setBannerDismissed(true);
+                    }}
+                    aria-label="Dismiss"
+                    style={{
+                      position: 'absolute', top: 6, right: 8,
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: '#92400e', fontSize: 14, lineHeight: 1, padding: 2,
+                      opacity: 0.5,
+                    }}
+                  >✕</button>
+                </div>
+              )}
 
               {/* Session check — dismissible, never blocks the form */}
               {sessionChecking && (
