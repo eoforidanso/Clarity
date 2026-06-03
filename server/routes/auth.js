@@ -45,7 +45,7 @@ const router = Router();
 // ── Helper: issue a full authenticated session (cookie + audit log) ──────────
 async function issueFullSession(res, req, user) {
   const sessionId = uuidv4();
-  const token = jwt.sign({ userId: user.id, role: user.role, sessionId }, config.jwtSecret, {
+  const token = jwt.sign({ userId: user.id, role: user.role, sessionId }, config.jwtSecret, { algorithm: 'HS256',
     expiresIn: config.jwtExpiresIn,
   });
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
@@ -159,8 +159,7 @@ router.post('/login', async (req, res) => {
 
     const tempToken = jwt.sign(
       { userId: user.id, type: '2fa_pending' },
-      config.jwtSecret,
-      { expiresIn: '10m' }
+      config.jwtSecret, { algorithm: 'HS256', expiresIn: '10m' }
     );
 
     // In non-production environments expose the code in the response so the UI can display it.
@@ -340,7 +339,7 @@ router.post('/2fa/verify', async (req, res) => {
 
   let payload;
   try {
-    payload = jwt.verify(tempToken, config.jwtSecret);
+    payload = jwt.verify(tempToken, config.jwtSecret, { algorithms: ['HS256'] });
   } catch {
     return res.status(401).json({ error: 'Session expired. Please log in again.' });
   }
@@ -496,8 +495,7 @@ router.post('/reauth', authenticate, async (req, res) => {
 
     const elevatedToken = jwt.sign(
       { userId, role: req.user.role, elevated: true },
-      config.jwtSecret,
-      { expiresIn: ELEVATED_TTL_SECS }
+      config.jwtSecret, { algorithm: 'HS256', expiresIn: ELEVATED_TTL_SECS }
     );
 
     logAuditEvent({

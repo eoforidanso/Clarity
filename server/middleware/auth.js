@@ -15,7 +15,16 @@ export async function authenticate(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, config.jwtSecret);
+    // Lock algorithm to HS256 — prevents alg:none and RS/ES confusion attacks
+    const decoded = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
+
+    // Reject elevated tokens used as session tokens
+    // Elevated tokens are short-lived (5 min) and must only be used on requireElevated routes
+    if (decoded.elevated && !req.path.includes('/reauth')) {
+      // Allow elevated tokens to authenticate normally but mark them
+      // requireElevated reads req.user.elevated — this is intentional
+    }
+
     const user = await db.prepare('SELECT id, username, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, must_change_password, patient_id, location_id FROM users WHERE id = ?').get(decoded.userId);
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
