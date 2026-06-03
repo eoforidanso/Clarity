@@ -103,27 +103,35 @@ app.use(cors({
 }));
 
 // Rate limiting — general
+// General API rate limit
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000,
+  windowMs: 15 * 60 * 1000,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
+  message: { error: 'Too many requests — please slow down.' },
 });
 app.use('/api/', limiter);
 
-// Rate limiting — strict for auth endpoints (brute-force protection)
+// Auth endpoints — strict brute-force protection
+// 5 failed attempts per IP per 15 min → locked out
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,
+  windowMs: 15 * 60 * 1000,
+  max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many authentication attempts. Please try again later.' },
-  skipSuccessfulRequests: true, // only count failed attempts
+  skipSuccessfulRequests: true,
+  message: { error: 'Too many failed attempts. Try again in 15 minutes.' },
+  handler: (req, res, _next, options) => {
+    console.warn(`[rate-limit] auth blocked: ${req.ip} on ${req.path}`);
+    res.status(429).json(options.message);
+  },
 });
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/2fa/verify', authLimiter);
-app.use('/api/auth/verify-epcs-pin', authLimiter);
-app.use('/api/auth/verify-epcs-otp', authLimiter);
+app.use('/api/auth/login',            authLimiter);
+app.use('/api/auth/2fa/verify',       authLimiter);
+app.use('/api/auth/reauth',           authLimiter);
+app.use('/api/auth/verify-epcs-pin',  authLimiter);
+app.use('/api/auth/verify-epcs-otp',  authLimiter);
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));

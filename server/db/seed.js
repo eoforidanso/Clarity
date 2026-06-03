@@ -64,10 +64,9 @@ export default async function seed() {
       { id: 'pat-p6', username: 'marcus.brown', password: 'Pass123!', firstName: 'Marcus', lastName: 'Brown', role: 'patient', credentials: '', specialty: '', npi: '', email: 'marcus.brown@email.com', epcsPin: null, twoFactorEnabled: false, patientId: 'p6' },
     ];
     for (const u of users) {
-      // Staff accounts: must change temporary password on first login.
-      // Patient portal accounts: no forced change (they set their own on registration).
-      // Admin owner account (harriet) is pre-verified and never forced to change.
-      const mustChange = (u.role === 'patient' || u.id === 'u5') ? 0 : 1;
+      // ALL seeded staff must change the temporary password on first login.
+      // Patient portal accounts: no forced change.
+      const mustChange = u.role === 'patient' ? 0 : 1;
       insertUser.run(u.id, u.username, hashPassword(u.password), u.firstName, u.lastName, u.role, u.credentials || '', u.specialty || '', u.npi || '', u.deaNumber || '', u.email, u.epcsPin ? hashPassword(u.epcsPin) : null, u.twoFactorEnabled ? 1 : 0, mustChange, u.patientId || null, u.locationId || 'loc1');
     }
 

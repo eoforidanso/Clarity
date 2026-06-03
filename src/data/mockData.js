@@ -1,4 +1,10 @@
-// Mock data for the entire EHR system
+// Mock data — DEV/DEMO ONLY. Never runs in production (backend auth is used live).
+// Passwords here are only for the offline mock login fallback.
+// Production users authenticate against the backend DB with bcrypt hashes.
+if (typeof window !== 'undefined' && window.location?.hostname !== 'localhost' &&
+    !window.location?.hostname?.includes('pages.dev')) {
+  console.error('[SECURITY] mockData loaded in non-dev environment — check build config');
+}
 import { v4 as uuidv4 } from 'uuid';
 
 // ========== USERS & AUTH ==========

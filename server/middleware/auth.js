@@ -20,6 +20,16 @@ export async function authenticate(req, res, next) {
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
     }
+    // Verify session is still active (revoked on logout)
+    if (decoded.sessionId) {
+      const session = db.prepare(
+        'SELECT is_active FROM sessions WHERE id = ? AND user_id = ?'
+      ).get(decoded.sessionId, decoded.userId);
+      if (session && !session.is_active) {
+        return res.status(401).json({ error: 'Session has been revoked — please log in again' });
+      }
+    }
+
     req.user = { ...user, elevated: decoded.elevated === true };
     req.access = buildAccess(user); // role + location scope for every request
 
