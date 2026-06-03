@@ -1,26 +1,25 @@
-name: Deploy to GitHub Pages
+name: Clarity EHR — CI/CD Pipeline
 
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 concurrency:
-  group: pages
+  group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # ── 1. BUILD + LINT ──────────────────────────────────────────────────────────
   build:
+    name: Build Frontend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -31,19 +30,104 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
         with:
+          name: dist
           path: dist
+          retention-days: 1
 
-  deploy:
+  # ── 2. DEPLOY FRONTEND → CLOUDFLARE PAGES ───────────────────────────────────
+  deploy-frontend:
+    name: Deploy → Cloudflare Pages
     needs: build
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      name: production
+      url: https://app.clarity-ehr.com
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - uses: actions/checkout@v4
+
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: pages deploy dist --project-name=clarity-ehr --commit-message="${{ github.event.head_commit.message }}"
+
+  # ── 3. DEPLOY BACKEND → DIGITAL OCEAN ───────────────────────────────────────
+  deploy-backend:
+    name: Deploy → Digital Ocean
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy server files via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: root
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+            set -e
+            cd /var/www/ehr
+
+            # Pull latest server files
+            git -C /tmp/clarity-deploy clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git 2>/dev/null || \
+              git -C /tmp/clarity-deploy/$(basename ${{ github.repository }}) pull origin main
+
+            REPO_DIR="/tmp/clarity-deploy/$(basename ${{ github.repository }})"
+
+            # Copy server files
+            cp -r $REPO_DIR/server/routes/*     /var/www/ehr/server/routes/
+            cp -r $REPO_DIR/server/middleware/*  /var/www/ehr/server/middleware/
+            cp -r $REPO_DIR/server/db/*.js       /var/www/ehr/server/db/
+            cp -r $REPO_DIR/server/security/*    /var/www/ehr/server/security/
+            cp -r $REPO_DIR/server/scripts/*     /var/www/ehr/server/scripts/
+            cp    $REPO_DIR/server/index.js      /var/www/ehr/server/
+            cp    $REPO_DIR/server/config.js     /var/www/ehr/server/
+
+            # Restart API
+            pm2 restart ehr-api --update-env
+
+            # Health check — fail the deploy if API doesn't come up
+            sleep 5
+            STATUS=$(curl -sf http://127.0.0.1:5001/api/health | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null)
+            if [ "$STATUS" != "ok" ]; then
+              echo "Health check failed — API did not start"
+              pm2 logs ehr-api --lines 20 --nostream
+              exit 1
+            fi
+            echo "✅ API healthy: $STATUS"
+
+            # Cleanup
+            rm -rf /tmp/clarity-deploy
+
+  # ── 4. POST-DEPLOY NOTIFICATION ─────────────────────────────────────────────
+  notify:
+    name: Notify
+    needs: [deploy-frontend, deploy-backend]
+    runs-on: ubuntu-latest
+    if: always() && github.ref == 'refs/heads/main'
+    steps:
+      - name: Deployment summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Target | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Cloudflare Pages | ${{ needs.deploy-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Digital Ocean    | ${{ needs.deploy-backend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.event.head_commit.message }} |" >> $GITHUB_STEP_SUMMARY
