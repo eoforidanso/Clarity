@@ -53,16 +53,19 @@ async function request(path, options = {}) {
   return res.json();
 }
 
-const get = (path, options) => request(path, options);
-const post = (path, data) => request(path, { method: 'POST', body: JSON.stringify(data) });
-const put  = (path, data) => request(path, { method: 'PUT',  body: JSON.stringify(data) });
-const del  = (path)       => request(path, { method: 'DELETE' });
+const get  = (path, options) => request(path, options);
+const post = (path, data) => request(path, { method: 'POST',   body: JSON.stringify(data) });
+const put  = (path, data) => request(path, { method: 'PUT',    body: JSON.stringify(data) });
+const del  = (path, elevatedToken) => request(path, {
+  method: 'DELETE',
+  ...(elevatedToken && { headers: { Authorization: `Bearer ${elevatedToken}` } }),
+});
 
 // ─── Auth ────────────────────────────────────────────
 export const auth = {
   login: (username, password) => post('/auth/login', { username, password }),
   logout: () => post('/auth/logout', {}),
-  me: (options) => get('/auth/me', options),  // options may include { signal }
+  me: (options) => get('/auth/me', options),
   changePassword: (currentPassword, newPassword) => post('/auth/change-password', { currentPassword, newPassword }),
   verifyEpcsPin: (pin) => post('/auth/verify-epcs-pin', { pin }),
   generateEpcsOtp: () => post('/auth/generate-epcs-otp', {}),
@@ -70,6 +73,10 @@ export const auth = {
   verify2FA: (tempToken, code) => post('/auth/2fa/verify', { tempToken, code }),
   setup2FA: () => post('/auth/2fa/setup', {}),
   enable2FA: (secret, code) => post('/auth/2fa/enable', { secret, code }),
+  // Re-authenticate to get a short-lived elevated token for sensitive actions
+  // Returns { elevatedToken, expiresAt, expiresInSeconds }
+  reauth: (password) => post('/auth/reauth', { password }),
+  reauthOtp: (otp)  => post('/auth/reauth', { otp }),
 };
 
 // ─── Patients ────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate, authorize, requireElevated } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
 
 const router = Router();
@@ -157,13 +157,28 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => 
 });
 
 // ── DELETE /api/locations/:id ───────────────────────────────────────────
-router.delete('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
+router.delete('/:id', authenticate, requireElevated, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
   const { id } = req.params;
   const loc = await db.prepare('SELECT id, name FROM locations WHERE id = ?').get(id);
   if (!loc) return res.status(404).json({ error: 'Location not found' });
 
+  // Check no patients or users still assigned to this location
+  const patientCount = db.prepare("SELECT COUNT(*) as c FROM patients WHERE location_id = ?").get(id);
+  const userCount    = db.prepare("SELECT COUNT(*) as c FROM users WHERE location_id = ?").get(id);
+  if (patientCount?.c > 0 || userCount?.c > 0) {
+    return res.status(409).json({
+      error: 'Cannot delete location — reassign patients and staff first',
+      patients: patientCount?.c ?? 0,
+      users: userCount?.c ?? 0,
+    });
+  }
+
   // Prevent deleting the last active location
-  const activeCount = await db.prepare("SELECT COUNT(*) as c FROM locations WHERE status = 'Active'").get();
+  const activeCount = db.prepare("SELECT COUNT(*) as c FROM locations WHERE status = 'Active'").get();
   if (activeCount.c <= 1) {
     return res.status(400).json({ error: 'Cannot delete the last active location' });
   }
