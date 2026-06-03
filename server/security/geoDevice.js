@@ -71,16 +71,27 @@ export async function geolocate(ip) {
 }
 
 // ── IP Reputation Score (0–100, lower = more suspicious) ─────────────────────
-// No paid API needed — derived from ip-api.com fields + ISP heuristics
-export function scoreIpReputation(geo) {
+// Sources:
+//   1. Cloudflare CF-Threat-Score header (0–100, CF's own bot/threat score)
+//   2. ip-api.com proxy + hosting flags
+//   3. ISP name heuristics
+//
+// Final score: weighted combination, clamped to [0, 100]
+export function scoreIpReputation(geo, cfThreatScore = 0) {
   let score = 100;
 
-  // Known proxy/VPN → very suspicious
-  if (geo.proxy)   score -= 45;
-  // Hosting/datacenter IP (unlikely to be a real user device)
-  if (geo.hosting) score -= 35;
+  // ── Cloudflare threat score (most authoritative signal) ──────────────────
+  // CF scores 0 = clean, 100 = high threat. We invert and weight heavily.
+  // CF score ≥ 50 → very suspicious; CF score 1–49 → mildly suspicious
+  if (cfThreatScore >= 50) score -= 50;
+  else if (cfThreatScore >= 10) score -= 25;
+  else if (cfThreatScore >= 1)  score -= 10;
 
-  // ISP name heuristics — common VPN/hosting providers
+  // ── ip-api.com signals ────────────────────────────────────────────────────
+  if (geo.proxy)   score -= 30; // known proxy/VPN
+  if (geo.hosting) score -= 25; // datacenter/hosting IP
+
+  // ── ISP heuristics ────────────────────────────────────────────────────────
   const isp = (geo.isp || '').toLowerCase();
   const suspiciousIsps = [
     'tor ', 'nordvpn', 'expressvpn', 'mullvad', 'privateinternetaccess',
@@ -89,10 +100,10 @@ export function scoreIpReputation(geo) {
     'google cloud', 'microsoft azure', 'cloudflare', 'leaseweb',
     'serverius', 'choopa', 'as-choopa', 'combahton',
   ];
-  if (suspiciousIsps.some(s => isp.includes(s))) score -= 30;
+  if (suspiciousIsps.some(s => isp.includes(s))) score -= 20;
 
   // Unknown country
-  if (geo.countryCode === '??') score -= 20;
+  if (geo.countryCode === '??') score -= 15;
 
   return Math.max(0, score);
 }
@@ -123,12 +134,15 @@ export function fingerprintDevice(req) {
 }
 
 // ── Main check — called after successful login ────────────────────────────────
-// Returns { dbDeviceId, geo, fingerprint, platform, browser, isNewDevice }
+// Returns { dbDeviceId, geo, fingerprint, platform, browser, isNewDevice, cfThreatScore }
 export async function checkLoginAnomaly(userId, userName, ip, req) {
   await ensureGeoTables();
 
   const { fingerprint, platform, browser, userAgent } = fingerprintDevice(req);
   const geo = await geolocate(ip);
+
+  // CF-Threat-Score: 0 = clean, 100 = high threat (passed by nginx from Cloudflare)
+  const cfThreatScore = parseInt(req.headers['cf-threat-score'] || '0', 10);
 
   // ── 1. Check if device already exists ────────────────────────────────────
   const existing = await db.prepare(
@@ -236,12 +250,15 @@ export async function checkLoginAnomaly(userId, userName, ip, req) {
     lastLocation.country_code !== geo.countryCode &&
     geo.countryCode !== '??' && geo.countryCode !== 'LO'
   );
-  const ipReputation   = scoreIpReputation(geo);
+  const ipReputation   = scoreIpReputation(geo, cfThreatScore);
   const PRIVILEGED_ROLES = ['admin', 'prescriber'];
   const isPrivileged   = PRIVILEGED_ROLES.includes(req.user?.role || '');
 
-  if (isNewDevice && isNewCountry && ipReputation < 30 && isPrivileged) {
-    console.warn(`[R11] CRITICAL: suspicious login for privileged user ${userName} (rep=${ipReputation}, ${geo.countryCode}, ${geo.isp})`);
+  // Also trigger R11 on high CF threat score alone for privileged users (even known device)
+  const cfHighThreat = cfThreatScore >= 50 && isPrivileged;
+
+  if ((isNewDevice && isNewCountry && ipReputation < 30 && isPrivileged) || cfHighThreat) {
+    console.warn(`[R11] CRITICAL: suspicious login for privileged user ${userName} (rep=${ipReputation}, cfScore=${cfThreatScore}, ${geo.countryCode}, ${geo.isp})`);
 
     // 1. Mark device suspicious immediately
     if (dbDeviceId) {
@@ -257,10 +274,10 @@ export async function checkLoginAnomaly(userId, userName, ip, req) {
     await insertAnomaly({
       ruleId: 'R11_SUSPICIOUS_LOGIN', severity: 'CRITICAL',
       title: `High-Risk Login: ${userName}`,
-      description: `Privileged user ${userName} (${req.user?.role}) signed in from a new device + new country (${geo.city}, ${geo.country}) via a low-reputation IP (score: ${ipReputation}/100, proxy: ${geo.proxy}, hosting: ${geo.hosting}). ${killedSessions} session(s) auto-terminated. Re-authentication required.`,
+      description: `Privileged user ${userName} (${req.user?.role}) signed in under high-risk conditions — reputation score: ${ipReputation}/100, CF threat score: ${cfThreatScore}/100, proxy: ${geo.proxy}, hosting: ${geo.hosting}, location: ${geo.city}, ${geo.country}. ${killedSessions} session(s) auto-terminated. Re-authentication required.`,
       actorId: userId, actorName: userName, ip,
       eventCount: 1, windowMin: 0,
-      rawEvents: [{ fingerprint, platform, browser, ip, geo, ipReputation, role: req.user?.role, killedSessions }],
+      rawEvents: [{ fingerprint, platform, browser, ip, geo, ipReputation, cfThreatScore, role: req.user?.role, killedSessions }],
     });
 
     logAudit({
@@ -280,8 +297,9 @@ export async function checkLoginAnomaly(userId, userName, ip, req) {
             user: userName, role: req.user?.role, ip,
             country: geo.country, city: geo.city, isp: geo.isp,
             proxy: geo.proxy, hosting: geo.hosting,
+            cfThreatScore,
             ipReputationScore: ipReputation,
-            devicesKilledSessions: killedSessions,
+            sessionsKilled: killedSessions,
             fingerprint: fingerprint.slice(0, 16) + '…',
             timestamp: new Date().toISOString(),
           }
@@ -290,10 +308,10 @@ export async function checkLoginAnomaly(userId, userName, ip, req) {
       console.error('[R11] alert delivery failed:', err.message);
     }
 
-    return { dbDeviceId, geo, fingerprint, platform, browser, isNewDevice: true, r11Triggered: true, killedSessions };
+    return { dbDeviceId, geo, fingerprint, platform, browser, isNewDevice: true, cfThreatScore, r11Triggered: true, sessionsKilled: killedSessions };
   }
 
-  return { dbDeviceId, geo, fingerprint, platform, browser, isNewDevice };
+  return { dbDeviceId, geo, fingerprint, platform, browser, isNewDevice, cfThreatScore };
 }
 
 // ── Trust management helpers (used by security console routes) ───────────────
