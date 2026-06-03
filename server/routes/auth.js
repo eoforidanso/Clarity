@@ -44,12 +44,19 @@ const router = Router();
 
 // ── Helper: issue a full authenticated session (cookie + audit log) ──────────
 async function issueFullSession(res, req, user) {
-  // Geographic + device fingerprint check (non-blocking)
   const ip       = req.realIp || req.ip || '';
   const userName = `${user.first_name} ${user.last_name || ''}`.trim();
-  import('../security/geoDevice.js')
-    .then(({ checkLoginAnomaly }) => checkLoginAnomaly(user.id, userName, ip, req))
-    .catch(err => console.warn('[geoDevice]', err.message));
+
+  // Geographic + device fingerprint check — awaited so we get dbDeviceId
+  let dbDeviceId = null;
+  try {
+    const { checkLoginAnomaly } = await import('../security/geoDevice.js');
+    const result = await checkLoginAnomaly(user.id, userName, ip, req);
+    dbDeviceId = result?.dbDeviceId ?? null;
+  } catch (err) {
+    console.warn('[geoDevice]', err.message);
+  }
+
   const sessionId = uuidv4();
   const token = jwt.sign({ userId: user.id, role: user.role, sessionId }, config.jwtSecret, { algorithm: 'HS256',
     expiresIn: config.jwtExpiresIn,
@@ -57,10 +64,10 @@ async function issueFullSession(res, req, user) {
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
   try {
-    await db.prepare('INSERT INTO sessions (id, user_id, token_hash, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?)').run(
-      sessionId, user.id, tokenHash, req.ip || '', req.get('User-Agent') || '', expiresAt
-    );
-  } catch (e) { /* session table may not exist on first run */ }
+    await db.prepare(
+      'INSERT INTO sessions (id, user_id, token_hash, ip_address, user_agent, expires_at, device_id) VALUES ($1,$2,$3,$4,$5,$6,$7)'
+    ).run(sessionId, user.id, tokenHash, ip, req.get('User-Agent') || '', expiresAt, dbDeviceId);
+  } catch (e) { console.warn('[sessions]', e.message); }
 
   logAuditEvent({
     userId: user.id,
