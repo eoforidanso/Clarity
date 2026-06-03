@@ -2,6 +2,43 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate, authorize } from '../middleware/auth.js';
+import { logAudit } from '../db/softDelete.js';
+
+/**
+ * IDOR guard — verifies the requesting user has access to this patient.
+ * Rules:
+ *   - admin / front_desk  → can access any patient (global roles)
+ *   - prescriber / nurse / therapist → must be the assigned provider OR share location
+ *   - BTG-protected patients → require explicit BTG access grant (checked separately)
+ */
+function requirePatientAccess(req, res, next) {
+  const patientId = req.params.id || req.params.patientId;
+  if (!patientId) return next();
+
+  const patient = db.prepare('SELECT id, assigned_provider, primary_location, is_btg FROM patients WHERE id = ?').get(patientId);
+  if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+  const { role, id: userId, location_id } = req.user;
+  const canSeeAll = ['admin', 'front_desk'].includes(role);
+
+  if (canSeeAll) return next();
+
+  // Scoped roles: must be assigned provider or same location
+  const isAssignedProvider = patient.assigned_provider === userId;
+  const sameLocation       = location_id && patient.primary_location === location_id;
+
+  if (!isAssignedProvider && !sameLocation) {
+    logAudit({
+      actorId: userId, actorName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
+      action: 'IDOR_BLOCKED', targetId: patientId, targetType: 'patient',
+      details: { role, reason: 'Not assigned provider and not same location' },
+      ip: req.ip,
+    });
+    return res.status(403).json({ error: 'Access denied — not your patient' });
+  }
+
+  next();
+}
 
 const router = Router();
 router.use(authenticate);
@@ -74,8 +111,8 @@ router.get('/', async (req, res) => {
   res.json(rows.map(row => formatPatient(row)));
 });
 
-// GET /api/patients/:id
-router.get('/:id', async (req, res) => {
+// GET /api/patients/:id — IDOR protected
+router.get('/:id', requirePatientAccess, async (req, res) => {
   const row = await db.prepare('SELECT * FROM patients WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Patient not found' });
   const fullSsn = ['prescriber', 'billing'].includes(req.user?.role);
@@ -97,8 +134,8 @@ router.post('/', authorize('prescriber', 'nurse', 'front_desk'), async (req, res
   res.status(201).json(formatPatient(row));
 });
 
-// PUT /api/patients/:id
-router.put('/:id', authorize('prescriber', 'nurse', 'front_desk'), async (req, res) => {
+// PUT /api/patients/:id — IDOR protected
+router.put('/:id', authorize('prescriber', 'nurse', 'front_desk'), requirePatientAccess, async (req, res) => {
   const existing = await db.prepare('SELECT * FROM patients WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Patient not found' });
 

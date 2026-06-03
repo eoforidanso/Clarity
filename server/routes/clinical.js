@@ -2,9 +2,38 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
+import { logAudit } from '../db/softDelete.js';
 
 const router = Router();
 router.use(authenticate);
+
+// ── IDOR guard — all clinical sub-routes require patient access ───────────────
+function requirePatientAccess(req, res, next) {
+  const patientId = req.params.patientId;
+  if (!patientId) return next();
+
+  const patient = db.prepare('SELECT id, assigned_provider, primary_location FROM patients WHERE id = ?').get(patientId);
+  if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+  const { role, id: userId, location_id } = req.user;
+  if (['admin', 'front_desk'].includes(role)) return next();
+
+  const isAssigned   = patient.assigned_provider === userId;
+  const sameLocation = location_id && patient.primary_location === location_id;
+
+  if (!isAssigned && !sameLocation) {
+    logAudit({
+      actorId: userId, actorName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
+      action: 'IDOR_BLOCKED', targetId: patientId, targetType: 'patient',
+      details: { role, path: req.path }, ip: req.ip,
+    });
+    return res.status(403).json({ error: 'Access denied — not your patient' });
+  }
+  next();
+}
+
+// Apply IDOR guard to ALL clinical routes
+router.use('/:patientId/*', requirePatientAccess);
 
 // ─── ALLERGIES ────────────────────────────────────────────────
 
