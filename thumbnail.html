@@ -466,6 +466,120 @@
     font-size: 10px;
     font-weight: 600;
   }
+
+  /* ── Tab switcher ── */
+  .tab-switcher {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    display: flex;
+    gap: 4px;
+    z-index: 10;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    padding: 4px;
+    backdrop-filter: blur(8px);
+  }
+  .tab-btn {
+    padding: 5px 14px;
+    border-radius: 7px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.45);
+    transition: all 0.15s;
+    letter-spacing: 0.1px;
+  }
+  .tab-btn.active {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+
+  /* ── Security panel (hidden by default) ── */
+  .security-panel { display: none; }
+  .main-panel     { display: flex; }
+
+  /* Security badge pills */
+  .sec-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+    backdrop-filter: blur(8px);
+  }
+  .sec-badge.green  { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; }
+  .sec-badge.blue   { background: rgba(59,130,246,0.12);  border: 1px solid rgba(59,130,246,0.3);  color: #93c5fd; }
+  .sec-badge.purple { background: rgba(99,102,241,0.12);  border: 1px solid rgba(99,102,241,0.3);  color: #c7d2fe; }
+
+  .sec-stats { display: flex; gap: 20px; margin-top: 4px; }
+  .sec-stat .num { font-size: 28px; font-weight: 900; color: #fff; letter-spacing: -1px; line-height: 1; }
+  .sec-stat .num sup { font-size: 14px; color: #34d399; font-weight: 700; }
+  .sec-stat .lbl { font-size: 10px; color: rgba(255,255,255,0.4); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+
+  /* Security console mock */
+  .console-mock {
+    flex: 0 0 544px;
+    position: relative;
+    padding: 10px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.05) 100%);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: 0 40px 100px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.22);
+  }
+  .console-inner {
+    width: 100%; height: 410px; border-radius: 14px;
+    background: #f8fafc; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .c-topbar {
+    height: 36px; background: linear-gradient(135deg,#0d2444,#1b3d6e);
+    display: flex; align-items: center; padding: 0 14px; gap: 8px; flex-shrink: 0;
+  }
+  .c-body { flex: 1; display: flex; overflow: hidden; }
+  .c-sidebar {
+    width: 48px; background: #0f172a;
+    display: flex; flex-direction: column; align-items: center;
+    padding-top: 12px; gap: 10px; flex-shrink: 0;
+  }
+  .c-nav { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+  .c-nav.active { background: rgba(99,102,241,0.25); }
+  .c-main { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 7px; overflow: hidden; }
+
+  .c-header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .c-header h3 { font-size: 12px; font-weight: 800; color: #1e293b; }
+  .c-live { display: flex; align-items: center; gap: 4px; background: #dcfce7; border-radius: 10px; padding: 2px 8px; font-size: 8px; font-weight: 700; color: #065f46; }
+  .c-dot  { width: 5px; height: 5px; border-radius: 50%; background: #22c55e; }
+
+  .c-metrics { display: flex; gap: 5px; flex-shrink: 0; }
+  .c-metric { flex: 1; background: #fff; border-radius: 7px; padding: 7px 8px; border: 1px solid #e2e8f0; text-align: center; }
+  .c-metric .mi { font-size: 12px; }
+  .c-metric .mn { font-size: 14px; font-weight: 900; letter-spacing: -0.5px; }
+  .c-metric .ml { font-size: 7px; color: #64748b; font-weight: 600; text-transform: uppercase; }
+
+  .c-tabs { display: flex; gap: 3px; flex-shrink: 0; }
+  .c-tab { padding: 3px 9px; border-radius: 5px; font-size: 8px; font-weight: 700; color: #64748b; border: 1px solid transparent; }
+  .c-tab.active { background: #fff; color: #1e293b; border-color: #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+
+  .r11-bar {
+    background: linear-gradient(135deg,#1e1b4b,#4c1d95);
+    border-radius: 6px; padding: 6px 9px;
+    border: 1px solid rgba(99,102,241,0.4);
+    display: flex; align-items: center; gap: 7px; flex-shrink: 0;
+  }
+  .r11-bar .r11-title { font-size: 8px; font-weight: 800; color: #e0e7ff; }
+  .r11-bar .r11-sub   { font-size: 7px; color: rgba(199,210,254,0.7); margin-top: 1px; }
+  .r11-bar .r11-chip  { background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.4); border-radius: 4px; padding: 2px 7px; font-size: 8px; font-weight: 800; color: #fca5a5; flex-shrink: 0; margin-left: auto; }
+
+  .c-events { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 4px; }
+  .c-event { display: flex; align-items: center; gap: 7px; background: #fff; border-radius: 6px; padding: 5px 8px; border: 1px solid #e2e8f0; }
+  .c-event .ce-icon { width: 24px; height: 24px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+  .c-event .ce-body { flex: 1; min-width: 0; }
+  .c-event .ce-action { font-size: 8px; font-weight: 800; }
+  .c-event .ce-detail { font-size: 7px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .c-event .ce-time   { font-size: 7px; color: #94a3b8; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -473,6 +587,14 @@
   <div class="orb orb-2"></div>
   <div class="orb orb-3"></div>
 
+  <!-- Tab switcher -->
+  <div class="tab-switcher">
+    <button class="tab-btn active" onclick="showTab('main')">📅 Schedule</button>
+    <button class="tab-btn" onclick="showTab('security')">🛡️ Security</button>
+  </div>
+
+  <!-- ── Main panel (Schedule) ── -->
+  <div class="main-panel" id="panel-main" style="width:100%">
   <div class="container">
     <!-- Left: Branding -->
     <div class="brand">
@@ -616,6 +738,109 @@
     </div>
     </div> <!-- /preview-wrapper -->
   </div>
+  </div> <!-- /panel-main -->
+
+  <!-- ── Security panel ── -->
+  <div class="security-panel" id="panel-security" style="width:100%;display:none">
+  <div class="container">
+    <!-- Left -->
+    <div class="brand">
+      <div class="logo-row">
+        <div class="logo-icon">🧠</div>
+        <div class="logo-text"><h1>Clarity</h1><div class="sub">Outpatient EHR</div></div>
+      </div>
+      <div style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;margin-bottom:16px;background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.4);color:#a5b4fc;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">
+        🛡️ Security &amp; Compliance
+      </div>
+      <div class="headline" style="font-size:34px;">Built for HIPAA.<br/><span>Designed to protect<br/>your practice.</span></div>
+      <p class="tagline" style="margin-bottom:20px;">Real-time anomaly detection, automatic session management, device fingerprinting, and full audit trails — built in, not bolted on.</p>
+      <div class="features" style="margin-bottom:20px;">
+        <div class="sec-badge green">✅ HIPAA Compliant</div>
+        <div class="sec-badge blue">🔐 AES-256 Encryption</div>
+        <div class="sec-badge purple">🛡️ Cloudflare WAF</div>
+        <div class="sec-badge green">📋 Full Audit Trail</div>
+        <div class="sec-badge blue">🌍 Geo Anomaly Detection</div>
+        <div class="sec-badge purple">⏱️ 15-min Auto Logout</div>
+      </div>
+      <div class="sec-stats">
+        <div class="sec-stat"><div class="num">11<sup>+</sup></div><div class="lbl">Security Rules</div></div>
+        <div class="sec-stat"><div class="num">15<sup>m</sup></div><div class="lbl">Auto Logout</div></div>
+        <div class="sec-stat"><div class="num">0<sup>s</sup></div><div class="lbl">Breach Response</div></div>
+        <div class="sec-stat"><div class="num">100<sup>%</sup></div><div class="lbl">Actions Logged</div></div>
+      </div>
+    </div>
+
+    <!-- Right: Security Console mock -->
+    <div class="console-mock">
+      <div class="console-inner">
+        <div class="c-topbar">
+          <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+          <span class="topbar-title">🛡️ Clarity — Security Console</span>
+        </div>
+        <div class="c-body">
+          <div class="c-sidebar">
+            <div class="c-nav">📊</div><div class="c-nav">📅</div><div class="c-nav">👥</div>
+            <div class="c-nav">📨</div><div class="c-nav">💊</div><div class="c-nav">📹</div>
+            <div class="c-nav active">🛡️</div><div class="c-nav">📈</div>
+          </div>
+          <div class="c-main">
+            <div class="c-header">
+              <h3>🛡️ Security Console</h3>
+              <div class="c-live"><div class="c-dot"></div> Live</div>
+            </div>
+            <div class="c-metrics">
+              <div class="c-metric"><div class="mi">🚨</div><div class="mn" style="color:#dc2626">0</div><div class="ml">Critical</div></div>
+              <div class="c-metric"><div class="mi">⚠️</div><div class="mn" style="color:#f97316">2</div><div class="ml">High</div></div>
+              <div class="c-metric"><div class="mi">🔐</div><div class="mn" style="color:#3b82f6">7</div><div class="ml">Sessions</div></div>
+              <div class="c-metric"><div class="mi">💻</div><div class="mn" style="color:#8b5cf6">12</div><div class="ml">Devices</div></div>
+              <div class="c-metric"><div class="mi">✅</div><div class="mn" style="color:#16a34a">624</div><div class="ml">Logs</div></div>
+            </div>
+            <div class="c-tabs">
+              <div class="c-tab active">Security Events</div>
+              <div class="c-tab">Anomalies</div>
+              <div class="c-tab">Sessions</div>
+              <div class="c-tab">Devices</div>
+            </div>
+            <div class="r11-bar">
+              <span style="font-size:14px">🚨</span>
+              <div>
+                <div class="r11-title">R11 — High-Risk Login Blocked &amp; Auto-Locked</div>
+                <div class="r11-sub">dr.emmanuel · New device + new country + VPN IP (score 12/100) · 3 sessions terminated</div>
+              </div>
+              <div class="r11-chip">CRITICAL</div>
+            </div>
+            <div class="c-events">
+              <div class="c-event">
+                <div class="ce-icon" style="background:#fff7ed">⚠️</div>
+                <div class="ce-body">
+                  <div class="ce-action" style="color:#f97316">GEO_ANOMALY</div>
+                  <div class="ce-detail">np.ola signed in from Lagos, NG · previously Chicago, US</div>
+                </div>
+                <div class="ce-time">2m ago</div>
+              </div>
+              <div class="c-event">
+                <div class="ce-icon" style="background:#fffbeb">📱</div>
+                <div class="ce-body">
+                  <div class="ce-action" style="color:#f59e0b">NEW_DEVICE_LOGIN</div>
+                  <div class="ce-detail">dr.chris · Safari on iPhone · 72.14.20.1 · Chicago, US</div>
+                </div>
+                <div class="ce-time">14m ago</div>
+              </div>
+              <div class="c-event">
+                <div class="ce-icon" style="background:#f0fdf4">✅</div>
+                <div class="ce-body">
+                  <div class="ce-action" style="color:#16a34a">LOGIN_SUCCESS</div>
+                  <div class="ce-detail">harriet · Chrome · macOS · Trusted device · No anomalies</div>
+                </div>
+                <div class="ce-time">1h ago</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div> <!-- /panel-security -->
 
   <div class="bottom-bar">
     <div class="hipaa">
@@ -623,5 +848,14 @@
     </div>
     <div class="version">v2.4.1</div>
   </div>
+<script>
+  function showTab(tab) {
+    document.getElementById('panel-main').style.display     = tab === 'main'     ? 'block' : 'none';
+    document.getElementById('panel-security').style.display = tab === 'security' ? 'block' : 'none';
+    document.querySelectorAll('.tab-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.textContent.toLowerCase().includes(tab === 'main' ? 'schedule' : 'security'));
+    });
+  }
+</script>
 </body>
 </html>
