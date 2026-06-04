@@ -74,7 +74,7 @@ function formatPatient(row, opts = {}) {
     },
     pcp: row.pcp,
     assignedProvider: row.assigned_provider,
-    photo: row.photo,
+    photo: row.photo_url || row.photo || null,
     isBTG: !!row.is_btg,
     isActive: !!row.is_active,
     lastVisit: row.last_visit,
@@ -225,6 +225,29 @@ router.get('/zip/:zip', authenticate, async (req, res) => {
   } catch {
     res.status(503).json({ error: 'ZIP lookup unavailable' });
   }
+});
+
+// PATCH /api/patients/:id/photo — save or remove patient photo URL
+router.patch('/:id/photo', authenticate, async (req, res) => {
+  const { photoUrl } = req.body;
+  // photoUrl can be a data URL (base64) or null to remove
+  if (photoUrl !== null && typeof photoUrl !== 'string') {
+    return res.status(400).json({ error: 'photoUrl must be a string or null' });
+  }
+
+  await db.prepare(
+    `UPDATE patients SET photo_url = $1, updated_at = NOW() WHERE id = $2`
+  ).run(photoUrl || null, req.params.id);
+
+  await logAudit({
+    actorId: req.user.id, actorName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
+    action: photoUrl ? 'PATIENT_PHOTO_UPDATED' : 'PATIENT_PHOTO_REMOVED',
+    targetId: req.params.id, targetType: 'patient',
+    details: {},
+    ip: req.ip || '',
+  });
+
+  res.json({ ok: true });
 });
 
 // PATCH /api/patients/:id/sticky-note — save or clear sticky note

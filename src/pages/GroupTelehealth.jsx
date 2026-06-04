@@ -129,7 +129,7 @@ export default function GroupTelehealth() {
             {activeSession.participants.map(pid => (
               <div key={pid} style={{ background: '#1e293b', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 180, position: 'relative' }}>
                 <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: '#fff', fontWeight: 800 }}>
-                  {pName(pid).split(' ').map(n => n[0]).join('')}
+                  {(() => { const _p = patients?.find(pt=>pt.id===pid); const _ph=_p?.photo; const _in=pName(pid).split(' ').map(n=>n[0]).join(''); return _ph ? <img src={_ph} alt={pName(pid)} style={{width:'100%',height:'100%',objectFit:'cover'}}/> : _in; })()}
                 </div>
                 <div style={{ color: '#fff', fontSize: 12, fontWeight: 600, marginTop: 6 }}>{pName(pid)}</div>
                 <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 6 }}>
