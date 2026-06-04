@@ -146,14 +146,18 @@ async function rollback() {
   }
 }
 
-// ── CLI ───────────────────────────────────────────────────────────────────────
-const cmd = process.argv[2];
-if (cmd === 'status') {
-  status().catch(console.error).finally(() => process.exit(0));
-} else if (cmd === 'rollback') {
-  rollback().catch(console.error).finally(() => process.exit(0));
-} else {
-  runMigrations().catch(console.error).finally(() => process.exit(0));
+// ── CLI (only when run directly, not when imported) ──────────────────────────
+// Detect: node migrate.js  vs  import { runMigrations } from './migrate.js'
+const isMain = process.argv[1]?.endsWith('migrate.js');
+if (isMain) {
+  const cmd = process.argv[2];
+  if (cmd === 'status') {
+    status().catch(console.error).finally(() => process.exit(0));
+  } else if (cmd === 'rollback') {
+    rollback().catch(console.error).finally(() => process.exit(0));
+  } else {
+    runMigrations().catch(console.error).finally(() => process.exit(0));
+  }
 }
 
 export { runMigrations, status };

@@ -7,7 +7,6 @@ import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import config from './config.js';
 import { initializeDatabase, db } from './db/database.js';
-import { runMigrations } from './db/migrate.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
 
@@ -262,7 +261,8 @@ app.use(errorHandler);
 async function start() {
   await initializeDatabase();
 
-  // Run pending DB migrations before anything else starts
+  // Run pending DB migrations before anything else starts (lazy import avoids circular init)
+  const { runMigrations } = await import('./db/migrate.js');
   await runMigrations();
 
   // Apply soft-delete migrations (deleted_at columns + audit_logs table)
@@ -280,9 +280,8 @@ async function start() {
   // Warn if default seed credentials are still present in production
   if (config.nodeEnv === 'production') {
     try {
-      const { default: db } = await import('./db/database.js');
       const { default: bcrypt } = await import('bcryptjs');
-      const admin = db.prepare('SELECT password_hash FROM users WHERE username = ?').get('admin');
+      const admin = await db.prepare('SELECT password_hash FROM users WHERE username = $1').get('admin');
       if (admin && bcrypt.compareSync('Admin1234!', admin.password_hash)) {
         logger.warn('SECURITY: Default seed password still active for user "admin" — change it immediately!');
       }
