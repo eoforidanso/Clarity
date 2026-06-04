@@ -615,8 +615,13 @@ export default function PatientSearch() {
                         onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none'; }}
                       >
                         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                          <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
-                            {p.firstName?.[0]}{p.lastName?.[0]}
+                          <div style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, overflow: 'hidden' }}>
+                            {p.photo
+                              ? <img src={p.photo} alt={`${p.firstName} ${p.lastName}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>
+                                  {p.firstName?.[0]}{p.lastName?.[0]}
+                                </div>
+                            }
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 2 }}>{p.lastName}, {p.firstName}</div>
@@ -676,13 +681,19 @@ export default function PatientSearch() {
                     onMouseLeave={() => setHoveredRow(null)}>
                     <td style={{ minWidth: 160, maxWidth: 240 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{
-                          width: 34, height: 34, borderRadius: '50%',
-                          background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-                          color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontWeight: 700, fontSize: 11, flexShrink: 0,
-                        }}>
-                          {p.firstName?.[0] || ''}{p.lastName?.[0] || ''}
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, overflow: 'hidden' }}>
+                          {p.photo
+                            ? <img src={p.photo} alt={`${p.firstName} ${p.lastName}`}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : <div style={{
+                                width: '100%', height: '100%', borderRadius: '50%',
+                                background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                                color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontWeight: 700, fontSize: 11,
+                              }}>
+                                {p.firstName?.[0] || ''}{p.lastName?.[0] || ''}
+                              </div>
+                          }
                         </div>
                         <div>
                           <div style={{ fontWeight: 800, fontSize: 14 }}>{p.lastName}, {p.firstName}</div>
