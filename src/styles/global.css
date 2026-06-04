@@ -746,11 +746,24 @@ hr { border: none; height: 1px; background: linear-gradient(90deg, transparent 0
   top: 0; left: 0; bottom: 0;
   display: flex;
   flex-direction: column;
+  height: 100vh;
   z-index: 100;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;          /* no scroll on the sidebar itself */
   border-right: 1px solid rgba(255,255,255,0.04);
   transition: width 0.22s cubic-bezier(0.4,0,0.2,1);
+}
+
+/* Header — logo + open charts — never scrolls */
+.sidebar-header {
+  flex-shrink: 0;
+}
+
+/* Scrollable content area — nav sections */
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: 0.75rem;      /* prevents top clip */
 }
 
 .sidebar-logo { padding: 0; border-bottom: 1px solid rgba(255,255,255,0.06); flex-shrink: 0; }
