@@ -919,7 +919,7 @@ export default function PatientSearch() {
       {/* Add Patient Modal */}
       {addModal && (
         <div className="ap-overlay" role="dialog" aria-modal="true" aria-labelledby="ap-title"
-          style={{ alignItems: dupCompare ? 'flex-start' : 'center', gap: 16, paddingTop: dupCompare ? 32 : undefined }}>
+          style={dupCompare ? { alignItems: 'flex-start', gap: 16, paddingTop: 32 } : {}}>
 
           {/* Side-by-side: existing patient summary */}
           {dupCompare && (
