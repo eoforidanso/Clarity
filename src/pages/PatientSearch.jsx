@@ -181,23 +181,9 @@ export default function PatientSearch() {
     return () => document.removeEventListener('paste', handlePaste);
   }, [addModal]);
 
-  // ── Fetch next MRN when modal opens ──────────────────────────────────────
-  useEffect(() => {
-    if (!addModal || !currentUser) return;
-    (async () => {
-      let nextMrn = null;
-      try {
-        const res = await fetch(`${API}/patients/next-mrn`, { credentials: 'include' });
-        if (res.ok) {
-          const data = await res.json();
-          nextMrn = data.mrn;
-        }
-      } catch (err) {
-        console.error('Failed to load MRN', err);
-      }
-      if (nextMrn) setPtForm(p => ({ ...p, mrn: nextMrn }));
-    })();
-  }, [addModal, currentUser]);
+  // ── MRN auto-fill disabled (403 on WAF) — MRN generated on save ─────────
+  // const nextMrn = await getNextMrn();
+  // const nextMrn = null;
 
   // ── ZIP auto-fill (city + state) on blur ─────────────────────────────────
   const handleZipBlur = async (zip) => {
