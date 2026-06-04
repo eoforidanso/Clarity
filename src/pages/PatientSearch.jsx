@@ -433,7 +433,7 @@ export default function PatientSearch() {
         }}>
           <div style={{
             background: 'var(--surface)', borderRadius: 14, width: '100%', maxWidth: 760,
-            maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+            height: '90vh', display: 'flex', flexDirection: 'column',
             boxShadow: 'var(--shadow-overlay)',
           }}>
             {/* Header */}
