@@ -2372,17 +2372,18 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 
 .modal-container {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 2rem 0;       /* prevents clipping at top/bottom */
-  overflow-y: auto;      /* scrolls if content taller than viewport */
-  min-height: 100%;      /* stretches to fill the overlay */
+  justify-content: center;   /* centers horizontally */
+  align-items: flex-start;   /* allows downward offset */
+  padding-top: 40px;         /* pushes card downward */
+  padding-bottom: 40px;      /* prevents clipping at bottom */
+  overflow-y: auto;
+  height: 100vh;
 }
 
 .new-patient-card {
   width: 100%;
   max-width: 720px;
-  margin-top: 2rem;      /* forces downward spacing */
+  margin-top: 20px;          /* extra downward spacing */
 }
 
 .modal {
