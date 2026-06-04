@@ -2370,6 +2370,15 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   z-index: 1000;
 }
 
+.modal-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem 0;       /* prevents clipping at top/bottom */
+  overflow-y: auto;      /* scrolls if content taller than viewport */
+  min-height: 100%;      /* stretches to fill the overlay */
+}
+
 .modal {
   background: white;
   border-radius: var(--radius-modal);
