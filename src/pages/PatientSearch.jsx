@@ -181,13 +181,22 @@ export default function PatientSearch() {
     return () => document.removeEventListener('paste', handlePaste);
   }, [addModal]);
 
-  // ── Fetch next MRN when modal opens (only when authenticated) ────────────
+  // ── Fetch next MRN when modal opens ──────────────────────────────────────
   useEffect(() => {
     if (!addModal || !currentUser) return;
-    fetch(`${API}/patients/next-mrn`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.mrn) setPtForm(p => ({ ...p, mrn: data.mrn })); })
-      .catch(() => {});
+    (async () => {
+      let nextMrn = null;
+      try {
+        const res = await fetch(`${API}/patients/next-mrn`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          nextMrn = data.mrn;
+        }
+      } catch (err) {
+        console.error('Failed to load MRN', err);
+      }
+      if (nextMrn) setPtForm(p => ({ ...p, mrn: nextMrn }));
+    })();
   }, [addModal, currentUser]);
 
   // ── ZIP auto-fill (city + state) on blur ─────────────────────────────────
