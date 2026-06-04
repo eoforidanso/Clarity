@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import config from '../config.js';
 import db from '../db/database.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireElevated } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
 // Send OTP email via Resend HTTP API (port 443 — works on DigitalOcean)
 async function sendOtpEmail(to, otp) {
@@ -525,7 +525,7 @@ router.post('/2fa/enable', authenticate, async (req, res) => {
 });
 
 // POST /api/auth/2fa/disable — disable email 2FA for the authenticated user
-router.post('/2fa/disable', authenticate, async (req, res) => {
+router.post('/2fa/disable', authenticate, requireElevated, async (req, res) => {
   await db.prepare("UPDATE users SET two_factor_enabled = 0, email_otp = NULL, email_otp_expires = NULL, updated_at = NOW() WHERE id = ?")
     .run(req.user.id);
   logAuditEvent({

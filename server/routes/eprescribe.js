@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate, requireElevated, authorize } from '../middleware/auth.js';
 
 const router = Router();
 router.use(authenticate);
@@ -27,7 +27,7 @@ router.get('/medication-database', async (req, res) => {
 });
 
 // POST /api/eprescribe/prescribe
-router.post('/prescribe', async (req, res) => {
+router.post('/prescribe', requireElevated, async (req, res) => {
   const b = req.body;
   const medId = uuidv4();
   const userName = `${req.user.first_name} ${req.user.last_name}`.trim();
