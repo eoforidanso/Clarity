@@ -175,8 +175,38 @@ export default function PatientSearch() {
   const [ssnMasked, setSsnMasked]         = useState('');
   const [ecSameAddress, setEcSameAddress] = useState(false);
   const [openSections, setOpenSections]   = useState({ demographics: true, contact: true, emergency: true, insurance: true, care: true });
-  const [showReview, setShowReview]       = useState(false);   // final review screen
+  const [showReview, setShowReview]       = useState(false);
+  const [dupCompare, setDupCompare]       = useState(null);    // patient to compare side-by-side
   const toggleSection = (key) => setOpenSections(p => ({ ...p, [key]: !p[key] }));
+
+  // Jump to section from review screen
+  const jumpToSection = (key) => {
+    setShowReview(false);
+    setOpenSections(p => ({ ...p, [key]: true }));
+  };
+
+  // ── Section status: Complete / Missing / Optional ───────────────────────
+  const sectionStatus = {
+    demographics: () => {
+      const req = ptForm.firstName && ptForm.lastName && ptForm.dob && ptForm.gender;
+      const opt = ptForm.pronouns || ptForm.race || ptForm.ethnicity || ptForm.ssn;
+      return req ? 'complete' : 'missing';
+    },
+    contact: () => {
+      const hasContact = ptForm.phone || ptForm.email;
+      if (!hasContact) return 'optional';
+      if (emailError || phoneError) return 'missing';
+      return 'complete';
+    },
+    emergency: () => ptForm.emergencyContact.name ? 'complete' : 'optional',
+    insurance: () => ptForm.insurance.primary.name ? 'complete' : 'optional',
+    care: () => ptForm.assignedProvider ? 'complete' : 'optional',
+  };
+  const STATUS_PILL = {
+    complete: { label: 'Complete', color: '#16a34a', bg: '#dcfce7', dot: '#22c55e' },
+    missing:  { label: 'Missing',  color: '#dc2626', bg: '#fee2e2', dot: '#ef4444' },
+    optional: { label: 'Optional', color: '#6b7280', bg: '#f3f4f6', dot: '#9ca3af' },
+  };
 
   // ── DOB ↔ Age ─────────────────────────────────────────────────────────────
   const calcAge = (dob) => {
@@ -768,7 +798,56 @@ export default function PatientSearch() {
       )}
       {/* Add Patient Modal */}
       {addModal && (
-        <div className="ap-overlay" role="dialog" aria-modal="true" aria-labelledby="ap-title">
+        <div className="ap-overlay" role="dialog" aria-modal="true" aria-labelledby="ap-title"
+          style={{ alignItems: dupCompare ? 'flex-start' : 'center', gap: 16, paddingTop: dupCompare ? 32 : undefined }}>
+
+          {/* Side-by-side: existing patient summary */}
+          {dupCompare && (
+            <div style={{
+              width: 300, flexShrink: 0, background: '#fff', borderRadius: 16,
+              boxShadow: '0 24px 64px rgba(15,23,42,0.18)', overflow: 'hidden',
+              maxHeight: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column',
+              animation: 'ap-card-in 140ms cubic-bezier(0.16,1,0.3,1) both',
+            }}>
+              <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: '#0f172a' }}>Existing Patient</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>Review before saving</div>
+                </div>
+                <button onClick={() => setDupCompare(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 16 }}>✕</button>
+              </div>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, padding: '10px 12px', background: '#f8fafc', borderRadius: 10 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+                    {dupCompare.firstName?.[0]}{dupCompare.lastName?.[0]}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 14 }}>{dupCompare.lastName}, {dupCompare.firstName}</div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>{dupCompare.mrn}</div>
+                  </div>
+                </div>
+                {[
+                  ['DOB', dupCompare.dob], ['Gender', dupCompare.gender],
+                  ['Phone', dupCompare.phone || dupCompare.cellPhone],
+                  ['Email', dupCompare.email],
+                  ['Address', [dupCompare.address?.street, dupCompare.address?.city, dupCompare.address?.state].filter(Boolean).join(', ')],
+                  ['Insurance', dupCompare.insurance?.primary?.name],
+                  ['Assigned Provider', dupCompare.assignedProvider],
+                  ['Last Visit', dupCompare.lastVisit],
+                ].filter(([, v]) => v).map(([label, value]) => (
+                  <div key={label} style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+                    <div style={{ fontSize: 13, color: '#0f172a', fontWeight: 500 }}>{value}</div>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                  <button className="btn btn-primary" style={{ flex: 1, fontSize: 12 }} onClick={() => { setDupCompare(null); handleSelect(dupCompare); }}>Open Chart</button>
+                  <button className="btn" style={{ fontSize: 12 }} onClick={() => setDupCompare(null)}>Dismiss</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="ap-card">
 
             {/* ── Header ── */}
@@ -800,7 +879,7 @@ export default function PatientSearch() {
                 <div className="ap-dup-banner" role="alert">
                   <div className="ap-dup-banner-title">⚠️ Possible duplicate patient — review before saving</div>
                   {dupMatches.map((m, i) => (
-                    <div key={i} className="ap-dup-match" onClick={() => handleSelect(m)} title="Open chart">
+                    <div key={i} className="ap-dup-match" onClick={() => setDupCompare(m)} title="Compare side by side">
                       <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
                         {m.firstName?.[0]}{m.lastName?.[0]}
                       </div>
@@ -808,7 +887,7 @@ export default function PatientSearch() {
                         <div style={{ fontWeight: 700 }}>{m.lastName}, {m.firstName} — {m.mrn}</div>
                         <div style={{ fontSize: 11, opacity: 0.7 }}>{m._reason} · DOB {m.dob}</div>
                       </div>
-                      <span style={{ fontSize: 11, color: '#7c3aed' }}>Open chart →</span>
+                      <span style={{ fontSize: 11, color: '#7c3aed' }}>Compare →</span>
                     </div>
                   ))}
                 </div>
@@ -820,35 +899,42 @@ export default function PatientSearch() {
               {showReview ? (
                 <div>
                   {[
-                    { title: 'Demographics', fields: [
+                    { key: 'demographics', title: 'Demographics', fields: [
                       ['First Name', ptForm.firstName], ['Last Name', ptForm.lastName],
                       ['Date of Birth', ptForm.dob], ['Age', ageInput ? `${ageInput} yrs` : ''],
                       ['Gender', ptForm.gender], ['Pronouns', ptForm.pronouns],
                       ['Language', ptForm.language], ['Race', ptForm.race],
                       ['Ethnicity', ptForm.ethnicity], ['SSN', ptForm.ssn ? `***-**-${ptForm.ssn.slice(-4)}` : ''],
                     ]},
-                    { title: 'Contact', fields: [
+                    { key: 'contact', title: 'Contact', fields: [
                       ['Phone', ptForm.phone], ['Cell Phone', ptForm.cellPhone],
                       ['Email', ptForm.email],
                       ['Address', [ptForm.address.street, ptForm.address.city, ptForm.address.state, ptForm.address.zip].filter(Boolean).join(', ')],
                     ]},
-                    { title: 'Emergency Contact', fields: [
+                    { key: 'emergency', title: 'Emergency Contact', fields: [
                       ['Name', ptForm.emergencyContact.name],
                       ['Relationship', ptForm.emergencyContact.relationship],
                       ['Phone', ptForm.emergencyContact.phone],
                     ]},
-                    { title: 'Insurance', fields: [
+                    { key: 'insurance', title: 'Insurance', fields: [
                       ['Plan', ptForm.insurance.primary.name],
                       ['Member ID', ptForm.insurance.primary.memberId],
                       ['Group #', ptForm.insurance.primary.groupNumber],
                       ['Copay', ptForm.insurance.primary.copay ? `$${ptForm.insurance.primary.copay}` : ''],
                     ]},
-                    { title: 'Care Team', fields: [
+                    { key: 'care', title: 'Care Team', fields: [
                       ['PCP', ptForm.pcp], ['Assigned Provider', ptForm.assignedProvider],
                     ]},
-                  ].map(({ title, fields }) => (
-                    <div key={title} className="ap-review-section">
-                      <div className="ap-review-title">{title}</div>
+                  ].map(({ key, title, fields }) => (
+                    <div key={key} className="ap-review-section">
+                      <div className="ap-review-title" style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                        <span>{title}</span>
+                        <button onClick={() => jumpToSection(key)} style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          fontSize: 11, color: '#7c3aed', fontWeight: 700, padding: '2px 6px',
+                          borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3,
+                        }}>✏ Edit</button>
+                      </div>
                       <div className="ap-review-grid">
                         {fields.map(([label, value]) => (
                           <div key={label} className="ap-review-field">
@@ -862,7 +948,6 @@ export default function PatientSearch() {
                       </div>
                     </div>
                   ))}
-                  {/* Required fields check */}
                   {(!ptForm.firstName || !ptForm.lastName || !ptForm.dob || !ptForm.gender) && (
                     <div className="ap-error-banner">⚠️ Missing required fields: {[!ptForm.firstName&&'First Name',!ptForm.lastName&&'Last Name',!ptForm.dob&&'Date of Birth',!ptForm.gender&&'Gender'].filter(Boolean).join(', ')}</div>
                   )}
@@ -875,6 +960,7 @@ export default function PatientSearch() {
               <div className={`ap-section${!ptForm.firstName||!ptForm.lastName||!ptForm.dob||!ptForm.gender?' has-error':''}`}>
                 <div className="ap-section-header" onClick={() => toggleSection('demographics')} role="button" aria-expanded={openSections.demographics}>
                   <span className="ap-section-title">Demographics</span>
+                  {(() => { const s = STATUS_PILL[sectionStatus.demographics()]; return (<span style={{ display:'inline-flex', alignItems:'center', gap:4, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:10, background:s.bg, color:s.color, marginLeft:'auto', marginRight:8 }}><span style={{ width:6, height:6, borderRadius:'50%', background:s.dot, flexShrink:0 }}/>{s.label}</span>); })()}
                   <span className={`ap-section-chevron${openSections.demographics?' open':''}`}>›</span>
                 </div>
                 <div className={`ap-section-body${openSections.demographics?'':' collapsed'}`} style={{ maxHeight: openSections.demographics ? 2000 : 0 }}>
@@ -957,6 +1043,7 @@ export default function PatientSearch() {
               <div className="ap-section">
                 <div className="ap-section-header" onClick={() => toggleSection('contact')} role="button" aria-expanded={openSections.contact}>
                   <span className="ap-section-title">Contact</span>
+                  {(() => { const s = STATUS_PILL[sectionStatus.contact()]; return (<span style={{ display:'inline-flex', alignItems:'center', gap:4, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:10, background:s.bg, color:s.color, marginLeft:'auto', marginRight:8 }}><span style={{ width:6, height:6, borderRadius:'50%', background:s.dot, flexShrink:0 }}/>{s.label}</span>); })()}
                   <span className={`ap-section-chevron${openSections.contact?' open':''}`}>›</span>
                 </div>
                 <div className={`ap-section-body${openSections.contact?'':' collapsed'}`} style={{ maxHeight: openSections.contact ? 2000 : 0 }}>
@@ -1016,6 +1103,7 @@ export default function PatientSearch() {
               <div className="ap-section">
                 <div className="ap-section-header" onClick={() => toggleSection('emergency')} role="button" aria-expanded={openSections.emergency}>
                   <span className="ap-section-title">Emergency Contact</span>
+                  {(() => { const s = STATUS_PILL[sectionStatus.emergency()]; return (<span style={{ display:'inline-flex', alignItems:'center', gap:4, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:10, background:s.bg, color:s.color, marginLeft:'auto', marginRight:8 }}><span style={{ width:6, height:6, borderRadius:'50%', background:s.dot, flexShrink:0 }}/>{s.label}</span>); })()}
                   <span className={`ap-section-chevron${openSections.emergency?' open':''}`}>›</span>
                 </div>
                 <div className={`ap-section-body${openSections.emergency?'':' collapsed'}`} style={{ maxHeight: openSections.emergency ? 1000 : 0 }}>
@@ -1041,6 +1129,7 @@ export default function PatientSearch() {
               <div className="ap-section">
                 <div className="ap-section-header" onClick={() => toggleSection('insurance')} role="button" aria-expanded={openSections.insurance}>
                   <span className="ap-section-title">Primary Insurance</span>
+                  {(() => { const s = STATUS_PILL[sectionStatus.insurance()]; return (<span style={{ display:'inline-flex', alignItems:'center', gap:4, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:10, background:s.bg, color:s.color, marginLeft:'auto', marginRight:8 }}><span style={{ width:6, height:6, borderRadius:'50%', background:s.dot, flexShrink:0 }}/>{s.label}</span>); })()}
                   <span className={`ap-section-chevron${openSections.insurance?' open':''}`}>›</span>
                 </div>
                 <div className={`ap-section-body${openSections.insurance?'':' collapsed'}`} style={{ maxHeight: openSections.insurance ? 1000 : 0 }}>
@@ -1065,6 +1154,7 @@ export default function PatientSearch() {
               <div className="ap-section">
                 <div className="ap-section-header" onClick={() => toggleSection('care')} role="button" aria-expanded={openSections.care}>
                   <span className="ap-section-title">Care Team</span>
+                  {(() => { const s = STATUS_PILL[sectionStatus.care()]; return (<span style={{ display:'inline-flex', alignItems:'center', gap:4, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:10, background:s.bg, color:s.color, marginLeft:'auto', marginRight:8 }}><span style={{ width:6, height:6, borderRadius:'50%', background:s.dot, flexShrink:0 }}/>{s.label}</span>); })()}
                   <span className={`ap-section-chevron${openSections.care?' open':''}`}>›</span>
                 </div>
                 <div className={`ap-section-body${openSections.care?'':' collapsed'}`} style={{ maxHeight: openSections.care ? 1000 : 0 }}>
