@@ -33,19 +33,110 @@ export default function PatientSearch() {
   const [encForm, setEncForm] = useState({});
 
   // Add Patient modal state
-  const EMPTY_PT = {
-    firstName: '', lastName: '', dob: '', gender: 'Female', pronouns: '',
+  const DEFAULT_PT = {
+    firstName: '', lastName: '', dob: '', gender: 'Female',
+    pronouns: 'They/Them',
     phone: '', cellPhone: '', email: '',
     address: { street: '', city: '', state: '', zip: '' },
     emergencyContact: { name: '', relationship: '', phone: '' },
     insurance: { primary: { name: '', memberId: '', groupNumber: '', copay: '' } },
-    pcp: '', assignedProvider: '', language: 'English', race: '', ethnicity: '',
+    pcp: '', assignedProvider: '',
+    language: 'English',
+    race: 'Not Specified',
+    ethnicity: 'Not Hispanic or Latino',
     maritalStatus: '', ssn: '',
   };
   const [addModal, setAddModal] = useState(false);
-  const [ptForm, setPtForm] = useState(EMPTY_PT);
+  const [ptForm, setPtForm] = useState(DEFAULT_PT);
   const [ptSaving, setPtSaving] = useState(false);
   const [ptError, setPtError] = useState('');
+  const [dlPasted, setDlPasted] = useState(false); // shows banner when DL parsed
+
+  const API = import.meta.env.VITE_API_URL || '/api';
+
+  // ── fillForm: merge partial data into form state ──────────────────────────
+  const fillForm = (data) => {
+    setPtForm(prev => ({
+      ...prev,
+      ...(data.firstName    && { firstName:    data.firstName }),
+      ...(data.lastName     && { lastName:     data.lastName }),
+      ...(data.dob          && { dob:          data.dob }),
+      ...(data.gender       && { gender:       data.gender }),
+      ...(data.phone        && { phone:        data.phone }),
+      ...(data.email        && { email:        data.email }),
+      ...(data.pronouns     && { pronouns:     data.pronouns }),
+      ...(data.language     && { language:     data.language }),
+      ...(data.race         && { race:         data.race }),
+      ...(data.ethnicity    && { ethnicity:    data.ethnicity }),
+      address: {
+        ...prev.address,
+        ...(data.address?.street && { street: data.address.street }),
+        ...(data.address?.city   && { city:   data.address.city }),
+        ...(data.address?.state  && { state:  data.address.state }),
+        ...(data.address?.zip    && { zip:    data.address.zip }),
+      },
+    }));
+  };
+
+  // ── loadPatient: pre-fill form from existing patient record ───────────────
+  const loadPatient = async (id) => {
+    try {
+      const res = await fetch(`${API}/patients/${id}`, { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      fillForm({
+        firstName: data.firstName, lastName: data.lastName, dob: data.dob,
+        gender: data.gender, phone: data.phone, email: data.email,
+        address: data.address,
+      });
+    } catch { /* non-critical */ }
+  };
+
+  // ── Driver's license clipboard parser ────────────────────────────────────
+  // Supports AAMVA PDF417 barcode text (common US/Canada DL format)
+  const looksLikeDriversLicense = (text) => {
+    return /^@\n/.test(text) ||        // AAMVA header
+           /\bDAA\b|\bDBA\b|\bDBB\b/.test(text) || // AAMVA field codes
+           /DAA[A-Z ,]+/.test(text);
+  };
+
+  const parseLicense = (text) => {
+    const get = (code) => {
+      const m = text.match(new RegExp(code + '([^\n]+)'));
+      return m ? m[1].trim() : '';
+    };
+    // AAMVA standard field codes
+    const rawName = get('DAA') || get('DCT');  // full name or first name
+    const lastName  = get('DCS') || (rawName.includes(',') ? rawName.split(',')[0].trim() : '');
+    const firstName = get('DAC') || (rawName.includes(',') ? rawName.split(',')[1]?.trim() : rawName);
+    const dobRaw    = get('DBB'); // MMDDYYYY
+    const dob = dobRaw.length === 8
+      ? `${dobRaw.slice(4,8)}-${dobRaw.slice(0,2)}-${dobRaw.slice(2,4)}`
+      : '';
+    const street = get('DAG');
+    const city   = get('DAI');
+    const state  = get('DAJ');
+    const zip    = get('DAK').slice(0, 5);
+    const gender = get('DBC') === '1' ? 'Male' : get('DBC') === '2' ? 'Female' : '';
+    return { firstName, lastName, dob, gender, address: { street, city, state, zip } };
+  };
+
+  // ── Clipboard paste listener (active when modal is open) ─────────────────
+  useEffect(() => {
+    if (!addModal) return;
+    const handlePaste = (e) => {
+      const text = e.clipboardData?.getData('text') || '';
+      if (looksLikeDriversLicense(text)) {
+        e.preventDefault();
+        const parsed = parseLicense(text);
+        fillForm(parsed);
+        setDlPasted(true);
+        setTimeout(() => setDlPasted(false), 4000);
+      }
+    };
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [addModal]);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -115,7 +206,7 @@ export default function PatientSearch() {
         },
       });
       setAddModal(false);
-      setPtForm(EMPTY_PT);
+      setPtForm(DEFAULT_PT);
       selectPatient(created.id);
       navigate(`/chart/${created.id}/summary`);
     } catch (err) {
@@ -125,7 +216,7 @@ export default function PatientSearch() {
     }
   };
 
-  const cancelAddPatient = () => { setAddModal(false); setPtForm(EMPTY_PT); setPtError(''); };
+  const cancelAddPatient = () => { setAddModal(false); setPtForm(DEFAULT_PT); setPtError(''); };
 
   return (
     <div className="fade-in">
@@ -134,7 +225,7 @@ export default function PatientSearch() {
           <h1>🔍 Patient Search</h1>
           <p>Search and select a patient to open their chart · <strong>{patients.length}</strong> patients in system</p>
         </div>
-        <button className="btn btn-primary" onClick={() => { setPtForm(EMPTY_PT); setPtError(''); setAddModal(true); }}>
+        <button className="btn btn-primary" onClick={() => { setPtForm(DEFAULT_PT); setPtError(''); setAddModal(true); }}>
           + Add Patient
         </button>
       </div>
@@ -439,6 +530,12 @@ export default function PatientSearch() {
             </div>
 
             <div>
+              {/* Driver's license paste success banner */}
+              {dlPasted && (
+                <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#166534', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  🪪 Driver's license detected — name, DOB, and address filled automatically
+                </div>
+              )}
               {ptError && (
                 <div style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
                   ⚠️ {ptError}
