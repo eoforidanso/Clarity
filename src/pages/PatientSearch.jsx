@@ -426,8 +426,8 @@ export default function PatientSearch() {
       )}
       {/* Add Patient Modal */}
       {addModal && (
-        <div className="modal-container">
-          <div className="add-patient-card" style={{ boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }}>
+        <div className="add-patient-wrapper">
+          <div className="add-patient-card">
             {/* Header */}
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
