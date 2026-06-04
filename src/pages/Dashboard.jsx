@@ -361,8 +361,14 @@ export default function Dashboard() {
                   onClick={() => goToPatient(apt)}
                 >
                   <div className="appt-time">{fmtTime(apt.time)}</div>
-                  <div className="appt-patient-avatar">
-                    {apt.patientName ? apt.patientName.split(' ').map(n => n[0]).join('').slice(0,2) : '?'}
+                  <div className="appt-patient-avatar" style={{ overflow:'hidden', padding:0 }}>
+                    {(() => {
+                      const _photo = patients?.find(p => p.id === apt.patientId)?.photo;
+                      const _ini   = apt.patientName ? apt.patientName.split(' ').map(n=>n[0]).join('').slice(0,2) : '?';
+                      return _photo
+                        ? <img src={_photo} alt={apt.patientName} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                        : _ini;
+                    })()}
                   </div>
                   <div className="appt-info" style={{ flex: 1 }}>
                     <div className="appt-name">
@@ -643,8 +649,10 @@ export default function Dashboard() {
                     onMouseLeave={e => e.currentTarget.style.background = ''}
                     onClick={() => { selectPatient(p.id); navigate(`/chart/${p.id}/summary`); }}
                   >
-                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-                      {`${p.firstName?.[0] || ''}${p.lastName?.[0] || ''}`.toUpperCase()}
+                    <div style={{ width: 30, height: 30, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 11, fontWeight: 700 }}>
+                      {p.photo
+                        ? <img src={p.photo} alt={p.firstName} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                        : `${p.firstName?.[0] || ''}${p.lastName?.[0] || ''}`.toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

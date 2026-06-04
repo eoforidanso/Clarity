@@ -302,7 +302,7 @@ function StaffRefillRequest() {
                 {reqPatient ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#6366f1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600 }}>
-                      {reqPatient.firstName?.[0] || ''}{reqPatient.lastName?.[0] || ''}
+                      {reqPatient?.photo ? <img src={reqPatient.photo} alt={reqPatient.firstName} style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <>{reqPatient.firstName?.[0] || ''}{reqPatient.lastName?.[0] || ''}</>}
                     </div>
                     <div>
                       <div className="font-bold">{reqPatient.lastName}, {reqPatient.firstName}</div>
@@ -1071,7 +1071,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
           {prescriptionPatient ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#6366f1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600 }}>
-                {prescriptionPatient.firstName?.[0] || ''}{prescriptionPatient.lastName?.[0] || ''}
+                {prescriptionPatient?.photo ? <img src={prescriptionPatient.photo} alt={prescriptionPatient.firstName} style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <>{prescriptionPatient.firstName?.[0] || ''}{prescriptionPatient.lastName?.[0] || ''}</>}
               </div>
               <div>
                 <div className="font-bold">{prescriptionPatient.lastName}, {prescriptionPatient.firstName}</div>

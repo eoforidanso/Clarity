@@ -195,13 +195,11 @@ export default function PatientChat() {
             padding: '12px 16px', borderBottom: '1px solid var(--border)',
             display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0,
           }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-              color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontWeight: 700, fontSize: 15, flexShrink: 0,
-            }}>
-              {p.firstName[0]}{p.lastName[0]}
+            <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
+              {p.photo
+                ? <img src={p.photo} alt={p.firstName} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                : <div style={{ width:'100%', height:'100%', background:'linear-gradient(135deg,#4f46e5,#7c3aed)', color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:15 }}>{p.firstName[0]}{p.lastName[0]}</div>
+              }
             </div>
             <div>
               <div style={{ fontWeight: 700, fontSize: 14 }}>{patientName}</div>

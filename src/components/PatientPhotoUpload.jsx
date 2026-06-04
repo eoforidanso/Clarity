@@ -37,12 +37,24 @@ export default function PatientPhotoUpload({ patient, onClose }) {
     processFile(e.dataTransfer.files[0]);
   };
 
+  const API = import.meta.env.VITE_API_URL || '/api';
+
+  const savePhotoToDb = async (photoUrl) => {
+    try {
+      await fetch(`${API}/patients/${patient.id}/photo`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ photoUrl }),
+      });
+    } catch { /* non-critical — context already updated */ }
+  };
+
   const handleSave = () => {
     if (!preview || preview === patient.photo) { onClose(); return; }
     setSaving(true);
-    // Resize to max 400px before storing
     const img = new Image();
-    img.onload = () => {
+    img.onload = async () => {
       const maxDim = 400;
       const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
       const canvas = document.createElement('canvas');
@@ -50,7 +62,10 @@ export default function PatientPhotoUpload({ patient, onClose }) {
       canvas.height = Math.round(img.height * scale);
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
       const resized = canvas.toDataURL('image/jpeg', 0.85);
+      // Save to React context (instant UI update)
       updatePatientPhoto(patient.id, resized);
+      // Persist to DB
+      await savePhotoToDb(resized);
       setSaving(false);
       setSaved(true);
       setTimeout(onClose, 900);
@@ -58,8 +73,9 @@ export default function PatientPhotoUpload({ patient, onClose }) {
     img.src = preview;
   };
 
-  const handleRemove = () => {
+  const handleRemove = async () => {
     updatePatientPhoto(patient.id, null);
+    await savePhotoToDb(null);
     try { localStorage.removeItem(`clarity_pt_photo_${patient.id}`); } catch { /* ok */ }
     onClose();
   };

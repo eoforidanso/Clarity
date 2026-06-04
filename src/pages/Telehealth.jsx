@@ -549,8 +549,13 @@ function ActiveSession({ apt, patient, consentRecord }) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', background: '#0f172a', padding: 16, gap: 12 }}>
           {/* Patient video (main) */}
           <div style={{ flex: 1, background: '#1e293b', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 0 }}>
-            <div style={{ width: 100, height: 100, borderRadius: '50%', background: 'linear-gradient(135deg,#10b981,#059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, color: '#fff', fontWeight: 800 }}>
-              {(apt.patientName || 'P').split(' ').map(n => n[0]).join('').slice(0, 2)}
+            <div style={{ width: 100, height: 100, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
+              {consentRecord?.patientPhoto || patients?.find(p=>p.id===apt?.patientId)?.photo
+                ? <img src={consentRecord?.patientPhoto || patients?.find(p=>p.id===apt?.patientId)?.photo} alt={apt.patientName} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                : <div style={{ width:'100%', height:'100%', background:'linear-gradient(135deg,#10b981,#059669)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:40, color:'#fff', fontWeight:800 }}>
+                    {(apt.patientName || 'P').split(' ').map(n => n[0]).join('').slice(0, 2)}
+                  </div>
+              }
             </div>
             <div style={{ color: '#e2e8f0', fontSize: 15, fontWeight: 700, marginTop: 12 }}>{apt.patientName}</div>
             <div style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
