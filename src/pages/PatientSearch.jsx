@@ -549,7 +549,7 @@ export default function PatientSearch() {
           <h1>🔍 Patient Search</h1>
           <p>Search and select a patient to open their chart · <strong>{patients.length}</strong> patients in system</p>
         </div>
-        <button className="btn btn-primary" onClick={() => { setPtForm(DEFAULT_PT); setPtError(''); setAddModal(true); }}>
+        <button className="btn btn-primary" onClick={() => { setPtForm(DEFAULT_PT); setPtError(''); setShowReview(false); setAddModal(true); }}>
           + Add Patient
         </button>
       </div>
@@ -916,10 +916,10 @@ export default function PatientSearch() {
           </div>
         </div>
       )}
-      {/* Add Patient Modal */}
+      {/* Add Patient — inline card, no modal overlay */}
       {addModal && (
-        <div className="ap-overlay" role="dialog" aria-modal="true" aria-labelledby="ap-title"
-          style={{ alignItems: dupCompare ? 'flex-start' : 'center', gap: 16, paddingTop: dupCompare ? 32 : undefined }}>
+        <div role="region" aria-labelledby="ap-title"
+          style={{ display: 'flex', gap: 16, alignItems: 'flex-start', marginBottom: 24 }}>
 
           {/* Side-by-side: existing patient summary */}
           {dupCompare && (
@@ -968,7 +968,7 @@ export default function PatientSearch() {
             </div>
           )}
 
-          <div className="ap-card">
+          <div style={{ flex: 1, background: '#fff', borderRadius: 14, border: '1px solid var(--border)', boxShadow: '0 4px 20px rgba(15,23,42,0.07)', overflow: 'visible' }}>
 
             {/* ── Header ── */}
             <div className="ap-header">
