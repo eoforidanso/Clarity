@@ -426,25 +426,19 @@ export default function PatientSearch() {
       )}
       {/* Add Patient Modal */}
       {addModal && (
-        <div className="modal-overlay" style={{ zIndex: 1000 }}>
-          <div className="modal-container">
-          <div className="new-patient-card" style={{
-            background: 'var(--surface)', borderRadius: 14,
-            display: 'flex', flexDirection: 'column', maxHeight: '90vh',
-            boxShadow: 'var(--shadow-overlay)',
-          }}>
+        <div className="modal-container">
+          <div className="add-patient-card" style={{ boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }}>
             {/* Header */}
             <div style={{
-              padding: '16px 20px', borderBottom: '1px solid var(--border)',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              flexShrink: 0, background: 'var(--surface)', borderRadius: '14px 14px 0 0',
+              marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid var(--border)',
             }}>
               <div style={{ fontWeight: 800, fontSize: 17 }}>👤 Add New Patient</div>
               <button onClick={cancelAddPatient}
                 style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
             </div>
 
-            <div className="modal-body" style={{ flex: 1 }}>
+            <div>
               {ptError && (
                 <div style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
                   ⚠️ {ptError}
@@ -605,9 +599,8 @@ export default function PatientSearch() {
 
             {/* Footer */}
             <div style={{
-              padding: '14px 20px', borderTop: '1px solid var(--border)',
+              marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)',
               display: 'flex', justifyContent: 'flex-end', gap: 10,
-              flexShrink: 0, background: 'var(--surface)', borderRadius: '0 0 14px 14px',
             }}>
               <button className="btn" onClick={cancelAddPatient} disabled={ptSaving}>Cancel</button>
               <button className="btn btn-primary" onClick={saveNewPatient} disabled={ptSaving}>
@@ -615,7 +608,6 @@ export default function PatientSearch() {
               </button>
             </div>
           </div>
-          </div>{/* /modal-container */}
         </div>
       )}
     </div>

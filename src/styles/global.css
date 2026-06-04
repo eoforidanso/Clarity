@@ -2371,19 +2371,32 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 }
 
 .modal-container {
+  position: fixed;
+  inset: 0;                      /* full screen */
   display: flex;
-  justify-content: center;   /* centers horizontally */
-  align-items: flex-start;   /* allows downward offset */
-  padding-top: 40px;         /* pushes card downward */
-  padding-bottom: 40px;      /* prevents clipping at bottom */
-  overflow-y: auto;
-  height: 100vh;
+  justify-content: center;       /* center horizontally */
+  align-items: center;           /* center vertically */
+  background: rgba(0,0,0,0.45); /* dim backdrop */
+  overflow: hidden;              /* NO SCROLL on overlay */
+  padding: 0;
+  z-index: 1000;
 }
 
+.add-patient-card {
+  width: 100%;
+  max-width: 720px;              /* same width as appointment modal */
+  max-height: 90vh;              /* prevents overflow */
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  overflow-y: auto;              /* only scroll INSIDE the card */
+  box-sizing: border-box;
+}
+
+/* keep .new-patient-card as alias */
 .new-patient-card {
   width: 100%;
   max-width: 720px;
-  margin-top: 20px;          /* extra downward spacing */
 }
 
 .modal {
