@@ -1683,7 +1683,12 @@ export default function Schedule() {
   // - prescriber / therapist → only themselves
   // - all other roles (nurse, patient, etc.) → none
   const authorizedProviders = useMemo(() => {
-    if (isFrontDesk) return PROVIDERS;
+    const userLocationId = currentUser?.locationId || currentUser?.location_id;
+    const isAdmin = currentUser?.role === 'admin';
+    if (isAdmin) return PROVIDERS;
+    if (isFrontDesk) return userLocationId
+      ? PROVIDERS.filter(p => p.locationId === userLocationId)
+      : PROVIDERS;
     if (isProvider) return PROVIDERS.filter(p => p.id === currentUser?.id);
     return [];
   }, [isFrontDesk, isProvider, currentUser]);
@@ -1779,17 +1784,28 @@ export default function Schedule() {
     return PROVIDERS.map(p=>({...p, apts:base.filter(a=>a.provider===p.id)})).filter(p=>p.apts.length>0);
   }, [allAppts, activeDate]);
 
-  // Providers visible in the filter sidebar — only those with appts at the active site,
-  // or all providers when no site filter is active
+  // Providers visible in the filter sidebar:
+  // - admin/front_desk with no site filter → all providers
+  // - site filter active → providers at that site
+  // - non-admin (prescriber/therapist/nurse) → always scoped to their own location
   const siteProviders = useMemo(() => {
+    const isAdmin = currentUser?.role === 'admin';
+    const userLocationId = currentUser?.locationId || currentUser?.location_id;
+
+    // Non-admin: always filter to their own location
+    if (!isAdmin && userLocationId) {
+      return PROVIDERS.filter(p => p.locationId === userLocationId || p.id === currentUser?.id);
+    }
+
+    // Admin with no site filter → all providers
     if (!isFiltered) return PROVIDERS;
-    // When a site is selected: only providers who have at least one appointment
-    // in allAppts (already filtered to this site) OR whose locationId matches
+
+    // Admin with site selected → providers at that site or with appointments there
     const provIdsWithAppts = new Set(allAppts.map(a => a.provider));
     return PROVIDERS.filter(p =>
       provIdsWithAppts.has(p.id) || p.locationId === activeSiteId
     );
-  }, [isFiltered, allAppts, activeSiteId]);
+  }, [isFiltered, allAppts, activeSiteId, currentUser]);
 
   const handleOpenChart  = useCallback(apt => { if(apt.patientId){selectPatient(apt.patientId);navigate(`/chart/${apt.patientId}/summary`);} }, [selectPatient,navigate]);
   const handleCheckIn    = useCallback(apt => { updateAppointmentStatus(apt.id,"Checked In");if(apt.patientId)selectPatient(apt.patientId);navigate(`/session/${apt.id}`); }, [updateAppointmentStatus,selectPatient,navigate]);
