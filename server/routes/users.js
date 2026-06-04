@@ -71,17 +71,23 @@ function sanitizeUsername(raw) {
 const VALID_ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist', 'biller', 'admin'];
 
 // ── GET /api/users/directory ───────────────────────────────────────────
-// Returns basic name/role info for all staff — accessible by any authenticated user.
-// No sensitive data (email, NPI, DEA) is included.
-router.get('/directory', authenticate, async (_req, res) => {
-  const rows = await db
-    .prepare(
-      `SELECT id, first_name, last_name, role, credentials, specialty
-       FROM users
-       WHERE role != 'patient'
-       ORDER BY last_name ASC, first_name ASC`
-    )
-    .all();
+// Returns basic name/role info for staff.
+// Admins see all staff. Non-admins see only staff at their own location.
+router.get('/directory', authenticate, async (req, res) => {
+  const isAdmin = ['admin', 'front_desk'].includes(req.user.role);
+  const userLocationId = req.user.location_id;
+
+  const rows = isAdmin || !userLocationId
+    ? await db.prepare(
+        `SELECT id, first_name, last_name, role, credentials, specialty
+         FROM users WHERE role != 'patient' AND ${activeScope}
+         ORDER BY last_name ASC, first_name ASC`
+      ).all()
+    : await db.prepare(
+        `SELECT id, first_name, last_name, role, credentials, specialty
+         FROM users WHERE role != 'patient' AND location_id = $1 AND ${activeScope}
+         ORDER BY last_name ASC, first_name ASC`
+      ).all(userLocationId);
 
   res.json(rows.map(u => ({
     id: u.id,
@@ -94,17 +100,24 @@ router.get('/directory', authenticate, async (_req, res) => {
 });
 
 // ── GET /api/users ─────────────────────────────────────────────────────
-// Returns all staff users (not patients). Admin/front_desk only.
-router.get('/', authenticate, authorize(...ADMIN_ROLES), async (_req, res) => {
-  const rows = await db
-    .prepare(
-      `SELECT id, username, first_name, last_name, role, credentials, specialty,
-              npi, dea_number, email, two_factor_enabled, location_id, created_at, updated_at
-       FROM users
-       WHERE role != 'patient' AND ${activeScope}
-       ORDER BY last_name ASC, first_name ASC`
-    )
-    .all();
+// Returns staff users. Admins see all; non-admins see only their location.
+router.get('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
+  const isSuperAdmin = req.user.role === 'admin';
+  const userLocationId = req.user.location_id;
+
+  const rows = isSuperAdmin || !userLocationId
+    ? await db.prepare(
+        `SELECT id, username, first_name, last_name, role, credentials, specialty,
+                npi, dea_number, email, two_factor_enabled, location_id, created_at, updated_at
+         FROM users WHERE role != 'patient' AND ${activeScope}
+         ORDER BY last_name ASC, first_name ASC`
+      ).all()
+    : await db.prepare(
+        `SELECT id, username, first_name, last_name, role, credentials, specialty,
+                npi, dea_number, email, two_factor_enabled, location_id, created_at, updated_at
+         FROM users WHERE role != 'patient' AND location_id = $1 AND ${activeScope}
+         ORDER BY last_name ASC, first_name ASC`
+      ).all(userLocationId);
 
   res.json(rows.map(u => ({
     id: u.id,
