@@ -5,77 +5,60 @@
  * All active queries filter WHERE deleted_at IS NULL.
  */
 
-import db from './database.js';
+import { db } from './database.js';
 import { v4 as uuidv4 } from 'uuid';
 
-// ── Schema migrations (run once at startup) ───────────────────────────────────
+// ── Schema migrations ─────────────────────────────────────────────────────────
 export function applyMigrations() {
   // Retired — DDL is now managed by server/db/migrate.js (Postgres-compatible).
-  // Kept as a no-op so existing call sites don't break.
-}
-
-function _legacyApplyMigrations_unused() {
-  const migrations = [];
-  for (const sql of migrations) {
-    try {
-      db.prepare(sql).run();
-    } catch (err) {
-      // IF NOT EXISTS not supported in older SQLite for ALTER TABLE — ignore
-      if (!err.message.includes('duplicate column')) {
-        console.warn('[migration]', err.message.slice(0, 80));
-      }
-    }
-  }
 }
 
 // ── Audit log ─────────────────────────────────────────────────────────────────
-export function logAudit({ actorId, actorName = '', action, targetId = null, targetType = '', details = {}, ip = '' }) {
-  db.prepare(`
+export async function logAudit({ actorId, actorName = '', action, targetId = null, targetType = '', details = {}, ip = '' }) {
+  await db.prepare(`
     INSERT INTO audit_logs (id, actor_id, actor_name, action, target_id, target_type, details, ip)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
   `).run(uuidv4(), actorId, actorName, action, targetId, targetType, JSON.stringify(details), ip);
 
-  // Fire immediate alert for critical actions (non-blocking)
   import('../security/alerting.js')
     .then(({ alertOnAction }) => alertOnAction(action, { actorId, actorName, targetId, ip }))
-    .catch(() => {/* alerting must never crash the main flow */});
+    .catch(() => {});
 }
 
-// ── Active scope helpers ───────────────────────────────────────────────────────
-// orm model.addScope("active", { where: { deleted_at: null } })
+// ── Active scope ──────────────────────────────────────────────────────────────
 export const activeScope = `deleted_at IS NULL`;
 
-// ── Dependency guard ───────────────────────────────────────────────────────────
+// ── Dependency guard ──────────────────────────────────────────────────────────
 export async function ensureLocationHasNoDependencies(locationId) {
-  const userCount    = db.prepare(`SELECT COUNT(*) as c FROM users    WHERE location_id = ? AND ${activeScope}`).get(locationId);
-  const patientCount = db.prepare(`SELECT COUNT(*) as c FROM patients WHERE location_id = ?`).get(locationId);
+  const userCount    = await db.prepare(`SELECT COUNT(*) AS c FROM users    WHERE location_id = $1 AND ${activeScope}`).get(locationId);
+  const patientCount = await db.prepare(`SELECT COUNT(*) AS c FROM patients WHERE location_id = $1`).get(locationId);
 
-  if ((userCount?.c ?? 0) > 0 || (patientCount?.c ?? 0) > 0) {
+  if ((Number(userCount?.c) ?? 0) > 0 || (Number(patientCount?.c) ?? 0) > 0) {
     const err = new Error('LOCATION_HAS_DEPENDENCIES');
-    err.users    = userCount?.c ?? 0;
-    err.patients = patientCount?.c ?? 0;
+    err.users    = Number(userCount?.c ?? 0);
+    err.patients = Number(patientCount?.c ?? 0);
     throw err;
   }
 }
 
-// ── Soft delete helpers ────────────────────────────────────────────────────────
-export function softDeleteUser(id, actorId, actorName, ip) {
-  db.prepare(`UPDATE users SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`).run(id);
-  logAudit({ actorId, actorName, action: 'USER_DELETED', targetId: id, targetType: 'user', ip });
+// ── Soft delete helpers ───────────────────────────────────────────────────────
+export async function softDeleteUser(id, actorId, actorName, ip) {
+  await db.prepare(`UPDATE users SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1`).run(id);
+  await logAudit({ actorId, actorName, action: 'USER_DELETED', targetId: id, targetType: 'user', ip });
 }
 
-export function softDeleteLocation(id, actorId, actorName, ip) {
-  db.prepare(`UPDATE locations SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`).run(id);
-  logAudit({ actorId, actorName, action: 'LOCATION_DELETED', targetId: id, targetType: 'location', ip });
+export async function softDeleteLocation(id, actorId, actorName, ip) {
+  await db.prepare(`UPDATE locations SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1`).run(id);
+  await logAudit({ actorId, actorName, action: 'LOCATION_DELETED', targetId: id, targetType: 'location', ip });
 }
 
-// ── Restore (undo soft delete) ────────────────────────────────────────────────
-export function restoreUser(id, actorId, actorName, ip) {
-  db.prepare(`UPDATE users SET deleted_at = NULL, updated_at = datetime('now') WHERE id = ?`).run(id);
-  logAudit({ actorId, actorName, action: 'USER_RESTORED', targetId: id, targetType: 'user', ip });
+// ── Restore ───────────────────────────────────────────────────────────────────
+export async function restoreUser(id, actorId, actorName, ip) {
+  await db.prepare(`UPDATE users SET deleted_at = NULL, updated_at = NOW() WHERE id = $1`).run(id);
+  await logAudit({ actorId, actorName, action: 'USER_RESTORED', targetId: id, targetType: 'user', ip });
 }
 
-export function restoreLocation(id, actorId, actorName, ip) {
-  db.prepare(`UPDATE locations SET deleted_at = NULL, updated_at = datetime('now') WHERE id = ?`).run(id);
-  logAudit({ actorId, actorName, action: 'LOCATION_RESTORED', targetId: id, targetType: 'location', ip });
+export async function restoreLocation(id, actorId, actorName, ip) {
+  await db.prepare(`UPDATE locations SET deleted_at = NULL, updated_at = NOW() WHERE id = $1`).run(id);
+  await logAudit({ actorId, actorName, action: 'LOCATION_RESTORED', targetId: id, targetType: 'location', ip });
 }

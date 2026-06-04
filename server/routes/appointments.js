@@ -51,7 +51,7 @@ router.put('/:id', async (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Appointment not found' });
 
   const b = req.body;
-  await db.prepare(`UPDATE appointments SET patient_id=?, patient_name=?, provider=?, provider_name=?, date=?, time=?, duration=?, type=?, status=?, reason=?, visit_type=?, room=?, location_id=?, updated_at=datetime('now') WHERE id=?`).run(
+  await db.prepare(`UPDATE appointments SET patient_id=?, patient_name=?, provider=?, provider_name=?, date=?, time=?, duration=?, type=?, status=?, reason=?, visit_type=?, room=?, location_id=?, updated_at=NOW() WHERE id=?`).run(
     b.patientId ?? existing.patient_id, b.patientName ?? existing.patient_name, b.provider ?? existing.provider, b.providerName ?? existing.provider_name, b.date ?? existing.date, b.time ?? existing.time, b.duration ?? existing.duration, b.type ?? existing.type, b.status ?? existing.status, b.reason ?? existing.reason, b.visitType ?? existing.visit_type, b.room ?? existing.room, b.locationId ?? existing.location_id ?? 'loc1', req.params.id
   );
 

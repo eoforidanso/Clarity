@@ -37,7 +37,7 @@ export function createAnomalyTable() {
       window_min  INTEGER DEFAULT 0,
       raw_events  TEXT DEFAULT '[]',
       status      TEXT DEFAULT 'open',
-      detected_at TEXT DEFAULT (datetime('now')),
+      detected_at TEXT DEFAULT (NOW()),
       resolved_at TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_anomalies_rule     ON anomalies(rule_id);
@@ -130,7 +130,7 @@ function detectBruteForce() {
     SELECT ip, COUNT(*) as cnt, GROUP_CONCAT(DISTINCT actor_name) as accounts
     FROM audit_logs
     WHERE action = 'LOGIN_FAILED'
-      AND created_at >= datetime('now', '-15 minutes')
+      AND created_at >= NOW() - INTERVAL '15 minutes'
       AND ip != ''
     GROUP BY ip HAVING cnt >= 10
   `).all();
@@ -175,7 +175,7 @@ function detectOffHours() {
     SELECT actor_id, actor_name, COUNT(*) as cnt, MAX(ip) as ip
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
-      AND created_at >= datetime('now', '-5 minutes')
+      AND created_at >= NOW() - INTERVAL '5 minutes'
     GROUP BY actor_id HAVING cnt >= 1
   `).all();
 
@@ -196,7 +196,7 @@ function detectReauthHammering() {
     SELECT ip, COUNT(*) as cnt, GROUP_CONCAT(DISTINCT actor_id) as actors
     FROM audit_logs
     WHERE action = 'REAUTH_FAILED'
-      AND created_at >= datetime('now', '-15 minutes')
+      AND created_at >= NOW() - INTERVAL '15 minutes'
       AND ip != ''
     GROUP BY ip HAVING cnt >= 5
   `).all();

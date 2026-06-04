@@ -56,7 +56,7 @@ router.put('/:patientId/medications/:medId', async (req, res) => {
   const existing = await db.prepare('SELECT * FROM medications WHERE id = ? AND patient_id = ?').get(req.params.medId, req.params.patientId);
   if (!existing) return res.status(404).json({ error: 'Medication not found' });
 
-  await db.prepare(`UPDATE medications SET name=?, dose=?, route=?, frequency=?, prescriber=?, status=?, refills_left=?, pharmacy=?, last_filled=?, sig=?, updated_at=datetime('now') WHERE id=?`).run(
+  await db.prepare(`UPDATE medications SET name=?, dose=?, route=?, frequency=?, prescriber=?, status=?, refills_left=?, pharmacy=?, last_filled=?, sig=?, updated_at=NOW() WHERE id=?`).run(
     b.name ?? existing.name, b.dose ?? existing.dose, b.route ?? existing.route, b.frequency ?? existing.frequency, b.prescriber ?? existing.prescriber, b.status ?? existing.status, b.refillsLeft ?? existing.refills_left, b.pharmacy ?? existing.pharmacy, b.lastFilled ?? existing.last_filled, b.sig ?? existing.sig, req.params.medId
   );
 
