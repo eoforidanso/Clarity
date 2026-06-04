@@ -104,6 +104,8 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar" role="navigation" aria-label="Main navigation">
+      {/* ── Header (fixed, never scrolls) ── */}
+      <div className="sidebar-header">
       {/* Logo */}
       <div className="sidebar-logo">
         <div className="sidebar-logo-inner">
@@ -142,6 +144,11 @@ export default function Sidebar() {
           ))}
         </div>
       )}
+
+      </div>{/* /sidebar-header */}
+
+      {/* ── Content (scrollable) ── */}
+      <div className="sidebar-content">
 
       {/* Expand/Collapse All toggle */}
       <div style={{ padding: '6px 14px 2px' }}>
@@ -396,6 +403,7 @@ export default function Sidebar() {
           </button>
         </div>
       </div>
+      </div>{/* /sidebar-content */}
     </aside>
   );
 }
