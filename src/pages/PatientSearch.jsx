@@ -428,12 +428,12 @@ export default function PatientSearch() {
       {addModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000, padding: 24,
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+          zIndex: 1000, padding: 24, overflowY: 'auto',
         }}>
           <div style={{
             background: 'var(--surface)', borderRadius: 14, width: '100%', maxWidth: 760,
-            maxHeight: '92vh', overflow: 'auto', boxShadow: 'var(--shadow-overlay)',
+            boxShadow: 'var(--shadow-overlay)', marginTop: 'auto', marginBottom: 'auto',
           }}>
             {/* Header */}
             <div style={{
