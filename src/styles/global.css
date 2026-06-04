@@ -581,28 +581,6 @@ img { max-width: 100%; }
   overflow-x: hidden;
 }
 
-/* ════════════════════════════════════════════════════════════
-   SIDEBAR COLLAPSED (manual toggle via data-sidebar="collapsed")
-════════════════════════════════════════════════════════════ */
-@media (min-width: 1025px) {
-  [data-sidebar="collapsed"] .sidebar {
-    width: var(--sidebar-icon-width);
-    overflow: hidden;
-  }
-  [data-sidebar="collapsed"] .sidebar-logo-inner .logo-text,
-  [data-sidebar="collapsed"] .sidebar-section-title,
-  [data-sidebar="collapsed"] .sidebar-user-details,
-  [data-sidebar="collapsed"] .sidebar-patient-ctx,
-  [data-sidebar="collapsed"] .collapse-all-row,
-  [data-sidebar="collapsed"] .sidebar-nav a > *:not(.sidebar-nav-icon):not(.nav-badge) { display: none !important; }
-  [data-sidebar="collapsed"] .sidebar-nav-icon { margin-right: 0; }
-  [data-sidebar="collapsed"] .sidebar-nav a { justify-content: center; padding: 10px; }
-  [data-sidebar="collapsed"] .sidebar-logo-inner { justify-content: center; }
-  [data-sidebar="collapsed"] .logo-mark { margin-right: 0; }
-  [data-sidebar="collapsed"] .sidebar-user-card { justify-content: center; }
-  [data-sidebar="collapsed"] .sidebar-sign-out { display: none; }
-  [data-sidebar="collapsed"] .main-area { margin-left: var(--sidebar-icon-width); }
-}
 
 /* ════════════════════════════════════════════════════════════
    COLOR CHIP SYSTEM (semantic + domain)
