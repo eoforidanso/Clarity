@@ -138,6 +138,35 @@ export default function PatientSearch() {
     return () => document.removeEventListener('paste', handlePaste);
   }, [addModal]);
 
+  // ── Fetch next MRN when modal opens ──────────────────────────────────────
+  useEffect(() => {
+    if (!addModal) return;
+    fetch(`${API}/patients/next-mrn`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.mrn) setPtForm(p => ({ ...p, mrn: data.mrn })); })
+      .catch(() => {});
+  }, [addModal]);
+
+  // ── ZIP auto-fill (city + state) on blur ─────────────────────────────────
+  const handleZipBlur = async (zip) => {
+    if (!zip || zip.length < 5) return;
+    try {
+      const r = await fetch(`${API}/patients/zip/${zip}`, { credentials: 'include' });
+      if (!r.ok) return;
+      const data = await r.json();
+      if (data.city || data.state) {
+        setPtForm(p => ({
+          ...p,
+          address: {
+            ...p.address,
+            ...(data.city  && { city:  data.city }),
+            ...(data.state && { state: data.state }),
+          },
+        }));
+      }
+    } catch { /* non-critical */ }
+  };
+
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   const filtered = (patients || []).filter((p) => {
@@ -628,7 +657,8 @@ export default function PatientSearch() {
                   <div>
                     <label className="form-label">ZIP</label>
                     <input className="form-input" maxLength={10} value={ptForm.address.zip}
-                      onChange={e => setPtForm(p => ({ ...p, address: { ...p.address, zip: e.target.value } }))} />
+                      onChange={e => setPtForm(p => ({ ...p, address: { ...p.address, zip: e.target.value } }))}
+                      onBlur={e => handleZipBlur(e.target.value)} />
                   </div>
                 </div>
               </div>
