@@ -136,15 +136,65 @@ router.post('/', authorize('prescriber', 'nurse', 'front_desk'), async (req, res
 
 // PUT /api/patients/:id — IDOR protected
 router.put('/:id', authorize('prescriber', 'nurse', 'front_desk'), requirePatientAccess, async (req, res) => {
-  const existing = await db.prepare('SELECT * FROM patients WHERE id = ?').get(req.params.id);
+  const existing = await db.prepare('SELECT * FROM patients WHERE id = $1').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Patient not found' });
 
+  // Validate email format if provided
   const b = req.body;
-  await db.prepare(`UPDATE patients SET first_name=?, last_name=?, dob=?, gender=?, pronouns=?, race=?, ethnicity=?, language=?, marital_status=?, phone=?, cell_phone=?, email=?, address_street=?, address_city=?, address_state=?, address_zip=?, emergency_contact_name=?, emergency_contact_relationship=?, emergency_contact_phone=?, insurance_primary_name=?, insurance_primary_member_id=?, insurance_primary_group_number=?, insurance_primary_copay=?, insurance_secondary_name=?, insurance_secondary_member_id=?, insurance_secondary_group_number=?, insurance_secondary_copay=?, pcp=?, assigned_provider=?, is_btg=?, flags=?, updated_at=datetime('now') WHERE id=?`).run(
-    b.firstName ?? existing.first_name, b.lastName ?? existing.last_name, b.dob ?? existing.dob, b.gender ?? existing.gender, b.pronouns ?? existing.pronouns, b.race ?? existing.race, b.ethnicity ?? existing.ethnicity, b.language ?? existing.language, b.maritalStatus ?? existing.marital_status, b.phone ?? existing.phone, b.cellPhone ?? existing.cell_phone, b.email ?? existing.email, b.address?.street ?? existing.address_street, b.address?.city ?? existing.address_city, b.address?.state ?? existing.address_state, b.address?.zip ?? existing.address_zip, b.emergencyContact?.name ?? existing.emergency_contact_name, b.emergencyContact?.relationship ?? existing.emergency_contact_relationship, b.emergencyContact?.phone ?? existing.emergency_contact_phone, b.insurance?.primary?.name ?? existing.insurance_primary_name, b.insurance?.primary?.memberId ?? existing.insurance_primary_member_id, b.insurance?.primary?.groupNumber ?? existing.insurance_primary_group_number, b.insurance?.primary?.copay ?? existing.insurance_primary_copay, b.insurance?.secondary?.name ?? existing.insurance_secondary_name, b.insurance?.secondary?.memberId ?? existing.insurance_secondary_member_id, b.insurance?.secondary?.groupNumber ?? existing.insurance_secondary_group_number, b.insurance?.secondary?.copay ?? existing.insurance_secondary_copay, b.pcp ?? existing.pcp, b.assignedProvider ?? existing.assigned_provider, b.isBTG !== undefined ? (b.isBTG ? 1 : 0) : existing.is_btg, b.flags ? JSON.stringify(b.flags) : existing.flags, req.params.id
+  if (b.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email)) {
+    return res.status(400).json({ error: 'Invalid email address format' });
+  }
+
+  await db.prepare(`
+    UPDATE patients SET
+      first_name=$1, last_name=$2, dob=$3, gender=$4, pronouns=$5,
+      race=$6, ethnicity=$7, language=$8, marital_status=$9,
+      phone=$10, cell_phone=$11, email=$12,
+      address_street=$13, address_city=$14, address_state=$15, address_zip=$16,
+      emergency_contact_name=$17, emergency_contact_relationship=$18, emergency_contact_phone=$19,
+      insurance_primary_name=$20, insurance_primary_member_id=$21,
+      insurance_primary_group_number=$22, insurance_primary_copay=$23,
+      insurance_secondary_name=$24, insurance_secondary_member_id=$25,
+      insurance_secondary_group_number=$26, insurance_secondary_copay=$27,
+      pcp=$28, assigned_provider=$29, is_btg=$30, flags=$31,
+      updated_at=NOW()
+    WHERE id=$32
+  `).run(
+    b.firstName ?? existing.first_name,
+    b.lastName ?? existing.last_name,
+    b.dob ?? existing.dob,
+    b.gender ?? existing.gender,
+    b.pronouns ?? existing.pronouns,
+    b.race ?? existing.race,
+    b.ethnicity ?? existing.ethnicity,
+    b.language ?? existing.language,
+    b.maritalStatus ?? existing.marital_status,
+    b.phone ?? existing.phone,
+    b.cellPhone ?? existing.cell_phone,
+    b.email ?? existing.email,
+    b.address?.street ?? existing.address_street,
+    b.address?.city ?? existing.address_city,
+    b.address?.state ?? existing.address_state,
+    b.address?.zip ?? existing.address_zip,
+    b.emergencyContact?.name ?? existing.emergency_contact_name,
+    b.emergencyContact?.relationship ?? existing.emergency_contact_relationship,
+    b.emergencyContact?.phone ?? existing.emergency_contact_phone,
+    b.insurance?.primary?.name ?? existing.insurance_primary_name,
+    b.insurance?.primary?.memberId ?? existing.insurance_primary_member_id,
+    b.insurance?.primary?.groupNumber ?? existing.insurance_primary_group_number,
+    b.insurance?.primary?.copay ?? existing.insurance_primary_copay,
+    b.insurance?.secondary?.name ?? existing.insurance_secondary_name,
+    b.insurance?.secondary?.memberId ?? existing.insurance_secondary_member_id,
+    b.insurance?.secondary?.groupNumber ?? existing.insurance_secondary_group_number,
+    b.insurance?.secondary?.copay ?? existing.insurance_secondary_copay,
+    b.pcp ?? existing.pcp,
+    b.assignedProvider ?? existing.assigned_provider,
+    b.isBTG !== undefined ? (b.isBTG ? 1 : 0) : existing.is_btg,
+    b.flags ? JSON.stringify(b.flags) : existing.flags,
+    req.params.id
   );
 
-  const row = await db.prepare('SELECT * FROM patients WHERE id = ?').get(req.params.id);
+  const row = await db.prepare('SELECT * FROM patients WHERE id = $1').get(req.params.id);
   res.json(formatPatient(row));
 });
 

@@ -6,6 +6,45 @@ import { authenticate, authorize, requireElevated } from '../middleware/auth.js'
 import { logAuditEvent } from '../middleware/auditLog.js';
 import { softDeleteUser, logAudit, activeScope } from '../db/softDelete.js';
 
+// ── Welcome email on new user creation ───────────────────────────────────────
+async function sendWelcomeEmail({ toEmail, firstName, username, tempPassword, role }) {
+  if (!process.env.RESEND_API_KEY) return;
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: process.env.RESEND_FROM || 'noreply@clarity-ehr.com',
+      to: toEmail,
+      subject: '🏥 Welcome to Clarity EHR — your account is ready',
+      html: `
+        <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#f8fafc;border-radius:12px">
+          <div style="text-align:center;margin-bottom:28px">
+            <div style="font-size:40px;margin-bottom:8px">🏥</div>
+            <h2 style="color:#0d2444;font-size:22px;margin:0">Welcome to Clarity EHR</h2>
+          </div>
+          <p style="color:#374151;font-size:15px">Hi ${firstName},</p>
+          <p style="color:#374151;font-size:15px">Your Clarity EHR account has been created. Sign in and set your personal password to get started.</p>
+          <div style="background:#fff;border:1.5px solid #e0e7ef;border-radius:10px;padding:20px;margin:20px 0">
+            <table style="width:100%;font-size:14px;border-collapse:collapse">
+              <tr><td style="color:#6b7280;padding:5px 0;width:140px">Portal</td><td><a href="https://app.clarity-ehr.com" style="color:#0060b6;font-weight:700">app.clarity-ehr.com</a></td></tr>
+              <tr><td style="color:#6b7280;padding:5px 0">Username</td><td style="font-family:monospace;font-weight:700;color:#111827">${username}</td></tr>
+              <tr><td style="color:#6b7280;padding:5px 0">Temp password</td><td style="font-family:monospace;font-weight:700;color:#111827">${tempPassword}</td></tr>
+              <tr><td style="color:#6b7280;padding:5px 0">Role</td><td style="font-weight:600;color:#111827;text-transform:capitalize">${role}</td></tr>
+            </table>
+          </div>
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px;margin-bottom:20px">
+            <p style="color:#92400e;font-size:13px;margin:0">⚠️ You will be required to set a new password on your first sign-in. Keep these credentials safe.</p>
+          </div>
+          <div style="text-align:center;margin:24px 0">
+            <a href="https://app.clarity-ehr.com" style="background:linear-gradient(180deg,#1872c8,#0055a8);color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px">Sign in →</a>
+          </div>
+          <p style="color:#9ca3af;font-size:11px;text-align:center">Clarity EHR · HIPAA-compliant · If you didn't expect this, contact your administrator.</p>
+        </div>
+      `,
+    }),
+  });
+}
+
 const router = Router();
 const ADMIN_ROLES = ['admin', 'front_desk'];
 const SALT_ROUNDS = 12;
@@ -108,10 +147,10 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
   }
 
   // Check uniqueness
-  const existing = await db.prepare('SELECT id FROM users WHERE username = ?').get(cleanUsername);
+  const existing = await db.prepare('SELECT id FROM users WHERE username = $1').get(cleanUsername);
   if (existing) return res.status(409).json({ error: 'Username already exists' });
 
-  const emailExists = await db.prepare('SELECT id FROM users WHERE email = ?').get(email.trim().toLowerCase());
+  const emailExists = await db.prepare('SELECT id FROM users WHERE email = $1').get(email.trim().toLowerCase());
   if (emailExists) return res.status(409).json({ error: 'Email already in use' });
 
   const id = uuidv4();
@@ -119,7 +158,7 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
 
   await db.prepare(
     `INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, must_change_password, location_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`
   ).run(
     id,
     cleanUsername,
@@ -136,6 +175,15 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
     mustChangePassword === false ? 0 : 1,
     locationId || null
   );
+
+  // Send welcome email with credentials
+  sendWelcomeEmail({
+    toEmail: email.trim().toLowerCase(),
+    firstName: firstName.trim(),
+    username: cleanUsername,
+    tempPassword: password,
+    role,
+  }).catch(err => console.warn('[users] welcome email failed:', err.message));
 
   logAuditEvent({
     userId: req.user.id,
@@ -158,7 +206,7 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => 
   const { id } = req.params;
   const { firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled, locationId } = req.body;
 
-  const user = await db.prepare('SELECT id, role FROM users WHERE id = ? AND role != ?').get(id, 'patient');
+  const user = await db.prepare('SELECT id, role FROM users WHERE id = $1 AND role != $2').get(id, 'patient');
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   if (role && !VALID_ROLES.includes(role)) {
@@ -168,24 +216,24 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => 
     return res.status(400).json({ error: 'Valid email is required' });
   }
   if (email) {
-    const emailConflict = await db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email.trim().toLowerCase(), id);
+    const emailConflict = await db.prepare('SELECT id FROM users WHERE email = $1 AND id != $2').get(email.trim().toLowerCase(), id);
     if (emailConflict) return res.status(409).json({ error: 'Email already in use' });
   }
 
   await db.prepare(
     `UPDATE users SET
-       first_name = COALESCE(?, first_name),
-       last_name = COALESCE(?, last_name),
-       role = COALESCE(?, role),
-       credentials = COALESCE(?, credentials),
-       specialty = COALESCE(?, specialty),
-       npi = COALESCE(?, npi),
-       dea_number = COALESCE(?, dea_number),
-       email = COALESCE(?, email),
-       two_factor_enabled = COALESCE(?, two_factor_enabled),
-       location_id = COALESCE(?, location_id),
-       updated_at = datetime('now')
-     WHERE id = ?`
+       first_name = COALESCE($1, first_name),
+       last_name = COALESCE($2, last_name),
+       role = COALESCE($3, role),
+       credentials = COALESCE($4, credentials),
+       specialty = COALESCE($5, specialty),
+       npi = COALESCE($6, npi),
+       dea_number = COALESCE($7, dea_number),
+       email = COALESCE($8, email),
+       two_factor_enabled = COALESCE($9, two_factor_enabled),
+       location_id = COALESCE($10, location_id),
+       updated_at = NOW()
+     WHERE id = $11`
   ).run(
     firstName?.trim() ?? null,
     lastName?.trim() ?? null,
@@ -228,15 +276,15 @@ router.post('/:id/reset-password', authenticate, authorize(...ADMIN_ROLES), asyn
   const pwdError = validatePassword(newPassword);
   if (pwdError) return res.status(400).json({ error: pwdError });
 
-  const user = await db.prepare('SELECT id FROM users WHERE id = ? AND role != ?').get(id, 'patient');
+  const user = await db.prepare('SELECT id FROM users WHERE id = $1 AND role != $2').get(id, 'patient');
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const hash = bcrypt.hashSync(newPassword, SALT_ROUNDS);
-  await db.prepare("UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = datetime('now') WHERE id = ?").run(hash, id);
+  await db.prepare("UPDATE users SET password_hash = $1, must_change_password = 1, updated_at = NOW() WHERE id = $2").run(hash, id);
 
   // Invalidate all active sessions for this user
   try {
-    await db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = ?').run(id);
+    await db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = $1').run(id);
   } catch (_) { /* sessions table may not exist */ }
 
   logAuditEvent({
@@ -259,10 +307,10 @@ router.post('/:id/reset-password', authenticate, authorize(...ADMIN_ROLES), asyn
 router.post('/:id/unlock', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
   const { id } = req.params;
 
-  const user = await db.prepare('SELECT id FROM users WHERE id = ? AND role != ?').get(id, 'patient');
+  const user = await db.prepare('SELECT id FROM users WHERE id = $1 AND role != $2').get(id, 'patient');
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  await db.prepare("UPDATE users SET must_change_password = 0, updated_at = datetime('now') WHERE id = ?").run(id);
+  await db.prepare("UPDATE users SET must_change_password = 0, updated_at = NOW() WHERE id = $1").run(id);
 
   logAuditEvent({
     userId: req.user.id,
@@ -291,7 +339,7 @@ router.delete('/:id', authenticate, requireElevated, async (req, res) => {
     return res.status(400).json({ error: 'You cannot delete your own account' });
   }
 
-  const user = db.prepare(`SELECT id, username, role FROM users WHERE id = ? AND role != ? AND ${activeScope}`).get(id, 'patient');
+  const user = db.prepare(`SELECT id, username, role FROM users WHERE id = $1 AND role != $2 AND ${activeScope}`).get(id, 'patient');
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const actorName = `${req.user.first_name} ${req.user.last_name || ''}`.trim();
