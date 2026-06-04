@@ -10,40 +10,12 @@ import { v4 as uuidv4 } from 'uuid';
 
 // ── Schema migrations (run once at startup) ───────────────────────────────────
 export function applyMigrations() {
-  const migrations = [
-    // Soft delete columns
-    `ALTER TABLE users     ADD COLUMN IF NOT EXISTS deleted_at TEXT NULL`,
-    `ALTER TABLE locations ADD COLUMN IF NOT EXISTS deleted_at TEXT NULL`,
-    // Audit log table (structured, queryable)
-    `CREATE TABLE IF NOT EXISTS audit_logs (
-      id         TEXT PRIMARY KEY,
-      actor_id   TEXT NOT NULL,
-      actor_name TEXT DEFAULT '',
-      action     TEXT NOT NULL,
-      target_id  TEXT,
-      target_type TEXT DEFAULT '',
-      details    TEXT DEFAULT '{}',
-      ip         TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now'))
-    )`,
-  // Session tracking columns
-  `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS last_seen_at TEXT`,
-  `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_elevated INTEGER DEFAULT 0`,
-  `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS elevated_expires_at TEXT`,
-  `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS location_id TEXT`,
+  // Retired — DDL is now managed by server/db/migrate.js (Postgres-compatible).
+  // Kept as a no-op so existing call sites don't break.
+}
 
-  // Triggers to make audit_logs append-only (no UPDATE or DELETE allowed)
-  `CREATE TRIGGER IF NOT EXISTS audit_logs_no_update
-     BEFORE UPDATE ON audit_logs
-     BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only — updates not permitted'); END`,
-  `CREATE TRIGGER IF NOT EXISTS audit_logs_no_delete
-     BEFORE DELETE ON audit_logs
-     BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only — deletes not permitted'); END`,
-    `CREATE INDEX IF NOT EXISTS idx_audit_actor  ON audit_logs(actor_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)`,
-    `CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_logs(target_id)`,
-  ];
-
+function _legacyApplyMigrations_unused() {
+  const migrations = [];
   for (const sql of migrations) {
     try {
       db.prepare(sql).run();
