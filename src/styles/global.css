@@ -2379,6 +2379,12 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   min-height: 100%;      /* stretches to fill the overlay */
 }
 
+.new-patient-card {
+  width: 100%;
+  max-width: 720px;
+  margin-top: 2rem;      /* forces downward spacing */
+}
+
 .modal {
   background: white;
   border-radius: var(--radius-modal);
