@@ -2,34 +2,28 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
-import { authenticate, requireElevated, requireElevated, authorize, requireElevated } from '../middleware/auth.js';
+import { authenticate, requireElevated, authorize } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
 import { softDeleteUser, logAudit, activeScope } from '../db/softDelete.js';
 
 // ── Welcome email on new user creation ───────────────────────────────────────
-async function sendWelcomeEmail({ toEmail, firstName, username, tempPassword, role }) {
-  if (!process.env.RESEND_API_KEY) return;
+async function sendWelcomeEmail({ toEmail, firstName, username, tempPassword, role }) { if (!process.env.RESEND_API_KEY) return;
   await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: process.env.RESEND_FROM || 'noreply@clarity-ehr.com',
-      to: toEmail,
-      subject: '🏥 Welcome to Clarity EHR — your account is ready',
-      html: `
-        <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#f8fafc;border-radius:12px">
+    method: 'POST', headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY }`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: process.env.RESEND_FROM || 'noreply@clarity-ehr.com', to: toEmail, subject: '🏥 Welcome to Clarity EHR — your account is ready', html: `
+        <div style="font-family:Inter, sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#f8fafc;border-radius:12px">
           <div style="text-align:center;margin-bottom:28px">
             <div style="font-size:40px;margin-bottom:8px">🏥</div>
             <h2 style="color:#0d2444;font-size:22px;margin:0">Welcome to Clarity EHR</h2>
           </div>
-          <p style="color:#374151;font-size:15px">Hi ${firstName},</p>
+          <p style="color:#374151;font-size:15px">Hi ${firstName },</p>
           <p style="color:#374151;font-size:15px">Your Clarity EHR account has been created. Sign in and set your personal password to get started.</p>
           <div style="background:#fff;border:1.5px solid #e0e7ef;border-radius:10px;padding:20px;margin:20px 0">
             <table style="width:100%;font-size:14px;border-collapse:collapse">
               <tr><td style="color:#6b7280;padding:5px 0;width:140px">Portal</td><td><a href="https://app.clarity-ehr.com" style="color:#0060b6;font-weight:700">app.clarity-ehr.com</a></td></tr>
-              <tr><td style="color:#6b7280;padding:5px 0">Username</td><td style="font-family:monospace;font-weight:700;color:#111827">${username}</td></tr>
-              <tr><td style="color:#6b7280;padding:5px 0">Temp password</td><td style="font-family:monospace;font-weight:700;color:#111827">${tempPassword}</td></tr>
-              <tr><td style="color:#6b7280;padding:5px 0">Role</td><td style="font-weight:600;color:#111827;text-transform:capitalize">${role}</td></tr>
+              <tr><td style="color:#6b7280;padding:5px 0">Username</td><td style="font-family:monospace;font-weight:700;color:#111827">${ username }</td></tr>
+              <tr><td style="color:#6b7280;padding:5px 0">Temp password</td><td style="font-family:monospace;font-weight:700;color:#111827">${ tempPassword }</td></tr>
+              <tr><td style="color:#6b7280;padding:5px 0">Role</td><td style="font-weight:600;color:#111827;text-transform:capitalize">${ role }</td></tr>
             </table>
           </div>
           <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px;margin-bottom:20px">
@@ -51,97 +45,67 @@ const ADMIN_ROLES = ['admin', 'front_desk'];
 const SALT_ROUNDS = 12;
 
 // Validate password strength at system boundary
-function validatePassword(pwd) {
-  if (typeof pwd !== 'string') return 'Password must be a string';
+function validatePassword(pwd) { if (typeof pwd !== 'string') return 'Password must be a string';
   if (pwd.length < 8) return 'Password must be at least 8 characters';
   if (pwd.length > 200) return 'Password too long';
   if (!/[A-Z]/.test(pwd)) return 'Password must contain an uppercase letter';
   if (!/[0-9]/.test(pwd)) return 'Password must contain a number';
-  return null;
-}
+  return null; }
 
 // Validate and sanitize a username
-function sanitizeUsername(raw) {
-  if (typeof raw !== 'string') return null;
+function sanitizeUsername(raw) { if (typeof raw !== 'string') return null;
   const cleaned = raw.replace(/[\x00-\x1F\x7F]/g, '').trim().toLowerCase();
   if (cleaned.length < 2 || cleaned.length > 50) return null;
   if (!/^[a-z0-9._-]+$/.test(cleaned)) return null;
-  return cleaned;
-}
+  return cleaned; }
 
 const VALID_ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist', 'biller', 'admin'];
 
 // ── GET /api/users/directory ───────────────────────────────────────────
 // Returns basic name/role info for staff.
 // Admins see all staff. Non-admins see only staff at their own location.
-router.get('/directory', authenticate, async (req, res) => {
-  const isAdmin = req.user.role === 'admin';
+router.get('/directory', authenticate, async (req, res) => { const isAdmin = req.user.role === 'admin';
   const userLocationId = req.user.location_id;
 
   const rows = isAdmin || !userLocationId
     ? await db.prepare(
         `SELECT id, first_name, last_name, role, credentials, specialty
-         FROM users WHERE role != 'patient' AND ${activeScope}
+         FROM users WHERE role != 'patient' AND ${activeScope }
          ORDER BY last_name ASC, first_name ASC`
       ).all()
     : await db.prepare(
         `SELECT id, first_name, last_name, role, credentials, specialty
-         FROM users WHERE role != 'patient' AND location_id = $1 AND ${activeScope}
+         FROM users WHERE role != 'patient' AND location_id = $1 AND ${ activeScope }
          ORDER BY last_name ASC, first_name ASC`
       ).all(userLocationId);
 
-  res.json(rows.map(u => ({
-    id: u.id,
-    firstName: u.first_name || '',
-    lastName: u.last_name || '',
-    role: u.role,
-    credentials: u.credentials || '',
-    specialty: u.specialty || '',
-  })));
+  res.json(rows.map(u => ({ id: u.id, firstName: u.first_name || '', lastName: u.last_name || '', role: u.role, credentials: u.credentials || '', specialty: u.specialty || '',  })));
 });
 
 // ── GET /api/users ─────────────────────────────────────────────────────
 // Returns staff users. Admins see all; non-admins see only their location.
-router.get('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
-  const isAdmin = req.user.role === 'admin';
+router.get('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => { const isAdmin = req.user.role === 'admin';
   const userLocationId = req.user.location_id;
 
   const rows = isAdmin || !userLocationId
     ? await db.prepare(
-        `SELECT id, username, first_name, last_name, role, credentials, specialty,
-                npi, dea_number, email, two_factor_enabled, location_id, created_at, updated_at
-         FROM users WHERE role != 'patient' AND ${activeScope}
+        `SELECT id, username, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, location_id, created_at, updated_at
+         FROM users WHERE role != 'patient' AND ${activeScope }
          ORDER BY last_name ASC, first_name ASC`
       ).all()
     : await db.prepare(
         `SELECT id, username, first_name, last_name, role, credentials, specialty,
                 npi, dea_number, email, two_factor_enabled, location_id, created_at, updated_at
-         FROM users WHERE role != 'patient' AND location_id = $1 AND ${activeScope}
+         FROM users WHERE role != 'patient' AND location_id = $1 AND ${ activeScope }
          ORDER BY last_name ASC, first_name ASC`
       ).all(userLocationId);
 
-  res.json(rows.map(u => ({
-    id: u.id,
-    username: u.username,
-    firstName: u.first_name,
-    lastName: u.last_name,
-    role: u.role,
-    credentials: u.credentials || '',
-    specialty: u.specialty || '',
-    npi: u.npi || '',
-    deaNumber: u.dea_number || '',
-    email: u.email,
-    twoFactorEnabled: !!u.two_factor_enabled,
-    locationId: u.location_id || '',
-    createdAt: u.created_at,
-    updatedAt: u.updated_at,
-  })));
+  res.json(rows.map(u => ({ id: u.id, username: u.username, firstName: u.first_name, lastName: u.last_name, role: u.role, credentials: u.credentials || '', specialty: u.specialty || '', npi: u.npi || '', deaNumber: u.dea_number || '', email: u.email, twoFactorEnabled: !!u.two_factor_enabled, locationId: u.location_id || '', createdAt: u.created_at, updatedAt: u.updated_at,  })));
 });
 
 // ── POST /api/users ─────────────────────────────────────────────────────
 // Create a new staff user. Admin/front_desk only.
-router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
-  const { username, password, firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled, mustChangePassword, locationId } = req.body;
+router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => { const { username, password, firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled, mustChangePassword, locationId } = req.body;
 
   // Validate required fields
   const cleanUsername = sanitizeUsername(username);
@@ -150,14 +114,11 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
   const pwdError = validatePassword(password);
   if (pwdError) return res.status(400).json({ error: pwdError });
 
-  if (!firstName || typeof firstName !== 'string' || firstName.trim().length < 1) {
-    return res.status(400).json({ error: 'First name is required' });
+  if (!firstName || typeof firstName !== 'string' || firstName.trim().length < 1) { return res.status(400).json({ error: 'First name is required' });
   }
-  if (!VALID_ROLES.includes(role)) {
-    return res.status(400).json({ error: `Role must be one of: ${VALID_ROLES.join(', ')}` });
+  if (!VALID_ROLES.includes(role)) { return res.status(400).json({ error: `Role must be one of: ${VALID_ROLES.join(', ') }` });
   }
-  if (!email || typeof email !== 'string' || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    return res.status(400).json({ error: 'Valid email is required' });
+  if (!email || typeof email !== 'string' || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { return res.status(400).json({ error: 'Valid email is required' });
   }
 
   // Check uniqueness
@@ -191,17 +152,9 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
   );
 
   // Send welcome email with credentials
-  sendWelcomeEmail({
-    toEmail: email.trim().toLowerCase(),
-    firstName: firstName.trim(),
-    username: cleanUsername,
-    tempPassword: password,
-    role,
-  }).catch(err => console.warn('[users] welcome email failed:', err.message));
+  sendWelcomeEmail({ toEmail: email.trim().toLowerCase(), firstName: firstName.trim(), username: cleanUsername, tempPassword: password, role,  }).catch(err => console.warn('[users] welcome email failed:', err.message));
 
-  logAuditEvent({
-    userId: req.user.id,
-    userName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
+  logAuditEvent({ userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
     userRole: req.user.role,
     action: 'USER_CREATED',
     resourceType: 'user',
@@ -216,21 +169,17 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
 
 // ── PUT /api/users/:id ──────────────────────────────────────────────────
 // Update a user's profile (not password). Admin only.
-router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
-  const { id } = req.params;
+router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => { const { id } = req.params;
   const { firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled, locationId } = req.body;
 
   const user = await db.prepare('SELECT id, role FROM users WHERE id = $1 AND role != $2').get(id, 'patient');
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  if (role && !VALID_ROLES.includes(role)) {
-    return res.status(400).json({ error: `Role must be one of: ${VALID_ROLES.join(', ')}` });
+  if (role && !VALID_ROLES.includes(role)) { return res.status(400).json({ error: `Role must be one of: ${VALID_ROLES.join(', ') }` });
   }
-  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    return res.status(400).json({ error: 'Valid email is required' });
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { return res.status(400).json({ error: 'Valid email is required' });
   }
-  if (email) {
-    const emailConflict = await db.prepare('SELECT id FROM users WHERE email = $1 AND id != $2').get(email.trim().toLowerCase(), id);
+  if (email) { const emailConflict = await db.prepare('SELECT id FROM users WHERE email = $1 AND id != $2').get(email.trim().toLowerCase(), id);
     if (emailConflict) return res.status(409).json({ error: 'Email already in use' });
   }
 
@@ -262,9 +211,7 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => 
     id
   );
 
-  logAuditEvent({
-    userId: req.user.id,
-    userName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
+  logAuditEvent({ userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
     userRole: req.user.role,
     action: 'USER_UPDATED',
     resourceType: 'user',
@@ -279,12 +226,10 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => 
 
 // ── POST /api/users/:id/reset-password ─────────────────────────────────
 // Reset a user's password. Admin/front_desk only. Cannot reset own password this way.
-router.post('/:id/reset-password', authenticate, requireElevated, authorize(...ADMIN_ROLES), async (req, res) => {
-  const { id } = req.params;
+router.post('/:id/reset-password', authenticate, requireElevated, authorize(...ADMIN_ROLES), async (req, res) => { const { id } = req.params;
   const { newPassword } = req.body;
 
-  if (id === req.user.id) {
-    return res.status(400).json({ error: 'Use the Settings page to change your own password' });
+  if (id === req.user.id) { return res.status(400).json({ error: 'Use the Settings page to change your own password' });
   }
 
   const pwdError = validatePassword(newPassword);
@@ -297,13 +242,9 @@ router.post('/:id/reset-password', authenticate, requireElevated, authorize(...A
   await db.prepare("UPDATE users SET password_hash = $1, must_change_password = 1, updated_at = NOW() WHERE id = $2").run(hash, id);
 
   // Invalidate all active sessions for this user
-  try {
-    await db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = $1').run(id);
-  } catch (_) { /* sessions table may not exist */ }
+  try { await db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = $1').run(id); } catch (_) { /* sessions table may not exist */ }
 
-  logAuditEvent({
-    userId: req.user.id,
-    userName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
+  logAuditEvent({ userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
     userRole: req.user.role,
     action: 'PASSWORD_RESET',
     resourceType: 'user',
@@ -318,17 +259,14 @@ router.post('/:id/reset-password', authenticate, requireElevated, authorize(...A
 // ── POST /api/users/:id/unlock ──────────────────────────────────────────
 // Unlock a user stuck in forced password change. Clears must_change_password flag.
 // Admin/front_desk only.
-router.post('/:id/unlock', authenticate, requireElevated, authorize(...ADMIN_ROLES), async (req, res) => {
-  const { id } = req.params;
+router.post('/:id/unlock', authenticate, requireElevated, authorize(...ADMIN_ROLES), async (req, res) => { const { id } = req.params;
 
   const user = await db.prepare('SELECT id FROM users WHERE id = $1 AND role != $2').get(id, 'patient');
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   await db.prepare("UPDATE users SET must_change_password = 0, updated_at = NOW() WHERE id = $1").run(id);
 
-  logAuditEvent({
-    userId: req.user.id,
-    userName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
+  logAuditEvent({ userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
     userRole: req.user.role,
     action: 'USER_UNLOCKED',
     resourceType: 'user',
@@ -342,21 +280,19 @@ router.post('/:id/unlock', authenticate, requireElevated, authorize(...ADMIN_ROL
 });
 
 // ── DELETE /api/users/:id (soft delete) ────────────────────────────────
-router.delete('/:id', authenticate, requireElevated, async (req, res) => {
-  if (req.user.role !== 'admin') {
+router.delete('/:id', authenticate, requireElevated, async (req, res) => { if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
   const { id } = req.params;
 
-  if (id === req.user.id) {
-    return res.status(400).json({ error: 'You cannot delete your own account' });
+  if (id === req.user.id) { return res.status(400).json({ error: 'You cannot delete your own account' });
   }
 
-  const user = db.prepare(`SELECT id, username, role FROM users WHERE id = $1 AND role != $2 AND ${activeScope}`).get(id, 'patient');
+  const user = db.prepare(`SELECT id, username, role FROM users WHERE id = $1 AND role != $2 AND ${ activeScope }`).get(id, 'patient');
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  const actorName = `${req.user.first_name} ${req.user.last_name || ''}`.trim();
+  const actorName = `${ req.user.first_name } ${ req.user.last_name || '' }`.trim();
   softDeleteUser(id, req.user.id, actorName, req.ip);
 
   res.status(204).end();
