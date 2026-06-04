@@ -428,12 +428,13 @@ export default function PatientSearch() {
       {addModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-          zIndex: 1000, padding: 24, overflowY: 'auto',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: 24,
         }}>
           <div style={{
             background: 'var(--surface)', borderRadius: 14, width: '100%', maxWidth: 760,
-            boxShadow: 'var(--shadow-overlay)', marginTop: 'auto', marginBottom: 'auto',
+            maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+            boxShadow: 'var(--shadow-overlay)',
           }}>
             {/* Header */}
             <div style={{
@@ -446,7 +447,7 @@ export default function PatientSearch() {
                 style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
             </div>
 
-            <div style={{ padding: 20 }}>
+            <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
               {ptError && (
                 <div style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
                   ⚠️ {ptError}
@@ -609,7 +610,7 @@ export default function PatientSearch() {
             <div style={{
               padding: '14px 20px', borderTop: '1px solid var(--border)',
               display: 'flex', justifyContent: 'flex-end', gap: 10,
-              position: 'sticky', bottom: 0, background: 'var(--surface)',
+              flexShrink: 0, background: 'var(--surface)', borderRadius: '0 0 14px 14px',
             }}>
               <button className="btn" onClick={cancelAddPatient} disabled={ptSaving}>Cancel</button>
               <button className="btn btn-primary" onClick={saveNewPatient} disabled={ptSaving}>
