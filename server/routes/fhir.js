@@ -5,6 +5,7 @@ import db from '../db/database.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
+router.use(authenticate); // RBAC: all routes require authentication
 
 /**
  * FHIR R4 Basic API

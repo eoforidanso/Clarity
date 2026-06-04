@@ -20,6 +20,7 @@ import { authenticate, authorize } from '../middleware/auth.js';
 import db from '../db/database.js';
 
 const router = Router();
+router.use(authenticate); // RBAC: all routes require authentication
 
 const DS_BASE = () =>
   process.env.DOSESPOT_ENVIRONMENT === 'production'

@@ -46,6 +46,7 @@ async function sendWelcomeEmail({ toEmail, firstName, username, tempPassword, ro
 }
 
 const router = Router();
+router.use(authenticate); // RBAC: all routes require authentication
 const ADMIN_ROLES = ['admin', 'front_desk'];
 const SALT_ROUNDS = 12;
 

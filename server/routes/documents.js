@@ -4,6 +4,7 @@ import { logAuditEvent } from '../middleware/auditLog.js';
 import db from '../db/database.js';
 
 const router = Router();
+router.use(authenticate); // RBAC: all routes require authentication
 
 /**
  * PDF Generation (text-based, no external dependencies)

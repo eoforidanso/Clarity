@@ -3,6 +3,7 @@ import { authenticate, authorize } from '../middleware/auth.js';
 import { getAuditLog } from '../middleware/auditLog.js';
 
 const router = Router();
+router.use(authenticate); // RBAC: all routes require authentication
 
 // GET /api/audit-log — front_desk only
 router.get('/', authenticate, authorize('front_desk'), async (req, res) => {
