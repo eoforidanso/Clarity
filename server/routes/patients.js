@@ -81,6 +81,7 @@ function formatPatient(row, opts = {}) {
     nextAppointment: row.next_appointment,
     flags: JSON.parse(row.flags || '[]'),
     locationId: row.primary_location || null,
+    stickyNote: row.sticky_note || '',
   };
 }
 
@@ -224,6 +225,27 @@ router.get('/zip/:zip', authenticate, async (req, res) => {
   } catch {
     res.status(503).json({ error: 'ZIP lookup unavailable' });
   }
+});
+
+// PATCH /api/patients/:id/sticky-note — save or clear sticky note
+router.patch('/:id/sticky-note', authenticate, async (req, res) => {
+  const { note } = req.body;
+  if (typeof note !== 'string') return res.status(400).json({ error: 'note must be a string' });
+  if (note.length > 500) return res.status(400).json({ error: 'Note too long (max 500 chars)' });
+
+  await db.prepare(
+    `UPDATE patients SET sticky_note = $1, updated_at = NOW() WHERE id = $2`
+  ).run(note.trim(), req.params.id);
+
+  await logAudit({
+    actorId: req.user.id, actorName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
+    action: note.trim() ? 'STICKY_NOTE_UPDATED' : 'STICKY_NOTE_CLEARED',
+    targetId: req.params.id, targetType: 'patient',
+    details: { note: note.trim().slice(0, 80) },
+    ip: req.ip || '',
+  });
+
+  res.json({ ok: true, note: note.trim() });
 });
 
 export default router;

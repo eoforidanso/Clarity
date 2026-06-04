@@ -17,6 +17,41 @@ export default function PatientSearch() {
   const [search, setSearch] = useState('');
   const [hoveredRow, setHoveredRow] = useState(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+
+  // ── Sticky notes ──────────────────────────────────────────────────────────
+  const [stickyOpen, setStickyOpen]   = useState(null);   // patient id with open editor
+  const [stickyDraft, setStickyDraft] = useState('');     // draft text while editing
+  const [stickySaving, setStickySaving] = useState(false);
+  // Local cache of saved notes so we don't need a full page reload
+  const [stickyNotes, setStickyNotes] = useState({});     // { [patientId]: noteText }
+
+  const openSticky = (e, patient) => {
+    e.stopPropagation();
+    setStickyOpen(patient.id);
+    setStickyDraft(stickyNotes[patient.id] ?? patient.stickyNote ?? '');
+  };
+
+  const saveSticky = async (patientId) => {
+    setStickySaving(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/patients/${patientId}/sticky-note`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ note: stickyDraft }),
+      });
+      if (res.ok) {
+        setStickyNotes(prev => ({ ...prev, [patientId]: stickyDraft }));
+        setStickyOpen(null);
+      }
+    } catch { /* non-critical */ }
+    finally { setStickySaving(false); }
+  };
+
+  const clearSticky = async (patientId) => {
+    setStickyDraft('');
+    await saveSticky(patientId);
+  };
   const navigate = useNavigate();
   const inputRef = useRef(null);
 
@@ -25,6 +60,14 @@ export default function PatientSearch() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // Close sticky note popover on outside click
+  useEffect(() => {
+    if (!stickyOpen) return;
+    const dismiss = () => setStickyOpen(null);
+    window.addEventListener('click', dismiss);
+    return () => window.removeEventListener('click', dismiss);
+  }, [stickyOpen]);
 
   // New encounter modal state
   const [encounterModal, setEncounterModal] = useState(null); // patient object | null
@@ -647,7 +690,73 @@ export default function PatientSearch() {
                         </div>
                       </div>
                     </td>
-                    <td style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: 12 }}>{p.mrn}</td>
+                    <td style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                      {(() => {
+                        const note = stickyNotes[p.id] ?? p.stickyNote ?? '';
+                        return (
+                          <div style={{ position: 'relative' }}>
+                            {/* MRN + inline note preview */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              {p.mrn}
+                            </div>
+                            {/* Always-visible sticky preview — click to edit */}
+                            <div
+                              onClick={e => openSticky(e, p)}
+                              title="Click to add / edit note"
+                              style={{
+                                marginTop: 3, cursor: 'pointer',
+                                display: 'flex', alignItems: 'flex-start', gap: 4,
+                                background: note ? '#fef9c3' : 'transparent',
+                                border: note ? '1px solid #fde68a' : '1px dashed #d1d5db',
+                                borderRadius: 5, padding: note ? '2px 6px' : '1px 5px',
+                                minWidth: 80, maxWidth: 160,
+                                transition: 'background 0.12s',
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#fef9c3'}
+                              onMouseLeave={e => e.currentTarget.style.background = note ? '#fef9c3' : 'transparent'}
+                            >
+                              <span style={{ fontSize: 9, flexShrink: 0, marginTop: 1 }}>📝</span>
+                              <span style={{
+                                fontSize: 10, color: note ? '#78350f' : '#9ca3af',
+                                fontFamily: 'inherit', fontWeight: note ? 500 : 400,
+                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                maxWidth: 140,
+                              }}>
+                                {note ? (note.length > 28 ? note.slice(0, 28) + '…' : note) : 'Add note'}
+                              </span>
+                            </div>
+                            {/* Edit popover */}
+                            {stickyOpen === p.id && (
+                              <div onClick={e => e.stopPropagation()} style={{
+                                position: 'absolute', top: 0, left: '100%', marginLeft: 8,
+                                zIndex: 200, width: 280, background: '#fefce8',
+                                border: '1px solid #fde68a', borderRadius: 10,
+                                boxShadow: '0 8px 24px rgba(0,0,0,0.15)', padding: 12,
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e' }}>
+                                    📝 {p.firstName} {p.lastName}
+                                  </div>
+                                  <button onClick={() => setStickyOpen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#92400e' }}>✕</button>
+                                </div>
+                                <textarea autoFocus value={stickyDraft} onChange={e => setStickyDraft(e.target.value)}
+                                  placeholder="Provider note… (500 chars)" maxLength={500} rows={4}
+                                  style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', background: 'transparent', border: '1px solid #fcd34d', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', color: '#78350f', outline: 'none' }} />
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                                  <span style={{ fontSize: 10, color: '#a16207' }}>{stickyDraft.length}/500</span>
+                                  <div style={{ display: 'flex', gap: 6 }}>
+                                    {note && <button onClick={() => clearSticky(p.id)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid #fcd34d', background: 'transparent', color: '#92400e', cursor: 'pointer' }}>Clear</button>}
+                                    <button onClick={() => saveSticky(p.id)} disabled={stickySaving} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: 'none', background: '#f59e0b', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+                                      {stickySaving ? '…' : 'Save'}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </td>
                     <td style={{ color: 'var(--text-muted)', fontSize: 11 }}>{p.dob}</td>
                     <td style={{ color: 'var(--text-muted)', fontSize: 11 }}>{p.gender}</td>
                     <td className="text-sm">{p.insurance?.primary?.name || '—'}</td>
