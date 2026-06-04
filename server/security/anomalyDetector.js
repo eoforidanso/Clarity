@@ -83,7 +83,7 @@ export function insertAnomaly({ ruleId, severity, title, description, actorId, a
 // R01: Same IP ≥5 IDOR attempts in 10 min
 function detectIpScanning() {
   const rows = db.prepare(`
-    SELECT ip, COUNT(*) as cnt, GROUP_CONCAT(actor_id) as actors, GROUP_CONCAT(target_id) as patients
+    SELECT ip, COUNT(*) as cnt, STRING_AGG(actor_id, ',') as actors, STRING_AGG(target_id, ',') as patients
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
       AND created_at >= datetime('now', '-10 minutes')
@@ -127,7 +127,7 @@ function detectBulkAccess() {
 // R03: Brute force — ≥10 LOGIN_FAILED from same IP in 15 min
 function detectBruteForce() {
   const rows = db.prepare(`
-    SELECT ip, COUNT(*) as cnt, GROUP_CONCAT(DISTINCT actor_name) as accounts
+    SELECT ip, COUNT(*) as cnt, STRING_AGG(DISTINCT actor_name, ',') as accounts
     FROM audit_logs
     WHERE action = 'LOGIN_FAILED'
       AND created_at >= NOW() - INTERVAL '15 minutes'
@@ -193,7 +193,7 @@ function detectOffHours() {
 // R06: Reauth hammering — ≥5 REAUTH_FAILED from same IP in 15 min
 function detectReauthHammering() {
   const rows = db.prepare(`
-    SELECT ip, COUNT(*) as cnt, GROUP_CONCAT(DISTINCT actor_id) as actors
+    SELECT ip, COUNT(*) as cnt, STRING_AGG(DISTINCT actor_id, ',') as actors
     FROM audit_logs
     WHERE action = 'REAUTH_FAILED'
       AND created_at >= NOW() - INTERVAL '15 minutes'
@@ -235,7 +235,7 @@ function detectPrivilegeProbe() {
 // R08: Session reuse — same actor from ≥3 distinct IPs in 30 min
 function detectSessionReuse() {
   const rows = db.prepare(`
-    SELECT actor_id, actor_name, COUNT(DISTINCT ip) as ip_count, GROUP_CONCAT(DISTINCT ip) as ips
+    SELECT actor_id, actor_name, COUNT(DISTINCT ip) as ip_count, STRING_AGG(DISTINCT ip, ',') as ips
     FROM audit_logs
     WHERE action IN ('IDOR_BLOCKED', 'REAUTH_FAILED', 'LOGIN_FAILED')
       AND created_at >= datetime('now', '-30 minutes')
