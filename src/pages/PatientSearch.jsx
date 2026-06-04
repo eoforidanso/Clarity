@@ -183,9 +183,17 @@ export default function PatientSearch() {
   };
   const [ageInput, setAgeInput] = useState('');
 
+  const [dobError, setDobError] = useState('');
+
   const handleDobChange = (dob) => {
     setPtForm(p => ({ ...p, dob }));
     setAgeInput(dob ? String(calcAge(dob)) : '');
+    // Validate: not in the future
+    if (dob && new Date(dob) > new Date()) {
+      setDobError('Date of birth cannot be in the future');
+    } else {
+      setDobError('');
+    }
     // DOB + LastName duplicate check
     if (dob && ptForm.lastName) checkDuplicate({ dob, lastName: ptForm.lastName });
   };
@@ -198,6 +206,34 @@ export default function PatientSearch() {
       const dob = `${yr}-01-01`;
       setPtForm(p => ({ ...p, dob }));
     }
+  };
+
+  // ── First Name → suggest Pronouns (optional, common names only) ─────────
+  const NAME_PRONOUNS = {
+    // Common male names
+    james:'He/Him',john:'He/Him',robert:'He/Him',michael:'He/Him',william:'He/Him',
+    david:'He/Him',richard:'He/Him',joseph:'He/Him',thomas:'He/Him',charles:'He/Him',
+    christopher:'He/Him',daniel:'He/Him',matthew:'He/Him',anthony:'He/Him',mark:'He/Him',
+    donald:'He/Him',steven:'He/Him',paul:'He/Him',andrew:'He/Him',joshua:'He/Him',
+    emmanuel:'He/Him',chris:'He/Him',eric:'He/Him',kevin:'He/Him',brian:'He/Him',
+    // Common female names
+    mary:'She/Her',patricia:'She/Her',jennifer:'She/Her',linda:'She/Her',barbara:'She/Her',
+    elizabeth:'She/Her',susan:'She/Her',jessica:'She/Her',sarah:'She/Her',karen:'She/Her',
+    lisa:'She/Her',nancy:'She/Her',betty:'She/Her',margaret:'She/Her',sandra:'She/Her',
+    ashley:'She/Her',dorothy:'She/Her',kimberly:'She/Her',emily:'She/Her',donna:'She/Her',
+    maria:'She/Her',helen:'She/Her',melissa:'She/Her',deborah:'She/Her',stephanie:'She/Her',
+    april:'She/Her',harriet:'She/Her',emelia:'She/Her',aisha:'She/Her',
+  };
+  const handleFirstNameChange = (firstName) => {
+    setPtForm(p => {
+      const suggested = NAME_PRONOUNS[firstName.toLowerCase().trim()];
+      return {
+        ...p,
+        firstName,
+        // Only suggest if pronouns are still at default — never override user choice
+        pronouns: suggested && p.pronouns === DEFAULT_PT.pronouns ? suggested : p.pronouns,
+      };
+    });
   };
 
   // ── Gender → Pronouns (editable, not overridden if user changed) ──────────
@@ -237,6 +273,18 @@ export default function PatientSearch() {
   };
   const handleECPhoneChange = (val) => {
     setPtForm(p => ({ ...p, emergencyContact: { ...p.emergencyContact, phone: formatPhone(val) } }));
+  };
+
+  // ── Phone length validation ───────────────────────────────────────────────
+  const [phoneError, setPhoneError] = useState('');
+  const handlePhoneBlurValidate = (val) => {
+    const digits = val.replace(/\D/g, '');
+    if (digits && digits.length !== 10) {
+      setPhoneError('Phone must be 10 digits');
+    } else {
+      setPhoneError('');
+    }
+    handlePhoneBlur(val);
   };
 
   // ── Email live validation ─────────────────────────────────────────────────
@@ -338,7 +386,8 @@ export default function PatientSearch() {
 
   // ── Form validity (required fields) ──────────────────────────────────────
   const isFormValid = ptForm.firstName.trim() && ptForm.lastName.trim() &&
-                      ptForm.dob && ptForm.gender && !emailError && !mrnDupWarning;
+                      ptForm.dob && ptForm.gender &&
+                      !dobError && !emailError && !phoneError && !mrnDupWarning;
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -720,7 +769,9 @@ export default function PatientSearch() {
       {/* Add Patient Modal */}
       {addModal && (
         <div style={{
-          position: 'fixed', inset: 0,
+          position: 'fixed',
+          top: 0, right: 0, bottom: 0,
+          left: 260,                    /* sidebar is 260px — center within content area */
           background: 'rgba(0,0,0,0.45)',
           display: 'flex', justifyContent: 'center', alignItems: 'center',
           padding: 32, boxSizing: 'border-box', zIndex: 1000,
@@ -754,7 +805,7 @@ export default function PatientSearch() {
                 <div>
                   <label className="form-label">First Name <span style={{color:'var(--danger)'}}>*</span></label>
                   <input className="form-input" value={ptForm.firstName}
-                    onChange={e => setPtForm(p => ({ ...p, firstName: e.target.value }))} />
+                    onChange={e => handleFirstNameChange(e.target.value)} />
                 </div>
                 <div>
                   <label className="form-label">Last Name <span style={{color:'var(--danger)'}}>*</span></label>
@@ -762,9 +813,14 @@ export default function PatientSearch() {
                     onChange={e => handleLastNameChange(e.target.value)} />
                 </div>
                 <div>
-                  <label className="form-label">Date of Birth <span style={{color:'var(--danger)'}}>*</span></label>
+                  <label className="form-label">
+                    Date of Birth <span style={{color:'var(--danger)'}}>*</span>
+                    {dobError && <span style={{fontSize:11,color:'var(--danger)',fontWeight:400,marginLeft:6}}>{dobError}</span>}
+                  </label>
                   <input className="form-input" type="date" value={ptForm.dob}
-                    onChange={e => handleDobChange(e.target.value)} />
+                    max={new Date().toISOString().split('T')[0]}
+                    onChange={e => handleDobChange(e.target.value)}
+                    style={dobError ? { borderColor: 'var(--danger)' } : {}} />
                 </div>
                 <div>
                   <label className="form-label">Age {ptForm.dob && <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:400}}>(auto-calculated)</span>}</label>
@@ -809,10 +865,13 @@ export default function PatientSearch() {
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>Contact</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
                 <div>
-                  <label className="form-label">Phone</label>
+                  <label className="form-label">
+                    Phone {phoneError && <span style={{fontSize:11,color:'var(--danger)',fontWeight:400}}>{phoneError}</span>}
+                  </label>
                   <input className="form-input" placeholder="(555) 000-0000" value={ptForm.phone}
                     onChange={e => handlePhoneChange('phone', e.target.value)}
-                    onBlur={e => handlePhoneBlur(e.target.value)} />
+                    onBlur={e => handlePhoneBlurValidate(e.target.value)}
+                    style={phoneError ? { borderColor: 'var(--danger)' } : {}} />
                 </div>
                 <div>
                   <label className="form-label">Cell Phone</label>
