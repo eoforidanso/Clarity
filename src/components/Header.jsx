@@ -13,6 +13,27 @@ export default function Header() {
   const [search, setSearch] = useState('');
   const [showResults, setShowResults] = useState(false);
   const [now, setNow] = useState(new Date());
+
+  // ── API health status for location capsule dot ────────────────────────────
+  const [apiStatus, setApiStatus] = useState('checking'); // 'online' | 'degraded' | 'offline' | 'checking'
+  useEffect(() => {
+    const API = import.meta.env.VITE_API_URL || '/api';
+    const check = async () => {
+      try {
+        const res = await fetch(`${API}/health/full`, { credentials: 'include', signal: AbortSignal.timeout(4000) });
+        if (!res.ok) { setApiStatus('degraded'); return; }
+        const data = await res.json();
+        if (data.status === 'ok') setApiStatus('online');
+        else if (data.status === 'degraded') setApiStatus('degraded');
+        else setApiStatus('offline');
+      } catch {
+        setApiStatus('offline');
+      }
+    };
+    check();
+    const interval = setInterval(check, 60_000); // re-check every 60s
+    return () => clearInterval(interval);
+  }, []);
   const navigate = useNavigate();
   const location = useLocation();
   const searchRef = useRef(null);
@@ -137,12 +158,20 @@ export default function Header() {
         const clinic = availableSites?.find(s => s.id === activeSiteId) || availableSites?.[0];
         if (!clinic) return null;
         return (
-          <div className="location-capsule" onClick={() => navigate('/multi-location')} title="Switch location">
+          <div className="location-capsule" onClick={() => navigate('/multi-location')}
+            title={`${clinic.name} · API ${apiStatus}`}>
             <div className="loc-left">
               <div className="loc-name">{clinic.name || clinic.shortName}</div>
               <div className="loc-sub">{clinic.city ? `${clinic.city}, ${clinic.state}` : clinic.address || 'Clarity EHR'}</div>
             </div>
-            <span className="loc-status" />
+            <span className="loc-status" style={{
+              background:
+                apiStatus === 'online'    ? '#22c55e' :
+                apiStatus === 'degraded'  ? '#f59e0b' :
+                apiStatus === 'offline'   ? '#ef4444' :
+                '#d1d5db', // checking = grey
+              boxShadow: apiStatus === 'online' ? '0 0 0 2px rgba(34,197,94,0.2)' : 'none',
+            }} />
           </div>
         );
       })()}
