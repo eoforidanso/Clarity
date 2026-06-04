@@ -6,7 +6,8 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import config from './config.js';
-import { initializeDatabase } from './db/database.js';
+import { initializeDatabase, db } from './db/database.js';
+import { runMigrations } from './db/migrate.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
 
@@ -160,8 +161,59 @@ app.use((req, _res, next) => {
 });
 
 // Health check
+// ── Health check — used by CI/CD, uptime monitors, and load balancers ─────────
+// GET /api/health        → lightweight liveness (always fast, no DB query)
+// GET /api/health/full   → deep readiness (DB + migrations + memory)
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', timestamp: new Date().toISOString(), env: config.nodeEnv });
+});
+
+app.get('/api/health/full', async (_req, res) => {
+  const start = Date.now();
+  const checks = {};
+  let overallOk = true;
+
+  // ── DB connectivity ──
+  try {
+    const row = await db.prepare('SELECT 1 AS ok').get();
+    checks.database = { status: row?.ok === 1 ? 'ok' : 'degraded', latencyMs: Date.now() - start };
+  } catch (err) {
+    checks.database = { status: 'error', error: err.message };
+    overallOk = false;
+  }
+
+  // ── Applied migrations ──
+  try {
+    const applied = await db.prepare(`SELECT COUNT(*) AS c FROM schema_migrations`).get();
+    checks.migrations = { status: 'ok', applied: applied?.c ?? 0 };
+  } catch {
+    checks.migrations = { status: 'unknown' };
+  }
+
+  // ── Memory ──
+  const mem = process.memoryUsage();
+  const heapUsedMB  = Math.round(mem.heapUsed  / 1024 / 1024);
+  const heapTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
+  const heapPct     = Math.round((heapUsedMB / heapTotalMB) * 100);
+  checks.memory = { status: heapPct > 90 ? 'warning' : 'ok', heapUsedMB, heapTotalMB, heapPct };
+  if (heapPct > 90) overallOk = false;
+
+  // ── Uptime ──
+  const s = Math.floor(process.uptime());
+  checks.uptime = {
+    status: 'ok',
+    seconds: s,
+    human: s > 3600 ? `${Math.floor(s/3600)}h ${Math.floor((s%3600)/60)}m` : `${Math.floor(s/60)}m`,
+  };
+
+  res.status(overallOk ? 200 : 503).json({
+    status:     overallOk ? 'ok' : 'degraded',
+    timestamp:  new Date().toISOString(),
+    env:        config.nodeEnv,
+    version:    process.env.npm_package_version || '1.0.0',
+    responseMs: Date.now() - start,
+    checks,
+  });
 });
 
 // Serve static frontend files
@@ -209,6 +261,9 @@ app.use(errorHandler);
 // Initialize DB and start
 async function start() {
   await initializeDatabase();
+
+  // Run pending DB migrations before anything else starts
+  await runMigrations();
 
   // Apply soft-delete migrations (deleted_at columns + audit_logs table)
   const { applyMigrations } = await import('./db/softDelete.js');
