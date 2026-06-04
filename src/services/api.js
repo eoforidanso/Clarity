@@ -4,6 +4,38 @@ const API_BASE = import.meta.env?.VITE_API_URL || '/api';
 // No-op — token is now managed as an httpOnly cookie set by the server
 export function setToken(_token) {}
 
+// ── Silent token refresh ──────────────────────────────────────────────────────
+// Called automatically when any request returns 401.
+// Tries POST /auth/refresh (uses the 30-day ehr_refresh cookie).
+// Returns true if refresh succeeded (caller should retry), false otherwise.
+let _refreshing = false;
+let _refreshQueue = [];
+
+async function tryRefresh() {
+  // Deduplicate — if already refreshing, wait for it
+  if (_refreshing) {
+    return new Promise((resolve) => _refreshQueue.push(resolve));
+  }
+  _refreshing = true;
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const ok = res.status === 200;
+    _refreshQueue.forEach(r => r(ok));
+    _refreshQueue = [];
+    return ok;
+  } catch {
+    _refreshQueue.forEach(r => r(false));
+    _refreshQueue = [];
+    return false;
+  } finally {
+    _refreshing = false;
+  }
+}
+
 /**
  * ApiError — extends Error with a `code` field so callers can branch on
  * error type without parsing message strings.
@@ -18,7 +50,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, options = {}) {
+async function request(path, options = {}, _isRetry = false) {
   const headers = { 'Content-Type': 'application/json', ...options.headers };
 
   let res;
@@ -37,11 +69,20 @@ async function request(path, options = {}) {
     );
   }
 
+  // ── Auto-refresh on 401 (expired 8h access token) ──────────────────────
+  if (res.status === 401 && !_isRetry && !path.includes('/auth/')) {
+    const refreshed = await tryRefresh();
+    if (refreshed) {
+      return request(path, options, true); // retry once with new access token
+    }
+    // Refresh failed — fall through to throw auth error (user logs in again)
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const message =
       body.error ||
-      (res.status === 401 ? 'Not authenticated' : `Request failed (${res.status})`);
+      (res.status === 401 ? 'Session expired — please log in again' : `Request failed (${res.status})`);
     const code =
       res.status >= 500 ? 'server' :
       res.status === 401 || res.status === 403 ? 'auth' :
