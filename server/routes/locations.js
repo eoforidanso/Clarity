@@ -122,7 +122,7 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => 
        rooms            = COALESCE(?, rooms),
        telehealth       = COALESCE(?, telehealth),
        sort_order       = COALESCE(?, sort_order),
-       updated_at       = datetime('now')
+       updated_at       = NOW()
      WHERE id = ?`
   ).run(
     name?.trim() ?? null,

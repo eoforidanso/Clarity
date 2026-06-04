@@ -156,7 +156,7 @@ router.post('/login', async (req, res) => {
     const otp = String(crypto.randomInt(100000, 1000000));
     const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     await db.prepare(
-      "UPDATE users SET email_otp = ?, email_otp_expires = ?, email_otp_attempts = 0, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE users SET email_otp = ?, email_otp_expires = ?, email_otp_attempts = 0, updated_at = NOW() WHERE id = ?"
     ).run(otp, expires, user.id);
 
     const masked = user.email.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '*'.repeat(Math.max(1, b.length)) + c);
@@ -423,7 +423,7 @@ router.post('/2fa/verify', async (req, res) => {
 
 // POST /api/auth/2fa/enable — enable email 2FA for the authenticated user
 router.post('/2fa/enable', authenticate, async (req, res) => {
-  await db.prepare("UPDATE users SET two_factor_enabled = 1, updated_at = datetime('now') WHERE id = ?")
+  await db.prepare("UPDATE users SET two_factor_enabled = 1, updated_at = NOW() WHERE id = ?")
     .run(req.user.id);
   logAuditEvent({
     userId: req.user.id,
@@ -439,7 +439,7 @@ router.post('/2fa/enable', authenticate, async (req, res) => {
 
 // POST /api/auth/2fa/disable — disable email 2FA for the authenticated user
 router.post('/2fa/disable', authenticate, async (req, res) => {
-  await db.prepare("UPDATE users SET two_factor_enabled = 0, email_otp = NULL, email_otp_expires = NULL, updated_at = datetime('now') WHERE id = ?")
+  await db.prepare("UPDATE users SET two_factor_enabled = 0, email_otp = NULL, email_otp_expires = NULL, updated_at = NOW() WHERE id = ?")
     .run(req.user.id);
   logAuditEvent({
     userId: req.user.id,

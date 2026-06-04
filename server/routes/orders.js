@@ -32,7 +32,7 @@ router.put('/:patientId/orders/:orderId', async (req, res) => {
   const existing = await db.prepare('SELECT * FROM orders WHERE id = ? AND patient_id = ?').get(req.params.orderId, req.params.patientId);
   if (!existing) return res.status(404).json({ error: 'Order not found' });
 
-  await db.prepare(`UPDATE orders SET status=?, notes=?, updated_at=datetime('now') WHERE id=?`).run(
+  await db.prepare(`UPDATE orders SET status=?, notes=?, updated_at=NOW() WHERE id=?`).run(
     b.status ?? existing.status, b.notes ?? existing.notes, req.params.orderId
   );
   const row = await db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.orderId);

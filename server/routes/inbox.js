@@ -48,7 +48,7 @@ router.put('/:id', async (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Message not found' });
 
   const b = req.body;
-  await db.prepare(`UPDATE inbox_messages SET read=?, status=?, priority=?, updated_at=datetime('now') WHERE id=?`).run(
+  await db.prepare(`UPDATE inbox_messages SET read=?, status=?, priority=?, updated_at=NOW() WHERE id=?`).run(
     b.read !== undefined ? (b.read ? 1 : 0) : existing.read,
     b.status ?? existing.status,
     b.priority ?? existing.priority,
@@ -63,7 +63,7 @@ router.put('/:id/status', async (req, res) => {
   const { status } = req.body;
   if (!status) return res.status(400).json({ error: 'Status is required' });
 
-  await db.prepare(`UPDATE inbox_messages SET status=?, read=1, updated_at=datetime('now') WHERE id=?`).run(status, req.params.id);
+  await db.prepare(`UPDATE inbox_messages SET status=?, read=1, updated_at=NOW() WHERE id=?`).run(status, req.params.id);
   const row = await db.prepare('SELECT * FROM inbox_messages WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Message not found' });
   res.json(formatMsg(row));
