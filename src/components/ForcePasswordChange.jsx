@@ -2,11 +2,10 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 const rules = [
-  { test: (p) => p.length >= 8,            label: 'At least 8 characters',               req: true  },
-  { test: (p) => /[A-Z]/.test(p),          label: 'One uppercase letter',                req: true  },
-  { test: (p) => /[0-9]/.test(p),          label: 'One number',                          req: true  },
-  { test: (p) => /[^A-Za-z0-9]/.test(p),  label: 'One special character (!@#$…)',        req: false },
-  { test: (p) => p.length >= 12,           label: 'At least 12 characters (recommended)', req: false },
+  { test: (p) => p.length >= 8,           label: 'At least 8 characters',        req: true  },
+  { test: (p) => /[A-Z]/.test(p),         label: 'One uppercase letter',          req: true  },
+  { test: (p) => /[0-9]/.test(p),         label: 'One number',                   req: true  },
+  { test: (p) => /[^A-Za-z0-9]/.test(p), label: 'One special character (!@#$…)', req: false },
 ];
 
 function strengthScore(p) {
