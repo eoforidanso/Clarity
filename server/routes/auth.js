@@ -85,8 +85,9 @@ async function issueFullSession(res, req, user) {
 
   res.cookie('ehr_token', token, {
     httpOnly: true,
-    secure: config.nodeEnv === 'production',
-    sameSite: 'lax',
+    secure: true,
+    sameSite: 'none',       // required for cross-origin (app. → api.)
+    domain: '.clarity-ehr.com', // shared across all subdomains
     maxAge: 8 * 60 * 60 * 1000,
     path: '/',
   });
@@ -271,14 +272,15 @@ router.post('/logout', authenticate, async (req, res) => {
   // Clear the httpOnly auth cookie
   res.clearCookie('ehr_token', {
     httpOnly: true,
-    secure: config.nodeEnv === 'production',
-    sameSite: 'lax',
+    secure: true,
+    sameSite: 'none',
+    domain: '.clarity-ehr.com',
     path: '/',
   });
 
   // Invalidate session
   try {
-    await db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = ? AND is_active = 1').run(req.user.id);
+    await db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = $1 AND is_active = 1').run(req.user.id);
   } catch (e) { /* ok */ }
 
   logAuditEvent({
