@@ -41,7 +41,7 @@ router.post('/request-access', async (req, res) => {
 // GET /api/btg/check-access/:patientId
 router.get('/check-access/:patientId', async (req, res) => {
   const access = await db.prepare(
-    'SELECT * FROM btg_access WHERE patient_id = ? AND user_id = ? AND expires_at > datetime("now")'
+    'SELECT * FROM btg_access WHERE patient_id = ? AND user_id = ? AND expires_at > NOW()'
   ).get(req.params.patientId, req.user.id);
 
   res.json({ hasAccess: !!access });
