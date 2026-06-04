@@ -130,12 +130,19 @@ export default function TreatmentPlans() {
     const circ = 2 * Math.PI * r;
     const offset = circ - (pct / 100) * circ;
     const color = pct >= 100 ? '#059669' : pct >= 60 ? '#3b82f6' : pct >= 30 ? '#f59e0b' : '#ef4444';
+    const fontSize = size <= 40 ? 9 : 12;
     return (
-      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={stroke} />
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" style={{ transition: 'stroke-dashoffset 0.5s ease' }} />
-        <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central" fill={color} fontSize={12} fontWeight={800} style={{ transform: 'rotate(90deg)', transformOrigin: 'center' }}>{pct}%</text>
-      </svg>
+      <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+        <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={stroke} />
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" style={{ transition: 'stroke-dashoffset 0.5s ease' }} />
+        </svg>
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize, fontWeight: 800, color, lineHeight: 1,
+        }}>{pct}%</div>
+      </div>
     );
   };
 
