@@ -193,8 +193,9 @@ router.post('/verify-otp', async (req, res) => {
   res.cookie('portal_token', token, {
     httpOnly: true,
     secure: true,
-    sameSite: 'strict',
-    maxAge: 8 * 60 * 60 * 1000, // 8h
+    sameSite: 'none',
+    domain: '.clarity-ehr.com',
+    maxAge: 8 * 60 * 60 * 1000,
     path: '/',
   });
 
@@ -289,7 +290,7 @@ router.post('/logout', authenticatePortal, async (req, res) => {
      VALUES ($1, 'LOGOUT', $2, $3, NOW())`
   ).run(req.patientId, req.ip || '', req.get('User-Agent') || '');
 
-  res.clearCookie('portal_token', { httpOnly: true, secure: true, sameSite: 'strict', path: '/' });
+  res.clearCookie('portal_token', { httpOnly: true, secure: true, sameSite: 'none', domain: '.clarity-ehr.com', path: '/' });
   res.json({ ok: true });
 });
 
