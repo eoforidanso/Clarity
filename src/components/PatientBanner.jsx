@@ -110,9 +110,6 @@ export default function PatientBanner() {
           <button className="athena-action-btn" onClick={() => navigate(`/chart/${p.id}/orders`)}>
             <span className="athena-action-icon">⚡</span>Orders
           </button>
-          <button className="athena-action-btn" onClick={() => navigate(`/chart/${p.id}/medications`)}>
-            <span className="athena-action-icon">💊</span>Rx
-          </button>
           <button className="athena-action-btn" onClick={() => navigate('/patient-chat')}>
             <span className="athena-action-icon">💬</span>Msg
           </button>
