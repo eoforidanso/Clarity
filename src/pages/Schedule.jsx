@@ -1,4 +1,5 @@
 ﻿import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import PatientHoverCard from "../components/PatientHoverCard";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { usePatient } from "../contexts/PatientContext";
@@ -253,7 +254,7 @@ function urgencyStyle(apt) {
 /* ══════════════════════════════════════════════
    TIMELINE APPOINTMENT CARD (Schedule tab)
 ══════════════════════════════════════════════ */
-function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, isCurrent, patientPhoto }) {
+function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, isCurrent, patientPhoto, patientObj, allAppointments }) {
   const c = getTypeColor(apt);
   const ss = getStatusStyle(apt.status);
   const initials = apt.patientName?.split(" ").map(n => n[0]).join("").slice(0,2) || "?";
@@ -324,7 +325,11 @@ function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggl
             }
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 14, color: "var(--text-primary)", marginBottom: 1 }}>{apt.patientName}</div>
+            <div style={{ fontWeight: 800, fontSize: 14, color: "var(--text-primary)", marginBottom: 1 }}>
+              <PatientHoverCard patient={patientObj} appointments={allAppointments || []}>
+                {apt.patientName}
+              </PatientHoverCard>
+            </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{apt.reason || "No reason listed"}</div>
           </div>
           {/* Provider chip */}
@@ -448,6 +453,8 @@ function ScheduleTimeline({ appts, todayKey, isToday, onOpenChart, onCheckIn, on
                 <AptCard key={apt.id} apt={apt} todayKey={todayKey}
                   isCurrent={isToday && apt.id === currentAptId}
                   patientPhoto={patients?.find(p => p.id === apt.patientId)?.photo}
+                  patientObj={patients?.find(p => p.id === apt.patientId)}
+                  allAppointments={appointments}
                   onOpenChart={onOpenChart} onCheckIn={onCheckIn}
                   onGoToSession={onGoToSession} onToggleVisitType={onToggleVisitType} />
               ))}

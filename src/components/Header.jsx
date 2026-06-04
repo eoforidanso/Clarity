@@ -286,28 +286,7 @@ export default function Header() {
 
       {/* Right actions */}
       <div className="header-actions">
-        {/* Location picker — wired to SiteContext */}
-        {availableSites.length > 1 && (
-          <select
-            value={activeSiteId}
-            onChange={e => setActiveSite(e.target.value)}
-            style={{
-              padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)',
-              fontSize: 11, fontWeight: 600, background: 'var(--bg)', color: 'var(--text-secondary)',
-              cursor: 'pointer', maxWidth: 160,
-            }}
-            title="Select Location"
-          >
-            {availableSites.map(s => (
-              <option key={s.id} value={s.id}>{s.icon} {s.shortName || s.name}</option>
-            ))}
-          </select>
-        )}
-        {availableSites.length === 1 && (
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)' }}>
-            {availableSites[0].icon} {availableSites[0].shortName || availableSites[0].name}
-          </span>
-        )}
+        {/* Location now shown as capsule on the left — removed from center */}
 
         <button className="header-btn" title="Settings" onClick={() => navigate('/settings')}>
           ⚙️
@@ -332,14 +311,6 @@ export default function Header() {
             color: 'white', fontSize: 10, fontWeight: 800, flexShrink: 0,
           }}>
             {currentUser?.firstName?.[0]}{currentUser?.lastName?.[0]}
-          </div>
-          <div className="header-user-text" style={{ textAlign: 'left', lineHeight: 1.2 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)' }}>
-              {currentUser?.firstName} {currentUser?.lastName?.[0]}.
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-              {currentUser?.credentials || currentUser?.role}
-            </div>
           </div>
         </div>
         <div className="header-divider" />
