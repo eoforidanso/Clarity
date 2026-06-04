@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireElevated } from '../middleware/auth.js';
 
 const router = Router();
 router.use(authenticate);
 
 // POST /api/btg/request-access
-router.post('/request-access', async (req, res) => {
+router.post('/request-access', requireElevated, async (req, res) => {
   const { patientId, reason } = req.body;
   if (!patientId || !reason) {
     return res.status(400).json({ error: 'Patient ID and reason are required' });

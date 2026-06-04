@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
-import { authenticate, authorize, requireElevated } from '../middleware/auth.js';
+import { authenticate, requireElevated, requireElevated, authorize, requireElevated } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
 import { softDeleteUser, logAudit, activeScope } from '../db/softDelete.js';
 
@@ -279,7 +279,7 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => 
 
 // ── POST /api/users/:id/reset-password ─────────────────────────────────
 // Reset a user's password. Admin/front_desk only. Cannot reset own password this way.
-router.post('/:id/reset-password', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
+router.post('/:id/reset-password', authenticate, requireElevated, authorize(...ADMIN_ROLES), async (req, res) => {
   const { id } = req.params;
   const { newPassword } = req.body;
 
@@ -318,7 +318,7 @@ router.post('/:id/reset-password', authenticate, authorize(...ADMIN_ROLES), asyn
 // ── POST /api/users/:id/unlock ──────────────────────────────────────────
 // Unlock a user stuck in forced password change. Clears must_change_password flag.
 // Admin/front_desk only.
-router.post('/:id/unlock', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
+router.post('/:id/unlock', authenticate, requireElevated, authorize(...ADMIN_ROLES), async (req, res) => {
   const { id } = req.params;
 
   const user = await db.prepare('SELECT id FROM users WHERE id = $1 AND role != $2').get(id, 'patient');

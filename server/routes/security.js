@@ -3,7 +3,7 @@
  * Admin only. Surfaces security events from audit_logs.
  */
 import { Router } from 'express';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate, requireElevated, authorize } from '../middleware/auth.js';
 import { db } from '../db/database.js';
 import { setDeviceTrust, getUserDevices } from '../security/geoDevice.js';
 
@@ -117,7 +117,7 @@ router.delete('/sessions/:id', async (req, res) => {
 });
 
 // DELETE /api/security/sessions — emergency revoke all
-router.delete('/sessions', async (_req, res) => {
+router.delete('/sessions', requireElevated, async (_req, res) => {
   const { changes } = await db.prepare(`UPDATE sessions SET is_active = 0 WHERE is_active = 1`).run();
   res.json({ revoked: changes, message: 'All sessions revoked — everyone must re-login' });
 });
