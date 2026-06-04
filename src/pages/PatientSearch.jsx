@@ -181,14 +181,14 @@ export default function PatientSearch() {
     return () => document.removeEventListener('paste', handlePaste);
   }, [addModal]);
 
-  // ── Fetch next MRN when modal opens ──────────────────────────────────────
+  // ── Fetch next MRN when modal opens (only when authenticated) ────────────
   useEffect(() => {
-    if (!addModal) return;
+    if (!addModal || !currentUser) return;
     fetch(`${API}/patients/next-mrn`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.mrn) setPtForm(p => ({ ...p, mrn: data.mrn })); })
       .catch(() => {});
-  }, [addModal]);
+  }, [addModal, currentUser]);
 
   // ── ZIP auto-fill (city + state) on blur ─────────────────────────────────
   const handleZipBlur = async (zip) => {
