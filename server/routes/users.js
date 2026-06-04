@@ -74,7 +74,7 @@ const VALID_ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist', 'biller',
 // Returns basic name/role info for staff.
 // Admins see all staff. Non-admins see only staff at their own location.
 router.get('/directory', authenticate, async (req, res) => {
-  const isAdmin = ['admin', 'front_desk'].includes(req.user.role);
+  const isAdmin = req.user.role === 'admin';
   const userLocationId = req.user.location_id;
 
   const rows = isAdmin || !userLocationId
@@ -102,10 +102,10 @@ router.get('/directory', authenticate, async (req, res) => {
 // ── GET /api/users ─────────────────────────────────────────────────────
 // Returns staff users. Admins see all; non-admins see only their location.
 router.get('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
-  const isSuperAdmin = req.user.role === 'admin';
+  const isAdmin = req.user.role === 'admin';
   const userLocationId = req.user.location_id;
 
-  const rows = isSuperAdmin || !userLocationId
+  const rows = isAdmin || !userLocationId
     ? await db.prepare(
         `SELECT id, username, first_name, last_name, role, credentials, specialty,
                 npi, dea_number, email, two_factor_enabled, location_id, created_at, updated_at
