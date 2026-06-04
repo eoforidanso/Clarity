@@ -2370,26 +2370,28 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   z-index: 1000;
 }
 
-.modal-container {
+.modal-overlay {
   position: fixed;
   inset: 0;
+  background: rgba(0,0,0,0.45);
   display: flex;
   justify-content: center;
-  align-items: flex-start;       /* start from top so card is never clipped */
-  background: rgba(0,0,0,0.45);
-  overflow-y: auto;              /* scroll if card taller than viewport */
-  padding: 40px 24px;            /* breathing room top & bottom */
-  z-index: 1000;
+  align-items: center;
+  padding: 32px;
   box-sizing: border-box;
+  z-index: 1000;
 }
 
-.add-patient-wrapper {
+.modal-card {
   width: 100%;
-  display: flex;
-  justify-content: center;
-  padding-top: 48px;
-  padding-bottom: 48px;
+  max-width: 720px;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: 0 18px 45px rgba(0,0,0,0.12);
   box-sizing: border-box;
+  overflow-y: auto;
+  max-height: 90vh;
 }
 
 .add-patient-card {
