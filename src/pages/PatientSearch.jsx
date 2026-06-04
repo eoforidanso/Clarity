@@ -426,28 +426,25 @@ export default function PatientSearch() {
       )}
       {/* Add Patient Modal */}
       {addModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000, padding: 24,
-        }}>
-          <div style={{
-            background: 'var(--surface)', borderRadius: 14, width: '100%', maxWidth: 760,
-            height: '90vh', display: 'flex', flexDirection: 'column',
+        <div className="modal-overlay" style={{ zIndex: 1000 }}>
+          <div className="modal-container">
+          <div className="new-patient-card" style={{
+            background: 'var(--surface)', borderRadius: 14,
+            display: 'flex', flexDirection: 'column', maxHeight: '90vh',
             boxShadow: 'var(--shadow-overlay)',
           }}>
             {/* Header */}
             <div style={{
               padding: '16px 20px', borderBottom: '1px solid var(--border)',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1,
+              flexShrink: 0, background: 'var(--surface)', borderRadius: '14px 14px 0 0',
             }}>
               <div style={{ fontWeight: 800, fontSize: 17 }}>👤 Add New Patient</div>
               <button onClick={cancelAddPatient}
                 style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
             </div>
 
-            <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
+            <div className="modal-body" style={{ flex: 1 }}>
               {ptError && (
                 <div style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
                   ⚠️ {ptError}
@@ -618,6 +615,7 @@ export default function PatientSearch() {
               </button>
             </div>
           </div>
+          </div>{/* /modal-container */}
         </div>
       )}
     </div>
