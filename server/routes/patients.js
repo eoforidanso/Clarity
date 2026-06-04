@@ -198,4 +198,32 @@ router.put('/:id', authorize('prescriber', 'nurse', 'front_desk'), requirePatien
   res.json(formatPatient(row));
 });
 
+// GET /api/patients/next-mrn — generate the next available MRN (preview, not reserved)
+router.get('/next-mrn', authenticate, async (_req, res) => {
+  const { cnt } = await db.prepare('SELECT COUNT(*) AS cnt FROM patients').get();
+  const mrn = `MRN-${String(Number(cnt) + 1).padStart(5, '0')}`;
+  res.json({ mrn });
+});
+
+// GET /api/patients/zip/:zip — city/state lookup via zippopotam.us (free, no key)
+router.get('/zip/:zip', authenticate, async (req, res) => {
+  const zip = req.params.zip?.replace(/\D/g, '').slice(0, 5);
+  if (!zip || zip.length < 5) return res.status(400).json({ error: 'Invalid ZIP' });
+  try {
+    const r = await fetch(`https://api.zippopotam.us/us/${zip}`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!r.ok) return res.status(404).json({ error: 'ZIP not found' });
+    const data = await r.json();
+    const place = data.places?.[0];
+    res.json({
+      zip,
+      city:  place?.['place name']  || '',
+      state: place?.['state abbreviation'] || '',
+    });
+  } catch {
+    res.status(503).json({ error: 'ZIP lookup unavailable' });
+  }
+});
+
 export default router;
