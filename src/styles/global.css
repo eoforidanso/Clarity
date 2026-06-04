@@ -2372,14 +2372,15 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 
 .modal-container {
   position: fixed;
-  inset: 0;                      /* full screen */
+  inset: 0;
   display: flex;
-  justify-content: center;       /* center horizontally */
-  align-items: center;           /* center vertically */
-  background: rgba(0,0,0,0.45); /* dim backdrop */
-  overflow: hidden;              /* NO SCROLL on overlay */
-  padding: 0;
+  justify-content: center;
+  align-items: flex-start;       /* start from top so card is never clipped */
+  background: rgba(0,0,0,0.45);
+  overflow-y: auto;              /* scroll if card taller than viewport */
+  padding: 40px 24px;            /* breathing room top & bottom */
   z-index: 1000;
+  box-sizing: border-box;
 }
 
 .add-patient-card {
