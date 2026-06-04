@@ -31,7 +31,7 @@ export async function authenticate(req, res, next) {
     }
     // Verify session is still active (revoked on logout)
     if (decoded.sessionId) {
-      const session = db.prepare(
+      const session = await db.prepare(
         'SELECT is_active FROM sessions WHERE id = ? AND user_id = ?'
       ).get(decoded.sessionId, decoded.userId);
       if (session && !session.is_active) {
@@ -47,9 +47,9 @@ export async function authenticate(req, res, next) {
       const isElevated        = decoded.elevated === true ? 1 : 0;
       const elevatedExpiresAt = decoded.elevated ? new Date(decoded.exp * 1000).toISOString() : null;
       try {
-        db.prepare(`
+        await db.prepare(`
           UPDATE sessions
-          SET last_seen_at = datetime('now'),
+          SET last_seen_at = NOW(),
               is_elevated = ?,
               elevated_expires_at = ?,
               location_id = ?
