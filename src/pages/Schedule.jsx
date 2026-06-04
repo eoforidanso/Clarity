@@ -253,7 +253,7 @@ function urgencyStyle(apt) {
 /* ══════════════════════════════════════════════
    TIMELINE APPOINTMENT CARD (Schedule tab)
 ══════════════════════════════════════════════ */
-function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, isCurrent }) {
+function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, isCurrent, patientPhoto }) {
   const c = getTypeColor(apt);
   const ss = getStatusStyle(apt.status);
   const initials = apt.patientName?.split(" ").map(n => n[0]).join("").slice(0,2) || "?";
@@ -317,8 +317,11 @@ function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggl
         {/* Row 2: avatar + patient info + provider + primary CTA */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {/* Patient avatar */}
-          <div style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, background: `linear-gradient(135deg,${c.border},${c.dot})`, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, boxShadow: isCurrent ? "0 0 0 3px rgba(99,102,241,0.3)" : "none" }}>
-            {initials}
+          <div style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, overflow: "hidden", boxShadow: isCurrent ? "0 0 0 3px rgba(99,102,241,0.3)" : "none" }}>
+            {patientPhoto
+              ? <img src={patientPhoto} alt={apt.patientName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              : <div style={{ width: "100%", height: "100%", background: `linear-gradient(135deg,${c.border},${c.dot})`, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14 }}>{initials}</div>
+            }
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 14, color: "var(--text-primary)", marginBottom: 1 }}>{apt.patientName}</div>
@@ -444,6 +447,7 @@ function ScheduleTimeline({ appts, todayKey, isToday, onOpenChart, onCheckIn, on
               {hourAppts.map(apt => (
                 <AptCard key={apt.id} apt={apt} todayKey={todayKey}
                   isCurrent={isToday && apt.id === currentAptId}
+                  patientPhoto={patients?.find(p => p.id === apt.patientId)?.photo}
                   onOpenChart={onOpenChart} onCheckIn={onCheckIn}
                   onGoToSession={onGoToSession} onToggleVisitType={onToggleVisitType} />
               ))}
@@ -606,9 +610,13 @@ function WaitingRow({ apt, onCheckIn, onNoShow, onCancel, onGoToSession, onCheck
         </div>
         {/* patient */}
         <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, minWidth:140 }}>
-          <div style={{ width:34, height:34, borderRadius:"50%", background:`linear-gradient(135deg,${c.border},${c.dot})`,
-            color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:12, flexShrink:0 }}>
-            {apt.patientName?.split(" ").map(n=>n[0]).join("").slice(0,2)||"?"}
+          <div style={{ width:34, height:34, borderRadius:"50%", flexShrink:0, overflow:"hidden" }}>
+            {pat?.photo
+              ? <img src={pat.photo} alt={apt.patientName} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+              : <div style={{ width:"100%", height:"100%", background:`linear-gradient(135deg,${c.border},${c.dot})`, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:12 }}>
+                  {apt.patientName?.split(" ").map(n=>n[0]).join("").slice(0,2)||"?"}
+                </div>
+            }
           </div>
           <div>
             <div style={{ fontWeight:700, fontSize:13, color:"var(--text-primary)" }}>{apt.patientName}</div>
