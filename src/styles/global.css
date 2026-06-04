@@ -885,6 +885,30 @@ hr { border: none; height: 1px; background: linear-gradient(90deg, transparent 0
   box-shadow: var(--shadow-separator);
 }
 
+/* ── Location Capsule ── */
+.location-capsule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f7f9fc;
+  border-radius: 10px;
+  border: 1px solid #e5e8ef;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.location-capsule:hover { background: #eef2f8; }
+.loc-name { font-weight: 600; font-size: 13px; color: #1a1d23; }
+.loc-sub  { font-size: 11px; color: #6b7280; margin-top: -1px; }
+.loc-status {
+  width: 8px; height: 8px;
+  background: #22c55e;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 .header-search { flex: 1; max-width: 420px; position: relative; }
 .header-search input {
   width: 100%; padding: 7px 70px 7px 36px;

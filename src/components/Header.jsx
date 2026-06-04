@@ -132,10 +132,20 @@ export default function Header() {
 
   return (
     <header className="header">
-      {/* Page context breadcrumb */}
-      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', whiteSpace: 'nowrap', marginRight: 8 }}>
-        {getPageTitle()}
-      </div>
+      {/* Location capsule — left block */}
+      {(() => {
+        const clinic = availableSites?.find(s => s.id === activeSiteId) || availableSites?.[0];
+        if (!clinic) return null;
+        return (
+          <div className="location-capsule" onClick={() => navigate('/multi-location')} title="Switch location">
+            <div className="loc-left">
+              <div className="loc-name">{clinic.name || clinic.shortName}</div>
+              <div className="loc-sub">{clinic.city ? `${clinic.city}, ${clinic.state}` : clinic.address || 'Clarity EHR'}</div>
+            </div>
+            <span className="loc-status" />
+          </div>
+        );
+      })()}
 
       {/* Search */}
       <div className="header-search" ref={searchRef}>
