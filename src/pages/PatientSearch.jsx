@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import PatientHoverCard from '../components/PatientHoverCard';
 import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -1108,7 +1109,11 @@ export default function PatientSearch() {
                           }
                         </div>
                         <div>
-                          <div style={{ fontWeight: 800, fontSize: 14 }}>{p.lastName}, {p.firstName}</div>
+                          <div style={{ fontWeight: 800, fontSize: 14 }}>
+                            <PatientHoverCard patient={p} appointments={appointments || []}>
+                              {p.lastName}, {p.firstName}
+                            </PatientHoverCard>
+                          </div>
                           <div className="text-xs text-muted">{p.phone || p.cellPhone || ''}</div>
                         </div>
                       </div>

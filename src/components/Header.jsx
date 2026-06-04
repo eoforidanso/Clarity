@@ -333,14 +333,6 @@ export default function Header() {
           }}>
             {currentUser?.firstName?.[0]}{currentUser?.lastName?.[0]}
           </div>
-          <div className="header-user-text" style={{ textAlign: 'left', lineHeight: 1.2 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)' }}>
-              {currentUser?.firstName} {currentUser?.lastName?.[0]}.
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-              {currentUser?.credentials || currentUser?.role}
-            </div>
-          </div>
         </div>
         <div className="header-divider" />
         <div className="header-clock" style={{ textAlign: 'right', userSelect: 'none' }}>
