@@ -1,4 +1,4 @@
-// In production set VITE_API_URL to your backend domain (e.g. https://api.example.com/api)
+// API URL — staging branch uses VITE_API_URL_STAGING, production uses VITE_API_URL
 const API_BASE = import.meta.env?.VITE_API_URL || '/api';
 
 // No-op — token is now managed as an httpOnly cookie set by the server
