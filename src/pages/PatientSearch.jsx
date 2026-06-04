@@ -426,8 +426,8 @@ export default function PatientSearch() {
       )}
       {/* Add Patient Modal */}
       {addModal && (
-        <div className="add-patient-wrapper">
-          <div className="add-patient-card">
+        <div className="modal-overlay">
+          <div className="modal-card">
             {/* Header */}
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
