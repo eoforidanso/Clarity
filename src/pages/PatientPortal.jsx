@@ -554,9 +554,38 @@ const TABS = [
   { key: 'telehealth', icon: '📹', label: 'telehealth' },
 ];
 
+const PORTAL_API = import.meta.env.VITE_API_URL || '/api';
+
+// Fetch real data when logged in via patient portal OTP
+function usePortalData(patientId) {
+  const [portalAppts, setPortalAppts] = useState(null);
+  const [portalMeds,  setPortalMeds]  = useState(null);
+  const [portalMe,    setPortalMe]    = useState(null);
+
+  useEffect(() => {
+    // Only fetch if this looks like a real portal session (no patientId in currentUser means OTP login)
+    const fetchAll = async () => {
+      try {
+        const [meRes, apptRes, medRes] = await Promise.all([
+          fetch(`${PORTAL_API}/patient-portal/me`,           { credentials: 'include' }),
+          fetch(`${PORTAL_API}/patient-portal/appointments`, { credentials: 'include' }),
+          fetch(`${PORTAL_API}/patient-portal/medications`,  { credentials: 'include' }),
+        ]);
+        if (meRes.ok)   setPortalMe(await meRes.json());
+        if (apptRes.ok) setPortalAppts(await apptRes.json());
+        if (medRes.ok)  setPortalMeds(await medRes.json());
+      } catch { /* offline */ }
+    };
+    fetchAll();
+  }, [patientId]);
+
+  return { portalMe, portalAppts, portalMeds };
+}
+
 export default function PatientPortal() {
   const { currentUser, logout } = useAuth();
   const { patients, meds, appointments, assessmentScores, addInboxMessage, inboxMessages, updateAppointmentStatus, addAppointment } = usePatient();
+  const { portalMe, portalAppts, portalMeds } = usePortalData(currentUser?.patientId);
 
   /* Allow page scrolling — clinical layout locks body overflow */
   useEffect(() => {
@@ -613,18 +642,24 @@ export default function PatientPortal() {
       setAiMessages(prev => [...prev, { role: 'ai', text: response }]);
     }, 800);
   };
-  const patientId = currentUser?.patientId;
-  const patient = patients.find(p => p.id === patientId);
+  const patientId = currentUser?.patientId || portalMe?.id;
+  const patient   = patients.find(p => p.id === patientId) || portalMe;
 
-  /* ── Patient-level data ──────────────────────────────────── */
-  const patMeds = (meds[patientId] || []).filter(m => m.status === 'Active');
-  const patAppts = useMemo(() =>
-    appointments.filter(a => a.patientId === patientId).sort((a, b) => {
+  /* ── Patient-level data — prefer live portal API, fall back to clinical context ── */
+  const patMeds = portalMeds
+    ? portalMeds
+    : (meds[patientId] || []).filter(m => m.status === 'Active');
+
+  const patAppts = useMemo(() => {
+    if (portalAppts) return [...portalAppts].sort((a, b) =>
+      new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`)
+    );
+    return appointments.filter(a => a.patientId === patientId).sort((a, b) => {
       const da = new Date(`${a.date}T${a.time}`);
-      const db = new Date(`${b.date}T${b.time}`);
-      return da - db;
-    }),
-  [appointments, patientId]);
+      const db2 = new Date(`${b.date}T${b.time}`);
+      return da - db2;
+    });
+  }, [appointments, patientId, portalAppts]);
   const futureAppts = patAppts.filter(a => new Date(`${a.date}T${a.time}`) >= new Date() && a.status !== 'Completed');
   const nextAppt = futureAppts[0];
   const patAssessments = assessmentScores[patientId] || [];

@@ -305,7 +305,43 @@ export default function Demographics({ patientId }) {
               </> : <>
                 <Field label="Home Phone" value={p.phone} />
                 <Field label="Cell Phone" value={p.cellPhone} />
-                <Field label="Email" value={p.email} />
+                {/* Email field with portal invite shortcut */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, gridColumn: 'span 2' }}>
+                  <div style={{ flex: 1 }}>
+                    <Field label="Email" value={p.email} />
+                  </div>
+                  {p.email && (
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm(`Send portal invite to ${p.email}?`)) return;
+                        try {
+                          const API = import.meta.env.VITE_API_URL || '/api';
+                          const res = await fetch(`${API}/patient-portal/request-access`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ email: p.email }),
+                          });
+                          if (res.ok) alert(`✅ Portal invite sent to ${p.email}`);
+                          else alert('Failed to send invite');
+                        } catch { alert('Network error'); }
+                      }}
+                      style={{
+                        marginTop: 18, padding: '5px 12px', borderRadius: 6, fontSize: 11,
+                        fontWeight: 700, border: '1px solid #93c5fd',
+                        background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer',
+                        whiteSpace: 'nowrap', flexShrink: 0,
+                      }}
+                    >
+                      📧 Send portal invite
+                    </button>
+                  )}
+                  {!p.email && (
+                    <span style={{ marginTop: 18, fontSize: 11, color: '#ef4444', fontWeight: 600, flexShrink: 0 }}>
+                      ⚠️ No email — click Edit to add
+                    </span>
+                  )}
+                </div>
                 <Field label="Address" value={`${p.address?.street}, ${p.address?.city}, ${p.address?.state} ${p.address?.zip}`} />
               </>}
             </div>

@@ -237,6 +237,50 @@ router.get('/me', authenticatePortal, async (req, res) => {
   });
 });
 
+// ── 5. Appointments ───────────────────────────────────────────────────────────
+router.get('/appointments', authenticatePortal, async (req, res) => {
+  const rows = await db.prepare(`
+    SELECT id, date, time, reason, status, provider_name, location_name, appointment_type
+    FROM appointments
+    WHERE patient_id = $1
+    ORDER BY date DESC, time DESC
+    LIMIT 20
+  `).all(req.patientId);
+
+  res.json(rows.map(r => ({
+    id:        r.id,
+    date:      r.date,
+    time:      r.time,
+    reason:    r.reason,
+    status:    r.status,
+    provider:  r.provider_name || r.provider || '—',
+    location:  r.location_name || '—',
+    type:      r.appointment_type || r.type || 'Visit',
+  })));
+});
+
+// ── 6. Medications ────────────────────────────────────────────────────────────
+router.get('/medications', authenticatePortal, async (req, res) => {
+  const rows = await db.prepare(`
+    SELECT id, drug_name, dosage, frequency, prescriber_name, start_date, status, refills_remaining, pharmacy
+    FROM medications
+    WHERE patient_id = $1 AND status = 'Active'
+    ORDER BY drug_name
+  `).all(req.patientId);
+
+  res.json(rows.map(r => ({
+    id:               r.id,
+    name:             r.drug_name,
+    dosage:           r.dosage,
+    frequency:        r.frequency,
+    prescriber:       r.prescriber_name || '—',
+    startDate:        r.start_date,
+    status:           r.status,
+    refillsRemaining: r.refills_remaining ?? null,
+    pharmacy:         r.pharmacy || '—',
+  })));
+});
+
 // ── 4. Logout ─────────────────────────────────────────────────────────────────
 
 router.post('/logout', authenticatePortal, async (req, res) => {
