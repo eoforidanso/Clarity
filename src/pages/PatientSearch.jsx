@@ -913,8 +913,16 @@ export default function PatientSearch() {
       )}
       {/* Add Patient Modal */}
       {addModal && (
-        <div className="ap-overlay" role="dialog" aria-modal="true" aria-labelledby="ap-title"
-          style={dupCompare ? { alignItems: 'flex-start', gap: 16, paddingTop: 32 } : {}}>
+        <div role="dialog" aria-modal="true" aria-labelledby="ap-title" style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.45)',
+          display: 'flex', justifyContent: 'center',
+          alignItems: dupCompare ? 'flex-start' : 'center',
+          padding: dupCompare ? '32px' : '32px',
+          gap: dupCompare ? 16 : 0,
+          zIndex: 9999,
+          boxSizing: 'border-box',
+        }}>
 
           {/* Side-by-side: existing patient summary */}
           {dupCompare && (
@@ -963,10 +971,18 @@ export default function PatientSearch() {
             </div>
           )}
 
-          <div className="ap-card">
+          <div style={{
+            width: '100%', maxWidth: 720,
+            background: '#fff', borderRadius: 12,
+            padding: 32, margin: 0,
+            boxShadow: '0 18px 45px rgba(0,0,0,0.12)',
+            overflowY: 'auto',
+            maxHeight: 'calc(100vh - 64px)',
+            boxSizing: 'border-box',
+          }}>
 
             {/* ── Header ── */}
-            <div className="ap-header">
+            <div style={{ paddingBottom: 16, marginBottom: 20, borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div id="ap-title" style={{ fontWeight: 800, fontSize: 17, color: '#0f172a' }}>
                   👤 {showReview ? 'Review Patient' : 'Add New Patient'}
@@ -985,7 +1001,7 @@ export default function PatientSearch() {
             </div>
 
             {/* ── Body ── */}
-            <div className="ap-body">
+            <div style={{ padding: '4px 0' }}>
 
               {/* Banners */}
               {dlPasted && <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#166534' }}>🪪 Driver's license detected — fields filled automatically</div>}
@@ -1288,7 +1304,7 @@ export default function PatientSearch() {
             </div>
 
             {/* ── Footer ── */}
-            <div className="ap-footer">
+            <div style={{ paddingTop: 16, marginTop: 20, borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               <button className="btn" onClick={cancelAddPatient} disabled={ptSaving}>Cancel</button>
               {showReview && (
                 <button className="btn" onClick={() => setShowReview(false)} disabled={ptSaving}>← Edit</button>
