@@ -2370,6 +2370,62 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   z-index: 1000;
 }
 
+/* ── Patient Search Page Layout ────────────────────────────────────── */
+.patient-page {
+  display: flex;
+  height: 100vh;
+  background: #f5f5f9;
+  box-sizing: border-box;
+}
+
+.patient-search-panel {
+  width: 320px;
+  min-width: 280px;
+  padding: 20px;
+  border-right: 1px solid #e2e2ea;
+  background: #ffffff;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.patient-search-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+
+.patient-search-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.patient-form-shell {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 24px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.patient-form-card {
+  width: 100%;
+  max-width: 900px;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px 28px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+  box-sizing: border-box;
+}
+
+/* ── End Patient Search ─────────────────────────────────────────────── */
+
 .modal-container {
   position: fixed;
   inset: 0;                      /* full screen */
