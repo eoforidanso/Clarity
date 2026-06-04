@@ -42,6 +42,30 @@ async function sendOtpEmail(to, otp) {
 
 const router = Router();
 
+// ── Helper: issue refresh token ───────────────────────────────────────────────
+async function issueRefreshToken(res, req, userId, sessionId) {
+  const rawToken  = crypto.randomBytes(48).toString('hex'); // 96-char hex
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const id        = uuidv4();
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+  await db.prepare(`
+    INSERT INTO refresh_tokens (id, user_id, token_hash, session_id, expires_at, ip, user_agent)
+    VALUES ($1,$2,$3,$4,$5,$6,$7)
+  `).run(id, userId, tokenHash, sessionId, expiresAt.toISOString(), req.ip || '', req.get('User-Agent') || '');
+
+  res.cookie('ehr_refresh', rawToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    domain: '.clarity-ehr.com',
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    path: '/',
+  });
+
+  return id;
+}
+
 // ── Helper: issue a full authenticated session (cookie + audit log) ──────────
 async function issueFullSession(res, req, user) {
   const ip       = req.realIp || req.ip || '';
@@ -61,7 +85,7 @@ async function issueFullSession(res, req, user) {
 
   const sessionId = uuidv4();
   const token = jwt.sign({ userId: user.id, role: user.role, sessionId }, config.jwtSecret, { algorithm: 'HS256',
-    expiresIn: config.jwtExpiresIn,
+    expiresIn: config.jwtExpiresIn, // 8h
   });
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
@@ -70,6 +94,9 @@ async function issueFullSession(res, req, user) {
       'INSERT INTO sessions (id, user_id, token_hash, ip_address, user_agent, expires_at, device_id) VALUES ($1,$2,$3,$4,$5,$6,$7)'
     ).run(sessionId, user.id, tokenHash, ip, req.get('User-Agent') || '', expiresAt, dbDeviceId);
   } catch (e) { console.warn('[sessions]', e.message); }
+
+  // Issue 30-day refresh token alongside the 8h access token
+  await issueRefreshToken(res, req, user.id, sessionId);
 
   logAuditEvent({
     userId: user.id,
@@ -267,16 +294,76 @@ router.post('/change-password', authenticate, async (req, res) => {
   res.json({ ok: true, message: 'Password changed successfully', mustChangePassword: false });
 });
 
+// POST /api/auth/refresh — swap 30-day refresh token for new 8h access token
+router.post('/refresh', async (req, res) => {
+  const rawRefresh = req.cookies?.ehr_refresh;
+  if (!rawRefresh) return res.status(401).json({ error: 'No refresh token' });
+
+  const tokenHash = crypto.createHash('sha256').update(rawRefresh).digest('hex');
+
+  const record = await db.prepare(`
+    SELECT rt.id, rt.user_id, rt.session_id, rt.expires_at, rt.is_active,
+           u.id as uid, u.username, u.first_name, u.last_name, u.role,
+           u.credentials, u.specialty, u.npi, u.dea_number, u.email,
+           u.two_factor_enabled, u.must_change_password, u.patient_id, u.location_id
+    FROM refresh_tokens rt
+    JOIN users u ON u.id = rt.user_id
+    WHERE rt.token_hash = $1
+  `).get(tokenHash);
+
+  if (!record || !record.is_active) {
+    return res.status(401).json({ error: 'Invalid or expired refresh token' });
+  }
+  if (new Date(record.expires_at) < new Date()) {
+    await db.prepare(`UPDATE refresh_tokens SET is_active = FALSE WHERE id = $1`).run(record.id);
+    return res.status(401).json({ error: 'Refresh token expired — please log in again' });
+  }
+
+  // Mark refresh token as used (update last_used_at)
+  await db.prepare(`UPDATE refresh_tokens SET last_used_at = NOW() WHERE id = $1`).run(record.id);
+
+  // Issue new 8h access token reusing same session_id
+  const sessionId = record.session_id || uuidv4();
+  const token = jwt.sign(
+    { userId: record.user_id, role: record.role, sessionId },
+    config.jwtSecret,
+    { algorithm: 'HS256', expiresIn: config.jwtExpiresIn }
+  );
+  const tokenHash2 = crypto.createHash('sha256').update(token).digest('hex');
+  const expiresAt  = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+
+  // Update session with new token hash
+  try {
+    await db.prepare(`
+      UPDATE sessions SET token_hash = $1, expires_at = $2, is_active = 1
+      WHERE id = $3
+    `).run(tokenHash2, expiresAt, sessionId);
+  } catch { /* session may not exist — create one */ }
+
+  res.cookie('ehr_token', token, {
+    httpOnly: true, secure: true, sameSite: 'none',
+    domain: '.clarity-ehr.com', maxAge: 8 * 60 * 60 * 1000, path: '/',
+  });
+
+  res.json({ ok: true, message: 'Access token refreshed' });
+});
+
 // POST /api/auth/logout
 router.post('/logout', authenticate, async (req, res) => {
-  // Clear the httpOnly auth cookie
+  // Clear both cookies
   res.clearCookie('ehr_token', {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'none',
-    domain: '.clarity-ehr.com',
-    path: '/',
+    httpOnly: true, secure: true, sameSite: 'none',
+    domain: '.clarity-ehr.com', path: '/',
   });
+  res.clearCookie('ehr_refresh', {
+    httpOnly: true, secure: true, sameSite: 'none',
+    domain: '.clarity-ehr.com', path: '/',
+  });
+
+  // Revoke refresh tokens for this user
+  try {
+    await db.prepare(`UPDATE refresh_tokens SET is_active = FALSE WHERE user_id = $1 AND is_active = TRUE`).run(req.user.id);
+  } catch (e) { /* ok */ }
 
   // Invalidate session
   try {
