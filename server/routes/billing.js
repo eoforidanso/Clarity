@@ -4,6 +4,7 @@ import { auditMiddleware } from '../middleware/auditLog.js';
 import db from '../db/database.js';
 
 const router = express.Router();
+router.use(authenticate); // RBAC: all routes require authentication
 
 // ============= INSURANCE VERIFICATION =============
 

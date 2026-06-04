@@ -6,6 +6,7 @@ import { logAuditEvent } from '../middleware/auditLog.js';
 import { softDeleteLocation, ensureLocationHasNoDependencies, logAudit, activeScope } from '../db/softDelete.js';
 
 const router = Router();
+router.use(authenticate); // RBAC: all routes require authentication
 const ADMIN_ROLES = ['admin'];
 const VALID_TYPES = ['Primary', 'Satellite', 'Virtual'];
 const VALID_STATUSES = ['Active', 'Inactive'];
