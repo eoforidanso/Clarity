@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -911,8 +912,8 @@ export default function PatientSearch() {
           </div>
         </div>
       )}
-      {/* Add Patient Modal */}
-      {addModal && (
+      {/* Add Patient Modal — portalled to document.body to escape fade-in transform */}
+      {addModal && createPortal(
         <div role="dialog" aria-modal="true" aria-labelledby="ap-title" style={{
           position: 'fixed', inset: 0,
           background: 'rgba(0,0,0,0.45)',
@@ -1324,7 +1325,7 @@ export default function PatientSearch() {
 
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }
