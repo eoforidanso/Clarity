@@ -719,8 +719,19 @@ export default function PatientSearch() {
       )}
       {/* Add Patient Modal */}
       {addModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.45)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+          padding: 32, boxSizing: 'border-box', zIndex: 1000,
+        }}>
+          <div style={{
+            width: '100%', maxWidth: 720,
+            background: '#fff', borderRadius: 12,
+            padding: 32, boxSizing: 'border-box',
+            boxShadow: '0 18px 45px rgba(0,0,0,0.12)',
+            maxHeight: '90vh', overflowY: 'auto',
+          }}>
             {/* Header */}
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
