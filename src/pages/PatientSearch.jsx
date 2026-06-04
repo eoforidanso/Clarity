@@ -167,6 +167,179 @@ export default function PatientSearch() {
     } catch { /* non-critical */ }
   };
 
+  // ── Smart behaviors state ─────────────────────────────────────────────────
+  const [zipLocked, setZipLocked]         = useState(false);   // user manually edited city/state
+  const [emailError, setEmailError]       = useState('');
+  const [dupWarning, setDupWarning]       = useState('');       // possible duplicate
+  const [mrnDupWarning, setMrnDupWarning] = useState('');
+  const [ssnMasked, setSsnMasked]         = useState('');       // display value
+  const [ecSameAddress, setEcSameAddress] = useState(false);
+
+  // ── DOB ↔ Age ─────────────────────────────────────────────────────────────
+  const calcAge = (dob) => {
+    if (!dob) return '';
+    const diff = Date.now() - new Date(dob).getTime();
+    return Math.floor(diff / (365.25 * 24 * 3600 * 1000));
+  };
+  const [ageInput, setAgeInput] = useState('');
+
+  const handleDobChange = (dob) => {
+    setPtForm(p => ({ ...p, dob }));
+    setAgeInput(dob ? String(calcAge(dob)) : '');
+    // DOB + LastName duplicate check
+    if (dob && ptForm.lastName) checkDuplicate({ dob, lastName: ptForm.lastName });
+  };
+
+  const handleAgeChange = (age) => {
+    setAgeInput(age);
+    const n = parseInt(age, 10);
+    if (!isNaN(n) && n > 0 && n < 130) {
+      const yr = new Date().getFullYear() - n;
+      const dob = `${yr}-01-01`;
+      setPtForm(p => ({ ...p, dob }));
+    }
+  };
+
+  // ── Gender → Pronouns (editable, not overridden if user changed) ──────────
+  const GENDER_PRONOUNS = {
+    'Male':               'He/Him',
+    'Female':             'She/Her',
+    'Non-binary':         'They/Them',
+    'Transgender Male':   'He/Him',
+    'Transgender Female': 'She/Her',
+    'Other':              'They/Them',
+    'Prefer not to say':  'They/Them',
+  };
+  const handleGenderChange = (gender) => {
+    setPtForm(p => ({
+      ...p,
+      gender,
+      pronouns: p.pronouns === DEFAULT_PT.pronouns || p.pronouns === GENDER_PRONOUNS[p.gender]
+        ? (GENDER_PRONOUNS[gender] || p.pronouns)
+        : p.pronouns,  // never override if user manually set pronouns
+    }));
+  };
+
+  // ── Phone formatter (555) 555-5555 ───────────────────────────────────────
+  const formatPhone = (v) => {
+    const d = v.replace(/\D/g, '').slice(0, 10);
+    if (d.length <= 3)  return d;
+    if (d.length <= 6)  return `(${d.slice(0,3)}) ${d.slice(3)}`;
+    return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+  };
+  const handlePhoneChange = (field, val) => {
+    const formatted = formatPhone(val);
+    setPtForm(p => ({ ...p, [field]: formatted }));
+    // auto-copy cell → phone if phone is empty
+    if (field === 'cellPhone' && !ptForm.phone) {
+      setPtForm(p => ({ ...p, phone: formatted, cellPhone: formatted }));
+    }
+  };
+  const handleECPhoneChange = (val) => {
+    setPtForm(p => ({ ...p, emergencyContact: { ...p.emergencyContact, phone: formatPhone(val) } }));
+  };
+
+  // ── Email live validation ─────────────────────────────────────────────────
+  const handleEmailChange = (email) => {
+    setPtForm(p => ({ ...p, email }));
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError('Invalid email address');
+    } else {
+      setEmailError('');
+    }
+  };
+
+  // ── SSN masking ***-**-1234 ───────────────────────────────────────────────
+  const handleSsnChange = (val) => {
+    const digits = val.replace(/\D/g, '').slice(0, 9);
+    setPtForm(p => ({ ...p, ssn: digits }));
+    // Display: mask all but last 4
+    if (digits.length >= 4) {
+      setSsnMasked(`***-**-${digits.slice(-4)}`);
+    } else {
+      setSsnMasked(digits);
+    }
+    // Check SSN duplicate
+    if (digits.length === 9) {
+      const match = (patients || []).find(p => p.ssn?.replace(/\D/g,'') === digits);
+      if (match) setDupWarning(`⚠️ SSN matches existing patient: ${match.firstName} ${match.lastName}`);
+    }
+  };
+
+  // ── Duplicate detection ───────────────────────────────────────────────────
+  const checkDuplicate = ({ dob, lastName, phone }) => {
+    const list = patients || [];
+    const ln   = (lastName || ptForm.lastName || '').toLowerCase();
+    const d    = dob || ptForm.dob;
+    const ph   = (phone  || ptForm.phone || '').replace(/\D/g,'');
+
+    const byDobName = ln && d && list.find(p =>
+      p.dob === d && p.lastName.toLowerCase() === ln
+    );
+    const byPhone   = ph.length >= 10 && list.find(p =>
+      p.phone?.replace(/\D/g,'') === ph || p.cellPhone?.replace(/\D/g,'') === ph
+    );
+
+    if (byDobName) {
+      setDupWarning(`⚠️ Possible duplicate: ${byDobName.firstName} ${byDobName.lastName} (${byDobName.mrn}) — same DOB & last name`);
+    } else if (byPhone) {
+      setDupWarning(`⚠️ Possible duplicate: ${byPhone.firstName} ${byPhone.lastName} (${byPhone.mrn}) — same phone number`);
+    } else {
+      setDupWarning('');
+    }
+  };
+
+  const handleLastNameChange = (lastName) => {
+    setPtForm(p => ({ ...p, lastName }));
+    if (ptForm.dob) checkDuplicate({ lastName });
+  };
+
+  const handlePhoneBlur = (phone) => {
+    checkDuplicate({ phone });
+  };
+
+  // ── MRN uniqueness on blur ────────────────────────────────────────────────
+  const handleMrnBlur = (mrn) => {
+    if (!mrn) return;
+    const exists = (patients || []).find(p => p.mrn === mrn);
+    setMrnDupWarning(exists
+      ? `⚠️ MRN ${mrn} already used by ${exists.firstName} ${exists.lastName}`
+      : ''
+    );
+  };
+
+  // ── Emergency contact same-address toggle ────────────────────────────────
+  const handleEcSameAddress = (checked) => {
+    setEcSameAddress(checked);
+    if (checked) {
+      setPtForm(p => ({ ...p, emergencyContact: {
+        ...p.emergencyContact,
+        street: p.address.street,
+        city:   p.address.city,
+        state:  p.address.state,
+        zip:    p.address.zip,
+      }}));
+    }
+  };
+
+  // ── ZIP with lock ─────────────────────────────────────────────────────────
+  const handleCityManual = (city) => {
+    setPtForm(p => ({ ...p, address: { ...p.address, city } }));
+    setZipLocked(true);
+  };
+  const handleStateManual = (state) => {
+    setPtForm(p => ({ ...p, address: { ...p.address, state } }));
+    setZipLocked(true);
+  };
+  const handleZipChange = (zip) => {
+    setPtForm(p => ({ ...p, address: { ...p.address, zip } }));
+    setZipLocked(false); // new ZIP resets lock
+  };
+
+  // ── Form validity (required fields) ──────────────────────────────────────
+  const isFormValid = ptForm.firstName.trim() && ptForm.lastName.trim() &&
+                      ptForm.dob && ptForm.gender && !emailError && !mrnDupWarning;
+
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   const filtered = (patients || []).filter((p) => {
@@ -559,84 +732,89 @@ export default function PatientSearch() {
             </div>
 
             <div>
-              {/* Driver's license paste success banner */}
-              {dlPasted && (
-                <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#166534', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  🪪 Driver's license detected — name, DOB, and address filled automatically
-                </div>
-              )}
-              {ptError && (
-                <div style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
-                  ⚠️ {ptError}
-                </div>
-              )}
+              {/* Banners */}
+              {dlPasted && <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#166534' }}>🪪 Driver's license detected — fields filled automatically</div>}
+              {dupWarning && <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#92400e' }}>{dupWarning}</div>}
+              {ptError && <div style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>⚠️ {ptError}</div>}
 
-              {/* Demographics */}
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Demographics</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              {/* DEMOGRAPHICS */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>Demographics</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
                 <div>
-                  <label className="form-label">First Name <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <label className="form-label">First Name <span style={{color:'var(--danger)'}}>*</span></label>
                   <input className="form-input" value={ptForm.firstName}
                     onChange={e => setPtForm(p => ({ ...p, firstName: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="form-label">Last Name <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <label className="form-label">Last Name <span style={{color:'var(--danger)'}}>*</span></label>
                   <input className="form-input" value={ptForm.lastName}
-                    onChange={e => setPtForm(p => ({ ...p, lastName: e.target.value }))} />
+                    onChange={e => handleLastNameChange(e.target.value)} />
                 </div>
                 <div>
-                  <label className="form-label">Date of Birth <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <label className="form-label">Date of Birth <span style={{color:'var(--danger)'}}>*</span></label>
                   <input className="form-input" type="date" value={ptForm.dob}
-                    onChange={e => setPtForm(p => ({ ...p, dob: e.target.value }))} />
+                    onChange={e => handleDobChange(e.target.value)} />
                 </div>
                 <div>
-                  <label className="form-label">Gender <span style={{ color: 'var(--danger)' }}>*</span></label>
-                  <select className="form-input" value={ptForm.gender}
-                    onChange={e => setPtForm(p => ({ ...p, gender: e.target.value }))}>
+                  <label className="form-label">Age {ptForm.dob && <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:400}}>(auto-calculated)</span>}</label>
+                  <input className="form-input" type="number" min="0" max="130" placeholder="or enter age"
+                    value={ageInput} onChange={e => handleAgeChange(e.target.value)} />
+                </div>
+                <div>
+                  <label className="form-label">Gender <span style={{color:'var(--danger)'}}>*</span></label>
+                  <select className="form-input" value={ptForm.gender} onChange={e => handleGenderChange(e.target.value)}>
                     {['Female','Male','Non-binary','Transgender Female','Transgender Male','Other','Prefer not to say'].map(g => <option key={g}>{g}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="form-label">Pronouns</label>
+                  <label className="form-label">Pronouns <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:400}}>(auto-set, editable)</span></label>
                   <input className="form-input" placeholder="e.g., She/Her" value={ptForm.pronouns}
                     onChange={e => setPtForm(p => ({ ...p, pronouns: e.target.value }))} />
                 </div>
                 <div>
                   <label className="form-label">Language</label>
-                  <select className="form-input" value={ptForm.language}
-                    onChange={e => setPtForm(p => ({ ...p, language: e.target.value }))}>
+                  <select className="form-input" value={ptForm.language} onChange={e => setPtForm(p => ({ ...p, language: e.target.value }))}>
                     {['English','Spanish','French','Mandarin','Arabic','Portuguese','Russian','Other'].map(l => <option key={l}>{l}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="form-label">Race</label>
-                  <input className="form-input" value={ptForm.race}
-                    onChange={e => setPtForm(p => ({ ...p, race: e.target.value }))} />
+                  <input className="form-input" value={ptForm.race} onChange={e => setPtForm(p => ({ ...p, race: e.target.value }))} />
                 </div>
                 <div>
                   <label className="form-label">Ethnicity</label>
-                  <input className="form-input" value={ptForm.ethnicity}
-                    onChange={e => setPtForm(p => ({ ...p, ethnicity: e.target.value }))} />
+                  <input className="form-input" value={ptForm.ethnicity} onChange={e => setPtForm(p => ({ ...p, ethnicity: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="form-label">SSN <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:400}}>(masked)</span></label>
+                  <input className="form-input" placeholder="***-**-****" value={ssnMasked}
+                    onChange={e => handleSsnChange(e.target.value)}
+                    onFocus={e => e.target.value = ptForm.ssn}
+                    onBlur={e => { handleSsnChange(ptForm.ssn); e.target.value = ssnMasked; }} />
                 </div>
               </div>
 
-              {/* Contact */}
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Contact</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+              {/* CONTACT */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>Contact</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
                 <div>
                   <label className="form-label">Phone</label>
                   <input className="form-input" placeholder="(555) 000-0000" value={ptForm.phone}
-                    onChange={e => setPtForm(p => ({ ...p, phone: e.target.value }))} />
+                    onChange={e => handlePhoneChange('phone', e.target.value)}
+                    onBlur={e => handlePhoneBlur(e.target.value)} />
                 </div>
                 <div>
                   <label className="form-label">Cell Phone</label>
                   <input className="form-input" placeholder="(555) 000-0000" value={ptForm.cellPhone}
-                    onChange={e => setPtForm(p => ({ ...p, cellPhone: e.target.value }))} />
+                    onChange={e => handlePhoneChange('cellPhone', e.target.value)} />
                 </div>
                 <div>
-                  <label className="form-label">Email</label>
+                  <label className="form-label">
+                    Email {emailError && <span style={{fontSize:11,color:'var(--danger)',fontWeight:400}}>{emailError}</span>}
+                  </label>
                   <input className="form-input" type="email" value={ptForm.email}
-                    onChange={e => setPtForm(p => ({ ...p, email: e.target.value }))} />
+                    onChange={e => handleEmailChange(e.target.value)}
+                    style={emailError ? { borderColor: 'var(--danger)' } : {}} />
                 </div>
                 <div>
                   <label className="form-label">Street</label>
@@ -644,27 +822,31 @@ export default function PatientSearch() {
                     onChange={e => setPtForm(p => ({ ...p, address: { ...p.address, street: e.target.value } }))} />
                 </div>
                 <div>
-                  <label className="form-label">City</label>
+                  <label className="form-label">City {zipLocked && <span style={{fontSize:10,color:'var(--text-muted)'}}>✎ manual</span>}</label>
                   <input className="form-input" value={ptForm.address.city}
-                    onChange={e => setPtForm(p => ({ ...p, address: { ...p.address, city: e.target.value } }))} />
+                    onChange={e => handleCityManual(e.target.value)} />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   <div>
-                    <label className="form-label">State</label>
+                    <label className="form-label">State {zipLocked && <span style={{fontSize:10,color:'var(--text-muted)'}}>✎ manual</span>}</label>
                     <input className="form-input" maxLength={2} value={ptForm.address.state}
-                      onChange={e => setPtForm(p => ({ ...p, address: { ...p.address, state: e.target.value.toUpperCase() } }))} />
+                      onChange={e => handleStateManual(e.target.value.toUpperCase())} />
                   </div>
                   <div>
-                    <label className="form-label">ZIP</label>
+                    <label className="form-label">ZIP {zipLocked && <span style={{fontSize:10,color:'var(--success)'}}>→ re-type to refresh</span>}</label>
                     <input className="form-input" maxLength={10} value={ptForm.address.zip}
-                      onChange={e => setPtForm(p => ({ ...p, address: { ...p.address, zip: e.target.value } }))}
-                      onBlur={e => handleZipBlur(e.target.value)} />
+                      onChange={e => handleZipChange(e.target.value)}
+                      onBlur={e => !zipLocked && handleZipBlur(e.target.value)} />
                   </div>
                 </div>
               </div>
 
-              {/* Emergency Contact */}
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Emergency Contact</div>
+              {/* EMERGENCY CONTACT */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>Emergency Contact</div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 10, cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                <input type="checkbox" checked={ecSameAddress} onChange={e => handleEcSameAddress(e.target.checked)} />
+                Same address as patient
+              </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
                 <div>
                   <label className="form-label">Name</label>
@@ -730,7 +912,12 @@ export default function PatientSearch() {
               display: 'flex', justifyContent: 'flex-end', gap: 10,
             }}>
               <button className="btn" onClick={cancelAddPatient} disabled={ptSaving}>Cancel</button>
-              <button className="btn btn-primary" onClick={saveNewPatient} disabled={ptSaving}>
+              <button
+                className="btn btn-primary"
+                onClick={saveNewPatient}
+                disabled={ptSaving || !isFormValid}
+                title={!isFormValid ? 'Fill in all required fields to continue' : ''}
+              >
                 {ptSaving ? 'Saving…' : '💾 Create Patient'}
               </button>
             </div>
