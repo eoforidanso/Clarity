@@ -9,11 +9,17 @@ const nodeEnv = process.env.NODE_ENV || 'development';
 const isProd  = nodeEnv === 'production';
 
 // ── Startup validation — refuse to start with weak secrets in production ──────
-const FATAL = (msg) => { console.error(`FATAL: ${msg}`); process.exit(1); };
-const WARN  = (msg) => console.warn(`WARNING: ${msg}`);
+const FATAL = (msg) => {
+  console.error(`FATAL: ${msg}`);
+  console.error('Check /var/www/ehr/server/.env — ensure all required vars are set.');
+  process.exit(1);
+};
+const WARN = (msg) => console.warn(`WARNING: ${msg}`);
 
 if (!process.env.JWT_SECRET) {
-  isProd ? FATAL('JWT_SECRET is not set.') : WARN('JWT_SECRET not set — using insecure default.');
+  isProd
+    ? FATAL('JWT_SECRET is not set. Add it to server/.env')
+    : WARN('JWT_SECRET not set — using insecure default.');
 } else if (process.env.JWT_SECRET.length < 64 && isProd) {
   FATAL(`JWT_SECRET is too short (${process.env.JWT_SECRET.length} chars) — minimum 64 required.`);
 }

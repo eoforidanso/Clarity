@@ -159,6 +159,27 @@ jobs:
             ( crontab -l 2>/dev/null | grep -v backup-db.sh; echo "$CRON" ) | crontab -
             echo "✅ Backup cron installed"
 
+      - name: Validate server env vars
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: root
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+            ENV=/var/www/ehr/server/.env
+            MISSING=""
+            for var in JWT_SECRET DATABASE_URL RESEND_API_KEY FIELD_ENCRYPTION_KEY; do
+              grep -q "^${var}=" "$ENV" || MISSING="$MISSING $var"
+            done
+            if [ -n "$MISSING" ]; then
+              echo "❌ Missing required env vars:$MISSING"
+              echo "Add them to $ENV before deploying"
+              exit 1
+            fi
+            echo "✅ All required env vars present"
+            # Keep root .env in sync so dotenv always finds it
+            cp "$ENV" /var/www/ehr/.env
+
       - name: Restart production API
         uses: appleboy/ssh-action@v1.0.3
         with:
