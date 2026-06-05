@@ -50,11 +50,11 @@ export function createAnomalyTable() {
 function alreadyOpen(ruleId, actorId, ip, cooldownMin = 30) {
   const row = db.prepare(`
     SELECT id FROM anomalies
-    WHERE rule_id = ?
-      AND (actor_id = ? OR ip = ?)
+    WHERE rule_id = $1
+      AND (actor_id = $2 OR ip = $3)
       AND status = 'open'
-      AND detected_at >= datetime('now', ?)
-  `).get(ruleId, actorId || '', ip || '', `-${cooldownMin} minutes`);
+      AND detected_at >= NOW() - ($4 || ' minutes')::INTERVAL
+  `).get(ruleId, actorId || '', ip || '', cooldownMin);
   return !!row;
 }
 
@@ -86,7 +86,7 @@ function detectIpScanning() {
     SELECT ip, COUNT(*) as cnt, STRING_AGG(actor_id, ',') as actors, STRING_AGG(target_id, ',') as patients
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
-      AND created_at >= datetime('now', '-10 minutes')
+      AND created_at >= NOW() - INTERVAL '10 minutes'
       AND ip != ''
     GROUP BY ip HAVING cnt >= 5
   `).all();
@@ -109,7 +109,7 @@ function detectBulkAccess() {
            COUNT(*) as cnt, MAX(ip) as ip
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
-      AND created_at >= datetime('now', '-10 minutes')
+      AND created_at >= NOW() - INTERVAL '10 minutes'
     GROUP BY actor_id HAVING patients >= 4
   `).all();
 
@@ -151,7 +151,7 @@ function detectRepeatedTargeting() {
     SELECT actor_id, actor_name, target_id, COUNT(*) as cnt, MAX(ip) as ip
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
-      AND created_at >= datetime('now', '-30 minutes')
+      AND created_at >= NOW() - INTERVAL '30 minutes'
     GROUP BY actor_id, target_id HAVING cnt >= 3
   `).all();
 
@@ -217,7 +217,7 @@ function detectPrivilegeProbe() {
     SELECT actor_id, actor_name, COUNT(*) as cnt, MAX(ip) as ip
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED_USER'
-      AND created_at >= datetime('now', '-10 minutes')
+      AND created_at >= NOW() - INTERVAL '10 minutes'
     GROUP BY actor_id HAVING cnt >= 3
   `).all();
 
@@ -238,7 +238,7 @@ function detectSessionReuse() {
     SELECT actor_id, actor_name, COUNT(DISTINCT ip) as ip_count, STRING_AGG(DISTINCT ip, ',') as ips
     FROM audit_logs
     WHERE action IN ('IDOR_BLOCKED', 'REAUTH_FAILED', 'LOGIN_FAILED')
-      AND created_at >= datetime('now', '-30 minutes')
+      AND created_at >= NOW() - INTERVAL '30 minutes'
       AND ip != ''
     GROUP BY actor_id HAVING ip_count >= 3
   `).all();
