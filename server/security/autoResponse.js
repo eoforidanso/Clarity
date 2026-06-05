@@ -1,170 +1,124 @@
-/**
- * Clarity EHR — Auto Response Engine
- *
- * Triggered immediately after an anomaly is detected.
- * Three response levels:
- *
- *  autoReauth()       → force re-authentication on next request
- *                       (elevates session requirement, sends email OTP)
- *  autoRevokeSession()→ kill all active sessions for the user
- *                       (hard logout — next request gets 401)
- *  autoLockAccount()  → lock the account + revoke all sessions
- *                       (admin must manually unlock)
- *
- * Dispatch table:
- *   NEW_DEVICE        → autoReauth
- *   NEW_COUNTRY       → autoReauth
- *   IMPOSSIBLE_TRAVEL → autoRevokeSession
- *   MULTI_IP          → autoRevokeSession
- *   HIGH_RISK_DEVICE  → autoLockAccount
- *   FAILED_LOGINS     → autoLockAccount
- */
-
-import { db }        from '../db/database.js';
+import db           from '../db/database.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────────
 
-async function getUserById(userId) {
-  return db.prepare(
-    'SELECT id, email, first_name, last_name, role, facility_id FROM users WHERE id = $1'
-  ).get(userId);
+async function createIncident(user, anomaly, actionTaken) {
+  try {
+    await db.prepare(`
+      INSERT INTO incidents
+        (user_id, facility_id, type, severity, action_taken, metadata, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+    `).run(
+      user.id,
+      user.facility_id || null,
+      anomaly.type,
+      anomaly.severity || 'medium',
+      actionTaken,
+      JSON.stringify(anomaly)
+    );
+  } catch (err) {
+    // incidents table may not exist yet — degrade gracefully
+    console.warn('[auto-response] createIncident:', err.message);
+  }
 }
 
-function auditAutoResponse(action, user, anomaly, extra = {}) {
-  logAuditEvent({
+async function logAudit(user, anomaly, action) {
+  await logAuditEvent({
     userId:       user.id,
     userName:     `${user.first_name || ''} ${user.last_name || ''}`.trim(),
     userRole:     user.role || '',
     facilityId:   user.facility_id || null,
     action,
-    resourceType: 'security',
-    resourceId:   user.id,
-    details:      { anomalyType: anomaly.type, ruleId: anomaly.ruleId, ...extra },
+    resourceType: 'security_anomaly',
+    resourceId:   anomaly.id || '',
+    details:      anomaly,
     ipAddress:    anomaly.ip || '',
   });
 }
 
-// ─── Level 1: Force Re-Authentication ────────────────────────────────────────
-/**
- * Mark the user's sessions as requiring re-authentication.
- * On the next API request the session heartbeat will detect
- * is_elevated = 0 + reauth_required = 1 and return 401.
- */
+export async function revokeSessionById(sessionId, { reason = 'auto_response_anomaly' } = {}) {
+  await db.prepare(`
+    UPDATE sessions
+    SET is_active = FALSE, revoked_at = NOW(), revoke_reason = $1
+    WHERE id = $2
+  `).run(reason, sessionId);
+
+  // Also kill any refresh tokens tied to this session
+  await db.prepare(`
+    UPDATE refresh_tokens
+    SET is_active = FALSE
+    WHERE session_id = $1
+  `).run(sessionId);
+}
+
+// ── response actions ──────────────────────────────────────────────────────────
+
 async function autoReauth(user, anomaly) {
-  try {
-    await db.prepare(`
-      UPDATE sessions
-      SET reauth_required = TRUE, updated_at = NOW()
-      WHERE user_id = $1 AND is_active = TRUE
-    `).run(user.id);
+  await db.prepare(`
+    UPDATE sessions
+    SET reauth_required = TRUE
+    WHERE id = $1 AND user_id = $2
+  `).run(anomaly.session_id, user.id);
 
-    auditAutoResponse('AUTO_REAUTH_REQUIRED', user, anomaly, {
-      reason: `Anomaly triggered re-authentication: ${anomaly.type}`,
-    });
-
-    console.info(
-      `[auto-response] REAUTH required for user ${user.id} (${anomaly.type})`
-    );
-  } catch (err) {
-    console.error('[auto-response] autoReauth error:', err.message);
-  }
+  await createIncident(user, anomaly, 'AUTO_REAUTH');
+  await logAudit(user, anomaly, 'AUTO_REAUTH');
+  console.info(`[auto-response] REAUTH required — user ${user.id} (${anomaly.type})`);
 }
 
-// ─── Level 2: Revoke All Sessions ─────────────────────────────────────────────
-/**
- * Invalidate every active session. The user is effectively logged out
- * across all devices/browsers. They can log back in normally.
- */
 async function autoRevokeSession(user, anomaly) {
-  try {
-    const result = await db.prepare(`
-      UPDATE sessions
-      SET is_active = FALSE, revoked_at = NOW(), revoke_reason = $1
-      WHERE user_id = $2 AND is_active = TRUE
-    `).run(`AUTO:${anomaly.type}`, user.id);
-
-    // Also revoke all refresh tokens
-    await db.prepare(`
-      UPDATE refresh_tokens
-      SET is_active = FALSE
-      WHERE user_id = $1 AND is_active = TRUE
-    `).run(user.id);
-
-    auditAutoResponse('AUTO_SESSION_REVOKED', user, anomaly, {
-      sessionsRevoked: result.changes,
-      reason: `All sessions killed due to anomaly: ${anomaly.type}`,
-    });
-
-    console.warn(
-      `[auto-response] All sessions REVOKED for user ${user.id} — ${anomaly.type} (${result.changes} sessions)`
-    );
-  } catch (err) {
-    console.error('[auto-response] autoRevokeSession error:', err.message);
+  if (anomaly.session_id) {
+    await revokeSessionById(anomaly.session_id, { reason: 'auto_response_anomaly' });
   }
+
+  await createIncident(user, anomaly, 'AUTO_REVOKE_SESSION');
+  await logAudit(user, anomaly, 'AUTO_REVOKE_SESSION');
+  console.warn(`[auto-response] SESSION revoked — user ${user.id} (${anomaly.type})`);
 }
 
-// ─── Level 3: Lock Account ────────────────────────────────────────────────────
-/**
- * Lock the account + revoke all sessions.
- * User cannot log in until an admin unlocks the account.
- * Sends an admin alert.
- */
 async function autoLockAccount(user, anomaly) {
+  await db.prepare(`
+    UPDATE users
+    SET is_locked = TRUE, locked_reason = $1, locked_at = NOW()
+    WHERE id = $2
+  `).run('auto_response_anomaly', user.id);
+
+  // Revoke all sessions
+  await db.prepare(`
+    UPDATE sessions
+    SET is_active = FALSE, revoked_at = NOW(), revoke_reason = $1
+    WHERE user_id = $2 AND is_active = TRUE
+  `).run('AUTO_LOCK', user.id);
+
+  await db.prepare(`
+    UPDATE refresh_tokens SET is_active = FALSE WHERE user_id = $1
+  `).run(user.id);
+
+  await createIncident(user, anomaly, 'AUTO_LOCK_ACCOUNT');
+  await logAudit(user, anomaly, 'AUTO_LOCK_ACCOUNT');
+
+  // Notify admin
   try {
-    // Lock the account
-    await db.prepare(`
-      UPDATE users
-      SET is_locked = TRUE, locked_at = NOW(), locked_reason = $1
-      WHERE id = $2
-    `).run(`AUTO:${anomaly.type}`, user.id);
-
-    // Kill all sessions
-    await db.prepare(`
-      UPDATE sessions
-      SET is_active = FALSE, revoked_at = NOW(), revoke_reason = $1
-      WHERE user_id = $2 AND is_active = TRUE
-    `).run(`AUTO_LOCK:${anomaly.type}`, user.id);
-
-    // Revoke refresh tokens
-    await db.prepare(`
-      UPDATE refresh_tokens
-      SET is_active = FALSE
-      WHERE user_id = $1 AND is_active = TRUE
-    `).run(user.id);
-
-    auditAutoResponse('AUTO_ACCOUNT_LOCKED', user, anomaly, {
-      reason: `Account auto-locked due to: ${anomaly.type}`,
-      requiresAdminUnlock: true,
-    });
-
-    console.error(
-      `[auto-response] Account LOCKED for user ${user.id} (${user.email}) — ${anomaly.type}`
-    );
-  } catch (err) {
-    console.error('[auto-response] autoLockAccount error:', err.message);
+    const { sendSecurityAlertEmail } = await import('../mail/security.js');
+    await sendSecurityAlertEmail({ user, anomaly, action: 'AUTO_LOCK_ACCOUNT' });
+  } catch {
+    // Mail not configured — skip silently
   }
+
+  console.error(`[auto-response] ACCOUNT LOCKED — user ${user.id} (${anomaly.type})`);
 }
 
-// ─── Dispatch ─────────────────────────────────────────────────────────────────
-/**
- * Main entry point.
- *
- * @param {string|object} userOrId  - user object or user ID string
- * @param {{ type: string, ruleId?: string, ip?: string }} anomaly
- */
-export async function handleAutoResponse(userOrId, anomaly) {
-  if (!anomaly?.type) return;
+// ── threshold guards ──────────────────────────────────────────────────────────
 
-  // Accept user ID or user object
-  const user = typeof userOrId === 'string'
-    ? await getUserById(userOrId)
-    : userOrId;
+function shouldLockForFailedLogins(anomaly) {
+  return (anomaly.failed_count >= 10) && (anomaly.window_minutes <= 10);
+}
 
-  if (!user) {
-    console.warn('[auto-response] user not found:', userOrId);
-    return;
-  }
+// ── dispatch ──────────────────────────────────────────────────────────────────
+
+export async function handleAutoResponse(user, anomaly) {
+  // Only act on medium / high severity
+  if (!['medium', 'high'].includes((anomaly.severity || 'medium').toLowerCase())) return;
 
   switch (anomaly.type) {
     case 'NEW_DEVICE':
@@ -173,13 +127,18 @@ export async function handleAutoResponse(userOrId, anomaly) {
 
     case 'IMPOSSIBLE_TRAVEL':
     case 'MULTI_IP':
+    case 'HIGH_RISK_DEVICE':
       return autoRevokeSession(user, anomaly);
 
-    case 'HIGH_RISK_DEVICE':
     case 'FAILED_LOGINS':
-      return autoLockAccount(user, anomaly);
+      if (shouldLockForFailedLogins(anomaly)) {
+        return autoLockAccount(user, anomaly);
+      }
+      return;
 
     default:
-      console.debug(`[auto-response] no handler for anomaly type: ${anomaly.type}`);
+      return;
   }
 }
+
+export { autoReauth, autoRevokeSession, autoLockAccount };
