@@ -60,8 +60,19 @@ export default function PatientHoverCard({ patient, appointments = [], children 
 
       {show && createPortal(
         <div
-          className="hover-card-portal"
-          style={{ top: cardPos.top, left: cardPos.left }}
+          style={{
+            position: 'fixed',
+            top: cardPos.top,
+            left: cardPos.left,
+            zIndex: 9999,
+            width: 270,
+            background: '#fff',
+            borderRadius: 12,
+            boxShadow: '0 8px 32px rgba(15,23,42,0.16), 0 2px 8px rgba(15,23,42,0.08)',
+            border: '1px solid #e2e8f0',
+            overflow: 'hidden',
+            pointerEvents: 'none',
+          }}
         >
           {/* Header */}
           <div style={{ padding: '12px 14px', background: 'linear-gradient(135deg,#1e3a5f,#2563eb)', display: 'flex', alignItems: 'center', gap: 10 }}>
