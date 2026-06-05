@@ -347,7 +347,11 @@ export const users = {
   create: (data) => post('/users', data),
   update: (id, data) => put(`/users/${id}`, data),
   remove: (id) => del(`/users/${id}`),
-  resetPassword: (id, newPassword) => post(`/users/${id}/reset-password`, { newPassword }),
+  resetPassword: (id, newPassword, elevatedToken) => request(`/users/${id}/reset-password`, {
+    method: 'POST',
+    body: JSON.stringify({ newPassword }),
+    ...(elevatedToken && { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${elevatedToken}` } }),
+  }),
   unlock: (id) => post(`/users/${id}/unlock`, {}),
 };
 
