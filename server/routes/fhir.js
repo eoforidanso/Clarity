@@ -69,13 +69,25 @@ function toFhirPatient(p) { return {
 }
 
 // GET /api/fhir/Patient
-router.get('/Patient', authenticate, async (req, res) => { const { name, _id, identifier } = req.query;
+router.get('/Patient', authenticate, async (req, res) => {
+  const { name, _id, identifier } = req.query;
+  const facilityId = req.user.facility_id;
+  const isGlobal   = req.access.canSeeAll;
+  const facilityClause = (!isGlobal && facilityId) ? ' AND primary_location = ?' : '';
+  const facilityParam  = (!isGlobal && facilityId) ? [facilityId] : [];
   let patients;
 
-  if (_id) { const p = await db.prepare('SELECT * FROM patients WHERE id = ?').get(_id);
-    patients = p ? [p] : []; } else if (identifier) { const p = await db.prepare('SELECT * FROM patients WHERE mrn = ?').get(identifier);
-    patients = p ? [p] : []; } else if (name) { patients = await db.prepare("SELECT * FROM patients WHERE first_name LIKE ? OR last_name LIKE ?").all(`%${name }%`, `%${ name }%`);
-  } else { patients = await db.prepare('SELECT * FROM patients WHERE is_active = 1').all(); }
+  if (_id) {
+    const p = await db.prepare(`SELECT * FROM patients WHERE id = ?${facilityClause}`).get(_id, ...facilityParam);
+    patients = p ? [p] : [];
+  } else if (identifier) {
+    const p = await db.prepare(`SELECT * FROM patients WHERE mrn = ?${facilityClause}`).get(identifier, ...facilityParam);
+    patients = p ? [p] : [];
+  } else if (name) {
+    patients = await db.prepare(`SELECT * FROM patients WHERE (first_name LIKE ? OR last_name LIKE ?)${facilityClause}`).all(`%${name}%`, `%${name}%`, ...facilityParam);
+  } else {
+    patients = await db.prepare(`SELECT * FROM patients WHERE is_active = 1${facilityClause}`).all(...facilityParam);
+  }
 
   logAuditEvent({ userId: req.user?.id, userName: `${req.user?.first_name || '' } ${ req.user?.last_name || '' }`.trim(),
     userRole: req.user?.role, action: 'FHIR_SEARCH', resourceType: 'Patient',

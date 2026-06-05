@@ -11,15 +11,22 @@ function formatAppt(r) { return {
 }
 
 // GET /api/appointments
-router.get('/', async (req, res) => { const { date, provider, status, startDate, endDate, locationId } = req.query;
+router.get('/', async (req, res) => {
+  const { date, provider, status, startDate, endDate, locationId } = req.query;
+  const facilityId = req.user.facility_id;
+  const isGlobal   = req.access.canSeeAll;
+
   let query = 'SELECT * FROM appointments WHERE 1=1';
   const params = [];
 
-  if (date) { query += ' AND date = ?'; params.push(date); }
-  if (provider) { query += ' AND provider = ?'; params.push(provider); }
-  if (status) { query += ' AND status = ?'; params.push(status); }
-  if (startDate) { query += ' AND date >= ?'; params.push(startDate); }
-  if (endDate) { query += ' AND date <= ?'; params.push(endDate); }
+  // Scope to facility unless global role
+  if (!isGlobal && facilityId) { query += ' AND location_id = ?'; params.push(facilityId); }
+
+  if (date)       { query += ' AND date = ?';       params.push(date); }
+  if (provider)   { query += ' AND provider = ?';   params.push(provider); }
+  if (status)     { query += ' AND status = ?';     params.push(status); }
+  if (startDate)  { query += ' AND date >= ?';      params.push(startDate); }
+  if (endDate)    { query += ' AND date <= ?';      params.push(endDate); }
   if (locationId) { query += ' AND location_id = ?'; params.push(locationId); }
   query += ' ORDER BY date ASC, time ASC';
 

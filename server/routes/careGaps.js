@@ -16,7 +16,13 @@ function daysSince(dateStr) { if (!dateStr) return Infinity;
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000); }
 
 // GET /api/care-gaps
-router.get('/', async (req, res) => { const patients = await db.prepare("SELECT * FROM patients WHERE is_active = 1").all();
+router.get('/', async (req, res) => {
+  const facilityId = req.user.facility_id;
+  const isGlobal   = req.access.canSeeAll;
+
+  const patients = isGlobal || !facilityId
+    ? await db.prepare("SELECT * FROM patients WHERE is_active = 1").all()
+    : await db.prepare("SELECT * FROM patients WHERE is_active = 1 AND primary_location = $1").all(facilityId);
   const gaps = [];
 
   for (const p of patients) {

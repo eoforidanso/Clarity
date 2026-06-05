@@ -11,14 +11,24 @@ function formatMsg(r) { return {
 }
 
 // GET /api/inbox
-router.get('/', async (req, res) => { const { userId, type, status, priority } = req.query;
+router.get('/', async (req, res) => {
+  const { userId, type, status, priority } = req.query;
+  const facilityId = req.user.facility_id;
+  const isGlobal   = req.access.canSeeAll;
+
   let query = 'SELECT * FROM inbox_messages WHERE 1=1';
   const params = [];
 
-  if (userId) { query += ' AND to_user = ?'; params.push(userId); }
-  if (type) { query += ' AND type = ?'; params.push(type); }
-  if (status) { query += ' AND status = ?'; params.push(status); }
-  if (priority) { query += ' AND priority = ?'; params.push(priority); }
+  // Scope: non-global users see only messages TO them or for their facility's patients
+  if (!isGlobal) {
+    query += ' AND (to_user = ? OR patient_id IN (SELECT id FROM patients WHERE primary_location = ?))';
+    params.push(req.user.id, facilityId || '');
+  }
+
+  if (userId)   { query += ' AND to_user = ?';   params.push(userId); }
+  if (type)     { query += ' AND type = ?';       params.push(type); }
+  if (status)   { query += ' AND status = ?';     params.push(status); }
+  if (priority) { query += ' AND priority = ?';   params.push(priority); }
   query += ' ORDER BY date DESC, time DESC';
 
   const rows = await db.prepare(query).all(...params);
