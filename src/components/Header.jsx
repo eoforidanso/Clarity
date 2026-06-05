@@ -291,7 +291,6 @@ export default function Header() {
         </>
       )}
 
-      {/* Right actions */}
       </div>{/* /topbar-center */}
 
       {/* ── RIGHT: Icon Cluster + User Identity ── */}
