@@ -137,7 +137,8 @@ router.post('/webhook', async (req, res) => { try {
         64: 'Cancelled', // Deleted
         128: 'Pending EPCS Auth', // EpcsError
         256: 'Active', // EpcsSent
-        512: 'Cancelled', // Voided };
+        512: 'Cancelled', // Voided
+      };
       const status = statusMap[Data.Status] || 'Active';
 
       // Update order if we have a matching DoseSpot prescription ID stored

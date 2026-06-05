@@ -66,7 +66,7 @@ async function issueFullSession(res, req, user) { const ip       = req.realIp ||
   } catch (err) { console.warn('[geoDevice]', err.message); }
 
   const sessionId = uuidv4();
-  const token = jwt.sign({ userId: user.id, role: user.role, sessionId }, config.jwtSecret, { algorithm: 'HS256', expiresIn: config.jwtExpiresIn, // 8h });
+  const token = jwt.sign({ userId: user.id, role: user.role, sessionId }, config.jwtSecret, { algorithm: 'HS256', expiresIn: config.jwtExpiresIn }); // 8h
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
   try { await db.prepare(

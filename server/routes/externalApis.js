@@ -110,7 +110,7 @@ router.get('/rxnorm/drugs', async (req, res) => { try {
         const props = detailData?.properties;
         if (!props) continue;
 
-        results.push({ rxcui: props.rxcui, name: props.name, synonym: props.synonym || '', tty: props.tty, // term type (SBD=branded, SCD=clinical drug, etc.) });
+        results.push({ rxcui: props.rxcui, name: props.name, synonym: props.synonym || '', tty: props.tty }); // term type (SBD=branded, SCD=clinical drug, etc.)
       } catch { /* skip individual failures */ }
     }
 
@@ -207,7 +207,16 @@ router.get('/openfda/drug-label', async (req, res) => { try {
     }
 
     const data = await response.json();
-    const results = (data.results || []).map(r => ({ brandName: r.openfda?.brand_name?.[0] || '', genericName: r.openfda?.generic_name?.[0] || '', manufacturer: r.openfda?.manufacturer_name?.[0] || '', route: r.openfda?.route?.[0] || '', warnings: (r.warnings || []).slice(0, 1), boxedWarning: (r.boxed_warning || []).slice(0, contraindications: (r.contraindications || []).slice(0, drugInteractions: (r.drug_interactions || []).slice(0,  }));
+    const results = (data.results || []).map(r => ({
+      brandName: r.openfda?.brand_name?.[0] || '',
+      genericName: r.openfda?.generic_name?.[0] || '',
+      manufacturer: r.openfda?.manufacturer_name?.[0] || '',
+      route: r.openfda?.route?.[0] || '',
+      warnings: (r.warnings || []).slice(0, 1),
+      boxedWarning: (r.boxed_warning || []).slice(0, 1),
+      contraindications: (r.contraindications || []).slice(0, 3),
+      drugInteractions: (r.drug_interactions || []).slice(0, 5),
+    }));
 
     res.json(results);
   } catch (err) { console.error('OpenFDA search error:', err.message);

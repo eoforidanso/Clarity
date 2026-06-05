@@ -108,7 +108,8 @@ router.post('/claims/generate', authenticate, auditMiddleware('CLAIM_GENERATE', 
         '90853': 120, // Group psychotherapy
         '99214': 180, // Office visit established patient
         '99213': 140, // Office visit established patient
-        '96127': 25, // Brief emotional/behavioral assessment };
+        '96127': 25, // Brief emotional/behavioral assessment
+      };
       return sum + (charges[cpt.code] || 100);
     }, 0);
 
