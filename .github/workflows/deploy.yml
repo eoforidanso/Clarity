@@ -165,7 +165,9 @@ jobs:
           host: ${{ secrets.DO_HOST }}
           username: root
           key: ${{ secrets.DO_SSH_KEY }}
-          script: pm2 restart ehr-api --update-env
+          script: |
+            NODE_OPTIONS="--max-old-space-size=512" pm2 restart ehr-api --update-env || \
+            NODE_OPTIONS="--max-old-space-size=512" pm2 start /var/www/ehr/server/index.js --name ehr-api --cwd /var/www/ehr && pm2 save
 
       - name: Health check production
         uses: appleboy/ssh-action@v1.0.3
