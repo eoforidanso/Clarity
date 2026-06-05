@@ -606,28 +606,15 @@ router.post('/telehealth/session-billing', authenticate, auditMiddleware('TELEHE
       
       await db.prepare(`
         INSERT INTO claims (
-          claim_number,
-          patient_id,
-          provider_id,
-          encounter_id,
-          service_type,
-          amount,
-          status,
-          submission_date,
-          created_at,
-          claim_type
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          claim_number, patient_id, provider_id, encounter_id,
+          service_type, amount, status, submission_date, created_at,
+          claim_type, facility_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        claimNumber,
-        patient_id,
-        provider_id,
-        session_id,
-        session_type,
-        totalAmount,
-        'draft',
-        new Date().toISOString(),
-        new Date().toISOString(),
-        'telehealth'
+        claimNumber, patient_id, provider_id, session_id,
+        session_type, totalAmount, 'draft',
+        new Date().toISOString(), new Date().toISOString(),
+        'telehealth', req.user.facility_id || null
       );
     }
     
@@ -721,21 +708,26 @@ router.get('/patient-portal/payment-history/:patientId', authenticate, async (re
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
     
+    const phFacilityId = req.user.facility_id;
+    const phIsGlobal   = req.access.canSeeAll;
+    const phFClause    = (!phIsGlobal && phFacilityId) ? ' AND c.facility_id = ?' : '';
+    const phFParam     = (!phIsGlobal && phFacilityId) ? [phFacilityId] : [];
+
     const payments = await db.prepare(`
-      SELECT 
-        p.*,
-        c.claim_number,
-        c.service_type
+      SELECT p.*, c.claim_number, c.service_type
       FROM payments p
       LEFT JOIN claims c ON p.claim_id = c.id
-      WHERE p.patient_id = ?
+      WHERE p.patient_id = ?${phFClause}
       ORDER BY p.payment_date DESC
       LIMIT ? OFFSET ?
-    `).all(patientId, limit, offset);
-    
+    `).all(patientId, ...phFParam, limit, offset);
+
     const total = await db.prepare(`
-      SELECT COUNT(*) as count FROM payments WHERE patient_id = ?
-    `).get(patientId).count;
+      SELECT COUNT(*) as count
+      FROM payments p
+      LEFT JOIN claims c ON p.claim_id = c.id
+      WHERE p.patient_id = ?${phFClause}
+    `).get(patientId, ...phFParam).count;
     
     res.json({ success: true, payments, pagination: {
         total, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(total / limit) }
@@ -811,17 +803,21 @@ router.post('/patient-portal/generate-statement/:patientId', authenticate, audit
     const { patientId } = req.params;
     const { statement_date } = req.body;
     
-    // Get unpaid claims for patient
+    // Get unpaid claims for patient — scoped to facility
+    const stmtFacilityId = req.user.facility_id;
+    const stmtIsGlobal   = req.access.canSeeAll;
+    const stmtFClause    = (!stmtIsGlobal && stmtFacilityId) ? ' AND c.facility_id = ?' : '';
+    const stmtFParam     = (!stmtIsGlobal && stmtFacilityId) ? [stmtFacilityId] : [];
+
     const unpaidClaims = await db.prepare(`
-      SELECT 
-        c.*,
-        COALESCE(SUM(p.amount), 0) as paid_amount
+      SELECT c.*, COALESCE(SUM(p.amount), 0) as paid_amount
       FROM claims c
       LEFT JOIN payments p ON c.id = p.claim_id
-      WHERE c.patient_id = ? AND c.status NOT IN ('draft', 'cancelled')
+      WHERE c.patient_id = ?${stmtFClause}
+        AND c.status NOT IN ('draft', 'cancelled')
       GROUP BY c.id
       HAVING c.amount > COALESCE(SUM(p.amount), 0)
-    `).all(patientId);
+    `).all(patientId, ...stmtFParam);
     
     if (unpaidClaims.length === 0) { return res.status(400).json({ error: 'No outstanding balance found' });
     }
