@@ -9,6 +9,7 @@ import config from './config.js';
 import { initializeDatabase, db } from './db/database.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
+import { authenticate, requireFacility } from './middleware/auth.js';
 
 // ── Startup env validation ────────────────────────────────────────────────────
 const REQUIRED_IN_PROD = ['JWT_SECRET', 'ALLOWED_ORIGINS'];
@@ -223,6 +224,27 @@ app.use(express.static(path.join(__dirname, '../dist')));
 
 // API Routes
 app.use('/api/auth', authRoutes);
+
+// ── Facility gate — all data routes require a logged-in user with a facility ──
+// Auth routes are excluded (they run before the user is authenticated).
+// Global roles (admin/front_desk) bypass the facility check.
+app.use('/api/patients',      authenticate, requireFacility);
+app.use('/api/appointments',  authenticate, requireFacility);
+app.use('/api/inbox',         authenticate, requireFacility);
+app.use('/api/messaging',     authenticate, requireFacility);
+app.use('/api/btg',           authenticate, requireFacility);
+app.use('/api/eprescribe',    authenticate, requireFacility);
+app.use('/api/smart-phrases', authenticate, requireFacility);
+app.use('/api/analytics',     authenticate, requireFacility);
+app.use('/api/care-gaps',     authenticate, requireFacility);
+app.use('/api/documents',     authenticate, requireFacility);
+app.use('/api/fhir',          authenticate, requireFacility);
+app.use('/api/billing',       authenticate, requireFacility);
+app.use('/api/users',         authenticate, requireFacility);
+app.use('/api/locations',     authenticate, requireFacility);
+app.use('/api/dosespot',      authenticate, requireFacility);
+
+// Routes with their own authenticate calls (keep as-is, gate still fires first)
 app.use('/api/patients', patientRoutes);
 app.use('/api/patients', clinicalRoutes);   // /api/patients/:patientId/allergies, etc.
 app.use('/api/patients', medicationRoutes); // /api/patients/:patientId/medications

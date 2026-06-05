@@ -84,21 +84,18 @@ router.get('/directory', authenticate, async (req, res) => { const isAdmin = req
 
 // ── GET /api/users ─────────────────────────────────────────────────────
 // Returns staff users. Admins see all; non-admins see only their location.
-router.get('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => { const isAdmin = req.user.role === 'admin';
-  const userLocationId = req.user.location_id;
+router.get('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
+  const facilityId = req.user.facility_id; // null for global roles
+  const isGlobal   = req.access.canSeeAll;  // admin / front_desk
 
-  const rows = isAdmin || !userLocationId
-    ? await db.prepare(
-        `SELECT id, username, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, location_id, created_at, updated_at
-         FROM users WHERE role != 'patient' AND ${activeScope }
-         ORDER BY last_name ASC, first_name ASC`
-      ).all()
-    : await db.prepare(
-        `SELECT id, username, first_name, last_name, role, credentials, specialty,
-                npi, dea_number, email, two_factor_enabled, location_id, created_at, updated_at
-         FROM users WHERE role != 'patient' AND location_id = $1 AND ${ activeScope }
-         ORDER BY last_name ASC, first_name ASC`
-      ).all(userLocationId);
+  const SELECT = `SELECT id, username, first_name, last_name, role, credentials, specialty,
+                         npi, dea_number, email, two_factor_enabled, location_id, created_at, updated_at
+                  FROM users
+                  WHERE role != 'patient' AND ${activeScope}`;
+
+  const rows = isGlobal
+    ? await db.prepare(`${SELECT} ORDER BY last_name ASC, first_name ASC`).all()
+    : await db.prepare(`${SELECT} AND location_id = $1 ORDER BY last_name ASC, first_name ASC`).all(facilityId);
 
   res.json(rows.map(u => ({ id: u.id, username: u.username, firstName: u.first_name, lastName: u.last_name, role: u.role, credentials: u.credentials || '', specialty: u.specialty || '', npi: u.npi || '', deaNumber: u.dea_number || '', email: u.email, twoFactorEnabled: !!u.two_factor_enabled, locationId: u.location_id || '', createdAt: u.created_at, updatedAt: u.updated_at,  })));
 });

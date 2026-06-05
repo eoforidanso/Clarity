@@ -41,7 +41,11 @@ export async function authenticate(req, res, next) {
       }
     }
 
-    req.user = { ...user, elevated: decoded.elevated === true };
+    req.user = {
+      ...user,
+      elevated:    decoded.elevated === true,
+      facility_id: user.location_id || null, // alias used by requireFacility
+    };
     req.access = buildAccess(user); // role + location scope for every request
 
     // Heartbeat: update session last_seen_at + elevated state
@@ -90,6 +94,29 @@ export function authorize(...roles) {
 export function requireElevated(req, res, next) {
   if (!req.user?.elevated) {
     return res.status(403).json({ error: 'Re-authentication required' });
+  }
+  next();
+}
+
+/**
+ * requireFacility — blocks any authenticated user who has no facility/location
+ * assigned and is NOT a global role (admin/front_desk see all facilities).
+ *
+ * Apply after authenticate() on any route that scopes data to a facility.
+ *
+ * Usage:
+ *   router.get('/patients', authenticate, requireFacility, handler)
+ *   app.use('/api', authenticate, requireFacility)  // global
+ */
+export function requireFacility(req, res, next) {
+  const { role, facility_id } = req.user || {};
+  // Global roles are not restricted to a single facility
+  if (['admin', 'front_desk'].includes(role)) return next();
+  // Scoped roles must have a facility assigned
+  if (!facility_id) {
+    return res.status(403).json({
+      error: 'No facility assigned to your account. Contact your administrator.',
+    });
   }
   next();
 }
