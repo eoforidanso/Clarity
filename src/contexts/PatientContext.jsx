@@ -3,6 +3,7 @@ import {
   patients as mockPatients,
   appointments as mockAppointments,
   inboxMessages as mockInboxMessages,
+  medications as mockMedications,
 } from '../data/mockData';
 import { DEMO_PATIENTS, DEMO_APPOINTMENTS, DEMO_INBOX } from '../demo/demoData';
 import {
@@ -108,7 +109,8 @@ export function PatientProvider({ children, demoMode = false }) {
     if (rAllergies.status === 'fulfilled')  setAllergies(prev  => arrayToMap(patientId, rAllergies.value, prev));
     if (rProblems.status === 'fulfilled')   setProblemList(prev => arrayToMap(patientId, rProblems.value, prev));
     if (rVitals.status === 'fulfilled')     setVitalSigns(prev  => arrayToMap(patientId, rVitals.value, prev));
-    if (rMeds.status === 'fulfilled')       setMeds(prev        => arrayToMap(patientId, rMeds.value, prev));
+    if (rMeds.status === 'fulfilled')       setMeds(prev => arrayToMap(patientId, rMeds.value, prev));
+    else if (mockMedications[patientId])   setMeds(prev => arrayToMap(patientId, mockMedications[patientId], prev));
     if (rImmun.status === 'fulfilled')      setImmunizations(prev => arrayToMap(patientId, rImmun.value, prev));
     if (rLabs.status === 'fulfilled')       setLabResults(prev  => arrayToMap(patientId, rLabs.value, prev));
     if (rAssess.status === 'fulfilled')     setAssessmentScores(prev => arrayToMap(patientId, rAssess.value, prev));

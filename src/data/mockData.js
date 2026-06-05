@@ -1039,6 +1039,86 @@ export const medications = {
       { date: '2025-07-01', prescribedBy: 'Dr. Thomas Brown (PCP)', pharmacy: 'Walmart Pharmacy', qty: 30, refillNumber: 0, type: 'New Prescription', note: 'Initiated for mild cognitive impairment / early Alzheimer\'s — started at 5mg' },
     ] },
   ],
+  // ── Emmanus Wellness patients ─────────────────────────────────────────────
+  pe1: [
+    { id: 'mpe1a', name: 'Escitalopram (Lexapro)', dose: '10mg', route: 'Oral', frequency: 'Once daily', startDate: '2024-03-01', prescriber: 'Emmanuel Adjei, NP', status: 'Active', refillsLeft: 4, isControlled: false, schedule: null, pharmacy: 'Walgreens - Emmaus Ave', lastFilled: '2026-05-10', sig: 'Take 1 tablet by mouth once daily in the morning', rxHistory: [
+      { date: '2026-05-10', prescribedBy: 'Emmanuel Adjei, NP', pharmacy: 'Walgreens - Emmaus Ave', qty: 30, refillNumber: 4, type: 'Refill', note: '' },
+      { date: '2026-02-10', prescribedBy: 'Emmanuel Adjei, NP', pharmacy: 'Walgreens - Emmaus Ave', qty: 30, refillNumber: 3, type: 'Refill', note: '' },
+      { date: '2024-03-01', prescribedBy: 'Emmanuel Adjei, NP', pharmacy: 'Walgreens - Emmaus Ave', qty: 30, refillNumber: 0, type: 'New Prescription', note: 'Initiated for major depressive disorder' },
+    ] },
+    { id: 'mpe1b', name: 'Hydroxyzine', dose: '25mg', route: 'Oral', frequency: 'Every 6 hours as needed', startDate: '2024-05-15', prescriber: 'Emmanuel Adjei, NP', status: 'Active', refillsLeft: 2, isControlled: false, schedule: null, pharmacy: 'Walgreens - Emmaus Ave', lastFilled: '2026-04-20', sig: 'Take 1 tablet by mouth every 6 hours as needed for anxiety', rxHistory: [
+      { date: '2026-04-20', prescribedBy: 'Emmanuel Adjei, NP', pharmacy: 'Walgreens - Emmaus Ave', qty: 30, refillNumber: 2, type: 'Refill', note: '' },
+      { date: '2024-05-15', prescribedBy: 'Emmanuel Adjei, NP', pharmacy: 'Walgreens - Emmaus Ave', qty: 30, refillNumber: 0, type: 'New Prescription', note: 'PRN anxiety' },
+    ] },
+  ],
+  pe2: [
+    { id: 'mpe2a', name: 'Sertraline (Zoloft)', dose: '50mg', route: 'Oral', frequency: 'Once daily', startDate: '2023-11-01', prescriber: 'Emmanuel Adjei, NP', status: 'Active', refillsLeft: 3, isControlled: false, schedule: null, pharmacy: 'CVS Pharmacy - Emmaus', lastFilled: '2026-05-01', sig: 'Take 1 tablet by mouth once daily', rxHistory: [
+      { date: '2026-05-01', prescribedBy: 'Emmanuel Adjei, NP', pharmacy: 'CVS Pharmacy - Emmaus', qty: 30, refillNumber: 3, type: 'Refill', note: '' },
+      { date: '2026-02-01', prescribedBy: 'Emmanuel Adjei, NP', pharmacy: 'CVS Pharmacy - Emmaus', qty: 30, refillNumber: 2, type: 'Refill', note: '' },
+      { date: '2023-11-01', prescribedBy: 'Emmanuel Adjei, NP', pharmacy: 'CVS Pharmacy - Emmaus', qty: 30, refillNumber: 0, type: 'New Prescription', note: 'For depression/PTSD' },
+    ] },
+    { id: 'mpe2b', name: 'Prazosin', dose: '1mg', route: 'Oral', frequency: 'Once daily at bedtime', startDate: '2024-01-10', prescriber: 'Emmanuel Adjei, NP', status: 'Active', refillsLeft: 5, isControlled: false, schedule: null, pharmacy: 'CVS Pharmacy - Emmaus', lastFilled: '2026-04-10', sig: 'Take 1 tablet by mouth at bedtime for nightmares', rxHistory: [
+      { date: '2026-04-10', prescribedBy: 'Emmanuel Adjei, NP', pharmacy: 'CVS Pharmacy - Emmaus', qty: 30, refillNumber: 2, type: 'Refill', note: '' },
+      { date: '2024-01-10', prescribedBy: 'Emmanuel Adjei, NP', pharmacy: 'CVS Pharmacy - Emmaus', qty: 30, refillNumber: 0, type: 'New Prescription', note: 'PTSD nightmares' },
+    ] },
+  ],
+  pe3: [
+    { id: 'mpe3a', name: 'Bupropion XL (Wellbutrin XL)', dose: '150mg', route: 'Oral', frequency: 'Once daily', startDate: '2025-06-01', prescriber: 'Emmanuel Adjei, NP', status: 'Active', refillsLeft: 6, isControlled: false, schedule: null, pharmacy: 'Rite Aid - Emmaus', lastFilled: '2026-05-15', sig: 'Take 1 tablet by mouth once daily in the morning', rxHistory: [
+      { date: '2026-05-15', prescribedBy: 'Emmanuel Adjei, NP', pharmacy: 'Rite Aid - Emmaus', qty: 30, refillNumber: 2, type: 'Refill', note: '' },
+      { date: '2025-06-01', prescribedBy: 'Emmanuel Adjei, NP', pharmacy: 'Rite Aid - Emmaus', qty: 30, refillNumber: 0, type: 'New Prescription', note: 'MDD with low energy/anhedonia' },
+    ] },
+  ],
+  // ── Victory Care patients ─────────────────────────────────────────────────
+  pv1: [
+    { id: 'mpv1a', name: 'Methylphenidate ER (Concerta)', dose: '36mg', route: 'Oral', frequency: 'Once daily in the morning', startDate: '2024-08-01', prescriber: 'NP Michael Johnson', status: 'Active', refillsLeft: 0, isControlled: true, schedule: 'Schedule II', pharmacy: 'CVS Pharmacy - Victory Blvd', lastFilled: '2026-05-20', sig: 'Take 1 tablet by mouth once daily in the morning', rxHistory: [
+      { date: '2026-05-20', prescribedBy: 'NP Michael Johnson', pharmacy: 'CVS Pharmacy - Victory Blvd', qty: 30, refillNumber: 10, type: 'Written Rx', note: 'Monthly CII' },
+      { date: '2024-08-01', prescribedBy: 'NP Michael Johnson', pharmacy: 'CVS Pharmacy - Victory Blvd', qty: 30, refillNumber: 0, type: 'New Prescription', note: 'ADHD — titrated from 18mg' },
+    ] },
+    { id: 'mpv1b', name: 'Guanfacine ER (Intuniv)', dose: '1mg', route: 'Oral', frequency: 'Once daily at bedtime', startDate: '2024-09-01', prescriber: 'NP Michael Johnson', status: 'Active', refillsLeft: 3, isControlled: false, schedule: null, pharmacy: 'CVS Pharmacy - Victory Blvd', lastFilled: '2026-05-01', sig: 'Take 1 tablet by mouth at bedtime', rxHistory: [
+      { date: '2026-05-01', prescribedBy: 'NP Michael Johnson', pharmacy: 'CVS Pharmacy - Victory Blvd', qty: 30, refillNumber: 3, type: 'Refill', note: '' },
+      { date: '2024-09-01', prescribedBy: 'NP Michael Johnson', pharmacy: 'CVS Pharmacy - Victory Blvd', qty: 30, refillNumber: 0, type: 'New Prescription', note: 'Adjunct for ADHD/sleep' },
+    ] },
+  ],
+  pv2: [
+    { id: 'mpv2a', name: 'Fluoxetine (Prozac)', dose: '20mg', route: 'Oral', frequency: 'Once daily', startDate: '2023-04-01', prescriber: 'Dr. Chris L.', status: 'Active', refillsLeft: 5, isControlled: false, schedule: null, pharmacy: 'Walgreens - Victory Blvd', lastFilled: '2026-04-28', sig: 'Take 1 capsule by mouth once daily', rxHistory: [
+      { date: '2026-04-28', prescribedBy: 'Dr. Chris L.', pharmacy: 'Walgreens - Victory Blvd', qty: 30, refillNumber: 5, type: 'Refill', note: '' },
+      { date: '2023-04-01', prescribedBy: 'Dr. Chris L.', pharmacy: 'Walgreens - Victory Blvd', qty: 30, refillNumber: 0, type: 'New Prescription', note: 'MDD + eating disorder' },
+    ] },
+  ],
+  // ── Rolling Meadows (APMG) patients ──────────────────────────────────────
+  pa1: [
+    { id: 'mpa1a', name: 'Venlafaxine XR (Effexor XR)', dose: '75mg', route: 'Oral', frequency: 'Once daily', startDate: '2022-09-01', prescriber: 'NP Michael Johnson', status: 'Active', refillsLeft: 4, isControlled: false, schedule: null, pharmacy: 'Walgreens - Rolling Meadows', lastFilled: '2026-05-05', sig: 'Take 1 capsule by mouth once daily with food', rxHistory: [
+      { date: '2026-05-05', prescribedBy: 'NP Michael Johnson', pharmacy: 'Walgreens - Rolling Meadows', qty: 30, refillNumber: 4, type: 'Refill', note: '' },
+      { date: '2022-09-01', prescribedBy: 'NP Michael Johnson', pharmacy: 'Walgreens - Rolling Meadows', qty: 30, refillNumber: 0, type: 'New Prescription', note: 'Anxiety/depression' },
+    ] },
+  ],
+  pa2: [
+    { id: 'mpa2a', name: 'Duloxetine (Cymbalta)', dose: '60mg', route: 'Oral', frequency: 'Once daily', startDate: '2024-02-01', prescriber: 'Dr. Chris L.', status: 'Active', refillsLeft: 3, isControlled: false, schedule: null, pharmacy: 'CVS Pharmacy - Rolling Meadows', lastFilled: '2026-05-08', sig: 'Take 1 capsule by mouth once daily', rxHistory: [
+      { date: '2026-05-08', prescribedBy: 'Dr. Chris L.', pharmacy: 'CVS Pharmacy - Rolling Meadows', qty: 30, refillNumber: 3, type: 'Refill', note: '' },
+      { date: '2024-02-01', prescribedBy: 'Dr. Chris L.', pharmacy: 'CVS Pharmacy - Rolling Meadows', qty: 30, refillNumber: 0, type: 'New Prescription', note: 'Fibromyalgia and depression' },
+    ] },
+    { id: 'mpa2b', name: 'Trazodone', dose: '50mg', route: 'Oral', frequency: 'Once daily at bedtime', startDate: '2024-04-01', prescriber: 'Dr. Chris L.', status: 'Active', refillsLeft: 5, isControlled: false, schedule: null, pharmacy: 'CVS Pharmacy - Rolling Meadows', lastFilled: '2026-05-08', sig: 'Take 1 tablet by mouth at bedtime as needed for sleep', rxHistory: [
+      { date: '2026-05-08', prescribedBy: 'Dr. Chris L.', pharmacy: 'CVS Pharmacy - Rolling Meadows', qty: 30, refillNumber: 2, type: 'Refill', note: '' },
+      { date: '2024-04-01', prescribedBy: 'Dr. Chris L.', pharmacy: 'CVS Pharmacy - Rolling Meadows', qty: 30, refillNumber: 0, type: 'New Prescription', note: 'Insomnia' },
+    ] },
+  ],
+  // ── BridgePoint patients ──────────────────────────────────────────────────
+  pb1: [
+    { id: 'mpb1a', name: 'Lithium Carbonate', dose: '300mg', route: 'Oral', frequency: 'Three times daily', startDate: '2021-03-01', prescriber: 'Dr. Chris L.', status: 'Active', refillsLeft: 4, isControlled: false, schedule: null, pharmacy: 'Rite Aid - BridgePoint', lastFilled: '2026-05-12', sig: 'Take 1 capsule by mouth three times daily with meals', rxHistory: [
+      { date: '2026-05-12', prescribedBy: 'Dr. Chris L.', pharmacy: 'Rite Aid - BridgePoint', qty: 90, refillNumber: 4, type: 'Refill', note: '' },
+      { date: '2021-03-01', prescribedBy: 'Dr. Chris L.', pharmacy: 'Rite Aid - BridgePoint', qty: 90, refillNumber: 0, type: 'New Prescription', note: 'Bipolar disorder maintenance' },
+    ] },
+    { id: 'mpb1b', name: 'Lamotrigine (Lamictal)', dose: '100mg', route: 'Oral', frequency: 'Once daily', startDate: '2021-06-01', prescriber: 'Dr. Chris L.', status: 'Active', refillsLeft: 3, isControlled: false, schedule: null, pharmacy: 'Rite Aid - BridgePoint', lastFilled: '2026-05-12', sig: 'Take 1 tablet by mouth once daily', rxHistory: [
+      { date: '2026-05-12', prescribedBy: 'Dr. Chris L.', pharmacy: 'Rite Aid - BridgePoint', qty: 30, refillNumber: 3, type: 'Refill', note: '' },
+      { date: '2021-06-01', prescribedBy: 'Dr. Chris L.', pharmacy: 'Rite Aid - BridgePoint', qty: 30, refillNumber: 0, type: 'New Prescription', note: 'Adjunct mood stabilizer' },
+    ] },
+  ],
+  pb2: [
+    { id: 'mpb2a', name: 'Naltrexone', dose: '50mg', route: 'Oral', frequency: 'Once daily', startDate: '2023-07-01', prescriber: 'NP Michael Johnson', status: 'Active', refillsLeft: 5, isControlled: false, schedule: null, pharmacy: 'CVS Pharmacy - BridgePoint', lastFilled: '2026-05-15', sig: 'Take 1 tablet by mouth once daily', rxHistory: [
+      { date: '2026-05-15', prescribedBy: 'NP Michael Johnson', pharmacy: 'CVS Pharmacy - BridgePoint', qty: 30, refillNumber: 5, type: 'Refill', note: '' },
+      { date: '2023-07-01', prescribedBy: 'NP Michael Johnson', pharmacy: 'CVS Pharmacy - BridgePoint', qty: 30, refillNumber: 0, type: 'New Prescription', note: 'AUD/OUD treatment' },
+    ] },
+  ],
   p6: [
     { id: 'm15', name: 'Lamotrigine (Lamictal)', dose: '200mg', route: 'Oral', frequency: 'Once daily', startDate: '2021-06-01', prescriber: 'Dr. Chris L.', status: 'Active', refillsLeft: 5, isControlled: false, schedule: null, pharmacy: 'Walgreens - Oak Park', lastFilled: '2026-03-25', sig: 'Take 1 tablet by mouth once daily', rxHistory: [
       { date: '2026-03-25', prescribedBy: 'Dr. Chris L.', pharmacy: 'Walgreens - Oak Park', qty: 90, refillNumber: 5, type: 'Refill', note: '90-day supply' },
