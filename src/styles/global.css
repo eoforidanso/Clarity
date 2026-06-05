@@ -6226,3 +6226,55 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   .mobile-menu-btn { bottom: 8px; right: 8px; width: 40px; height: 40px; font-size: 16px; }
 }
 /* cache bust Thu Jun  4 08:55:45 CDT 2026 */
+
+/* ── Prescription Preview ─────────────────────────────────────────────────── */
+.rx-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px 24px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+  max-width: 720px;
+  margin: 0 auto;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  color: #0f172a;
+}
+.rx-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+.rx-pill-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+.rx-med-name {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+.rx-med-subtitle { font-size: 13px; color: #64748b; }
+.rx-chip { border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 500; }
+.rx-chip--status { background: #ecfdf3; color: #15803d; }
+.rx-section { border-top: 1px solid #e2e8f0; padding-top: 12px; margin-top: 12px; }
+.rx-section__title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  margin: 0 0 8px;
+}
+.rx-grid { display: grid; gap: 8px 24px; }
+.rx-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rx-safety-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; }
+.rx-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; }
+.rx-value { font-size: 13px; color: #0f172a; }
+.rx-value--warning { color: #b91c1c; }
+.rx-notes { font-size: 13px; color: #334155; background: #f8fafc; border-radius: 8px; padding: 8px 10px; }
+.rx-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.rx-btn { border-radius: 999px; padding: 6px 14px; font-size: 13px; border: 1px solid transparent; cursor: pointer; }
+.rx-btn--ghost { background: #ffffff; border-color: #e2e8f0; color: #0f172a; }
+.rx-btn--primary { background: #dc2626; color: #ffffff; }
