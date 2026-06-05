@@ -117,10 +117,29 @@ export default function Inbox() {
     );
   }, [inboxMessages, patients]);
 
-  const filteredMessages = useMemo(() => {
-    let msgs = [...inboxMessages];
+  // IDs of patients this user can access (already location-filtered by PatientContext)
+  const accessiblePatientIds = useMemo(
+    () => new Set((patients || []).map(p => p.id)),
+    [patients]
+  );
 
-    // Role-based filtering
+  const filteredMessages = useMemo(() => {
+    let msgs = [...(inboxMessages || [])];
+
+    // ── Location / ownership scoping ──────────────────────────────────────────
+    // Admins see everything. Everyone else sees only messages that:
+    //   (a) are addressed to them, OR
+    //   (b) involve a patient they can access (same location)
+    const isGlobal = ['admin', 'front_desk'].includes(currentUser?.role);
+    if (!isGlobal) {
+      msgs = msgs.filter(m => {
+        const toMe = m.to === currentUser?.id;
+        const myPatient = m.patient && accessiblePatientIds.has(m.patient);
+        return toMe || myPatient;
+      });
+    }
+
+    // Role-based type restriction (front_desk only sees certain message types)
     if (currentUser?.role === 'front_desk') {
       msgs = msgs.filter(m => ['Check-in Alert', 'Patient Message', 'Staff Message'].includes(m.type));
     }
@@ -144,11 +163,23 @@ export default function Inbox() {
       if (a.status !== 'Unread' && b.status === 'Unread') return 1;
       return new Date(b.date) - new Date(a.date);
     });
-  }, [inboxMessages, filterType, filterStatus, currentUser, selectedPatientId]);
+  }, [inboxMessages, filterType, filterStatus, currentUser, selectedPatientId, accessiblePatientIds]);
 
   const selectedMessage = (inboxMessages || []).find(m => m.id === selectedId);
-  const unreadCount = (inboxMessages || []).filter(m => m.status === 'Unread').length;
-  const messageTypes = [...new Set((inboxMessages || []).map(m => m.type))];
+
+  // Scoped message pool (same logic as filteredMessages but without type/status/patient filters)
+  const scopedMessages = useMemo(() => {
+    const isGlobal = ['admin', 'front_desk'].includes(currentUser?.role);
+    if (isGlobal) return inboxMessages || [];
+    return (inboxMessages || []).filter(m => {
+      const toMe = m.to === currentUser?.id;
+      const myPatient = m.patient && accessiblePatientIds.has(m.patient);
+      return toMe || myPatient;
+    });
+  }, [inboxMessages, currentUser, accessiblePatientIds]);
+
+  const unreadCount = scopedMessages.filter(m => m.status === 'Unread').length;
+  const messageTypes = [...new Set(scopedMessages.map(m => m.type))];
 
   // Auto-populate: select first patient with unread messages on mount
   useEffect(() => {
@@ -275,9 +306,9 @@ export default function Inbox() {
           {/* Stat chips */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {(() => {
-              const urgentCount = (inboxMessages || []).filter(m => m.urgent).length;
+              const urgentCount = scopedMessages.filter(m => m.urgent).length;
               return [
-                { label: 'Total', value: (inboxMessages || []).length, bg: '#f8fafc', color: '#475569', dot: '#94a3b8', border: '1.5px solid #e2e8f0' },
+                { label: 'Total', value: scopedMessages.length, bg: '#f8fafc', color: '#475569', dot: '#94a3b8', border: '1.5px solid #e2e8f0' },
                 { label: 'Unread', value: unreadCount, bg: unreadCount > 0 ? '#eff6ff' : '#f8fafc', color: unreadCount > 0 ? '#1e40af' : '#94a3b8', dot: '#3b82f6', border: `1.5px solid ${unreadCount > 0 ? '#93c5fd' : '#e2e8f0'}` },
                 { label: 'Urgent', value: urgentCount, bg: urgentCount > 0 ? '#fef2f2' : '#f8fafc', color: urgentCount > 0 ? '#991b1b' : '#94a3b8', dot: '#ef4444', border: `1.5px solid ${urgentCount > 0 ? '#fca5a5' : '#e2e8f0'}` },
               ];
