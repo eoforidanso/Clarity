@@ -142,8 +142,22 @@ jobs:
           host: ${{ secrets.DO_HOST }}
           username: root
           key: ${{ secrets.DO_SSH_KEY }}
-          source: "server/routes/,server/middleware/,server/db/,server/security/,server/scripts/,server/index.js,server/config.js"
+          source: "server/routes/,server/middleware/,server/db/,server/security/,server/sessions/,server/mail/,server/scripts/,scripts/,server/index.js,server/config.js"
           target: /var/www/ehr/
+
+      - name: Install backup cron + fix permissions
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: root
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+            chmod +x /var/www/ehr/scripts/backup-db.sh
+            chmod +x /var/www/ehr/scripts/restore-db.sh
+            # Install daily 2am backup cron (idempotent)
+            CRON="0 2 * * * /var/www/ehr/scripts/backup-db.sh >> /var/log/ehr-backup.log 2>&1"
+            ( crontab -l 2>/dev/null | grep -v backup-db.sh; echo "$CRON" ) | crontab -
+            echo "✅ Backup cron installed"
 
       - name: Restart production API
         uses: appleboy/ssh-action@v1.0.3
