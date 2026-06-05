@@ -13,7 +13,7 @@ const VISIT_TYPES = [
 ];
 
 export default function PatientSearch() {
-  const { patients, selectPatient, addEncounter, addPatient } = usePatient();
+  const { patients, selectPatient, addEncounter, addPatient, appointments } = usePatient();
   const { currentUser } = useAuth();
   const { activeSiteId, isFiltered } = useSite();
   const [search, setSearch] = useState('');
