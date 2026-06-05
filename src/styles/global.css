@@ -1416,14 +1416,16 @@ hr { border: none; height: 1px; background: linear-gradient(90deg, transparent 0
 
 .athena-chart-tabs {
   display: flex;
-  gap: 0;
+  align-items: center;           /* vertically centred tabs */
+  gap: 12px;
+  padding: 0 0 0 0;
+  border-bottom: 1px solid #e5e8ef;
   overflow-x: auto;
-  flex: 1 1 0%;                  /* allow shrinking below content size */
+  flex: 1 1 0%;
   min-width: 0;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
-  align-items: stretch;
-  /* fade edges to hint scroll */
+  justify-content: flex-start;  /* tabs left-aligned, not centred */
   mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
 }
