@@ -877,6 +877,10 @@ hr { border: none; height: 1px; background: linear-gradient(90deg, transparent 0
 /* ══════════════════════════════════════════════════════════════
    HEADER
 ══════════════════════════════════════════════════════════════ */
+.topbar-left  { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.topbar-center { display: flex; align-items: center; gap: 20px; flex: 1; justify-content: center; min-width: 0; }
+.topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
 .header {
   height: var(--header-height); background: var(--bg-white);
   border-bottom: 1px solid var(--border);
