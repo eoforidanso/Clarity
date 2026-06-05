@@ -107,7 +107,7 @@ function detectIpScanning() {
     SELECT ip, COUNT(*) as cnt, STRING_AGG(actor_id, ',') as actors, STRING_AGG(target_id, ',') as patients
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
-      AND created_at >= NOW() - INTERVAL '10 minutes'
+      AND created_at::timestamptz >= NOW() - INTERVAL '10 minutes'
       AND ip != ''
     GROUP BY ip HAVING COUNT(*) >= 5
   `).all();
@@ -130,7 +130,7 @@ function detectBulkAccess() {
            COUNT(*) as cnt, MAX(ip) as ip
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
-      AND created_at >= NOW() - INTERVAL '10 minutes'
+      AND created_at::timestamptz >= NOW() - INTERVAL '10 minutes'
     GROUP BY actor_id, actor_name HAVING COUNT(DISTINCT target_id) >= 4
   `).all();
 
@@ -151,7 +151,7 @@ function detectBruteForce() {
     SELECT ip, COUNT(*) as cnt, STRING_AGG(DISTINCT actor_name, ',') as accounts
     FROM audit_logs
     WHERE action = 'LOGIN_FAILED'
-      AND created_at >= NOW() - INTERVAL '15 minutes'
+      AND created_at::timestamptz >= NOW() - INTERVAL '15 minutes'
       AND ip != ''
     GROUP BY ip HAVING COUNT(*) >= 10
   `).all();
@@ -172,7 +172,7 @@ function detectRepeatedTargeting() {
     SELECT actor_id, actor_name, target_id, COUNT(*) as cnt, MAX(ip) as ip
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
-      AND created_at >= NOW() - INTERVAL '30 minutes'
+      AND created_at::timestamptz >= NOW() - INTERVAL '30 minutes'
     GROUP BY actor_id, actor_name, target_id HAVING COUNT(*) >= 3
   `).all();
 
@@ -196,7 +196,7 @@ function detectOffHours() {
     SELECT actor_id, actor_name, COUNT(*) as cnt, MAX(ip) as ip
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
-      AND created_at >= NOW() - INTERVAL '5 minutes'
+      AND created_at::timestamptz >= NOW() - INTERVAL '5 minutes'
     GROUP BY actor_id, actor_name HAVING COUNT(*) >= 1
   `).all();
 
@@ -217,7 +217,7 @@ function detectReauthHammering() {
     SELECT ip, COUNT(*) as cnt, STRING_AGG(DISTINCT actor_id, ',') as actors
     FROM audit_logs
     WHERE action = 'REAUTH_FAILED'
-      AND created_at >= NOW() - INTERVAL '15 minutes'
+      AND created_at::timestamptz >= NOW() - INTERVAL '15 minutes'
       AND ip != ''
     GROUP BY ip HAVING COUNT(*) >= 5
   `).all();
@@ -238,7 +238,7 @@ function detectPrivilegeProbe() {
     SELECT actor_id, actor_name, COUNT(*) as cnt, MAX(ip) as ip
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED_USER'
-      AND created_at >= NOW() - INTERVAL '10 minutes'
+      AND created_at::timestamptz >= NOW() - INTERVAL '10 minutes'
     GROUP BY actor_id, actor_name HAVING COUNT(*) >= 3
   `).all();
 
@@ -259,7 +259,7 @@ function detectSessionReuse() {
     SELECT actor_id, actor_name, COUNT(DISTINCT ip) as ip_count, STRING_AGG(DISTINCT ip, ',') as ips
     FROM audit_logs
     WHERE action IN ('IDOR_BLOCKED', 'REAUTH_FAILED', 'LOGIN_FAILED')
-      AND created_at >= NOW() - INTERVAL '30 minutes'
+      AND created_at::timestamptz >= NOW() - INTERVAL '30 minutes'
       AND ip != ''
     GROUP BY actor_id, actor_name HAVING COUNT(DISTINCT ip) >= 3
   `).all();
