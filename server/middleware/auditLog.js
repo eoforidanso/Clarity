@@ -11,6 +11,7 @@ export async function logAuditEvent({
   userId = '',
   userName = '',
   userRole = '',
+  facilityId = null,         // facility the action occurred in
   action,
   resourceType,
   resourceId = '',
@@ -23,13 +24,18 @@ export async function logAuditEvent({
 }) {
   try {
     await db.prepare(`
-      INSERT INTO audit_log (id, user_id, user_name, user_role, action, resource_type, resource_id, patient_id, patient_name, details, ip_address, user_agent, session_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO audit_log (
+        id, user_id, user_name, user_role, facility_id,
+        action, resource_type, resource_id,
+        patient_id, patient_name, details,
+        ip_address, user_agent, session_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       uuidv4(),
       userId,
       userName,
       userRole,
+      facilityId || null,
       action,
       resourceType,
       resourceId,
@@ -58,17 +64,18 @@ export function auditMiddleware(action, resourceType) {
       if (res.statusCode < 400) {
         const patientId = req.params.patientId || req.body?.patientId || '';
         logAuditEvent({
-          userId: req.user?.id || '',
-          userName: req.user?.first_name ? `${req.user.first_name} ${req.user.last_name || ''}`.trim() : '',
-          userRole: req.user?.role || '',
-          action: action || `${req.method} ${req.originalUrl}`,
+          userId:       req.user?.id || '',
+          userName:     req.user?.first_name ? `${req.user.first_name} ${req.user.last_name || ''}`.trim() : '',
+          userRole:     req.user?.role || '',
+          facilityId:   req.user?.facility_id || null,
+          action:       action || `${req.method} ${req.originalUrl}`,
           resourceType,
-          resourceId: req.params.id || req.params.patientId || body?.id || '',
+          resourceId:   req.params.id || req.params.patientId || body?.id || '',
           patientId,
-          details: { method: req.method, path: req.originalUrl, statusCode: res.statusCode },
-          ipAddress: req.ip || req.connection?.remoteAddress || '',
-          userAgent: req.get('User-Agent') || '',
-          sessionId: req.sessionId || '',
+          details:      { method: req.method, path: req.originalUrl, statusCode: res.statusCode },
+          ipAddress:    req.ip || req.connection?.remoteAddress || '',
+          userAgent:    req.get('User-Agent') || '',
+          sessionId:    req.sessionId || '',
         });
       }
       return originalJson(body);
@@ -80,32 +87,27 @@ export function auditMiddleware(action, resourceType) {
 /**
  * Get audit log entries with filters
  */
-export async function getAuditLog({ userId, patientId, action, startDate, endDate, limit = 100, offset = 0 }) {
+export async function getAuditLog({
+  userId, patientId, action, startDate, endDate,
+  facilityId, isGlobal = false,
+  limit = 100, offset = 0,
+}) {
   let sql = 'SELECT * FROM audit_log WHERE 1=1';
   const params = [];
 
-  if (userId) {
-    sql += ' AND user_id = ?';
-    params.push(userId);
-  }
-  if (patientId) {
-    sql += ' AND patient_id = ?';
-    params.push(patientId);
-  }
-  if (action) {
-    sql += ' AND action LIKE ?';
-    params.push(`%${action}%`);
-  }
-  if (startDate) {
-    sql += ' AND timestamp >= ?';
-    params.push(startDate);
-  }
-  if (endDate) {
-    sql += ' AND timestamp <= ?';
-    params.push(endDate);
+  // Scope to facility unless global role
+  if (!isGlobal && facilityId) {
+    sql += ' AND facility_id = ?';
+    params.push(facilityId);
   }
 
-  sql += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
+  if (userId)    { sql += ' AND user_id = ?';       params.push(userId); }
+  if (patientId) { sql += ' AND patient_id = ?';    params.push(patientId); }
+  if (action)    { sql += ' AND action LIKE ?';     params.push(`%${action}%`); }
+  if (startDate) { sql += ' AND created_at >= ?';   params.push(startDate); }
+  if (endDate)   { sql += ' AND created_at <= ?';   params.push(endDate); }
+
+  sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
 
   return await db.prepare(sql).all(...params);

@@ -20,22 +20,59 @@ function formatEncounter(row) { return {
 }
 
 // GET /api/patients/:patientId/encounters
-router.get('/:patientId/encounters', async (req, res) => { const rows = await db.prepare('SELECT * FROM encounters WHERE patient_id = ? ORDER BY date DESC').all(req.params.patientId);
-  res.json(rows.map(formatEncounter)); });
+router.get('/:patientId/encounters', async (req, res) => {
+  const facilityId = req.user.facility_id;
+  const isGlobal   = req.access.canSeeAll;
+  const fClause    = (!isGlobal && facilityId) ? ' AND facility_id = ?' : '';
+  const fParam     = (!isGlobal && facilityId) ? [facilityId] : [];
+
+  const rows = await db.prepare(
+    `SELECT * FROM encounters WHERE patient_id = ?${fClause} ORDER BY date DESC`
+  ).all(req.params.patientId, ...fParam);
+  res.json(rows.map(formatEncounter));
+});
 
 // GET /api/patients/:patientId/encounters/:encId
-router.get('/:patientId/encounters/:encId', async (req, res) => { const row = await db.prepare('SELECT * FROM encounters WHERE id = ? AND patient_id = ?').get(req.params.encId, req.params.patientId);
+router.get('/:patientId/encounters/:encId', async (req, res) => {
+  const facilityId = req.user.facility_id;
+  const isGlobal   = req.access.canSeeAll;
+  const fClause    = (!isGlobal && facilityId) ? ' AND facility_id = ?' : '';
+  const fParam     = (!isGlobal && facilityId) ? [facilityId] : [];
+
+  const row = await db.prepare(
+    `SELECT * FROM encounters WHERE id = ? AND patient_id = ?${fClause}`
+  ).get(req.params.encId, req.params.patientId, ...fParam);
   if (!row) return res.status(404).json({ error: 'Encounter not found' });
   res.json(formatEncounter(row));
 });
 
 // POST /api/patients/:patientId/encounters
-router.post('/:patientId/encounters', async (req, res) => { const b = req.body;
+router.post('/:patientId/encounters', async (req, res) => {
+  const b = req.body;
   const id = b.id || uuidv4();
-  const safety = b.safety || { };
+  const safety = b.safety || {};
+  const facilityId = req.user.facility_id || null;
 
-  await db.prepare(`INSERT INTO encounters (id, patient_id, date, time, provider, provider_name, credentials, visit_type, cpt_code, icd_code, reason, duration, chief_complaint, hpi, interval_note, mse, assessment, plan, safety_si_level, safety_hi_level, safety_self_harm, safety_substance_use, safety_plan_updated, safety_crisis_resources, safety_notes, follow_up, disposition) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    id, req.params.patientId, b.date, b.time || '', b.provider || '', b.providerName || '', b.credentials || '', b.visitType || '', b.cptCode || '', b.icdCode || '', b.reason || '', b.duration || '', b.chiefComplaint || '', b.hpi || '', b.intervalNote || '', b.mse || '', b.assessment || '', b.plan || '', safety.siLevel || 'None', safety.hiLevel || 'None', safety.selfHarm ? 1 : 0, safety.substanceUse ? 1 : 0, safety.safetyPlanUpdated ? 1 : 0, safety.crisisResources ? 1 : 0, safety.safetyNotes || '', b.followUp || '', b.disposition || ''
+  await db.prepare(`
+    INSERT INTO encounters (
+      id, patient_id, date, time, provider, provider_name, credentials,
+      visit_type, cpt_code, icd_code, reason, duration, chief_complaint,
+      hpi, interval_note, mse, assessment, plan,
+      safety_si_level, safety_hi_level, safety_self_harm, safety_substance_use,
+      safety_plan_updated, safety_crisis_resources, safety_notes,
+      follow_up, disposition, facility_id
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `).run(
+    id, req.params.patientId, b.date, b.time || '', b.provider || '',
+    b.providerName || '', b.credentials || '', b.visitType || '',
+    b.cptCode || '', b.icdCode || '', b.reason || '', b.duration || '',
+    b.chiefComplaint || '', b.hpi || '', b.intervalNote || '', b.mse || '',
+    b.assessment || '', b.plan || '',
+    safety.siLevel || 'None', safety.hiLevel || 'None',
+    safety.selfHarm ? 1 : 0, safety.substanceUse ? 1 : 0,
+    safety.safetyPlanUpdated ? 1 : 0, safety.crisisResources ? 1 : 0,
+    safety.safetyNotes || '', b.followUp || '', b.disposition || '',
+    facilityId
   );
 
   const row = await db.prepare('SELECT * FROM encounters WHERE id = ?').get(id);
