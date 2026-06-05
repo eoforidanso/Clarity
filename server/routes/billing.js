@@ -115,13 +115,14 @@ router.post('/claims/generate', authenticate, auditMiddleware('CLAIM_GENERATE', 
 
     const claimData = { claimNumber, patientId, encounterId, providerId: encounter.provider, providerNPI: encounter.npi || '1234567890', serviceDate: encounter.date, cptCodes, diagnoses, totalCharges, status: 'Generated', submissionDate: null, paidDate: null, paidAmount: 0, adjustments: 0, patientResponsibility: encounter.insurance_primary_copay || 0, insurancePayment: 0, createdAt: new Date().toISOString(), createdBy: req.user.id };
 
-    // Store claim
+    // Store claim — always stamp facility_id
+    const facilityId = req.user.facility_id;
     const insertClaim = await db.prepare(`
       INSERT INTO claims (
         claim_number, patient_id, encounter_id, provider_id, provider_npi,
         service_date, cpt_codes, diagnoses, total_charges, status,
-        patient_responsibility, created_at, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        patient_responsibility, created_at, created_by, facility_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     insertClaim.run(
@@ -137,7 +138,8 @@ router.post('/claims/generate', authenticate, auditMiddleware('CLAIM_GENERATE', 
       'Generated',
       claimData.patientResponsibility,
       claimData.createdAt,
-      req.user.id
+      req.user.id,
+      facilityId || null
     );
 
     res.json(claimData);
@@ -153,17 +155,23 @@ router.post('/claims/submit', authenticate, auditMiddleware('CLAIM_SUBMIT', 'Cla
     if (!Array.isArray(claimIds) || claimIds.length === 0) { return res.status(400).json({ error: 'No claims specified for submission' });
     }
 
+    const facilityId = req.user.facility_id;
+    const isGlobal   = req.access.canSeeAll;
+    const facilityGuard = (!isGlobal && facilityId) ? ' AND facility_id = ?' : '';
+
     const updateClaim = await db.prepare(`
-      UPDATE claims 
+      UPDATE claims
       SET status = 'Submitted', submission_date = ?, submitted_by = ?
-      WHERE id = ?
+      WHERE id = ?${facilityGuard}
     `);
 
     const submissionDate = new Date().toISOString();
     const results = [];
 
     for (const claimId of claimIds) { try {
-        updateClaim.run(submissionDate, req.user.id, claimId);
+        const runArgs = [submissionDate, req.user.id, claimId];
+        if (!isGlobal && facilityId) runArgs.push(facilityId);
+        updateClaim.run(...runArgs);
         
         // Simulate submission result
         const submissionResult = {
@@ -185,9 +193,10 @@ router.post('/claims/submit', authenticate, auditMiddleware('CLAIM_SUBMIT', 'Cla
 
 // Get claims list with filters
 router.get('/claims', authenticate, async (req, res) => { try {
-    const { 
-      patientId, status, dateFrom, dateTo, providerId, page = 1, limit = 50 } = req.query;
-    
+    const { patientId, status, dateFrom, dateTo, providerId, page = 1, limit = 50 } = req.query;
+    const facilityId = req.user.facility_id;
+    const isGlobal   = req.access.canSeeAll;
+
     let query = `
       SELECT c.*, p.first_name, p.last_name, p.mrn,
              u.first_name as provider_first_name, u.last_name as provider_last_name
@@ -196,47 +205,32 @@ router.get('/claims', authenticate, async (req, res) => { try {
       LEFT JOIN users u ON c.provider_id = u.id
       WHERE 1=1
     `;
-    
     const params = [];
-    
-    if (patientId) { query += ' AND c.patient_id = ?';
-      params.push(patientId); }
-    
-    if (status) { query += ' AND c.status = ?';
-      params.push(status); }
-    
-    if (dateFrom) { query += ' AND c.service_date >= ?';
-      params.push(dateFrom); }
-    
-    if (dateTo) { query += ' AND c.service_date <= ?';
-      params.push(dateTo); }
-    
-    if (providerId) { query += ' AND c.provider_id = ?';
-      params.push(providerId); }
-    
+
+    // Facility scope
+    if (!isGlobal && facilityId) { query += ' AND c.facility_id = ?'; params.push(facilityId); }
+
+    if (patientId)  { query += ' AND c.patient_id = ?';    params.push(patientId); }
+    if (status)     { query += ' AND c.status = ?';        params.push(status); }
+    if (dateFrom)   { query += ' AND c.service_date >= ?'; params.push(dateFrom); }
+    if (dateTo)     { query += ' AND c.service_date <= ?'; params.push(dateTo); }
+    if (providerId) { query += ' AND c.provider_id = ?';   params.push(providerId); }
+
     query += ' ORDER BY c.created_at DESC LIMIT ? OFFSET ?';
     params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
-    
+
     const claims = await db.prepare(query).all(...params);
-    
-    // Parse JSON fields
     const parsedClaims = claims.map(claim => ({ ...claim, cpt_codes: claim.cpt_codes ? JSON.parse(claim.cpt_codes) : [], diagnoses: claim.diagnoses ? JSON.parse(claim.diagnoses) : [] }));
-    
-    // Get total count
-    let countQuery = `
-      SELECT COUNT(*) as total
-      FROM claims c
-      WHERE 1=1
-    `;
-    
-    const countParams = params.slice(0, -2); // Remove limit and offset
-    
-    if (patientId) countQuery += ' AND c.patient_id = ?';
-    if (status) countQuery += ' AND c.status = ?';
-    if (dateFrom) countQuery += ' AND c.service_date >= ?';
-    if (dateTo) countQuery += ' AND c.service_date <= ?';
-    if (providerId) countQuery += ' AND c.provider_id = ?';
-    
+
+    let countQuery = `SELECT COUNT(*) as total FROM claims c WHERE 1=1`;
+    const countParams = [];
+    if (!isGlobal && facilityId) { countQuery += ' AND c.facility_id = ?'; countParams.push(facilityId); }
+    if (patientId)  { countQuery += ' AND c.patient_id = ?';    countParams.push(patientId); }
+    if (status)     { countQuery += ' AND c.status = ?';        countParams.push(status); }
+    if (dateFrom)   { countQuery += ' AND c.service_date >= ?'; countParams.push(dateFrom); }
+    if (dateTo)     { countQuery += ' AND c.service_date <= ?'; countParams.push(dateTo); }
+    if (providerId) { countQuery += ' AND c.provider_id = ?';   countParams.push(providerId); }
+
     const { total } = await db.prepare(countQuery).get(...countParams);
     
     res.json({ claims: parsedClaims, pagination: {
@@ -259,8 +253,12 @@ router.post('/payments', authenticate, auditMiddleware('PAYMENT_RECORD', 'Paymen
     if (!claimId || !paymentType || !amount) { return res.status(400).json({ error: 'Missing required payment fields' });
     }
 
-    // Get claim
-    const claim = await db.prepare('SELECT * FROM claims WHERE id = ?').get(claimId);
+    // Get claim — verify it belongs to this facility
+    const facilityId = req.user.facility_id;
+    const isGlobal   = req.access.canSeeAll;
+    const claim = isGlobal
+      ? await db.prepare('SELECT * FROM claims WHERE id = ?').get(claimId)
+      : await db.prepare('SELECT * FROM claims WHERE id = ? AND facility_id = ?').get(claimId, facilityId);
     if (!claim) { return res.status(404).json({ error: 'Claim not found' });
     }
 
@@ -313,23 +311,19 @@ router.post('/payments', authenticate, auditMiddleware('PAYMENT_RECORD', 'Paymen
     const balance = claim.total_charges - totalPaid - adjustments;
     const newStatus = balance <= 0 ? 'Paid' : 'Partial Payment';
 
-    // Update claim
+    // Update claim — scope to facility
+    const { facilityId: pmtFacilityId, access: pmtAccess } = { facilityId: req.user.facility_id, access: req.access };
+    const pmtFacilityClause = (!pmtAccess.canSeeAll && pmtFacilityId) ? ' AND facility_id = ?' : '';
     const updateClaim = await db.prepare(`
-      UPDATE claims 
-      SET insurance_payment = ?, patient_payment = ?, adjustments = ?, 
+      UPDATE claims
+      SET insurance_payment = ?, patient_payment = ?, adjustments = ?,
           balance = ?, status = ?, paid_date = ?
-      WHERE id = ?
+      WHERE id = ?${pmtFacilityClause}
     `);
 
-    updateClaim.run(
-      insurancePayment,
-      patientPayment, 
-      adjustments,
-      balance,
-      newStatus,
-      balance <= 0 ? paymentDate : null,
-      claimId
-    );
+    const updateArgs = [insurancePayment, patientPayment, adjustments, balance, newStatus, balance <= 0 ? paymentDate : null, claimId];
+    if (!pmtAccess.canSeeAll && pmtFacilityId) updateArgs.push(pmtFacilityId);
+    updateClaim.run(...updateArgs);
 
     res.json({ paymentId, claimId, paymentType, amount, newBalance: balance, claimStatus: newStatus });
   } catch (error) { console.error('Payment recording error:', error);
@@ -359,11 +353,15 @@ router.get('/dashboard', authenticate, async (req, res) => { try {
         dateFrom = new Date(now.getFullYear(), now.getMonth(), 1); }
     
     const dateFromStr = dateFrom.toISOString().split('T')[0];
-    const dateToStr = now.toISOString().split('T')[0];
+    const dateToStr   = now.toISOString().split('T')[0];
+    const facilityId  = req.user.facility_id;
+    const isGlobal    = req.access.canSeeAll;
+    const fClause     = (!isGlobal && facilityId) ? ' AND facility_id = ?' : '';
+    const fParam      = (!isGlobal && facilityId) ? [facilityId] : [];
 
     // Revenue metrics
     const revenueMetrics = await db.prepare(`
-      SELECT 
+      SELECT
         COUNT(*) as total_claims,
         SUM(total_charges) as gross_charges,
         SUM(insurance_payment + patient_payment) as total_payments,
@@ -371,35 +369,35 @@ router.get('/dashboard', authenticate, async (req, res) => { try {
         SUM(balance) as outstanding_balance,
         AVG(total_charges) as avg_charge_per_claim
       FROM claims
-      WHERE service_date BETWEEN ? AND ?
-    `).get(dateFromStr, dateToStr);
+      WHERE service_date BETWEEN ? AND ?${fClause}
+    `).get(dateFromStr, dateToStr, ...fParam);
 
     // Claims by status
     const claimsByStatus = await db.prepare(`
       SELECT status, COUNT(*) as count, SUM(total_charges) as charges
       FROM claims
-      WHERE service_date BETWEEN ? AND ?
+      WHERE service_date BETWEEN ? AND ?${fClause}
       GROUP BY status
-    `).all(dateFromStr, dateToStr);
+    `).all(dateFromStr, dateToStr, ...fParam);
 
     // Top procedures
     const topProcedures = await db.prepare(`
-      SELECT 
+      SELECT
         json_extract(cpt_codes, '$[0].code') as cpt_code,
         json_extract(cpt_codes, '$[0].description') as description,
         COUNT(*) as count,
         SUM(total_charges) as total_charges
       FROM claims
       WHERE service_date BETWEEN ? AND ?
-        AND json_valid(cpt_codes) = 1
+        AND json_valid(cpt_codes) = 1${fClause}
       GROUP BY json_extract(cpt_codes, '$[0].code')
       ORDER BY count DESC
       LIMIT 10
-    `).all(dateFromStr, dateToStr);
+    `).all(dateFromStr, dateToStr, ...fParam);
 
     // Provider productivity
     const providerStats = await db.prepare(`
-      SELECT 
+      SELECT
         c.provider_id,
         u.first_name || ' ' || u.last_name as provider_name,
         COUNT(*) as encounter_count,
@@ -407,10 +405,10 @@ router.get('/dashboard', authenticate, async (req, res) => { try {
         SUM(c.insurance_payment + c.patient_payment) as collections
       FROM claims c
       LEFT JOIN users u ON c.provider_id = u.id
-      WHERE c.service_date BETWEEN ? AND ?
-      GROUP BY c.provider_id, provider_name
+      WHERE c.service_date BETWEEN ? AND ?${fClause}
+      GROUP BY c.provider_id, u.first_name || ' ' || u.last_name
       ORDER BY gross_charges DESC
-    `).all(dateFromStr, dateToStr);
+    `).all(dateFromStr, dateToStr, ...fParam);
 
     res.json({ period, dateRange: { from: dateFromStr, to: dateToStr },
       metrics: { ...revenueMetrics, collection_rate: revenueMetrics.gross_charges > 0 
@@ -429,18 +427,19 @@ router.get('/dashboard', authenticate, async (req, res) => { try {
 
 // Get denials with filtering
 router.get('/denials', authenticate, async (req, res) => { try {
-    const { db } = require('../db/database');
     const { status, priority, page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
-    
+    const facilityId = req.user.facility_id;
+    const isGlobal   = req.access.canSeeAll;
+
     let whereClause = 'WHERE 1=1';
     const params = [];
-    
-    if (status) { whereClause += ' AND resolution_status = ?';
-      params.push(status); }
-    
-    if (priority) { whereClause += ' AND priority = ?';
-      params.push(priority); }
+
+    // Scope denials to facility via claims join
+    if (!isGlobal && facilityId) { whereClause += ' AND c.facility_id = ?'; params.push(facilityId); }
+
+    if (status)   { whereClause += ' AND resolution_status = ?'; params.push(status); }
+    if (priority) { whereClause += ' AND priority = ?';          params.push(priority); }
     
     const denials = await db.prepare(`
       SELECT 
