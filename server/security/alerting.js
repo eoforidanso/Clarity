@@ -128,9 +128,10 @@ function checkThresholds() {
   for (const rule of THRESHOLD_RULES) {
     const windowStart = new Date(Date.now() - rule.windowMin * 60 * 1000).toISOString();
     const row = db.prepare(
-      `SELECT COUNT(*) as cnt, actor_id, STRING_AGG(DISTINCT ip, ',') as ips
+      `SELECT COUNT(*) as cnt, STRING_AGG(DISTINCT actor_id, ',') as actor_ids,
+              STRING_AGG(DISTINCT ip, ',') as ips
        FROM audit_logs
-       WHERE action = ? AND created_at >= ?`
+       WHERE action = $1 AND created_at >= $2::timestamptz`
     ).get(rule.action, windowStart);
 
     if ((row?.cnt || 0) >= rule.threshold) {
