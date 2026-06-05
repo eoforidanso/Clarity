@@ -34,7 +34,8 @@ async function sendOtpEmail(to, otp) { const apiKey = process.env.RESEND_API_KEY
 const router = Router();
 
 // ── Helper: issue refresh token ───────────────────────────────────────────────
-async function issueRefreshToken(res, req, userId, sessionId) { const rawToken  = crypto.randomBytes(48).toString('hex'); // 96-char hex
+async function issueRefreshToken(res, req, userId, sessionId) {
+  const rawToken  = crypto.randomBytes(48).toString('hex'); // 96-char hex
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
   const id        = uuidv4();
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
