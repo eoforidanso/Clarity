@@ -47,7 +47,8 @@ export function buildAccess(user) {
      */
     canAccessLocation(locId) {
       if (canSeeAll) return true;
-      if (!locId) return false;
+      if (!locId) return true;  // untagged records visible to everyone
+      if (!locationId) return true; // user with no location sees all
       return locId === locationId;
     },
 
