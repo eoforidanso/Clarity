@@ -18,6 +18,7 @@ import crypto from 'crypto';
 import { db } from '../db/database.js';
 import { logAudit } from '../db/softDelete.js';
 import { insertAnomaly } from './anomalyDetector.js';
+import { handleAutoResponse } from './autoResponse.js';
 
 // ── user_locations bootstrap (user_devices created via migration) ─────────────
 export async function ensureGeoTables() {
@@ -236,6 +237,9 @@ export async function checkLoginAnomaly(userId, userName, ip, req) {
         eventCount: 1, windowMin: 0,
         rawEvents: [{ fingerprint, platform, browser, ip, geo }],
       });
+      handleAutoResponse(userId, { type: 'NEW_DEVICE', ruleId: 'R09_NEW_DEVICE', ip }).catch(
+        e => console.error('[auto-response] NEW_DEVICE:', e.message)
+      );
 
       // Email the user directly about the new device login
       await sendNewDeviceEmail(userId, userName, { browser, platform, ip, geo }).catch(
@@ -290,6 +294,9 @@ export async function checkLoginAnomaly(userId, userName, ip, req) {
       eventCount: 1, windowMin: 0,
       rawEvents: [{ previous: lastLocation, current: geo }],
     });
+    handleAutoResponse(userId, { type: 'NEW_COUNTRY', ruleId: 'R10_GEO_ANOMALY', ip }).catch(
+      e => console.error('[auto-response] NEW_COUNTRY:', e.message)
+    );
     await db.prepare(`
       INSERT INTO user_locations (id, user_id, ip, country, country_code, city, lat, lon, isp)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)

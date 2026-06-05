@@ -20,6 +20,7 @@
 import db from '../db/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { alertOnAction } from './alerting.js';
+import { handleAutoResponse } from './autoResponse.js';
 
 // ── Schema ─────────────────────────────────────────────────────────────────────
 export function createAnomalyTable() {
@@ -73,6 +74,26 @@ export function insertAnomaly({ ruleId, severity, title, description, actorId, a
   // Fire alert for HIGH/CRITICAL anomalies
   if (['HIGH', 'CRITICAL'].includes(severity)) {
     alertOnAction('ANOMALY_DETECTED', { ruleId, severity, title, actorId, ip, eventCount });
+  }
+
+  // Auto-response: map rule to anomaly type and trigger appropriate action
+  if (actorId) {
+    const anomalyTypeMap = {
+      R01_IP_SCANNING:     'MULTI_IP',
+      R02_BULK_ACCESS:     'MULTI_IP',
+      R03_BRUTE_FORCE:     'FAILED_LOGINS',
+      R04_REPEATED_TARGET: 'MULTI_IP',
+      R05_OFF_HOURS:       null,        // notify only, no auto-action
+      R06_REAUTH_HAMMER:   'FAILED_LOGINS',
+      R07_PRIVILEGE_PROBE: 'HIGH_RISK_DEVICE',
+      R08_SESSION_REUSE:   'IMPOSSIBLE_TRAVEL',
+    };
+    const anomalyType = anomalyTypeMap[ruleId];
+    if (anomalyType) {
+      handleAutoResponse(actorId, { type: anomalyType, ruleId, ip }).catch(
+        e => console.error(`[auto-response] ${ruleId}:`, e.message)
+      );
+    }
   }
 
   return id;
