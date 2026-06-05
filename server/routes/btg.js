@@ -37,7 +37,7 @@ router.post('/request-access', requireElevated, async (req, res) => { const { pa
 
 // GET /api/btg/check-access/:patientId
 router.get('/check-access/:patientId', async (req, res) => { const access = await db.prepare(
-    'SELECT * FROM btg_access WHERE patient_id = ? AND user_id = ? AND expires_at > NOW()'
+    'SELECT * FROM btg_access WHERE patient_id = ? AND user_id = ? AND expires_at::timestamptz > NOW()'
   ).get(req.params.patientId, req.user.id);
 
   res.json({ hasAccess: !!access });
@@ -50,8 +50,8 @@ router.get('/audit-log', async (req, res) => { const { patientId, userId, startD
 
   if (patientId) { query += ' AND patient_id = ?'; params.push(patientId); }
   if (userId) { query += ' AND accessed_by = ?'; params.push(userId); }
-  if (startDate) { query += ' AND timestamp >= ?'; params.push(startDate); }
-  if (endDate) { query += ' AND timestamp <= ?'; params.push(endDate); }
+  if (startDate) { query += ' AND timestamp::timestamptz >= ?::timestamptz'; params.push(startDate); }
+  if (endDate) { query += ' AND timestamp::timestamptz <= ?::timestamptz'; params.push(endDate); }
   query += ' ORDER BY timestamp DESC';
 
   const rows = await db.prepare(query).all(...params);
