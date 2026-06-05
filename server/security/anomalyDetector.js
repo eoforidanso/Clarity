@@ -88,7 +88,7 @@ function detectIpScanning() {
     WHERE action = 'IDOR_BLOCKED'
       AND created_at >= NOW() - INTERVAL '10 minutes'
       AND ip != ''
-    GROUP BY ip HAVING cnt >= 5
+    GROUP BY ip HAVING COUNT(*) >= 5
   `).all();
 
   for (const r of rows) {
@@ -110,7 +110,7 @@ function detectBulkAccess() {
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
       AND created_at >= NOW() - INTERVAL '10 minutes'
-    GROUP BY actor_id HAVING patients >= 4
+    GROUP BY actor_id, actor_name HAVING COUNT(DISTINCT target_id) >= 4
   `).all();
 
   for (const r of rows) {
@@ -132,7 +132,7 @@ function detectBruteForce() {
     WHERE action = 'LOGIN_FAILED'
       AND created_at >= NOW() - INTERVAL '15 minutes'
       AND ip != ''
-    GROUP BY ip HAVING cnt >= 10
+    GROUP BY ip HAVING COUNT(*) >= 10
   `).all();
 
   for (const r of rows) {
@@ -152,7 +152,7 @@ function detectRepeatedTargeting() {
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
       AND created_at >= NOW() - INTERVAL '30 minutes'
-    GROUP BY actor_id, target_id HAVING cnt >= 3
+    GROUP BY actor_id, actor_name, target_id HAVING COUNT(*) >= 3
   `).all();
 
   for (const r of rows) {
@@ -176,7 +176,7 @@ function detectOffHours() {
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
       AND created_at >= NOW() - INTERVAL '5 minutes'
-    GROUP BY actor_id HAVING cnt >= 1
+    GROUP BY actor_id, actor_name HAVING COUNT(*) >= 1
   `).all();
 
   for (const r of rows) {
@@ -198,7 +198,7 @@ function detectReauthHammering() {
     WHERE action = 'REAUTH_FAILED'
       AND created_at >= NOW() - INTERVAL '15 minutes'
       AND ip != ''
-    GROUP BY ip HAVING cnt >= 5
+    GROUP BY ip HAVING COUNT(*) >= 5
   `).all();
 
   for (const r of rows) {
@@ -218,7 +218,7 @@ function detectPrivilegeProbe() {
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED_USER'
       AND created_at >= NOW() - INTERVAL '10 minutes'
-    GROUP BY actor_id HAVING cnt >= 3
+    GROUP BY actor_id, actor_name HAVING COUNT(*) >= 3
   `).all();
 
   for (const r of rows) {
@@ -240,7 +240,7 @@ function detectSessionReuse() {
     WHERE action IN ('IDOR_BLOCKED', 'REAUTH_FAILED', 'LOGIN_FAILED')
       AND created_at >= NOW() - INTERVAL '30 minutes'
       AND ip != ''
-    GROUP BY actor_id HAVING ip_count >= 3
+    GROUP BY actor_id, actor_name HAVING COUNT(DISTINCT ip) >= 3
   `).all();
 
   for (const r of rows) {
