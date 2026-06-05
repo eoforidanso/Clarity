@@ -1,5 +1,9 @@
 import dotenv from 'dotenv';
-dotenv.config();
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Load .env from server/ directory regardless of cwd
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 const isProd  = nodeEnv === 'production';
