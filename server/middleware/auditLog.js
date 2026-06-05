@@ -104,8 +104,8 @@ export async function getAuditLog({
   if (userId)    { sql += ' AND user_id = ?';       params.push(userId); }
   if (patientId) { sql += ' AND patient_id = ?';    params.push(patientId); }
   if (action)    { sql += ' AND action LIKE ?';     params.push(`%${action}%`); }
-  if (startDate) { sql += ' AND created_at >= ?';   params.push(startDate); }
-  if (endDate)   { sql += ' AND created_at <= ?';   params.push(endDate); }
+  if (startDate) { sql += ' AND created_at::timestamptz >= ?::timestamptz'; params.push(startDate); }
+  if (endDate)   { sql += ' AND created_at::timestamptz <= ?::timestamptz'; params.push(endDate); }
 
   sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);

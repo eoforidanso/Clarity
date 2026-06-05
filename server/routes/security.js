@@ -32,8 +32,8 @@ router.get('/events', async (req, res) => { const limit  = Math.min(parseInt(req
 // GET /api/security/summary
 router.get('/summary', async (_req, res) => { const summary = { };
 
-  for (const action of SECURITY_ACTIONS) { const h24 = await db.prepare(`SELECT COUNT(*) AS c FROM audit_logs WHERE action=$1 AND created_at >= NOW() - INTERVAL '1 day'`).get(action);
-    const d7  = await db.prepare(`SELECT COUNT(*) AS c FROM audit_logs WHERE action=$1 AND created_at >= NOW() - INTERVAL '7 days'`).get(action);
+  for (const action of SECURITY_ACTIONS) { const h24 = await db.prepare(`SELECT COUNT(*) AS c FROM audit_logs WHERE action=$1 AND created_at::timestamptz >= NOW() - INTERVAL '1 day'`).get(action);
+    const d7  = await db.prepare(`SELECT COUNT(*) AS c FROM audit_logs WHERE action=$1 AND created_at::timestamptz >= NOW() - INTERVAL '7 days'`).get(action);
     summary[action] = { last24h: Number(h24?.c || 0), last7d: Number(d7?.c || 0) };
   }
 
@@ -41,7 +41,7 @@ router.get('/summary', async (_req, res) => { const summary = { };
   const topIps = await db.prepare(`
     SELECT ip, COUNT(*) AS cnt FROM audit_logs
     WHERE action IN (${ placeholders })
-      AND created_at >= NOW() - INTERVAL '1 day' AND ip != ''
+      AND created_at::timestamptz >= NOW() - INTERVAL '1 day' AND ip != ''
     GROUP BY ip ORDER BY cnt DESC LIMIT 5
   `).all(...SECURITY_ACTIONS);
 
@@ -49,7 +49,7 @@ router.get('/summary', async (_req, res) => { const summary = { };
     SELECT actor_name, actor_id, COUNT(*) AS cnt, MAX(created_at) AS last_seen
     FROM audit_logs
     WHERE action IN (${ placeholders })
-      AND created_at >= NOW() - INTERVAL '1 day'
+      AND created_at::timestamptz >= NOW() - INTERVAL '1 day'
     GROUP BY actor_id, actor_name ORDER BY cnt DESC LIMIT 5
   `).all(...SECURITY_ACTIONS);
 
