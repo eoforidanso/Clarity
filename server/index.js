@@ -195,9 +195,9 @@ app.get('/api/health/full', async (_req, res) => {
   const heapUsedMB  = Math.round(mem.heapUsed  / 1024 / 1024);
   const heapTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
   const heapPct     = Math.round((heapUsedMB / heapTotalMB) * 100);
-  checks.memory = { status: heapPct > 90 ? 'warning' : 'ok', heapUsedMB, heapTotalMB, heapPct };
-  // Only degrade if truly critical — high % on a small heap is normal with --max-old-space-size=512
-  if (heapUsedMB > 450) overallOk = false;
+  const memStatus = heapUsedMB > 400 ? 'critical' : heapUsedMB > 300 ? 'warning' : 'ok';
+  checks.memory = { status: memStatus, heapUsedMB, heapTotalMB, heapPct };
+  if (heapUsedMB > 400) overallOk = false;
 
   // ── Uptime ──
   const s = Math.floor(process.uptime());

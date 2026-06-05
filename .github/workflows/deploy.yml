@@ -142,7 +142,7 @@ jobs:
           host: ${{ secrets.DO_HOST }}
           username: root
           key: ${{ secrets.DO_SSH_KEY }}
-          source: "server/routes/,server/middleware/,server/db/,server/security/,server/sessions/,server/mail/,server/scripts/,scripts/,server/index.js,server/config.js"
+          source: "server/routes/,server/middleware/,server/db/,server/security/,server/sessions/,server/mail/,server/scripts/,scripts/,server/index.js,server/config.js,ecosystem.config.cjs"
           target: /var/www/ehr/
 
       - name: Install backup cron + fix permissions
@@ -187,8 +187,10 @@ jobs:
           username: root
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
-            NODE_OPTIONS="--max-old-space-size=512" pm2 restart ehr-api --update-env || \
-            NODE_OPTIONS="--max-old-space-size=512" pm2 start /var/www/ehr/server/index.js --name ehr-api --cwd /var/www/ehr && pm2 save
+            cd /var/www/ehr
+            # Use ecosystem config so NODE_OPTIONS persists across reboots
+            pm2 start ecosystem.config.cjs --only ehr-api || pm2 restart ehr-api --update-env
+            pm2 save
 
       - name: Health check production
         uses: appleboy/ssh-action@v1.0.3
