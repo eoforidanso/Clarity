@@ -287,6 +287,10 @@ async function start() {
   const { runMigrations } = await import('./db/migrate.js');
   await runMigrations();
 
+  // Validate schema — warn if critical columns are missing or wrong type
+  const { validateSchema } = await import('./db/validateSchema.js');
+  await validateSchema();
+
   // Apply soft-delete migrations (deleted_at columns + audit_logs table)
   const { applyMigrations } = await import('./db/softDelete.js');
   applyMigrations();
