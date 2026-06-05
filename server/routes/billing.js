@@ -33,16 +33,17 @@ router.post('/insurance/verify', authenticate, auditMiddleware('INSURANCE_VERIFY
 
     // Store verification result
     const insertVerification = await db.prepare(`
-      INSERT INTO insurance_verifications (patient_id, insurance_type, verification_data, verified_at, verified_by)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO insurance_verifications (patient_id, insurance_type, verification_data, verified_at, verified_by, facility_id)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
-    
+
     insertVerification.run(
       patientId,
       insuranceType,
       JSON.stringify(verificationResult),
       new Date().toISOString(),
-      req.user.id
+      req.user.id,
+      req.user.facility_id || null
     );
 
     res.json(verificationResult);
@@ -55,11 +56,16 @@ router.post('/insurance/verify', authenticate, auditMiddleware('INSURANCE_VERIFY
 router.get('/insurance/verification/:patientId', authenticate, async (req, res) => { try {
     const { patientId } = req.params;
     
+    const ivFacilityId = req.user.facility_id;
+    const ivIsGlobal   = req.access.canSeeAll;
+    const ivFClause    = (!ivIsGlobal && ivFacilityId) ? ' AND facility_id = ?' : '';
+    const ivFParam     = (!ivIsGlobal && ivFacilityId) ? [ivFacilityId] : [];
+
     const verifications = await db.prepare(`
-      SELECT * FROM insurance_verifications 
-      WHERE patient_id = ? 
+      SELECT * FROM insurance_verifications
+      WHERE patient_id = ?${ivFClause}
       ORDER BY verified_at DESC
-    `).all(patientId);
+    `).all(patientId, ...ivFParam);
 
     const parsedVerifications = verifications.map(v => ({ ...v, verification_data: JSON.parse(v.verification_data) }));
 
@@ -266,30 +272,24 @@ router.post('/payments', authenticate, auditMiddleware('PAYMENT_RECORD', 'Paymen
     const insertPayment = await db.prepare(`
       INSERT INTO payments (
         claim_id, payment_type, payment_method, amount, check_number,
-        adjustment_reason, notes, payment_date, recorded_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        adjustment_reason, notes, payment_date, recorded_by, facility_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const paymentDate = new Date().toISOString();
     const paymentId = insertPayment.run(
-      claimId,
-      paymentType,
-      paymentMethod,
-      amount,
-      checkNumber || null,
-      adjustmentReason || null,
-      notes || null,
-      paymentDate,
-      req.user.id
+      claimId, paymentType, paymentMethod, amount,
+      checkNumber || null, adjustmentReason || null, notes || null,
+      paymentDate, req.user.id, req.user.facility_id || null
     ).lastInsertRowid;
 
-    // Update claim totals
+    // Update claim totals — verify claim belongs to facility before aggregating
     const payments = await db.prepare(`
       SELECT payment_type, SUM(amount) as total
-      FROM payments 
+      FROM payments
       WHERE claim_id = ?
       GROUP BY payment_type
-    `).all(claimId);
+    `).all(claimId); // claim ownership already verified above via facility_id check
 
     let insurancePayment = 0;
     let patientPayment = 0;
@@ -479,24 +479,24 @@ router.post('/denials/:id/appeal', authenticate, auditMiddleware('DENIAL_APPEAL'
     const { id } = req.params;
     const { appeal_notes, appeal_documents, priority } = req.body;
     
-    // Update denial management record
+    // Update denial — scope to facility via claims join
+    const daFacilityId = req.user.facility_id;
+    const daIsGlobal   = req.access.canSeeAll;
+    const daFClause    = (!daIsGlobal && daFacilityId)
+      ? ' AND dm.claim_id IN (SELECT id FROM claims WHERE facility_id = ?)'
+      : '';
+    const daFParam     = (!daIsGlobal && daFacilityId) ? [daFacilityId] : [];
+
     const result = await db.prepare(`
-      UPDATE denial_management 
-      SET 
-        resolution_status = 'appealing',
-        appeal_notes = ?,
-        appeal_documents = ?,
-        priority = ?,
-        appeal_date = ?,
-        updated_at = ?
-      WHERE id = ?
+      UPDATE denial_management dm
+      SET resolution_status = 'appealing',
+          appeal_notes = ?, appeal_documents = ?, priority = ?,
+          appeal_date = ?, updated_at = ?
+      WHERE dm.id = ?${daFClause}
     `).run(
-      appeal_notes,
-      JSON.stringify(appeal_documents),
-      priority || 'medium',
-      new Date().toISOString(),
-      new Date().toISOString(),
-      id
+      appeal_notes, JSON.stringify(appeal_documents), priority || 'medium',
+      new Date().toISOString(), new Date().toISOString(),
+      id, ...daFParam
     );
     
     if (result.changes === 0) { return res.status(404).json({ error: 'Denial not found' });
@@ -515,21 +515,22 @@ router.put('/denials/:id/resolve', authenticate, auditMiddleware('DENIAL_RESOLVE
     const { id } = req.params;
     const { resolution_notes, resolution_amount } = req.body;
     
+    const drFacilityId = req.user.facility_id;
+    const drIsGlobal   = req.access.canSeeAll;
+    const drFClause    = (!drIsGlobal && drFacilityId)
+      ? ' AND claim_id IN (SELECT id FROM claims WHERE facility_id = ?)'
+      : '';
+    const drFParam     = (!drIsGlobal && drFacilityId) ? [drFacilityId] : [];
+
     const result = await db.prepare(`
-      UPDATE denial_management 
-      SET 
-        resolution_status = 'resolved',
-        resolution_notes = ?,
-        resolution_amount = ?,
-        resolution_date = ?,
-        updated_at = ?
-      WHERE id = ?
+      UPDATE denial_management
+      SET resolution_status = 'resolved', resolution_notes = ?,
+          resolution_amount = ?, resolution_date = ?, updated_at = ?
+      WHERE id = ?${drFClause}
     `).run(
-      resolution_notes,
-      resolution_amount,
-      new Date().toISOString(),
-      new Date().toISOString(),
-      id
+      resolution_notes, resolution_amount,
+      new Date().toISOString(), new Date().toISOString(),
+      id, ...drFParam
     );
     
     if (result.changes === 0) { return res.status(404).json({ error: 'Denial not found' });
@@ -568,32 +569,15 @@ router.post('/telehealth/session-billing', authenticate, auditMiddleware('TELEHE
     // Create telehealth billing record
     const billingRecord = await db.prepare(`
       INSERT INTO telehealth_billing (
-        session_id,
-        patient_id,
-        provider_id,
-        session_duration,
-        session_type,
-        platform_used,
-        base_amount,
-        technology_fee,
-        total_amount,
-        billing_status,
-        documentation_notes,
-        created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        session_id, patient_id, provider_id, session_duration, session_type,
+        platform_used, base_amount, technology_fee, total_amount,
+        billing_status, documentation_notes, created_at, facility_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      session_id,
-      patient_id,
-      provider_id,
-      session_duration,
-      session_type,
-      platform_used,
-      baseAmount,
-      technology_fee || 0,
-      totalAmount,
-      'pending',
-      documentation_notes,
-      new Date().toISOString()
+      session_id, patient_id, provider_id, session_duration, session_type,
+      platform_used, baseAmount, technology_fee || 0, totalAmount,
+      'pending', documentation_notes, new Date().toISOString(),
+      req.user.facility_id || null
     );
     
     // Auto-generate claim if configured
@@ -632,24 +616,26 @@ router.get('/telehealth/billing-history/:patientId', authenticate, async (req, r
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
     
+    const thFacilityId = req.user.facility_id;
+    const thIsGlobal   = req.access.canSeeAll;
+    const thFClause    = (!thIsGlobal && thFacilityId) ? ' AND tb.facility_id = ?' : '';
+    const thFParam     = (!thIsGlobal && thFacilityId) ? [thFacilityId] : [];
+
     const telehealthBilling = await db.prepare(`
-      SELECT 
-        tb.*,
-        p.first_name,
-        p.last_name,
-        pr.first_name as provider_first_name,
-        pr.last_name as provider_last_name
+      SELECT tb.*, p.first_name, p.last_name,
+             pr.first_name as provider_first_name, pr.last_name as provider_last_name
       FROM telehealth_billing tb
       JOIN patients p ON tb.patient_id = p.id
       JOIN providers pr ON tb.provider_id = pr.id
-      WHERE tb.patient_id = ?
+      WHERE tb.patient_id = ?${thFClause}
       ORDER BY tb.created_at DESC
       LIMIT ? OFFSET ?
-    `).all(patientId, limit, offset);
-    
+    `).all(patientId, ...thFParam, limit, offset);
+
     const total = await db.prepare(`
-      SELECT COUNT(*) as count FROM telehealth_billing WHERE patient_id = ?
-    `).get(patientId).count;
+      SELECT COUNT(*) as count FROM telehealth_billing tb
+      WHERE tb.patient_id = ?${thFClause}
+    `).get(patientId, ...thFParam).count;
     
     res.json({ success: true, billing_history: telehealthBilling, pagination: {
         total, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(total / limit) }
@@ -669,11 +655,14 @@ router.get('/patient-portal/statements/:patientId', authenticate, async (req, re
     const { status, page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
     
+    const psFacilityId = req.user.facility_id;
+    const psIsGlobal   = req.access.canSeeAll;
+
     let whereClause = 'WHERE ps.patient_id = ?';
     const params = [patientId];
-    
-    if (status) { whereClause += ' AND ps.status = ?';
-      params.push(status); }
+
+    if (!psIsGlobal && psFacilityId) { whereClause += ' AND ps.facility_id = ?'; params.push(psFacilityId); }
+    if (status) { whereClause += ' AND ps.status = ?'; params.push(status); }
     
     const statements = await db.prepare(`
       SELECT 
@@ -743,10 +732,15 @@ router.post('/patient-portal/payment', authenticate, auditMiddleware('PATIENT_PA
     const { db } = require('../db/database');
     const { patient_id, statement_id, amount, payment_method, card_last_four, transaction_id } = req.body;
     
-    // Validate payment amount against statement
+    // Validate payment — verify statement belongs to this facility
+    const ppFacilityId = req.user.facility_id;
+    const ppIsGlobal   = req.access.canSeeAll;
+    const ppFClause    = (!ppIsGlobal && ppFacilityId) ? ' AND facility_id = ?' : '';
+    const ppFParam     = (!ppIsGlobal && ppFacilityId) ? [ppFacilityId] : [];
+
     const statement = await db.prepare(`
-      SELECT * FROM patient_statements WHERE id = ? AND patient_id = ?
-    `).get(statement_id, patient_id);
+      SELECT * FROM patient_statements WHERE id = ? AND patient_id = ?${ppFClause}
+    `).get(statement_id, patient_id, ...ppFParam);
     
     if (!statement) { return res.status(404).json({ error: 'Statement not found' });
     }
@@ -784,11 +778,16 @@ router.post('/patient-portal/payment', authenticate, auditMiddleware('PATIENT_PA
     const newAmountDue = statement.amount_due - amount;
     const newStatus = newAmountDue <= 0 ? 'paid' : 'partial';
     
+    const upsFacilityClause = (!req.access.canSeeAll && req.user.facility_id)
+      ? ' AND facility_id = ?' : '';
+    const upsFacilityParam  = (!req.access.canSeeAll && req.user.facility_id)
+      ? [req.user.facility_id] : [];
+
     await db.prepare(`
-      UPDATE patient_statements 
+      UPDATE patient_statements
       SET amount_due = ?, status = ?, updated_at = ?
-      WHERE id = ?
-    `).run(newAmountDue, newStatus, new Date().toISOString(), statement_id);
+      WHERE id = ?${upsFacilityClause}
+    `).run(newAmountDue, newStatus, new Date().toISOString(), statement_id, ...upsFacilityParam);
     
     res.json({ success: true, payment_id: payment.lastInsertRowid, remaining_balance: newAmountDue, status: newStatus });
     
@@ -828,22 +827,18 @@ router.post('/patient-portal/generate-statement/:patientId', authenticate, audit
     // Create patient statement
     const statement = await db.prepare(`
       INSERT INTO patient_statements (
-        patient_id,
-        statement_number,
-        statement_date,
-        amount_due,
-        due_date,
-        status,
-        created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        patient_id, statement_number, statement_date,
+        amount_due, due_date, status, created_at, facility_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       patientId,
-      `STMT-${ Date.now() }-${ Math.random().toString(36).substr(2, 6) }`,
+      `STMT-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
       statement_date || new Date().toISOString(),
       totalAmountDue,
-      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       'outstanding',
-      new Date().toISOString()
+      new Date().toISOString(),
+      req.user.facility_id || null
     );
     
     // Add statement items
