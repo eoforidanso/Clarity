@@ -16,7 +16,14 @@ export function PrescriptionPreview({ prescription }) {
     prescriber,
     clinicalNotes,
     signedAt,
+    sendDate,
   } = prescription;
+
+  const today = new Date().toISOString().split('T')[0];
+  const isPostDated = sendDate && sendDate !== today;
+  const sendDateLabel = sendDate
+    ? new Date(sendDate + 'T12:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : 'Today';
 
   return (
     <div className="rx-card">
@@ -29,7 +36,12 @@ export function PrescriptionPreview({ prescription }) {
           </h2>
           {brandName && <div className="rx-med-subtitle">{brandName}</div>}
         </div>
-        <div className="rx-chip rx-chip--status">Ready to Send</div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          <div className="rx-chip rx-chip--status">Ready to Send</div>
+          <div style={{ fontSize: 11, color: isPostDated ? '#f59e0b' : '#64748b', fontWeight: isPostDated ? 700 : 400 }}>
+            {isPostDated ? `📅 Post-dated: ${sendDateLabel}` : `📅 Send: ${sendDateLabel}`}
+          </div>
+        </div>
       </div>
 
       {/* Medication */}

@@ -468,6 +468,7 @@ export default function EPrescribe() {
     daw: false,
     diagnosis: '',
     diagnosisCode: '',
+    sendDate: new Date().toISOString().split('T')[0], // default: today
   });
   const [pharmacySearch, setPharmacySearch] = useState('');
   const [showPharmacyDropdown, setShowPharmacyDropdown] = useState(false);
@@ -878,7 +879,7 @@ export default function EPrescribe() {
     setStep(1);
     setSelectedMed(null);
     setMedSearch('');
-    setRx({ dose: '', frequency: 'Once daily', quantity: '30', refills: '0', sig: '', pharmacy: '', notes: '', daw: false, diagnosis: '', diagnosisCode: '' });
+    setRx({ dose: '', frequency: 'Once daily', quantity: '30', refills: '0', sig: '', pharmacy: '', notes: '', daw: false, diagnosis: '', diagnosisCode: '', sendDate: new Date().toISOString().split('T')[0] });
     setPharmacySearch('');
     setShowPharmacyDropdown(false);
     setEpcsPin(['', '', '', '']);
@@ -1429,6 +1430,34 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
               </div>
             </div>
 
+            {/* Send Date */}
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label className="form-label">Send Date *</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  className="form-input"
+                  type="date"
+                  value={rx.sendDate}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setRx({ ...rx, sendDate: e.target.value })}
+                  style={{ maxWidth: 200 }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  onClick={() => setRx({ ...rx, sendDate: new Date().toISOString().split('T')[0] })}
+                  style={{ fontSize: 11, whiteSpace: 'nowrap' }}
+                >
+                  Today
+                </button>
+                {rx.sendDate && rx.sendDate !== new Date().toISOString().split('T')[0] && (
+                  <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>
+                    📅 Post-dated — will be sent on {new Date(rx.sendDate + 'T12:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                )}
+              </div>
+            </div>
+
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Quantity</label>
@@ -1842,6 +1871,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                 dea:  currentUser?.deaNumber,
               },
               clinicalNotes: rx.notes || null,
+              sendDate: rx.sendDate,
               signedAt: null,
             }} />
 
