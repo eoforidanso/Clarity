@@ -2,12 +2,11 @@
  * PatientHoverCard — Athena-style tooltip on patient name hover
  * Shows: photo, name, DOB/age, phone, email, last appt, next appt
  *
- * Usage:
- *   <PatientHoverCard patient={patientObj} appointments={appointments}>
- *     <span>{patient.firstName} {patient.lastName}</span>
- *   </PatientHoverCard>
+ * Renders via a React portal into document.body so it escapes any
+ * overflow:hidden / table cell containment issues.
  */
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 function calcAge(dob) {
   if (!dob) return null;
@@ -21,7 +20,9 @@ function fmtDate(d) {
 
 export default function PatientHoverCard({ patient, appointments = [], children }) {
   const [show, setShow] = useState(false);
-  const timer = React.useRef(null);
+  const [pos, setPos]   = useState({ top: 0, left: 0 });
+  const anchorRef       = useRef(null);
+  const timer           = useRef(null);
 
   if (!patient) return <>{children}</>;
 
@@ -30,14 +31,23 @@ export default function PatientHoverCard({ patient, appointments = [], children 
   const patAppts = appointments
     .filter(a => a.patientId === patient.id)
     .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
-  const now = new Date();
-  const past = patAppts.filter(a => new Date(`${a.date}T${a.time}`) < now && a.status !== 'Cancelled');
+  const now    = new Date();
+  const past   = patAppts.filter(a => new Date(`${a.date}T${a.time}`) < now && a.status !== 'Cancelled');
   const future = patAppts.filter(a => new Date(`${a.date}T${a.time}`) >= now && a.status !== 'Cancelled');
   const lastAppt = past[past.length - 1];
   const nextAppt = future[0];
 
   const handleMouseEnter = () => {
     clearTimeout(timer.current);
+    // Compute position from the anchor element's viewport rect.
+    // position:fixed coords are viewport-relative — do NOT add scroll offsets.
+    const rect = anchorRef.current?.getBoundingClientRect();
+    if (rect) {
+      setPos({
+        top:  rect.bottom + 6,
+        left: Math.min(rect.left, window.innerWidth - 290),
+      });
+    }
     timer.current = setTimeout(() => setShow(true), 300);
   };
 
@@ -46,91 +56,93 @@ export default function PatientHoverCard({ patient, appointments = [], children 
     timer.current = setTimeout(() => setShow(false), 150);
   };
 
-  return (
-    // Wrapper must sit inside a .patient-row (position:relative) so the
-    // card anchors to the name, not the viewport
-    <span
-      style={{ position: 'relative', display: 'inline-block' }}
-      onMouseEnter={handleMouseEnter}
+  const card = show && createPortal(
+    <div
+      onMouseEnter={() => clearTimeout(timer.current)}
       onMouseLeave={handleMouseLeave}
+      style={{
+        position: 'fixed',
+        top:      pos.top,
+        left:     pos.left,
+        zIndex:   9999,
+        width:    270,
+        background:   '#fff',
+        borderRadius: 12,
+        boxShadow:    '0 8px 32px rgba(15,23,42,0.16), 0 2px 8px rgba(15,23,42,0.08)',
+        border:       '1px solid #e2e8f0',
+        overflow:     'hidden',
+        animation:    'fadeInDown 0.12s ease both',
+        pointerEvents: 'auto',
+      }}
     >
-      {children}
-
-      {show && (
-        <div
-          onMouseEnter={() => clearTimeout(timer.current)}
-          onMouseLeave={handleMouseLeave}
-          className="hover-card"
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: '100%',
-            transform: 'translateY(8px)',
-            zIndex: 9999,
-            width: 270,
-            background: '#fff',
-            borderRadius: 12,
-            boxShadow: '0 8px 32px rgba(15,23,42,0.16), 0 2px 8px rgba(15,23,42,0.08)',
-            border: '1px solid #e2e8f0',
-            overflow: 'hidden',
-            animation: 'fadeInUp 0.12s ease both',
-          }}
-        >
-          {/* Header */}
-          <div style={{ padding: '12px 14px', background: 'linear-gradient(135deg, #1e3a5f, #2563eb)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 38, height: 38, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: '2px solid rgba(255,255,255,0.3)' }}>
-              {patient.photo
-                ? <img src={patient.photo} alt={patient.firstName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg,#60a5fa,#818cf8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, color: '#fff' }}>
-                    {patient.firstName?.[0]}{patient.lastName?.[0]}
-                  </div>
-              }
-            </div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 13, color: '#fff' }}>{patient.firstName} {patient.lastName}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
-                {patient.mrn} {age ? `· ${age} yrs` : ''} {patient.gender ? `· ${patient.gender}` : ''}
+      {/* Header */}
+      <div style={{ padding: '12px 14px', background: 'linear-gradient(135deg, #1e3a5f, #2563eb)', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 38, height: 38, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: '2px solid rgba(255,255,255,0.3)' }}>
+          {patient.photo
+            ? <img src={patient.photo} alt={patient.firstName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg,#60a5fa,#818cf8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, color: '#fff' }}>
+                {patient.firstName?.[0]}{patient.lastName?.[0]}
               </div>
-            </div>
+          }
+        </div>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 13, color: '#fff' }}>{patient.firstName} {patient.lastName}</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
+            {patient.mrn} {age ? `· ${age} yrs` : ''} {patient.gender ? `· ${patient.gender}` : ''}
           </div>
+        </div>
+      </div>
 
-          {/* Details */}
-          <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {[
-              ['📅', 'DOB', patient.dob ? fmtDate(patient.dob) : null],
-              ['📞', 'Phone', patient.phone || patient.cellPhone],
-              ['✉️', 'Email', patient.email],
-              ['🏥', 'Insurance', patient.insurance?.primary?.name],
-            ].filter(([,, v]) => v).map(([icon, label, value]) => (
-              <div key={label} style={{ display: 'flex', gap: 6, fontSize: 12, alignItems: 'flex-start' }}>
-                <span style={{ fontSize: 11, flexShrink: 0, marginTop: 1 }}>{icon}</span>
-                <span style={{ color: '#6b7280', flexShrink: 0, minWidth: 50 }}>{label}</span>
-                <span style={{ color: '#0f172a', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+      {/* Details */}
+      <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {[
+          ['📅', 'DOB',       patient.dob ? fmtDate(patient.dob) : null],
+          ['📞', 'Phone',     patient.phone || patient.cellPhone],
+          ['✉️', 'Email',     patient.email],
+          ['🏥', 'Insurance', patient.insurance?.primary?.name],
+        ].filter(([,, v]) => v).map(([icon, label, value]) => (
+          <div key={label} style={{ display: 'flex', gap: 6, fontSize: 12, alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 11, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+            <span style={{ color: '#6b7280', flexShrink: 0, minWidth: 50 }}>{label}</span>
+            <span style={{ color: '#0f172a', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+          </div>
+        ))}
+
+        {/* Appointments */}
+        {(lastAppt || nextAppt) && (
+          <div style={{ borderTop: '1px solid #f1f5f9', marginTop: 2, paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {lastAppt && (
+              <div style={{ display: 'flex', gap: 6, fontSize: 12 }}>
+                <span style={{ fontSize: 11 }}>⬅️</span>
+                <span style={{ color: '#6b7280', flexShrink: 0, minWidth: 50 }}>Last</span>
+                <span style={{ color: '#0f172a', fontWeight: 500 }}>{fmtDate(lastAppt.date)} · {lastAppt.type}</span>
               </div>
-            ))}
-
-            {/* Appointments */}
-            {(lastAppt || nextAppt) && (
-              <div style={{ borderTop: '1px solid #f1f5f9', marginTop: 2, paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {lastAppt && (
-                  <div style={{ display: 'flex', gap: 6, fontSize: 12 }}>
-                    <span style={{ fontSize: 11 }}>⬅️</span>
-                    <span style={{ color: '#6b7280', flexShrink: 0, minWidth: 50 }}>Last</span>
-                    <span style={{ color: '#0f172a', fontWeight: 500 }}>{fmtDate(lastAppt.date)} · {lastAppt.type}</span>
-                  </div>
-                )}
-                {nextAppt && (
-                  <div style={{ display: 'flex', gap: 6, fontSize: 12 }}>
-                    <span style={{ fontSize: 11 }}>➡️</span>
-                    <span style={{ color: '#6b7280', flexShrink: 0, minWidth: 50 }}>Next</span>
-                    <span style={{ color: '#0f172a', fontWeight: 500 }}>{fmtDate(nextAppt.date)} · {nextAppt.type}</span>
-                  </div>
-                )}
+            )}
+            {nextAppt && (
+              <div style={{ display: 'flex', gap: 6, fontSize: 12 }}>
+                <span style={{ fontSize: 11 }}>➡️</span>
+                <span style={{ color: '#6b7280', flexShrink: 0, minWidth: 50 }}>Next</span>
+                <span style={{ color: '#0f172a', fontWeight: 500 }}>{fmtDate(nextAppt.date)} · {nextAppt.type}</span>
               </div>
             )}
           </div>
-        </div>
-      )}
-    </span>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+
+  return (
+    <>
+      <span
+        ref={anchorRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        style={{ cursor: 'default' }}
+      >
+        {children}
+      </span>
+      {card}
+    </>
   );
 }
