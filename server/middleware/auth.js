@@ -4,11 +4,13 @@ import db from '../db/database.js';
 import { buildAccess } from './accessControl.js';
 
 export async function authenticate(req, res, next) {
-  // Accept token from httpOnly cookie (browser) or Authorization header (API clients / mobile)
+  // Accept token from Authorization header (elevated/API) or httpOnly cookie (browser session).
+  // Bearer header takes priority so that elevated tokens sent explicitly are not shadowed by
+  // the regular session cookie that is always present in the browser.
   const cookieToken = req.cookies?.ehr_token;
   const authHeader = req.headers.authorization;
   const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
-  const token = cookieToken || bearerToken;
+  const token = bearerToken || cookieToken;
 
   if (!token) {
     return res.status(401).json({ error: 'Authentication required' });

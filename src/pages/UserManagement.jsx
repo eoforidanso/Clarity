@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import DemoGuard from '../demo/DemoGuard';
 import { useAuth } from '../contexts/AuthContext';
 import { useSite, SITES_FALLBACK } from '../contexts/SiteContext';
-import { admin } from '../services/api';
+import { admin, auth } from '../services/api';
 
 
 const ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist', 'biller', 'admin'];
@@ -252,19 +252,42 @@ function UserForm({ initial, onSave, onCancel, loading, error, locationOptions }
 }
 
 function ResetPasswordModal({ user, onClose }) {
-  const [pwd, setPwd] = useState('');
-  const [showPwd, setShowPwd] = useState(false);
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'admin';
+  // Admins skip re-auth; other privileged roles still need elevation
+  const [step, setStep]       = useState(isAdmin ? 'reset' : 'reauth');
+  const [myPwd, setMyPwd]     = useState('');
+  const [newPwd, setNewPwd]   = useState('');
+  const [showMyPwd, setShowMyPwd]   = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [done, setDone] = useState(false);
+  const [error, setError]     = useState('');
+  const [elevatedToken, setElevatedToken] = useState('');
 
-  const handleSubmit = async (e) => {
+  // Step 1 — verify your own password to get elevated token
+  const handleReauth = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      await admin.users.resetPassword(user.id, pwd);
-      setDone(true);
+      const res = await auth.reauth(myPwd);
+      setElevatedToken(res.elevatedToken);
+      setStep('reset');
+    } catch (err) {
+      setError(err.message || 'Incorrect password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2 — submit the new password (admins need no elevated token)
+  const handleReset = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await admin.users.resetPassword(user.id, newPwd, isAdmin ? null : elevatedToken);
+      setStep('done');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -274,48 +297,72 @@ function ResetPasswordModal({ user, onClose }) {
 
   return (
     <Modal title={`Reset Password — ${user.firstName} ${user.lastName}`} onClose={onClose}>
-      {done ? (
+      {step === 'done' && (
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
           <p style={{ fontWeight: 600 }}>Password reset successfully.</p>
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>All active sessions for this user have been invalidated.</p>
           <button className="btn btn-primary" onClick={onClose} style={{ marginTop: 16 }}>Done</button>
         </div>
-      ) : (
-        <form onSubmit={handleSubmit}>
+      )}
+
+      {step === 'reauth' && (
+        <form onSubmit={handleReauth}>
+          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#92400e' }}>
+            🔐 Confirm your identity before resetting another user's password.
+          </div>
+          <Field label="Your Password" required>
+            <div style={{ position: 'relative' }}>
+              <input
+                style={{ ...inputStyle, paddingRight: 38 }}
+                type={showMyPwd ? 'text' : 'password'}
+                value={myPwd}
+                onChange={e => setMyPwd(e.target.value)}
+                required
+                autoFocus
+                autoComplete="current-password"
+                placeholder="Enter your current password"
+              />
+              <button type="button" onClick={() => setShowMyPwd(v => !v)}
+                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-muted)' }}>
+                {showMyPwd ? '🙈' : '👁️'}
+              </button>
+            </div>
+          </Field>
+          {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, padding: '9px 12px', color: '#dc2626', fontSize: 13, marginBottom: 14 }}>{error}</div>}
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={loading || !myPwd}>
+              {loading ? 'Verifying…' : 'Verify Identity →'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {step === 'reset' && (
+        <form onSubmit={handleReset}>
           <Field label="New Password" required>
             <div style={{ position: 'relative' }}>
               <input
                 style={{ ...inputStyle, paddingRight: 38 }}
-                type={showPwd ? 'text' : 'password'}
-                value={pwd}
-                onChange={e => setPwd(e.target.value)}
+                type={showNewPwd ? 'text' : 'password'}
+                value={newPwd}
+                onChange={e => setNewPwd(e.target.value)}
                 required
+                autoFocus
                 autoComplete="new-password"
                 placeholder="Min 8 chars, 1 uppercase, 1 number"
               />
-              <button
-                type="button"
-                onClick={() => setShowPwd(v => !v)}
-                style={{
-                  position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 14,
-                  color: 'var(--text-muted)',
-                }}
-              >{showPwd ? '🙈' : '👁️'}</button>
+              <button type="button" onClick={() => setShowNewPwd(v => !v)}
+                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-muted)' }}>
+                {showNewPwd ? '🙈' : '👁️'}
+              </button>
             </div>
           </Field>
-          {error && (
-            <div style={{
-              background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7,
-              padding: '9px 12px', color: '#dc2626', fontSize: 13, marginBottom: 14,
-            }}>
-              {error}
-            </div>
-          )}
+          {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, padding: '9px 12px', color: '#dc2626', fontSize: 13, marginBottom: 14 }}>{error}</div>}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>Cancel</button>
-            <button type="submit" className="btn btn-danger" disabled={loading}>
+            <button type="submit" className="btn btn-danger" disabled={loading || !newPwd}>
               {loading ? 'Resetting…' : 'Reset Password'}
             </button>
           </div>

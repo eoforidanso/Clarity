@@ -413,7 +413,7 @@ function StaffRefillRequest() {
 // ── Main EPrescribe (prescribers only) ──────────────────────────
 export default function EPrescribe() {
   const { currentUser, verifyEPCS, generateEPCSOTP, verifyEPCSOTP } = useAuth();
-  const { patients, selectedPatient, selectPatient, addMedication, addOrder } = usePatient();
+  const { patients, selectedPatient, selectPatient, meds, addMedication, addOrder } = usePatient();
 
   // ── DoseSpot integration state ───────────────────────────
   const [dsConfigured, setDsConfigured] = useState(false);

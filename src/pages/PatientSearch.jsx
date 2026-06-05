@@ -1088,6 +1088,7 @@ export default function PatientSearch() {
                 <tbody>
                   {filtered.map((p) => (
                   <tr key={p.id}
+                    className="patient-row"
                     style={{ cursor: 'pointer', background: hoveredRow === p.id ? 'rgba(79,70,229,0.04)' : 'transparent', transition: 'background 0.12s' }}
                     onClick={() => handleSelect(p)}
                     onMouseEnter={() => setHoveredRow(p.id)}

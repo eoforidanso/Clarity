@@ -226,8 +226,14 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => 
 
 // ── POST /api/users/:id/reset-password ─────────────────────────────────
 // Reset a user's password. Admin/front_desk only. Cannot reset own password this way.
-router.post('/:id/reset-password', authenticate, requireElevated, authorize(...ADMIN_ROLES), async (req, res) => { const { id } = req.params;
+router.post('/:id/reset-password', authenticate, authorize(...ADMIN_ROLES), async (req, res) => { const { id } = req.params;
   const { newPassword } = req.body;
+
+  // Admins can reset any user's password directly.
+  // Non-admin roles that reach here (front_desk) still need elevation.
+  if (req.user.role !== 'admin' && !req.user.elevated) {
+    return res.status(403).json({ error: 'Re-authentication required' });
+  }
 
   if (id === req.user.id) { return res.status(400).json({ error: 'Use the Settings page to change your own password' });
   }

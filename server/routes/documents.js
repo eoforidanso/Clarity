@@ -14,11 +14,10 @@ router.use(authenticate); // RBAC: all routes require authentication
 
 // ── Utility: Build structured document data ─────────────
 
-async function getPatientHeader(patientId) {
-  const p = await db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId);
+async function getPatientHeader(patientId) { const p = await db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId);
   if (!p) return null;
   return {
-    name: `${p.first_name} ${p.last_name}`,
+    name: `${p.first_name } ${ p.last_name }`,
     mrn: p.mrn,
     dob: p.dob,
     gender: p.gender,
@@ -29,11 +28,9 @@ async function getPatientHeader(patientId) {
   };
 }
 
-async function getProviderInfo(userId) {
-  const u = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+async function getProviderInfo(userId) { const u = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
   if (!u) return { name: 'Unknown', credentials: '', npi: '', specialty: '' };
-  return {
-    name: `${u.first_name} ${u.last_name || ''}`.trim(),
+  return { name: `${u.first_name } ${ u.last_name || '' }`.trim(),
     credentials: u.credentials || '',
     npi: u.npi || '',
     specialty: u.specialty || '',
@@ -42,10 +39,8 @@ async function getProviderInfo(userId) {
 }
 
 // ── POST /api/documents/progress-note ─────────────────
-router.post('/progress-note', authenticate, async (req, res) => {
-  const { encounterId, patientId } = req.body;
-  if (!encounterId || !patientId) {
-    return res.status(400).json({ error: 'encounterId and patientId are required' });
+router.post('/progress-note', authenticate, async (req, res) => { const { encounterId, patientId } = req.body;
+  if (!encounterId || !patientId) { return res.status(400).json({ error: 'encounterId and patientId are required' });
   }
 
   const patient = await getPatientHeader(patientId);
@@ -71,91 +66,28 @@ router.post('/progress-note', authenticate, async (req, res) => {
   // Get assessments for this date
   const assessments = await db.prepare('SELECT * FROM assessments WHERE patient_id = ? AND date = ?').all(patientId, enc.date);
 
-  const document = {
-    type: 'progress_note',
-    title: 'PSYCHIATRIC PROGRESS NOTE',
-    generatedAt: new Date().toISOString(),
-    generatedBy: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
-    facility: {
-      name: 'Clarity EHR — Academic Medical Center',
-      address: '1000 Health Sciences Drive, Springfield, IL 62704',
-      phone: '(555) 100-2000',
-      fax: '(555) 100-2001',
-      npi: '1234567890',
-    },
+  const document = { type: 'progress_note', title: 'PSYCHIATRIC PROGRESS NOTE', generatedAt: new Date().toISOString(), generatedBy: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
+    facility: { name: 'Clarity EHR — Academic Medical Center', address: '1000 Health Sciences Drive, Springfield, IL 62704', phone: '(555) 100-2000', fax: '(555) 100-2001', npi: '1234567890',  },
     patient,
-    encounter: {
-      date: enc.date,
-      time: enc.time,
-      visitType: enc.visit_type,
-      cptCode: enc.cpt_code,
-      icdCode: enc.icd_code,
-      duration: enc.duration,
-      reason: enc.reason,
-    },
-    provider: {
-      name: typeof provider === 'object' ? provider.name : enc.provider_name,
-      credentials: typeof provider === 'object' ? provider.credentials : enc.credentials,
-      npi: typeof provider === 'object' ? provider.npi : '',
-      specialty: typeof provider === 'object' ? provider.specialty : '',
-    },
-    sections: {
-      chiefComplaint: enc.chief_complaint || '',
-      hpi: enc.hpi || '',
-      intervalNote: enc.interval_note || '',
-      mentalStatusExam: enc.mse || '',
-      assessment: enc.assessment || '',
-      plan: enc.plan || '',
-      safety: {
-        siLevel: enc.safety_si_level || 'None',
-        hiLevel: enc.safety_hi_level || 'None',
-        selfHarm: !!enc.safety_self_harm,
-        substanceUse: !!enc.safety_substance_use,
-        safetyPlanUpdated: !!enc.safety_plan_updated,
-        crisisResources: !!enc.safety_crisis_resources,
-        notes: enc.safety_notes || '',
-      },
+    encounter: { date: enc.date, time: enc.time, visitType: enc.visit_type, cptCode: enc.cpt_code, icdCode: enc.icd_code, duration: enc.duration, reason: enc.reason,  },
+    provider: { name: typeof provider === 'object' ? provider.name : enc.provider_name, credentials: typeof provider === 'object' ? provider.credentials : enc.credentials, npi: typeof provider === 'object' ? provider.npi : '', specialty: typeof provider === 'object' ? provider.specialty : '',  },
+    sections: { chiefComplaint: enc.chief_complaint || '', hpi: enc.hpi || '', intervalNote: enc.interval_note || '', mentalStatusExam: enc.mse || '', assessment: enc.assessment || '', plan: enc.plan || '', safety: {
+        siLevel: enc.safety_si_level || 'None', hiLevel: enc.safety_hi_level || 'None', selfHarm: !!enc.safety_self_harm, substanceUse: !!enc.safety_substance_use, safetyPlanUpdated: !!enc.safety_plan_updated, crisisResources: !!enc.safety_crisis_resources, notes: enc.safety_notes || '',  },
       followUp: enc.follow_up || '',
       disposition: enc.disposition || '',
     },
-    activeMedications: meds.map(m => ({
-      name: m.name,
-      dose: m.dose,
-      frequency: m.frequency,
-      sig: m.sig,
-    })),
-    activeProblems: problems.map(p => ({
-      code: p.code,
-      description: p.description,
-    })),
-    allergies: allergies.map(a => ({
-      allergen: a.allergen,
-      reaction: a.reaction,
-      severity: a.severity,
-    })),
-    vitals: vitals ? {
-      date: vitals.date,
-      bp: vitals.bp,
-      hr: vitals.hr,
-      temp: vitals.temp,
-      weight: vitals.weight,
-      bmi: vitals.bmi,
-    } : null,
-    assessmentScores: assessments.map(a => ({
-      tool: a.tool,
-      score: a.score,
-      interpretation: a.interpretation,
-    })),
-    signature: {
-      line: `Electronically signed by ${typeof provider === 'object' ? provider.name : enc.provider_name}, ${typeof provider === 'object' ? provider.credentials : enc.credentials}`,
+    activeMedications: meds.map(m => ({ name: m.name, dose: m.dose, frequency: m.frequency, sig: m.sig,  })),
+    activeProblems: problems.map(p => ({ code: p.code, description: p.description,  })),
+    allergies: allergies.map(a => ({ allergen: a.allergen, reaction: a.reaction, severity: a.severity,  })),
+    vitals: vitals ? { date: vitals.date, bp: vitals.bp, hr: vitals.hr, temp: vitals.temp, weight: vitals.weight, bmi: vitals.bmi,  } : null,
+    assessmentScores: assessments.map(a => ({ tool: a.tool, score: a.score, interpretation: a.interpretation,  })),
+    signature: { line: `Electronically signed by ${typeof provider === 'object' ? provider.name : enc.provider_name }, ${ typeof provider === 'object' ? provider.credentials : enc.credentials }`,
       date: new Date().toISOString(),
       npi: typeof provider === 'object' ? provider.npi : '',
     },
   };
 
-  logAuditEvent({
-    userId: req.user.id,
-    userName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
+  logAuditEvent({ userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
     userRole: req.user.role,
     action: 'GENERATE_DOCUMENT',
     resourceType: 'progress_note',
@@ -171,10 +103,8 @@ router.post('/progress-note', authenticate, async (req, res) => {
 });
 
 // ── POST /api/documents/prescription ──────────────────
-router.post('/prescription', authenticate, async (req, res) => {
-  const { medicationId, patientId } = req.body;
-  if (!medicationId || !patientId) {
-    return res.status(400).json({ error: 'medicationId and patientId are required' });
+router.post('/prescription', authenticate, async (req, res) => { const { medicationId, patientId } = req.body;
+  if (!medicationId || !patientId) { return res.status(400).json({ error: 'medicationId and patientId are required' });
   }
 
   const patient = await getPatientHeader(patientId);
@@ -186,63 +116,21 @@ router.post('/prescription', authenticate, async (req, res) => {
   const provider = await getProviderInfo(req.user.id);
   const allergies = await db.prepare('SELECT * FROM allergies WHERE patient_id = ?').all(patientId);
 
-  const document = {
-    type: 'prescription',
-    title: med.is_controlled ? 'CONTROLLED SUBSTANCE PRESCRIPTION' : 'PRESCRIPTION',
-    generatedAt: new Date().toISOString(),
-    generatedBy: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
-    facility: {
-      name: 'Clarity EHR — Academic Medical Center',
-      address: '1000 Health Sciences Drive, Springfield, IL 62704',
-      phone: '(555) 100-2000',
-      dea: provider.deaNumber,
-    },
+  const document = { type: 'prescription', title: med.is_controlled ? 'CONTROLLED SUBSTANCE PRESCRIPTION' : 'PRESCRIPTION', generatedAt: new Date().toISOString(), generatedBy: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
+    facility: { name: 'Clarity EHR — Academic Medical Center', address: '1000 Health Sciences Drive, Springfield, IL 62704', phone: '(555) 100-2000', dea: provider.deaNumber,  },
     patient,
-    prescriber: {
-      name: provider.name,
-      credentials: provider.credentials,
-      npi: provider.npi,
-      dea: provider.deaNumber,
-      specialty: provider.specialty,
-    },
-    medication: {
-      name: med.name,
-      dose: med.dose,
-      route: med.route,
-      frequency: med.frequency,
-      sig: med.sig,
-      refillsRemaining: med.refills_left,
-      isControlled: !!med.is_controlled,
-      schedule: med.schedule || '',
-      pharmacy: med.pharmacy,
-      startDate: med.start_date,
-    },
+    prescriber: { name: provider.name, credentials: provider.credentials, npi: provider.npi, dea: provider.deaNumber, specialty: provider.specialty,  },
+    medication: { name: med.name, dose: med.dose, route: med.route, frequency: med.frequency, sig: med.sig, refillsRemaining: med.refills_left, isControlled: !!med.is_controlled, schedule: med.schedule || '', pharmacy: med.pharmacy, startDate: med.start_date,  },
     allergies: allergies.map(a => a.allergen).join(', '),
-    dispense: {
-      quantity: 30,
-      unit: 'tablets',
-      daysSupply: 30,
-      refills: med.refills_left,
-      substitutionAllowed: !med.is_controlled,
-    },
-    signature: {
-      line: `Electronically signed by ${provider.name}, ${provider.credentials}`,
+    dispense: { quantity: 30, unit: 'tablets', daysSupply: 30, refills: med.refills_left, substitutionAllowed: !med.is_controlled,  },
+    signature: { line: `Electronically signed by ${provider.name }, ${ provider.credentials }`,
       date: new Date().toISOString(),
       dea: provider.deaNumber,
       npi: provider.npi,
     },
   };
 
-  logAuditEvent({
-    userId: req.user.id,
-    userName: provider.name,
-    userRole: req.user.role,
-    action: 'GENERATE_DOCUMENT',
-    resourceType: 'prescription',
-    resourceId: medicationId,
-    patientId,
-    patientName: patient.name,
-    details: { documentType: 'prescription', medication: med.name, controlled: !!med.is_controlled },
+  logAuditEvent({ userId: req.user.id, userName: provider.name, userRole: req.user.role, action: 'GENERATE_DOCUMENT', resourceType: 'prescription', resourceId: medicationId, patientId, patientName: patient.name, details: { documentType: 'prescription', medication: med.name, controlled: !!med.is_controlled },
     ipAddress: req.ip || '',
     userAgent: req.get('User-Agent') || '',
   });
@@ -251,8 +139,7 @@ router.post('/prescription', authenticate, async (req, res) => {
 });
 
 // ── POST /api/documents/patient-summary ───────────────
-router.post('/patient-summary', authenticate, async (req, res) => {
-  const { patientId } = req.body;
+router.post('/patient-summary', authenticate, async (req, res) => { const { patientId } = req.body;
   if (!patientId) return res.status(400).json({ error: 'patientId is required' });
 
   const patient = await getPatientHeader(patientId);
@@ -266,15 +153,8 @@ router.post('/patient-summary', authenticate, async (req, res) => {
   const immunizations = await db.prepare('SELECT * FROM immunizations WHERE patient_id = ?').all(patientId);
   const recentEncounters = await db.prepare('SELECT * FROM encounters WHERE patient_id = ? ORDER BY date DESC LIMIT 5').all(patientId);
 
-  const document = {
-    type: 'patient_summary',
-    title: 'CLINICAL CONTINUITY OF CARE DOCUMENT (CCD)',
-    generatedAt: new Date().toISOString(),
-    generatedBy: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
-    facility: {
-      name: 'Clarity EHR — Academic Medical Center',
-      address: '1000 Health Sciences Drive, Springfield, IL 62704',
-    },
+  const document = { type: 'patient_summary', title: 'CLINICAL CONTINUITY OF CARE DOCUMENT (CCD)', generatedAt: new Date().toISOString(), generatedBy: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
+    facility: { name: 'Clarity EHR — Academic Medical Center', address: '1000 Health Sciences Drive, Springfield, IL 62704',  },
     patient,
     activeProblems: problems.filter(p => p.status === 'Active').map(p => ({ code: p.code, description: p.description, onset: p.onset_date })),
     resolvedProblems: problems.filter(p => p.status !== 'Active').map(p => ({ code: p.code, description: p.description, status: p.status })),
@@ -287,9 +167,7 @@ router.post('/patient-summary', authenticate, async (req, res) => {
     recentEncounters: recentEncounters.map(e => ({ date: e.date, visitType: e.visit_type, reason: e.reason, provider: e.provider_name, assessment: e.assessment })),
   };
 
-  logAuditEvent({
-    userId: req.user.id,
-    userName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
+  logAuditEvent({ userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
     userRole: req.user.role,
     action: 'GENERATE_DOCUMENT',
     resourceType: 'patient_summary',
@@ -304,8 +182,7 @@ router.post('/patient-summary', authenticate, async (req, res) => {
 });
 
 // ── POST /api/documents/discharge-summary ─────────────
-router.post('/discharge-summary', authenticate, async (req, res) => {
-  const { patientId, encounterId, dischargePlan, followUpInstructions } = req.body;
+router.post('/discharge-summary', authenticate, async (req, res) => { const { patientId, encounterId, dischargePlan, followUpInstructions } = req.body;
   if (!patientId) return res.status(400).json({ error: 'patientId is required' });
 
   const patient = await getPatientHeader(patientId);
@@ -315,45 +192,21 @@ router.post('/discharge-summary', authenticate, async (req, res) => {
   const activeMeds = await db.prepare('SELECT * FROM medications WHERE patient_id = ? AND status = ?').all(patientId, 'Active');
   const problems = await db.prepare('SELECT * FROM problems WHERE patient_id = ? AND status = ?').all(patientId, 'Active');
 
-  const document = {
-    type: 'discharge_summary',
-    title: 'DISCHARGE SUMMARY',
-    generatedAt: new Date().toISOString(),
-    generatedBy: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
-    facility: {
-      name: 'Clarity EHR — Academic Medical Center',
-      address: '1000 Health Sciences Drive, Springfield, IL 62704',
-    },
+  const document = { type: 'discharge_summary', title: 'DISCHARGE SUMMARY', generatedAt: new Date().toISOString(), generatedBy: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
+    facility: { name: 'Clarity EHR — Academic Medical Center', address: '1000 Health Sciences Drive, Springfield, IL 62704',  },
     patient,
-    encounter: enc ? {
-      date: enc.date,
-      visitType: enc.visit_type,
-      diagnosis: enc.icd_code,
-      assessment: enc.assessment,
-      plan: enc.plan,
-    } : null,
+    encounter: enc ? { date: enc.date, visitType: enc.visit_type, diagnosis: enc.icd_code, assessment: enc.assessment, plan: enc.plan,  } : null,
     activeDiagnoses: problems.map(p => ({ code: p.code, description: p.description })),
-    dischargeMedications: activeMeds.map(m => ({
-      name: m.name,
-      dose: m.dose,
-      frequency: m.frequency,
-      sig: m.sig,
-    })),
+    dischargeMedications: activeMeds.map(m => ({ name: m.name, dose: m.dose, frequency: m.frequency, sig: m.sig,  })),
     dischargePlan: dischargePlan || '',
     followUpInstructions: followUpInstructions || '',
-    safetyPlan: enc ? {
-      siLevel: enc.safety_si_level,
-      crisisResources: '988 Suicide & Crisis Lifeline, Local ER',
-    } : null,
-    signature: {
-      line: `Electronically signed by ${req.user.first_name} ${req.user.last_name || ''}, ${req.user.credentials || ''}`.trim(),
+    safetyPlan: enc ? { siLevel: enc.safety_si_level, crisisResources: '988 Suicide & Crisis Lifeline, Local ER',  } : null,
+    signature: { line: `Electronically signed by ${req.user.first_name } ${ req.user.last_name || '' }, ${ req.user.credentials || '' }`.trim(),
       date: new Date().toISOString(),
     },
   };
 
-  logAuditEvent({
-    userId: req.user.id,
-    userName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
+  logAuditEvent({ userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
     userRole: req.user.role,
     action: 'GENERATE_DOCUMENT',
     resourceType: 'discharge_summary',

@@ -34,6 +34,7 @@ const INTERVENTION_TEMPLATES = [
 const FREQUENCY = ['Weekly', 'Biweekly', 'Monthly', 'As Needed', 'PRN'];
 
 const MOCK_PLANS = [
+  // ── Rolling Meadows (loc-apmg) ──────────────────────────────────────────────
   {
     id: 'tp-1', patientId: 'p1', patientName: 'James Anderson', createdDate: '2026-01-15', reviewDate: '2026-04-15', nextReviewDate: '2026-07-15',
     provider: 'Dr. Chris L.', status: 'Active',
@@ -56,12 +57,40 @@ const MOCK_PLANS = [
     ],
     sessionFrequency: 'Weekly', anticipatedDuration: '9 months', lastUpdated: '2026-04-08',
   },
+  // ── Emmanus Wellness (bdaec5ec-...) ─────────────────────────────────────────
+  {
+    id: 'tp-3', patientId: 'pe1', patientName: 'Nadia Osei', createdDate: '2026-03-10', reviewDate: '2026-06-10', nextReviewDate: '2026-09-10',
+    provider: 'Emmanuel Ofori-Danso, NP', status: 'Active',
+    diagnoses: ['F41.1 — Generalized Anxiety Disorder', 'F32.1 — Major Depressive Disorder, Moderate'],
+    goals: [
+      { id: 'g-pe1-1', domain: 'Anxiety & Stress', description: 'Patient will reduce GAD-7 score from 14 to < 8 within 6 months', status: 'Progressing', targetDate: '2026-09-10', measure: 'GAD-7', progress: 40, interventions: ['Medication Management', 'CBT', 'Mindfulness-Based Stress Reduction'], notes: 'Escitalopram titrated to 10mg, GAD-7 improving', outcomeMeasure: 'GAD-7', baselineScore: 14, currentScore: 10, checkIns: [{ id: 'ci-pe1-1', date: '2026-04-01', progress: 20, note: 'Escitalopram 5mg started. Patient reporting mild side effects, tolerable.', author: 'Emmanuel Ofori-Danso, NP' }, { id: 'ci-pe1-2', date: '2026-05-01', progress: 40, note: 'Dose increased to 10mg. GAD-7 14 → 10. Patient reporting improved sleep quality.', author: 'Emmanuel Ofori-Danso, NP' }] },
+      { id: 'g-pe1-2', domain: 'Mood & Affect', description: 'Patient will report PHQ-9 < 10 and sustained mood improvement', status: 'Active', targetDate: '2026-09-10', measure: 'PHQ-9', progress: 30, interventions: ['Medication Management', 'Behavioral Activation'], notes: 'PHQ-9 baseline 12, currently 9', outcomeMeasure: 'PHQ-9', baselineScore: 12, currentScore: 9, checkIns: [{ id: 'ci-pe1-3', date: '2026-05-15', progress: 30, note: 'PHQ-9 reduced to 9. Patient re-engaged with social activities. Mood tracking initiated.', author: 'Emmanuel Ofori-Danso, NP' }] },
+    ],
+    sessionFrequency: 'Biweekly', anticipatedDuration: '6 months', lastUpdated: '2026-05-15',
+  },
+  {
+    id: 'tp-4', patientId: 'pe2', patientName: 'Kofi Mensah', createdDate: '2026-02-15', reviewDate: '2026-05-15', nextReviewDate: '2026-08-15',
+    provider: 'Emmanuel Ofori-Danso, NP', status: 'Active',
+    diagnoses: ['F90.0 — ADHD, Predominantly Inattentive', 'F32.0 — Major Depressive Disorder, Mild'],
+    goals: [
+      { id: 'g-pe2-1', domain: 'ADHD / Executive Function', description: 'Patient will implement task management strategies and improve workplace focus', status: 'Progressing', targetDate: '2026-08-15', measure: 'ASRS, self-report', progress: 55, interventions: ['Medication Management', 'Behavioral Activation', 'Psychoeducation'], notes: 'Sertraline + ADHD coaching underway', outcomeMeasure: 'ASRS', baselineScore: 22, currentScore: 13, checkIns: [{ id: 'ci-pe2-1', date: '2026-03-15', progress: 25, note: 'ASRS baseline 22. Task list system introduced. Patient engaged.', author: 'Emmanuel Ofori-Danso, NP' }, { id: 'ci-pe2-2', date: '2026-05-01', progress: 55, note: 'ASRS 13. Using Pomodoro timer at work. Supervisor feedback positive.', author: 'Emmanuel Ofori-Danso, NP' }] },
+    ],
+    sessionFrequency: 'Monthly', anticipatedDuration: '9 months', lastUpdated: '2026-05-28',
+  },
 ];
 
 export default function TreatmentPlans() {
   const { currentUser } = useAuth();
   const { patients } = usePatient();
-  const [plans, setPlans] = useState(MOCK_PLANS);
+
+  // Filter mock plans to only those belonging to patients this user can see
+  const accessiblePatientIds = useMemo(() => new Set(patients.map(p => p.id)), [patients]);
+  const filteredMockPlans = useMemo(
+    () => MOCK_PLANS.filter(plan => accessiblePatientIds.has(plan.patientId)),
+    [accessiblePatientIds]
+  );
+
+  const [plans, setPlans] = useState(filteredMockPlans);
   const [selectedPlanId, setSelectedPlanId] = useState(null);
   const [editingGoal, setEditingGoal] = useState(null);
   const [showNewGoal, setShowNewGoal] = useState(false);
