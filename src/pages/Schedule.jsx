@@ -325,7 +325,7 @@ function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggl
             }
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 14, color: "var(--text-primary)", marginBottom: 1 }}>
+            <div className="patient-row" style={{ fontWeight: 800, fontSize: 14, color: "var(--text-primary)", marginBottom: 1 }}>
               <PatientHoverCard patient={patientObj} appointments={allAppointments || []}>
                 {apt.patientName}
               </PatientHoverCard>

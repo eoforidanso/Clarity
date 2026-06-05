@@ -2018,6 +2018,17 @@ table:not(.data-table) tr:last-child td { border-bottom: none; }
 table:not(.data-table) tbody tr { transition: background 0.1s ease; }
 table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 
+.patient-row {
+  position: relative;
+}
+
+.hover-card {
+  position: absolute;
+  left: var(--name-column-offset, 0);
+  top: 100%;
+  transform: translateY(8px);
+}
+
 /* ══════════════════════════════════════════════════════════════
    BADGES
 ══════════════════════════════════════════════════════════════ */

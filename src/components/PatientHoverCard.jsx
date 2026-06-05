@@ -21,14 +21,12 @@ function fmtDate(d) {
 
 export default function PatientHoverCard({ patient, appointments = [], children }) {
   const [show, setShow] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
   const timer = React.useRef(null);
 
   if (!patient) return <>{children}</>;
 
   const age = calcAge(patient.dob);
 
-  // Find last + next appointments for this patient
   const patAppts = appointments
     .filter(a => a.patientId === patient.id)
     .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
@@ -38,14 +36,8 @@ export default function PatientHoverCard({ patient, appointments = [], children 
   const lastAppt = past[past.length - 1];
   const nextAppt = future[0];
 
-  const handleMouseEnter = (e) => {
+  const handleMouseEnter = () => {
     clearTimeout(timer.current);
-    // Use mouse coordinates directly — always viewport-relative for position:fixed
-    // Clamp left so the card never overflows the right edge
-    setPos({
-      top: e.clientY + 14,
-      left: Math.min(e.clientX, window.innerWidth - 290),
-    });
     timer.current = setTimeout(() => setShow(true), 300);
   };
 
@@ -55,23 +47,25 @@ export default function PatientHoverCard({ patient, appointments = [], children 
   };
 
   return (
-    <>
-      <span
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        style={{ cursor: 'default' }}
-      >
-        {children}
-      </span>
+    // Wrapper must sit inside a .patient-row (position:relative) so the
+    // card anchors to the name, not the viewport
+    <span
+      style={{ position: 'relative', display: 'inline-block' }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {children}
 
       {show && (
         <div
           onMouseEnter={() => clearTimeout(timer.current)}
           onMouseLeave={handleMouseLeave}
+          className="hover-card"
           style={{
-            position: 'fixed',
-            top: pos.top,
-            left: pos.left,
+            position: 'absolute',
+            left: 0,
+            top: '100%',
+            transform: 'translateY(8px)',
             zIndex: 9999,
             width: 270,
             background: '#fff',
@@ -137,6 +131,6 @@ export default function PatientHoverCard({ patient, appointments = [], children 
           </div>
         </div>
       )}
-    </>
+    </span>
   );
 }
