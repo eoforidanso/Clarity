@@ -54,7 +54,7 @@ function alreadyOpen(ruleId, actorId, ip, cooldownMin = 30) {
     WHERE rule_id = $1
       AND (actor_id = $2 OR ip = $3)
       AND status = 'open'
-      AND detected_at::timestamptz >= NOW() - ($4 * INTERVAL '1 minute')
+      AND detected_at::timestamptz >= NOW() - make_interval(mins => $4::int)
   `).get(ruleId, actorId || '', ip || '', cooldownMin);
   return !!row;
 }
