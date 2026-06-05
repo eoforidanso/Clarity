@@ -28,7 +28,6 @@ jobs:
         run: |
           echo "Checking server files for syntax errors..."
           find server -name "*.js" | while read f; do
-            node --input-type=module < "$f" 2>&1 | grep -v "^$" || true
             node --check "$f" || { echo "❌ Syntax error in $f"; exit 1; }
           done
           echo "✅ All server files passed syntax check"
