@@ -7,7 +7,7 @@
  *     <span>{patient.firstName} {patient.lastName}</span>
  *   </PatientHoverCard>
  */
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 
 function calcAge(dob) {
   if (!dob) return null;
@@ -22,8 +22,7 @@ function fmtDate(d) {
 export default function PatientHoverCard({ patient, appointments = [], children }) {
   const [show, setShow] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
-  const ref = useRef(null);
-  const timer = useRef(null);
+  const timer = React.useRef(null);
 
   if (!patient) return <>{children}</>;
 
@@ -41,14 +40,12 @@ export default function PatientHoverCard({ patient, appointments = [], children 
 
   const handleMouseEnter = (e) => {
     clearTimeout(timer.current);
-    const rect = ref.current?.getBoundingClientRect();
-    if (rect) {
-      // position: fixed is viewport-relative — never add scroll offsets
-      setPos({
-        top: rect.bottom + 6,
-        left: Math.min(rect.left, window.innerWidth - 284),
-      });
-    }
+    // Use mouse coordinates directly — always viewport-relative for position:fixed
+    // Clamp left so the card never overflows the right edge
+    setPos({
+      top: e.clientY + 14,
+      left: Math.min(e.clientX, window.innerWidth - 290),
+    });
     timer.current = setTimeout(() => setShow(true), 300);
   };
 
@@ -60,7 +57,6 @@ export default function PatientHoverCard({ patient, appointments = [], children 
   return (
     <>
       <span
-        ref={ref}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         style={{ cursor: 'default' }}
