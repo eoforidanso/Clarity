@@ -41,7 +41,7 @@ export const users = [
     email: 'danso@clarity.health',
     epcsPin: '9921',
     twoFactorEnabled: false,
-    locationId: 'loc1',
+    locationId: 'loc-apmg',
   },
   {
     id: 'u4',
@@ -188,7 +188,7 @@ export const users = [
 export const patients = [
   {
     id: 'p1',
-    locationId: 'loc1',
+    locationId: 'loc-apmg',
     mrn: 'MRN-00001',
     firstName: 'James',
     lastName: 'Anderson',
@@ -235,7 +235,7 @@ export const patients = [
   },
   {
     id: 'p2',
-    locationId: 'loc1',
+    locationId: 'loc-apmg',
     mrn: 'MRN-00002',
     firstName: 'Maria',
     lastName: 'Garcia',
@@ -282,7 +282,7 @@ export const patients = [
   },
   {
     id: 'p3',
-    locationId: 'loc1',
+    locationId: 'loc-apmg',
     mrn: 'MRN-00003',
     firstName: 'David',
     lastName: 'Thompson',
@@ -334,7 +334,7 @@ export const patients = [
   },
   {
     id: 'p4',
-    locationId: 'loc1',
+    locationId: 'loc-apmg',
     mrn: 'MRN-00004',
     firstName: 'Emily',
     lastName: 'Chen',
@@ -381,7 +381,7 @@ export const patients = [
   },
   {
     id: 'p5',
-    locationId: 'loc1',
+    locationId: 'loc-apmg',
     mrn: 'MRN-00005',
     firstName: 'Robert',
     lastName: 'Wilson',
@@ -433,7 +433,7 @@ export const patients = [
   },
   {
     id: 'p6',
-    locationId: 'loc1',
+    locationId: 'loc-apmg',
     mrn: 'MRN-00006',
     firstName: 'Aisha',
     lastName: 'Patel',

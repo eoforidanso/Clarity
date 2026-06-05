@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { useAuth } from './AuthContext';
 import {
   patients as mockPatients,
   appointments as mockAppointments,
@@ -6,6 +7,22 @@ import {
   medications as mockMedications,
 } from '../data/mockData';
 import { DEMO_PATIENTS, DEMO_APPOINTMENTS, DEMO_INBOX } from '../demo/demoData';
+
+/** Roles that can see all locations in mock data (mirrors server GLOBAL_ROLES) */
+const GLOBAL_ROLES = ['admin', 'front_desk'];
+
+/**
+ * Filter mock patients by the current user's location.
+ * Global roles and users with no locationId see everyone.
+ * Scoped roles only see patients whose locationId matches theirs.
+ */
+function filterMockByLocation(patients, currentUser) {
+  if (!currentUser) return patients;
+  if (GLOBAL_ROLES.includes(currentUser.role)) return patients;
+  const userLoc = currentUser.locationId || currentUser.location_id;
+  if (!userLoc) return patients; // no location assigned → see all
+  return patients.filter(p => !p.locationId || p.locationId === userLoc);
+}
 import {
   patients as patientsApi,
   allergies as allergiesApi,
@@ -30,8 +47,12 @@ function arrayToMap(patientId, arr, existing) {
 }
 
 export function PatientProvider({ children, demoMode = false }) {
+  const { currentUser } = useAuth();
+
   /* ────── Core state ────── */
-  const [patients, setPatients] = useState(demoMode ? DEMO_PATIENTS : (mockPatients || []));
+  const [patients, setPatients] = useState(
+    demoMode ? DEMO_PATIENTS : filterMockByLocation(mockPatients || [], currentUser)
+  );
   const [selectedPatient, setSelectedPatient] = useState(null);
   const MAX_OPEN_CHARTS = 4;
   const [openCharts, setOpenCharts] = useState([]);
@@ -50,6 +71,24 @@ export function PatientProvider({ children, demoMode = false }) {
   const [encounters, setEncounters] = useState({});
   const [blockedDays, setBlockedDays] = useState([]);
 
+  /* ────── Re-filter mock patients when currentUser changes ────── */
+  const prevUserIdRef = useRef(null);
+  useEffect(() => {
+    if (!currentUser || demoMode) return;
+    if (currentUser.id === prevUserIdRef.current) return;
+    prevUserIdRef.current = currentUser.id;
+    // Re-apply location filter now that we know who's logged in
+    setPatients(prev => {
+      // Keep any non-mock patients (real API patients have no locationId field initially)
+      // and re-filter the mock ones
+      const apiIds = new Set((mockPatients || []).map(p => p.id));
+      const apiPatients = prev.filter(p => !apiIds.has(p.id)); // real backend patients
+      const filtered = filterMockByLocation(mockPatients || [], currentUser);
+      const mockFiltered = filtered.filter(p => !apiPatients.some(a => a.id === p.id));
+      return [...apiPatients, ...mockFiltered];
+    });
+  }, [currentUser?.id, demoMode]);
+
   /* ────── On mount: try to load patients from backend ────── */
   const backendChecked = useRef(false);
   useEffect(() => {
@@ -60,14 +99,22 @@ export function PatientProvider({ children, demoMode = false }) {
       try {
         const apiPatients = await patientsApi.list({});
         if (Array.isArray(apiPatients)) {
-          // Merge any locally stored photos
+          // Merge locally stored photos
           const withPhotos = apiPatients.map(p => {
             try {
               const stored = localStorage.getItem(`clarity_pt_photo_${p.id}`);
               return stored ? { ...p, photo: stored } : p;
             } catch { return p; }
           });
-          setPatients(withPhotos);
+
+          // Keep mock-only patients (not in backend) filtered by location
+          const apiIds = new Set(withPhotos.map(p => p.id));
+          const mockOnly = filterMockByLocation(
+            (mockPatients || []).filter(p => !apiIds.has(p.id)),
+            currentUser
+          );
+
+          setPatients([...withPhotos, ...mockOnly]);
         }
       } catch { /* backend unavailable */ }
 
