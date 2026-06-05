@@ -7,26 +7,20 @@ const router = Router();
 router.use(authenticate);
 
 // GET /api/smart-phrases
-router.get('/', async (req, res) => {
-  const userId = req.query.userId || req.user.id;
+router.get('/', async (req, res) => { const userId = req.query.userId || req.user.id;
   const category = req.query.category;
   let query = 'SELECT * FROM smart_phrases WHERE (created_by = ? OR created_by IS NULL)';
   const params = [userId];
   if (category) {
     query += ' AND category = ?';
-    params.push(category);
-  }
+    params.push(category); }
   query += ' ORDER BY name';
   const rows = await db.prepare(query).all(...params);
-  res.json(rows.map(r => ({
-    id: r.id, name: r.name, triggerText: r.trigger_text,
-    content: r.content, category: r.category, userId: r.created_by,
-  })));
+  res.json(rows.map(r => ({ id: r.id, name: r.name, triggerText: r.trigger_text, content: r.content, category: r.category, userId: r.created_by,  })));
 });
 
 // POST /api/smart-phrases
-router.post('/', async (req, res) => {
-  const { name, triggerText, content, category } = req.body;
+router.post('/', async (req, res) => { const { name, triggerText, content, category } = req.body;
   const id = uuidv4();
   await db.prepare('INSERT INTO smart_phrases (id, created_by, name, trigger_text, content, category) VALUES (?,?,?,?,?,?)').run(
     id, req.user.id, name, triggerText, content, category || 'General'
@@ -35,8 +29,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/smart-phrases/:id
-router.put('/:id', async (req, res) => {
-  const { name, triggerText, content, category } = req.body;
+router.put('/:id', async (req, res) => { const { name, triggerText, content, category } = req.body;
   const existing = await db.prepare('SELECT * FROM smart_phrases WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
   if (!existing) return res.status(404).json({ error: 'Smart phrase not found' });
   await db.prepare('UPDATE smart_phrases SET name=?, trigger_text=?, content=?, category=? WHERE id=?').run(
@@ -46,8 +39,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/smart-phrases/:id
-router.delete('/:id', async (req, res) => {
-  const result = await db.prepare('DELETE FROM smart_phrases WHERE id = ? AND created_by = ?').run(req.params.id, req.user.id);
+router.delete('/:id', async (req, res) => { const result = await db.prepare('DELETE FROM smart_phrases WHERE id = ? AND created_by = ?').run(req.params.id, req.user.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Smart phrase not found' });
   res.json({ success: true });
 });

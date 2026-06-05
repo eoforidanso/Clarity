@@ -7,28 +7,22 @@ const router = Router();
 router.use(authenticate);
 
 // GET /api/patients/:patientId/orders
-router.get('/:patientId/orders', async (req, res) => {
-  const rows = await db.prepare('SELECT * FROM orders WHERE patient_id = ? ORDER BY ordered_date DESC').all(req.params.patientId);
+router.get('/:patientId/orders', async (req, res) => { const rows = await db.prepare('SELECT * FROM orders WHERE patient_id = ? ORDER BY ordered_date DESC').all(req.params.patientId);
   res.json(rows.map(r => ({
-    id: r.id, type: r.type, description: r.description, status: r.status,
-    orderedDate: r.ordered_date, orderedBy: r.ordered_by, priority: r.priority,
-    notes: r.notes, labFacility: r.lab_facility,
-  })));
+    id: r.id, type: r.type, description: r.description, status: r.status, orderedDate: r.ordered_date, orderedBy: r.ordered_by, priority: r.priority, notes: r.notes, labFacility: r.lab_facility,  })));
 });
 
 // POST /api/patients/:patientId/orders
-router.post('/:patientId/orders', async (req, res) => {
-  const b = req.body;
+router.post('/:patientId/orders', async (req, res) => { const b = req.body;
   const id = b.id || uuidv4();
-  await db.prepare('INSERT INTO orders (id, patient_id, type, description, status, ordered_date, ordered_by, priority, notes, lab_facility) VALUES (?,?,?,?,?,?,?,?,?,?)').run(
+  await db.prepare('INSERT INTO orders (id, patient_id, type, description, status, ordered_date, ordered_by, priority, notes, lab_facility) VALUES (?, ?, ?)').run(
     id, req.params.patientId, b.type, b.description, b.status || 'Pending', b.orderedDate || new Date().toISOString().split('T')[0], b.orderedBy || '', b.priority || 'Routine', b.notes || '', b.labFacility || null
   );
   res.status(201).json({ id, ...b });
 });
 
 // PUT /api/patients/:patientId/orders/:orderId
-router.put('/:patientId/orders/:orderId', async (req, res) => {
-  const b = req.body;
+router.put('/:patientId/orders/:orderId', async (req, res) => { const b = req.body;
   const existing = await db.prepare('SELECT * FROM orders WHERE id = ? AND patient_id = ?').get(req.params.orderId, req.params.patientId);
   if (!existing) return res.status(404).json({ error: 'Order not found' });
 

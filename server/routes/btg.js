@@ -7,20 +7,17 @@ const router = Router();
 router.use(authenticate);
 
 // POST /api/btg/request-access
-router.post('/request-access', requireElevated, async (req, res) => {
-  const { patientId, reason } = req.body;
-  if (!patientId || !reason) {
-    return res.status(400).json({ error: 'Patient ID and reason are required' });
+router.post('/request-access', requireElevated, async (req, res) => { const { patientId, reason } = req.body;
+  if (!patientId || !reason) { return res.status(400).json({ error: 'Patient ID and reason are required' });
   }
-  if (reason.length < 10) {
-    return res.status(400).json({ error: 'Reason must be at least 10 characters' });
+  if (reason.length < 10) { return res.status(400).json({ error: 'Reason must be at least 10 characters' });
   }
 
   const patient = await db.prepare('SELECT first_name, last_name FROM patients WHERE id = ?').get(patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-  const patientName = `${patient.first_name} ${patient.last_name}`;
-  const userName = `${req.user.first_name} ${req.user.last_name}`.trim();
+  const patientName = `${ patient.first_name } ${ patient.last_name }`;
+  const userName = `${ req.user.first_name } ${ req.user.last_name }`.trim();
 
   // Log the access
   const logId = uuidv4();
@@ -39,8 +36,7 @@ router.post('/request-access', requireElevated, async (req, res) => {
 });
 
 // GET /api/btg/check-access/:patientId
-router.get('/check-access/:patientId', async (req, res) => {
-  const access = await db.prepare(
+router.get('/check-access/:patientId', async (req, res) => { const access = await db.prepare(
     'SELECT * FROM btg_access WHERE patient_id = ? AND user_id = ? AND expires_at > NOW()'
   ).get(req.params.patientId, req.user.id);
 
@@ -48,8 +44,7 @@ router.get('/check-access/:patientId', async (req, res) => {
 });
 
 // GET /api/btg/audit-log
-router.get('/audit-log', async (req, res) => {
-  const { patientId, userId, startDate, endDate } = req.query;
+router.get('/audit-log', async (req, res) => { const { patientId, userId, startDate, endDate } = req.query;
   let query = 'SELECT * FROM btg_audit_log WHERE 1=1';
   const params = [];
 
@@ -60,11 +55,7 @@ router.get('/audit-log', async (req, res) => {
   query += ' ORDER BY timestamp DESC';
 
   const rows = await db.prepare(query).all(...params);
-  res.json(rows.map(r => ({
-    id: r.id, patientId: r.patient_id, patientName: r.patient_name,
-    accessedBy: r.accessed_by, accessedByName: r.accessed_by_name,
-    reason: r.reason, timestamp: r.timestamp, approved: !!r.approved,
-  })));
+  res.json(rows.map(r => ({ id: r.id, patientId: r.patient_id, patientName: r.patient_name, accessedBy: r.accessed_by, accessedByName: r.accessed_by_name, reason: r.reason, timestamp: r.timestamp, approved: !!r.approved,  })));
 });
 
 export default router;

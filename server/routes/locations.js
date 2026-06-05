@@ -11,47 +11,25 @@ const ADMIN_ROLES = ['admin'];
 const VALID_TYPES = ['Primary', 'Satellite', 'Virtual'];
 const VALID_STATUSES = ['Active', 'Inactive'];
 
-function rowToObj(r) {
-  return {
-    id: r.id,
-    name: r.name,
-    shortName: r.short_name,
-    address: r.address,
-    phone: r.phone,
-    fax: r.fax,
-    hours: r.hours,
-    type: r.type,
-    status: r.status,
-    npi: r.npi,
-    taxId: r.tax_id,
-    placeOfService: r.place_of_service,
-    rooms: r.rooms,
-    telehealth: !!r.telehealth,
-    sortOrder: r.sort_order,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
-  };
+function rowToObj(r) { return {
+    id: r.id, name: r.name, shortName: r.short_name, address: r.address, phone: r.phone, fax: r.fax, hours: r.hours, type: r.type, status: r.status, npi: r.npi, taxId: r.tax_id, placeOfService: r.place_of_service, rooms: r.rooms, telehealth: !!r.telehealth, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,  };
 }
 
 // ── GET /api/locations ──────────────────────────────────────────────────
 // Public to authenticated users (all roles need to see the location list)
-router.get('/', authenticate, async (_req, res) => {
-  const rows = await db.prepare(
-    `SELECT * FROM locations WHERE ${activeScope} ORDER BY sort_order ASC, name ASC`
+router.get('/', authenticate, async (_req, res) => { const rows = await db.prepare(
+    `SELECT * FROM locations WHERE ${activeScope } ORDER BY sort_order ASC, name ASC`
   ).all();
   res.json(rows.map(rowToObj));
 });
 
 // ── POST /api/locations ─────────────────────────────────────────────────
 // Admin/front_desk only
-router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
-  const { name, shortName, address, phone, fax, hours, type, status, npi, taxId, placeOfService, rooms, telehealth, sortOrder } = req.body;
+router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => { const { name, shortName, address, phone, fax, hours, type, status, npi, taxId, placeOfService, rooms, telehealth, sortOrder } = req.body;
 
-  if (!name || typeof name !== 'string' || name.trim().length < 1) {
-    return res.status(400).json({ error: 'Location name is required' });
+  if (!name || typeof name !== 'string' || name.trim().length < 1) { return res.status(400).json({ error: 'Location name is required' });
   }
-  if (type && !VALID_TYPES.includes(type)) {
-    return res.status(400).json({ error: `Type must be one of: ${VALID_TYPES.join(', ')}` });
+  if (type && !VALID_TYPES.includes(type)) { return res.status(400).json({ error: `Type must be one of: ${VALID_TYPES.join(', ') }` });
   }
 
   const id = uuidv4();
@@ -76,9 +54,7 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
     Number(sortOrder) || 0
   );
 
-  logAuditEvent({
-    userId: req.user.id,
-    userName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
+  logAuditEvent({ userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
     userRole: req.user.role,
     action: 'LOCATION_CREATED',
     resourceType: 'location',
@@ -93,18 +69,15 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
 });
 
 // ── PUT /api/locations/:id ──────────────────────────────────────────────
-router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
-  const { id } = req.params;
+router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => { const { id } = req.params;
   const loc = await db.prepare('SELECT id FROM locations WHERE id = ?').get(id);
   if (!loc) return res.status(404).json({ error: 'Location not found' });
 
   const { name, shortName, address, phone, fax, hours, type, status, npi, taxId, placeOfService, rooms, telehealth, sortOrder } = req.body;
 
-  if (type && !VALID_TYPES.includes(type)) {
-    return res.status(400).json({ error: `Type must be one of: ${VALID_TYPES.join(', ')}` });
+  if (type && !VALID_TYPES.includes(type)) { return res.status(400).json({ error: `Type must be one of: ${VALID_TYPES.join(', ') }` });
   }
-  if (status && !VALID_STATUSES.includes(status)) {
-    return res.status(400).json({ error: `Status must be one of: ${VALID_STATUSES.join(', ')}` });
+  if (status && !VALID_STATUSES.includes(status)) { return res.status(400).json({ error: `Status must be one of: ${VALID_STATUSES.join(', ') }` });
   }
 
   await db.prepare(
@@ -143,9 +116,7 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => 
     id
   );
 
-  logAuditEvent({
-    userId: req.user.id,
-    userName: `${req.user.first_name} ${req.user.last_name || ''}`.trim(),
+  logAuditEvent({ userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
     userRole: req.user.role,
     action: 'LOCATION_UPDATED',
     resourceType: 'location',
@@ -159,42 +130,31 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => 
 });
 
 // ── DELETE /api/locations/:id (soft delete) ─────────────────────────────
-router.delete('/:id', authenticate, requireElevated, async (req, res) => {
-  if (req.user.role !== 'admin') {
+router.delete('/:id', authenticate, requireElevated, async (req, res) => { if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
   const { id } = req.params;
-  const actorName = `${req.user.first_name} ${req.user.last_name || ''}`.trim();
+  const actorName = `${ req.user.first_name } ${ req.user.last_name || '' }`.trim();
 
-  try {
-    const loc = db.prepare(`SELECT id, name FROM locations WHERE id = ? AND ${activeScope}`).get(id);
+  try { const loc = db.prepare(`SELECT id, name FROM locations WHERE id = ? AND ${activeScope }`).get(id);
     if (!loc) return res.status(404).json({ error: 'Location not found' });
 
     // Prevent deleting the last active location
-    const activeCount = db.prepare(`SELECT COUNT(*) as c FROM locations WHERE status = 'Active' AND ${activeScope}`).get();
-    if (activeCount.c <= 1) {
-      return res.status(400).json({ error: 'Cannot delete the last active location' });
+    const activeCount = db.prepare(`SELECT COUNT(*) as c FROM locations WHERE status = 'Active' AND ${ activeScope }`).get();
+    if (activeCount.c <= 1) { return res.status(400).json({ error: 'Cannot delete the last active location' });
     }
 
     await ensureLocationHasNoDependencies(id);
     softDeleteLocation(id, req.user.id, actorName, req.ip);
 
     res.status(204).end();
-  } catch (err) {
-    if (err.message === 'LOCATION_HAS_DEPENDENCIES') {
+  } catch (err) { if (err.message === 'LOCATION_HAS_DEPENDENCIES') {
       logAudit({
-        actorId: req.user.id, actorName,
-        action: 'LOCATION_DELETE_BLOCKED_DEPENDENCIES',
-        targetId: id, targetType: 'location',
-        details: { users: err.users, patients: err.patients },
+        actorId: req.user.id, actorName, action: 'LOCATION_DELETE_BLOCKED_DEPENDENCIES', targetId: id, targetType: 'location', details: { users: err.users, patients: err.patients },
         ip: req.ip,
       });
-      return res.status(409).json({
-        error: 'Location has active users or patients — reassign them first',
-        users: err.users,
-        patients: err.patients,
-      });
+      return res.status(409).json({ error: 'Location has active users or patients — reassign them first', users: err.users, patients: err.patients,  });
     }
     throw err;
   }

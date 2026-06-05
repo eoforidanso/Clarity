@@ -9,20 +9,9 @@ router.use(authenticate);
 router.use('/:patientId', requirePatientAccess);
 router.use('/:patientId/*', requirePatientAccess);
 
-function formatEncounter(row) {
-  return {
-    id: row.id, date: row.date, time: row.time, provider: row.provider,
-    providerName: row.provider_name, credentials: row.credentials,
-    visitType: row.visit_type, cptCode: row.cpt_code, icdCode: row.icd_code,
-    reason: row.reason, duration: row.duration, chiefComplaint: row.chief_complaint,
-    hpi: row.hpi, intervalNote: row.interval_note, mse: row.mse,
-    assessment: row.assessment, plan: row.plan,
-    safety: {
-      siLevel: row.safety_si_level, hiLevel: row.safety_hi_level,
-      selfHarm: !!row.safety_self_harm, substanceUse: !!row.safety_substance_use,
-      safetyPlanUpdated: !!row.safety_plan_updated, crisisResources: !!row.safety_crisis_resources,
-      safetyNotes: row.safety_notes,
-    },
+function formatEncounter(row) { return {
+    id: row.id, date: row.date, time: row.time, provider: row.provider, providerName: row.provider_name, credentials: row.credentials, visitType: row.visit_type, cptCode: row.cpt_code, icdCode: row.icd_code, reason: row.reason, duration: row.duration, chiefComplaint: row.chief_complaint, hpi: row.hpi, intervalNote: row.interval_note, mse: row.mse, assessment: row.assessment, plan: row.plan, safety: {
+      siLevel: row.safety_si_level, hiLevel: row.safety_hi_level, selfHarm: !!row.safety_self_harm, substanceUse: !!row.safety_substance_use, safetyPlanUpdated: !!row.safety_plan_updated, crisisResources: !!row.safety_crisis_resources, safetyNotes: row.safety_notes,  },
     followUp: row.follow_up, disposition: row.disposition,
     isSigned: !!row.is_signed,
     signedBy: row.signed_by || '',
@@ -31,23 +20,19 @@ function formatEncounter(row) {
 }
 
 // GET /api/patients/:patientId/encounters
-router.get('/:patientId/encounters', async (req, res) => {
-  const rows = await db.prepare('SELECT * FROM encounters WHERE patient_id = ? ORDER BY date DESC').all(req.params.patientId);
-  res.json(rows.map(formatEncounter));
-});
+router.get('/:patientId/encounters', async (req, res) => { const rows = await db.prepare('SELECT * FROM encounters WHERE patient_id = ? ORDER BY date DESC').all(req.params.patientId);
+  res.json(rows.map(formatEncounter)); });
 
 // GET /api/patients/:patientId/encounters/:encId
-router.get('/:patientId/encounters/:encId', async (req, res) => {
-  const row = await db.prepare('SELECT * FROM encounters WHERE id = ? AND patient_id = ?').get(req.params.encId, req.params.patientId);
+router.get('/:patientId/encounters/:encId', async (req, res) => { const row = await db.prepare('SELECT * FROM encounters WHERE id = ? AND patient_id = ?').get(req.params.encId, req.params.patientId);
   if (!row) return res.status(404).json({ error: 'Encounter not found' });
   res.json(formatEncounter(row));
 });
 
 // POST /api/patients/:patientId/encounters
-router.post('/:patientId/encounters', async (req, res) => {
-  const b = req.body;
+router.post('/:patientId/encounters', async (req, res) => { const b = req.body;
   const id = b.id || uuidv4();
-  const safety = b.safety || {};
+  const safety = b.safety || { };
 
   await db.prepare(`INSERT INTO encounters (id, patient_id, date, time, provider, provider_name, credentials, visit_type, cpt_code, icd_code, reason, duration, chief_complaint, hpi, interval_note, mse, assessment, plan, safety_si_level, safety_hi_level, safety_self_harm, safety_substance_use, safety_plan_updated, safety_crisis_resources, safety_notes, follow_up, disposition) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
     id, req.params.patientId, b.date, b.time || '', b.provider || '', b.providerName || '', b.credentials || '', b.visitType || '', b.cptCode || '', b.icdCode || '', b.reason || '', b.duration || '', b.chiefComplaint || '', b.hpi || '', b.intervalNote || '', b.mse || '', b.assessment || '', b.plan || '', safety.siLevel || 'None', safety.hiLevel || 'None', safety.selfHarm ? 1 : 0, safety.substanceUse ? 1 : 0, safety.safetyPlanUpdated ? 1 : 0, safety.crisisResources ? 1 : 0, safety.safetyNotes || '', b.followUp || '', b.disposition || ''
@@ -58,13 +43,11 @@ router.post('/:patientId/encounters', async (req, res) => {
 });
 
 // PUT /api/patients/:patientId/encounters/:encId
-router.put('/:patientId/encounters/:encId', async (req, res) => {
-  const existing = await db.prepare('SELECT * FROM encounters WHERE id = ? AND patient_id = ?').get(req.params.encId, req.params.patientId);
+router.put('/:patientId/encounters/:encId', async (req, res) => { const existing = await db.prepare('SELECT * FROM encounters WHERE id = ? AND patient_id = ?').get(req.params.encId, req.params.patientId);
   if (!existing) return res.status(404).json({ error: 'Encounter not found' });
 
   // Block editing a signed encounter unless the requesting user is an admin
-  if (existing.is_signed && req.user?.role !== 'admin') {
-    return res.status(403).json({ error: 'This encounter has been signed and locked. Contact an administrator to make corrections.' });
+  if (existing.is_signed && req.user?.role !== 'admin') { return res.status(403).json({ error: 'This encounter has been signed and locked. Contact an administrator to make corrections.' });
   }
 
   const b = req.body;

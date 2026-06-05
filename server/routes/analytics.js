@@ -6,8 +6,7 @@ const router = Router();
 router.use(authenticate);
 
 // GET /api/analytics/summary
-router.get('/summary', async (req, res) => {
-  const totalPatients = await db.prepare('SELECT COUNT(*) as count FROM patients').get().count;
+router.get('/summary', async (req, res) => { const totalPatients = await db.prepare('SELECT COUNT(*) as count FROM patients').get().count;
   const activePatients = await db.prepare("SELECT COUNT(*) as count FROM patients WHERE is_active = 1").get().count;
 
   const today = new Date().toISOString().split('T')[0];
@@ -25,7 +24,7 @@ router.get('/summary', async (req, res) => {
   const apptStatuses = await db.prepare('SELECT status, COUNT(*) as count FROM appointments GROUP BY status').all();
 
   // Inbox volume
-  const pendingInbox = await db.prepare("SELECT COUNT(*) as count FROM inbox_messages WHERE status IN ('New','Pending')").get().count;
+  const pendingInbox = await db.prepare("SELECT COUNT(*) as count FROM inbox_messages WHERE status IN ('New', 'Pending')").get().count;
   const inboxByType = await db.prepare('SELECT type, COUNT(*) as count FROM inbox_messages GROUP BY type').all();
 
   // Medication stats
@@ -55,8 +54,7 @@ router.get('/summary', async (req, res) => {
 });
 
 // GET /api/analytics/patient/:id — per-patient analytics
-router.get('/patient/:id', async (req, res) => {
-  const pid = req.params.id;
+router.get('/patient/:id', async (req, res) => { const pid = req.params.id;
   const encCount = await db.prepare('SELECT COUNT(*) as count FROM encounters WHERE patient_id = ?').get(pid).count;
   const medCount = await db.prepare("SELECT COUNT(*) as count FROM medications WHERE patient_id = ? AND status = 'Active'").get(pid).count;
   const assessments = await db.prepare('SELECT tool as type, score, date FROM assessments WHERE patient_id = ? ORDER BY date DESC').all(pid);
@@ -64,13 +62,8 @@ router.get('/patient/:id', async (req, res) => {
   const vitals = await db.prepare('SELECT date, bp, hr, weight FROM vitals WHERE patient_id = ? ORDER BY date DESC LIMIT 10').all(pid);
 
   res.json({
-    encounters: encCount,
-    activeMedications: medCount,
-    assessments,
-    recentAppointments: appts,
-    vitalsTrend: vitals.map(v => ({
-      date: v.date, bp: v.bp, heartRate: v.hr, weight: v.weight,
-    })),
+    encounters: encCount, activeMedications: medCount, assessments, recentAppointments: appts, vitalsTrend: vitals.map(v => ({
+      date: v.date, bp: v.bp, heartRate: v.hr, weight: v.weight,  })),
   });
 });
 
