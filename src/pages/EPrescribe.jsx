@@ -412,6 +412,132 @@ function StaffRefillRequest() {
 }
 
 // ── Main EPrescribe (prescribers only) ──────────────────────────
+// ── Post-send success panel with message tab ──────────────────────────────
+function RxSuccessPanel({ selectedMed, rx, prescriptionPatient, currentUser, addInboxMessage, onPrint, onReset }) {
+  const [activeTab, setActiveTab] = React.useState('summary');
+  const [msgText, setMsgText]     = React.useState(
+    `Hi ${prescriptionPatient?.firstName}, your prescription for ${selectedMed?.name} ${rx?.dose} has been sent to ${rx?.pharmacy || 'your pharmacy'}. Please allow 1–2 hours for processing. Contact us if you have any questions.`
+  );
+  const [sent, setSent] = React.useState(false);
+
+  const sendMessage = () => {
+    if (!msgText.trim() || !prescriptionPatient) return;
+    addInboxMessage({
+      type: 'Patient Message',
+      from: `${currentUser?.firstName} ${currentUser?.lastName}`,
+      to: prescriptionPatient.id,
+      patient: prescriptionPatient.id,
+      patientName: `${prescriptionPatient.firstName} ${prescriptionPatient.lastName}`,
+      subject: `Rx Sent: ${selectedMed?.name} ${rx?.dose}`,
+      body: msgText,
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      priority: 'Normal',
+      status: 'Unread',
+    });
+    setSent(true);
+  };
+
+  return (
+    <div className="card" style={{ maxWidth: 600, margin: '0 auto' }}>
+      {/* Success header */}
+      <div style={{ textAlign: 'center', padding: '32px 24px 20px' }}>
+        <div style={{ fontSize: 56, marginBottom: 12 }}>✅</div>
+        <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Prescription Sent Successfully</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
+          <strong>{selectedMed?.name} {rx?.dose}</strong> → {rx?.pharmacy || 'Pharmacy'}
+          {selectedMed?.isControlled && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#dc2626', background: '#fee2e2', padding: '2px 8px', borderRadius: 10 }}>EPCS Verified</span>}
+        </p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
+          Patient: {prescriptionPatient?.firstName} {prescriptionPatient?.lastName}
+          {rx?.sendDate && rx.sendDate !== new Date().toISOString().split('T')[0] && (
+            <span style={{ marginLeft: 8, color: '#f59e0b', fontWeight: 600 }}>
+              📅 Post-dated: {new Date(rx.sendDate + 'T12:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+          )}
+        </p>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+        {[
+          { key: 'summary', label: '📋 Summary' },
+          { key: 'message', label: '💬 Message Patient' },
+        ].map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
+            flex: 1, padding: '12px 0', border: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: 700,
+            background: activeTab === t.key ? 'var(--primary-light)' : 'transparent',
+            color: activeTab === t.key ? 'var(--primary)' : 'var(--text-muted)',
+            borderBottom: activeTab === t.key ? '2px solid var(--primary)' : '2px solid transparent',
+          }}>{t.label}</button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div style={{ padding: '20px 24px' }}>
+        {activeTab === 'summary' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              ['Medication', `${selectedMed?.name} ${rx?.dose}`],
+              ['Frequency',  rx?.frequency],
+              ['Quantity',   `${rx?.quantity} tablets`],
+              ['Refills',    rx?.refills],
+              ['Pharmacy',   rx?.pharmacy || '—'],
+              ['Diagnosis',  rx?.diagnosisCode ? `${rx.diagnosisCode} — ${rx.diagnosis}` : rx?.diagnosis || '—'],
+              ['SIG',        rx?.sig || '—'],
+            ].map(([label, value]) => (
+              <div key={label} style={{ display: 'flex', gap: 12, fontSize: 13 }}>
+                <span style={{ color: 'var(--text-muted)', minWidth: 90 }}>{label}</span>
+                <span style={{ fontWeight: 600 }}>{value}</span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button className="btn btn-secondary" onClick={onPrint}>🖨️ Print Rx</button>
+              <button className="btn btn-primary" onClick={onReset}>✏️ Write Another Rx</button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'message' && (
+          sent ? (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>📨</div>
+              <p style={{ fontWeight: 700, marginBottom: 6 }}>Message sent to {prescriptionPatient?.firstName}!</p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
+                They'll see it in their Patient Portal inbox.
+              </p>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                <button className="btn btn-secondary" onClick={() => { setSent(false); }}>Send Another</button>
+                <button className="btn btn-primary" onClick={onReset}>✏️ Write Another Rx</button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+                Notify <strong>{prescriptionPatient?.firstName} {prescriptionPatient?.lastName}</strong> that their prescription has been sent to the pharmacy.
+              </p>
+              <textarea
+                className="form-input"
+                rows={5}
+                value={msgText}
+                onChange={e => setMsgText(e.target.value)}
+                style={{ width: '100%', fontSize: 13, lineHeight: 1.6, resize: 'vertical' }}
+              />
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
+                <button className="btn btn-secondary" onClick={onReset}>Skip</button>
+                <button className="btn btn-primary" onClick={sendMessage} disabled={!msgText.trim()}>
+                  📨 Send Message
+                </button>
+              </div>
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function EPrescribe() {
   const { currentUser, verifyEPCS, generateEPCSOTP, verifyEPCSOTP } = useAuth();
   const { patients, selectedPatient, selectPatient, meds, addMedication, addOrder } = usePatient();
@@ -971,23 +1097,15 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
   };
 
   if (showSuccess) {
-    return (
-      <div className="card" style={{ textAlign: 'center', padding: 60 }}>
-        <div style={{ fontSize: 64, marginBottom: 16 }}>✅</div>
-        <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Prescription Sent Successfully</h2>
-        <p className="text-secondary">
-          {selectedMed?.name} {rx.dose} has been sent to {rx.pharmacy || 'the pharmacy'}
-          {selectedMed?.isControlled && ' (EPCS Verified)'}
-        </p>
-        <p className="text-muted mt-2">
-          Patient: {prescriptionPatient?.firstName} {prescriptionPatient?.lastName}
-        </p>
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 28 }}>
-          <button className="btn btn-secondary" onClick={printRxReceipt}>🖨️ Print Rx</button>
-          <button className="btn btn-primary" onClick={resetPrescriber}>✏️ Write Another Prescription</button>
-        </div>
-      </div>
-    );
+    return <RxSuccessPanel
+      selectedMed={selectedMed}
+      rx={rx}
+      prescriptionPatient={prescriptionPatient}
+      currentUser={currentUser}
+      addInboxMessage={addInboxMessage}
+      onPrint={printRxReceipt}
+      onReset={resetPrescriber}
+    />;
   }
 
   return (
