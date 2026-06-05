@@ -252,7 +252,10 @@ function UserForm({ initial, onSave, onCancel, loading, error, locationOptions }
 }
 
 function ResetPasswordModal({ user, onClose }) {
-  const [step, setStep]       = useState('reauth'); // 'reauth' | 'reset' | 'done'
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'admin';
+  // Admins skip re-auth; other privileged roles still need elevation
+  const [step, setStep]       = useState(isAdmin ? 'reset' : 'reauth');
   const [myPwd, setMyPwd]     = useState('');
   const [newPwd, setNewPwd]   = useState('');
   const [showMyPwd, setShowMyPwd]   = useState(false);
@@ -277,13 +280,13 @@ function ResetPasswordModal({ user, onClose }) {
     }
   };
 
-  // Step 2 — submit the new password with the elevated token
+  // Step 2 — submit the new password (admins need no elevated token)
   const handleReset = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      await admin.users.resetPassword(user.id, newPwd, elevatedToken);
+      await admin.users.resetPassword(user.id, newPwd, isAdmin ? null : elevatedToken);
       setStep('done');
     } catch (err) {
       setError(err.message);
