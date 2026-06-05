@@ -43,9 +43,10 @@ export default function PatientHoverCard({ patient, appointments = [], children 
     clearTimeout(timer.current);
     const rect = ref.current?.getBoundingClientRect();
     if (rect) {
+      // position: fixed is viewport-relative — never add scroll offsets
       setPos({
-        top: rect.bottom + window.scrollY + 6,
-        left: Math.min(rect.left + window.scrollX, window.innerWidth - 280),
+        top: rect.bottom + 6,
+        left: Math.min(rect.left, window.innerWidth - 284),
       });
     }
     timer.current = setTimeout(() => setShow(true), 300);
