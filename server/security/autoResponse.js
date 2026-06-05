@@ -23,7 +23,7 @@ function severityOf(anomaly) {
 
 async function autoReauth(user, anomaly) {
   await db.prepare(
-    `UPDATE sessions SET reauth_required = TRUE WHERE id = $1 AND user_id = $2`
+    `UPDATE sessions SET reauth_required = 1 WHERE id = $1 AND user_id = $2`
   ).run(anomaly.session_id, user.id);
 }
 
@@ -35,7 +35,7 @@ async function autoRevokeSession(user, anomaly) {
 
 async function autoLockAccount(user, anomaly) {
   await db.prepare(
-    `UPDATE users SET is_locked = TRUE, locked_reason = $1, locked_at = NOW() WHERE id = $2`
+    `UPDATE users SET is_locked = 1, locked_reason = $1, locked_at = NOW() WHERE id = $2`
   ).run('auto_response_anomaly', user.id);
 
   await sendSecurityAlertEmail({ user, anomaly, action: 'AUTO_LOCK_ACCOUNT' });
