@@ -151,78 +151,85 @@ export default function Header() {
   const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
+  const clinic = availableSites?.find(s => s.id === activeSiteId) || availableSites?.[0];
+
   return (
-    <header className="header">
-      {/* Location capsule — left block */}
-      {(() => {
-        const clinic = availableSites?.find(s => s.id === activeSiteId) || availableSites?.[0];
-        if (!clinic) return null;
-        return (
+    <header className="header" style={{
+      height: 64,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '0 24px',
+      background: '#ffffff',
+      borderBottom: '1px solid #e5e8ef',
+    }}>
+
+      {/* ── LEFT: Location Capsule ── */}
+      <div className="topbar-left">
+        {clinic && (
           <div className="location-capsule" onClick={() => navigate('/multi-location')}
             title={`${clinic.name} · API ${apiStatus}`}>
             <div className="loc-left">
-              <div className="loc-name">{clinic.name || clinic.shortName}</div>
-              <div className="loc-sub">{clinic.city ? `${clinic.city}, ${clinic.state}` : clinic.address || 'Clarity EHR'}</div>
+              <div className="loc-name">{clinic.shortName || clinic.name}</div>
+              <div className="loc-sub">{clinic.city ? `${clinic.city}, ${clinic.state}` : 'Clarity EHR'}</div>
             </div>
             <span className="loc-status" style={{
-              background:
-                apiStatus === 'online'    ? '#22c55e' :
-                apiStatus === 'degraded'  ? '#f59e0b' :
-                apiStatus === 'offline'   ? '#ef4444' :
-                '#d1d5db', // checking = grey
+              background: apiStatus === 'online' ? '#22c55e' : apiStatus === 'degraded' ? '#f59e0b' : apiStatus === 'offline' ? '#ef4444' : '#d1d5db',
               boxShadow: apiStatus === 'online' ? '0 0 0 2px rgba(34,197,94,0.2)' : 'none',
             }} />
-          </div>
-        );
-      })()}
-
-      {/* Search */}
-      <div className="header-search" ref={searchRef}>
-        <span className="search-icon">🔍</span>
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="Search patients — name or MRN..."
-          aria-label="Search patients by name or MRN"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setShowResults(true); }}
-          onFocus={() => search.length > 1 && setShowResults(true)}
-        />
-        <span className="search-kbd">Ctrl+K</span>
-
-        {showResults && filteredPatients.length > 0 && (
-          <div className="search-results">
-            {filteredPatients.map((p) => (
-              <div key={p.id} className="search-result-item" onClick={() => handleSelectPatient(p)}>
-                <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, flexShrink: 0 }}>
-                  {p.firstName[0]}{p.lastName[0]}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 7 }}>
-                    {p.lastName}, {p.firstName}
-                    {p.isBTG && <span className="badge badge-danger" style={{ fontSize: 10 }}>BTG</span>}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
-                    MRN {p.mrn} · DOB {p.dob} · {p.gender}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {showResults && search.length > 1 && filteredPatients.length === 0 && (
-          <div className="search-results">
-            <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-              No patients found for "{search}"
-            </div>
           </div>
         )}
       </div>
 
-      {/* Open chart tabs */}
-      {openCharts.length > 0 && (
-        <>
-          <div className="header-divider" />
+      {/* ── CENTER: Search + open chart tabs ── */}
+      <div className="topbar-center">
+        {/* Search */}
+        <div className="header-search" ref={searchRef}>
+          <span className="search-icon">🔍</span>
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Search patients — name or MRN..."
+            aria-label="Search patients by name or MRN"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setShowResults(true); }}
+            onFocus={() => search.length > 1 && setShowResults(true)}
+          />
+          <span className="search-kbd">Ctrl+K</span>
+
+          {showResults && filteredPatients.length > 0 && (
+            <div className="search-results">
+              {filteredPatients.map((p) => (
+                <div key={p.id} className="search-result-item" onClick={() => handleSelectPatient(p)}>
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, flexShrink: 0 }}>
+                    {p.firstName[0]}{p.lastName[0]}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 7 }}>
+                      {p.lastName}, {p.firstName}
+                      {p.isBTG && <span className="badge badge-danger" style={{ fontSize: 10 }}>BTG</span>}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                      MRN {p.mrn} · DOB {p.dob} · {p.gender}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {showResults && search.length > 1 && filteredPatients.length === 0 && (
+            <div className="search-results">
+              <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                No patients found for "{search}"
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Open chart tabs */}
+        {openCharts.length > 0 && (
+          <>
+            <div className="header-divider" />
           <div style={{ display: 'flex', gap: 4, alignItems: 'center', overflow: 'hidden', maxWidth: 520, minWidth: 0 }}>
             {openCharts.map((p) => {
               const isActive = selectedPatient?.id === p.id;
@@ -285,35 +292,25 @@ export default function Header() {
       )}
 
       {/* Right actions */}
-      <div className="header-actions">
-        {/* Location now shown as capsule on the left — removed from center */}
+      </div>{/* /topbar-center */}
 
-        <button className="header-btn" title="Settings" onClick={() => navigate('/settings')}>
-          ⚙️
-        </button>
-        <button className="header-btn" title="Staff Messaging" onClick={() => navigate('/staff-messaging')}>
-          💬
-        </button>
+      {/* ── RIGHT: Icon Cluster + User Identity ── */}
+      <div className="topbar-right">
+        <button className="header-btn" title="Settings" onClick={() => navigate('/settings')}>⚙️</button>
+        <button className="header-btn" title="Staff Messaging" onClick={() => navigate('/staff-messaging')}>💬</button>
         <button className="header-btn notif-bell-btn" title="Notifications" onClick={togglePanel}>
-          🔔
-          {notifUnread > 0 && <span className="badge-count">{notifUnread}</span>}
+          🔔{notifUnread > 0 && <span className="badge-count">{notifUnread}</span>}
         </button>
         <button className="header-btn" title="Inbox" onClick={() => navigate('/inbox')}>
-          �
-          {unreadCount > 0 && <span className="badge-count">{unreadCount}</span>}
+          📨{unreadCount > 0 && <span className="badge-count">{unreadCount}</span>}
         </button>
         <div className="header-divider" />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 30, height: 30, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'white', fontSize: 10, fontWeight: 800, flexShrink: 0,
-          }}>
+          <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 10, fontWeight: 800, flexShrink: 0 }}>
             {currentUser?.firstName?.[0]}{currentUser?.lastName?.[0]}
           </div>
-          <div className="header-user-text" style={{ textAlign: 'left', lineHeight: 1.2 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)' }}>
+          <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
               {currentUser?.firstName} {currentUser?.lastName?.[0]}.
             </div>
             <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
@@ -327,7 +324,7 @@ export default function Header() {
           <div className="header-clock-date">{dateStr}</div>
         </div>
       </div>
+
     </header>
   );
 }
-
