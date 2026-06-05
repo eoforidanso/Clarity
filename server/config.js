@@ -35,4 +35,7 @@ export default {
   smtpUser: process.env.SMTP_USER || '',
   smtpPass: process.env.SMTP_PASS || '',
   smtpFrom: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@clarity-ehr.com',
+  // Auto-response engine
+  AUTO_RESPONSE_ENABLED: process.env.AUTO_RESPONSE_ENABLED === 'true',
+  AUTO_RESPONSE_MODE:    process.env.AUTO_RESPONSE_MODE    || 'enforce', // 'shadow' | 'enforce'
 };

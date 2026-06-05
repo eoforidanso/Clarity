@@ -1,23 +1,21 @@
+import config from '../config.js';
 import db from '../db/database.js';
 import { revokeSessionById } from '../sessions/index.js';
 import { sendSecurityAlertEmail } from '../mail/security.js';
+
+const { AUTO_RESPONSE_ENABLED, AUTO_RESPONSE_MODE } = config;
 
 function severityOf(anomaly) {
   switch (anomaly.type) {
     case 'FAILED_LOGINS':
       return anomaly.failed_count >= 10 ? 'high' : 'medium';
-
     case 'MULTI_IP':
     case 'IMPOSSIBLE_TRAVEL':
+    case 'HIGH_RISK_DEVICE':
       return 'high';
-
     case 'NEW_DEVICE':
     case 'NEW_COUNTRY':
       return 'medium';
-
-    case 'HIGH_RISK_DEVICE':
-      return 'high';
-
     default:
       return 'low';
   }
@@ -46,15 +44,22 @@ async function autoLockAccount(user, anomaly) {
 export async function handleAutoResponse(user, anomaly) {
   const severity = severityOf(anomaly);
 
-  // LOW severity → no UX impact
+  // Disabled → do nothing
+  if (!AUTO_RESPONSE_ENABLED) return;
+
+  // Shadow mode → log only, no user impact
+  if (AUTO_RESPONSE_MODE === 'shadow') {
+    console.log('[AUTO-RESPONSE:SHADOW]', { user: user.id, anomaly: anomaly.type, severity });
+    return;
+  }
+
+  // Enforce mode
   if (severity === 'low') return;
 
-  // MEDIUM severity → soft reauth only
   if (severity === 'medium') {
     return autoReauth(user, anomaly);
   }
 
-  // HIGH severity → revoke or lock
   if (severity === 'high') {
     if (anomaly.type === 'FAILED_LOGINS') {
       return autoLockAccount(user, anomaly);
