@@ -590,12 +590,16 @@ export default function HealthAdminToolkit() {
 
   const isFrontDesk = currentUser?.role === 'front_desk' || currentUser?.role === 'admin';
 
-  const totalAppts = appointments.length;
-  const todayAppts = appointments.filter(
+  const safeAppts    = appointments    || [];
+  const safePatients = patients        || [];
+  const safeMsgs     = inboxMessages   || [];
+
+  const totalAppts = safeAppts.length;
+  const todayAppts = safeAppts.filter(
     (a) => a.date === new Date().toISOString().slice(0, 10)
   ).length;
-  const activePatients = patients.filter((p) => p.isActive).length;
-  const unreadMessages = inboxMessages.filter((m) => !m.read).length;
+  const activePatients = safePatients.filter((p) => p.isActive).length;
+  const unreadMessages = safeMsgs.filter((m) => !m.read).length;
 
   const tabs = [
     { id: 'overview',  label: '📊 Overview' },
@@ -701,7 +705,7 @@ export default function HealthAdminToolkit() {
                     onChange={(e) => {
                       setSendPatient(e.target.value);
                       const q = e.target.value.toLowerCase();
-                      setPatientDropdown(q.length > 1 ? patients.filter(p =>
+                      setPatientDropdown(q.length > 1 ? safePatients.filter(p =>
                         `${p.firstName} ${p.lastName}`.toLowerCase().includes(q) || p.mrn.toLowerCase().includes(q)
                       ).slice(0, 6) : []);
                     }}
@@ -1202,7 +1206,7 @@ export default function HealthAdminToolkit() {
       {activeTab === 'patients' && (
         <div className="card">
           <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ fontSize: 13 }}>🧑‍⚕️ Patient Roster ({patients.length})</h2>
+            <h2 style={{ fontSize: 13 }}>🧑‍⚕️ Patient Roster ({safePatients.length})</h2>
             <button className="btn btn-sm btn-primary" onClick={() => navigate('/patients')}>
               Full Search →
             </button>
@@ -1220,7 +1224,7 @@ export default function HealthAdminToolkit() {
                 </tr>
               </thead>
               <tbody>
-                {patients.map((p) => {
+                {safePatients.map((p) => {
                   const provider = users.find((u) => u.id === p.assignedProvider);
                   return (
                     <tr
@@ -1261,12 +1265,12 @@ export default function HealthAdminToolkit() {
               <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
                 <tbody>
                   {[
-                    ['Total Appointments', appointments.length],
+                    ['Total Appointments', safeAppts.length],
                     ['Today', todayAppts],
-                    ['Completed', appointments.filter((a) => a.status === 'Completed').length],
-                    ['In-Person', appointments.filter((a) => a.visitType === 'In-Person').length],
-                    ['Telehealth', appointments.filter((a) => a.visitType === 'Telehealth').length],
-                    ['New Patient', appointments.filter((a) => a.type === 'New Patient').length],
+                    ['Completed', safeAppts.filter((a) => a.status === 'Completed').length],
+                    ['In-Person', safeAppts.filter((a) => a.visitType === 'In-Person').length],
+                    ['Telehealth', safeAppts.filter((a) => a.visitType === 'Telehealth').length],
+                    ['New Patient', safeAppts.filter((a) => a.type === 'New Patient').length],
                   ].map(([label, val]) => (
                     <tr key={label} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '8px 4px', color: 'var(--text-secondary)' }}>{label}</td>
@@ -1291,7 +1295,7 @@ export default function HealthAdminToolkit() {
                 </thead>
                 <tbody>
                   {users.filter((u) => u.role === 'prescriber').map((u) => {
-                    const provAppts = appointments.filter((a) => a.provider === u.id);
+                    const provAppts = safeAppts.filter((a) => a.provider === u.id);
                     const provToday = provAppts.filter((a) => a.date === new Date().toISOString().slice(0, 10));
                     return (
                       <tr key={u.id} style={{ borderBottom: '1px solid var(--border)' }}>

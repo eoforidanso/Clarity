@@ -104,21 +104,21 @@ export default function Analytics() {
   // Visit type breakdown
   const visitTypes = useMemo(() => {
     const map = {};
-    appointments.forEach(a => {
+    safeAppts.forEach(a => {
       const t = a.type || 'Other';
       map[t] = (map[t] || 0) + 1;
     });
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
-  }, [appointments]);
+  }, [safeAppts]);
 
   // Provider workload
   const providerLoad = useMemo(() => {
     const map = {};
-    appointments.forEach(a => {
+    safeAppts.forEach(a => {
       map[a.provider] = (map[a.provider] || 0) + 1;
     });
     return map;
-  }, [appointments]);
+  }, [safeAppts]);
 
   // Encounter volume (by type)
   const encounterByType = useMemo(() => {
@@ -350,7 +350,7 @@ export default function Analytics() {
               <MiniBar key={type} label={type} value={count} max={Math.max(...inboxByType.map(t => t[1]))} color={donutColors[i % donutColors.length]} />
             ))}
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
-              Total messages: <strong>{inboxMessages.length}</strong> · Unread: <strong>{inboxMessages.filter(m => !m.read).length}</strong>
+              Total messages: <strong>{(inboxMessages || []).length}</strong> · Unread: <strong>{(inboxMessages || []).filter(m => !m.read).length}</strong>
             </div>
           </div>
         </div>
