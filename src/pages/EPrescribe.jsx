@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { DemoDisabled, DemoSafe } from '../demo/DemoGuard';
+import { PrescriptionPreview } from '../components/PrescriptionPreview';
 import { medicationDatabase, pharmacies, users, problems, allergies } from '../data/mockData';
 import { rxnorm as rxnormApi, openfda as openfdaApi, locations as locationsApi, nppes as nppesApi, dosespot as dosespotApi } from '../services/api';
 import { useSite } from '../contexts/SiteContext';
@@ -1808,18 +1809,41 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
             </div>
 
             {/* Prescription Preview */}
-            <div style={{ background: 'var(--bg)', padding: 20, borderRadius: 'var(--radius-lg)', marginTop: 20, border: '2px solid var(--border)' }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>📋 Prescription Preview</h3>
-              <div className="grid-2">
-                <div><span className="text-muted text-xs">Medication:</span><div className="font-bold">{selectedMed.name} {rx.dose}</div></div>
-                <div><span className="text-muted text-xs">Patient:</span><div className="font-bold">{prescriptionPatient?.lastName}, {prescriptionPatient?.firstName}</div></div>
-                <div><span className="text-muted text-xs">SIG:</span><div>{rx.sig || `Take ${rx.dose} by ${selectedMed.routes[0].toLowerCase()} ${rx.frequency.toLowerCase()}`}</div></div>
-                <div><span className="text-muted text-xs">Qty / Refills:</span><div>{rx.quantity} / {rx.refills}</div></div>
-                <div><span className="text-muted text-xs">Diagnosis:</span><div className={rx.diagnosis ? 'font-bold' : 'text-muted'}>{rx.diagnosis ? `${rx.diagnosisCode ? rx.diagnosisCode + ' — ' : ''}${rx.diagnosis}` : '⚠ Required'}</div></div>
-                <div><span className="text-muted text-xs">Prescriber:</span><div>{currentUser?.credentials} {currentUser?.firstName} {currentUser?.lastName} | NPI: <DemoSafe mask="██████████">{currentUser?.npi}</DemoSafe></div></div>
-                <div><span className="text-muted text-xs">DEA:</span><div><DemoSafe mask="████████">{currentUser?.deaNumber}</DemoSafe></div></div>
-              </div>
-            </div>
+            <PrescriptionPreview prescription={{
+              medicationName: selectedMed.name,
+              brandName: selectedMed.brand || '',
+              strength: rx.dose,
+              sig: rx.sig || `Take ${rx.dose} by ${selectedMed.routes[0].toLowerCase()} ${rx.frequency.toLowerCase()}`,
+              daw: rx.daw,
+              quantity: rx.quantity,
+              refills: rx.refills,
+              patient: prescriptionPatient ? {
+                firstName: prescriptionPatient.firstName,
+                lastName:  prescriptionPatient.lastName,
+                dob:       prescriptionPatient.dob,
+                sex:       prescriptionPatient.gender,
+                mrn:       prescriptionPatient.mrn,
+              } : null,
+              diagnosis: rx.diagnosis ? {
+                code:        rx.diagnosisCode,
+                description: rx.diagnosis,
+              } : null,
+              safety: {
+                allergies:       allergyConflict ? `⚠ Possible conflict: ${allergyConflict.allergen}` : 'No known conflicts',
+                interactions:    duplicateMeds.length > 0 ? `⚠ Duplicate therapy: ${duplicateMeds.map(m => m.name).join(', ')}` : 'None detected',
+                duplicateTherapy: duplicateMeds.length > 0 ? duplicateMeds.map(m => m.name).join(', ') : 'None',
+                age:             null,
+                blackBox:        selectedMed.isControlled ? `${selectedMed.schedule} — Controlled substance` : null,
+              },
+              pharmacy: rx.pharmacy ? { name: rx.pharmacy, method: 'Electronic', status: 'Ready' } : null,
+              prescriber: {
+                name: `${currentUser?.credentials ? currentUser.credentials + ' ' : ''}${currentUser?.firstName} ${currentUser?.lastName}`,
+                npi:  currentUser?.npi,
+                dea:  currentUser?.deaNumber,
+              },
+              clinicalNotes: rx.notes || null,
+              signedAt: null,
+            }} />
 
             {/* ── Medication History ──────────────────────────────── */}
             {prescriptionPatient && (
