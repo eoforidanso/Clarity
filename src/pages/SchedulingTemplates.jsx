@@ -25,6 +25,7 @@ const MOCK_TEMPLATES = [
   {
     id: 'tpl1', name: 'Dr. Chris — Standard Week', provider: 'Dr. Christopher Adams',
     effectiveFrom: '2026-01-06', effectiveTo: '2026-06-30', status: 'Active', isDefault: true,
+    locationId: 'loc-apmg',
     blocks: [
       { day: 'Monday', start: '8:00 AM', end: '12:00 PM', type: 'patient', label: 'Morning Clinic' },
       { day: 'Monday', start: '12:00 PM', end: '1:00 PM', type: 'lunch', label: 'Lunch' },
@@ -49,6 +50,7 @@ const MOCK_TEMPLATES = [
   {
     id: 'tpl2', name: 'April Taylor — Therapy Week', provider: 'April Taylor, LCSW',
     effectiveFrom: '2026-01-06', effectiveTo: '2026-12-31', status: 'Active', isDefault: true,
+    locationId: 'loc1',
     blocks: [
       { day: 'Monday', start: '9:00 AM', end: '12:00 PM', type: 'therapy', label: 'Morning Sessions' },
       { day: 'Monday', start: '12:00 PM', end: '1:00 PM', type: 'lunch', label: 'Lunch' },
@@ -83,8 +85,20 @@ function getBlockSpan(block) {
 
 export default function SchedulingTemplates() {
   const { currentUser } = useAuth();
-  const [templates, setTemplates] = useState(MOCK_TEMPLATES);
-  const [selectedTpl, setSelectedTpl] = useState(templates[0]);
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // FILTER: Non-admins only see templates for their assigned location
+  // ──────────────────────────────────────────────────────────────────────────────
+  const filteredTemplates = useMemo(() => {
+    if (currentUser?.role === 'admin') {
+      return MOCK_TEMPLATES; // Admin sees all templates
+    }
+    // Non-admin: only see templates from their location
+    return MOCK_TEMPLATES.filter(t => t.locationId === currentUser?.locationId);
+  }, [currentUser?.role, currentUser?.locationId]);
+
+  const [templates, setTemplates] = useState(filteredTemplates);
+  const [selectedTpl, setSelectedTpl] = useState(filteredTemplates[0]);
   const [viewMode, setViewMode] = useState('grid'); // grid | list
   const [showNewModal, setShowNewModal] = useState(false);
   const [newTplName, setNewTplName] = useState('');
