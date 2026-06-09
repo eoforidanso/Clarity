@@ -4,6 +4,7 @@ import com.clarity.ehr.entity.User;
 import com.clarity.ehr.repository.UserRepository;
 import com.clarity.ehr.security.JwtTokenProvider;
 import com.clarity.ehr.service.AuditService;
+import com.clarity.ehr.service.TokenBucketService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,6 +25,7 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final AuditService auditService;
+    private final TokenBucketService tokenBucketService;
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> body,
@@ -39,7 +41,7 @@ public class AuthController {
         Optional<User> optUser = userRepository.findByUsername(username);
         if (optUser.isEmpty() || !passwordEncoder.matches(password, optUser.get().getPasswordHash())) {
             auditService.log(null, null, null, "LOGIN_FAILED", "auth", null, null, null,
-                    "{\"username\":\"" + username + "\",\"reason\":\"Invalid credentials\"}", 
+                    "{\"username\":\"" + username + "\",\"reason\":\"Invalid credentials\"}",
                     request.getRemoteAddr(), request.getHeader("User-Agent"), null);
             return ResponseEntity.status(401).body(Map.of("error", "Invalid username or password"));
         }
@@ -48,23 +50,32 @@ public class AuthController {
         String sessionId = UUID.randomUUID().toString();
         String token = tokenProvider.generateToken(user.getId(), user.getRole(), sessionId);
 
+        // Log successful login
         auditService.log(user.getId(), user.getFirstName() + " " + (user.getLastName() != null ? user.getLastName() : ""),
                 user.getRole(), "LOGIN_SUCCESS", "auth", null, null, null,
                 "{\"sessionId\":\"" + sessionId + "\"}", request.getRemoteAddr(),
                 request.getHeader("User-Agent"), sessionId);
 
+        // Set JWT cookie (httpOnly, secure)
         Cookie jwtCookie = new Cookie("jwt", token);
         jwtCookie.setHttpOnly(true);
         jwtCookie.setPath("/");
         jwtCookie.setMaxAge(8 * 60 * 60); // 8 hours
-        // Secure only in HTTPS environments
         jwtCookie.setSecure(request.isSecure());
         response.addCookie(jwtCookie);
+
+        // Get token status
+        TokenBucketService.TokenStatus tokenStatus = tokenBucketService.getTokenStatus(user);
 
         return ResponseEntity.ok(Map.of(
                 "token", token,
                 "mustChangePassword", user.getMustChangePassword() != null && user.getMustChangePassword(),
-                "user", buildUserResponse(user)
+                "user", buildUserResponse(user),
+                "tokenStatus", Map.of(
+                    "remaining", tokenStatus.remaining,
+                    "limit", tokenStatus.limit,
+                    "resetsAt", tokenStatus.resetAtISO
+                )
         ));
     }
 
@@ -75,7 +86,7 @@ public class AuthController {
         jwtCookie.setPath("/");
         jwtCookie.setMaxAge(0);
         response.addCookie(jwtCookie);
-        return ResponseEntity.ok(Map.of("message", "Logged out"));
+        return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
     }
 
     @PostMapping("/verify-2fa")
@@ -91,7 +102,27 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<?> me(org.springframework.security.core.Authentication authentication) {
         User user = (User) authentication.getPrincipal();
-        return ResponseEntity.ok(Map.of("user", buildUserResponse(user)));
+        TokenBucketService.TokenStatus tokenStatus = tokenBucketService.getTokenStatus(user);
+        return ResponseEntity.ok(Map.of(
+                "user", buildUserResponse(user),
+                "tokenStatus", Map.of(
+                    "remaining", tokenStatus.remaining,
+                    "limit", tokenStatus.limit,
+                    "resetsAt", tokenStatus.resetAtISO
+                )
+        ));
+    }
+
+    @GetMapping("/token-status")
+    public ResponseEntity<?> tokenStatus(org.springframework.security.core.Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        TokenBucketService.TokenStatus status = tokenBucketService.getTokenStatus(user);
+        return ResponseEntity.ok(Map.of(
+                "remaining", status.remaining,
+                "limit", status.limit,
+                "resetsAt", status.resetAtISO,
+                "message", "You have " + status.remaining + " actions remaining today"
+        ));
     }
 
     private Map<String, Object> buildUserResponse(User user) {

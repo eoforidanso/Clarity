@@ -51,6 +51,12 @@ public class User {
     @Column(name = "patient_id")
     private String patientId;
 
+    @Column(name = "daily_tokens_remaining", nullable = false)
+    private Integer dailyTokensRemaining = 100;
+
+    @Column(name = "daily_token_reset_at")
+    private LocalDateTime dailyTokenResetAt;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
