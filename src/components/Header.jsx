@@ -167,8 +167,10 @@ export default function Header() {
       {/* ── LEFT: Location Capsule ── */}
       <div className="topbar-left">
         {clinic && (
-          <div className="location-capsule" onClick={() => navigate('/multi-location')}
-            title={`${clinic.name} · API ${apiStatus}`}>
+          <div className="location-capsule"
+            onClick={() => currentUser?.role === 'admin' && navigate('/multi-location')}
+            style={{ cursor: currentUser?.role === 'admin' ? 'pointer' : 'default', opacity: currentUser?.role === 'admin' ? 1 : 0.6 }}
+            title={currentUser?.role === 'admin' ? `${clinic.name} · Click to manage locations · API ${apiStatus}` : `${clinic.name} · API ${apiStatus}`}>
             <div className="loc-left">
               <div className="loc-name">{clinic.shortName || clinic.name}</div>
               <div className="loc-sub">{clinic.city ? `${clinic.city}, ${clinic.state}` : 'Clarity EHR'}</div>

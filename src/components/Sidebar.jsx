@@ -370,7 +370,7 @@ export default function Sidebar() {
           {navItem('/scheduling-templates',   '📅', 'Schedule Templates')}
           {navPrefs.showApptReminders && navItem('/appointment-reminders', '📣', 'Appt Reminders')}
           {navItem('/immunization-registry',  '💉', 'Immunization Registry')}
-          {navItem('/multi-location',         '🏢', 'Multi-Location')}
+          {isAdmin && navItem('/multi-location',         '🏢', 'Multi-Location')}
           {navItem('/practice-marketing',     '📢', 'Marketing & Reputation')}
           {isAdminOrFrontDesk && navItem('/audit-trail',        '📜', 'Audit Trail')}
           {isAdmin           && navItem('/security-console',   '🛡️', 'Security Console')}

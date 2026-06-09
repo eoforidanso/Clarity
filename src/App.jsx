@@ -18,6 +18,7 @@ import Dashboard from './pages/Dashboard';
 import PatientPortalLogin from './pages/PatientPortalLogin';
 import PatientPortal from './pages/PatientPortal';
 import Settings from './pages/Settings';
+import AdminRoute from './components/AdminRoute';
 
 // Lazy-loaded routes — split into separate chunks
 const Schedule = lazy(() => import('./pages/Schedule'));
@@ -350,7 +351,7 @@ export default function App() {
             <Route path="/appointment-reminders" element={<AppointmentReminders />} />
             <Route path="/charge-posting" element={<ChargePosting />} />
             <Route path="/immunization-registry" element={<ImmunizationRegistry />} />
-            <Route path="/multi-location" element={<MultiLocationManagement />} />
+            <Route path="/multi-location" element={<AdminRoute><MultiLocationManagement /></AdminRoute>} />
             <Route path="/group-telehealth" element={<GroupTelehealth />} />
             <Route path="/operational-signals" element={<OperationalSignals />} />
             <Route path="/practice-marketing" element={<PracticeMarketing />} />
