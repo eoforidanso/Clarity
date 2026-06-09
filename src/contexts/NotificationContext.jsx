@@ -83,20 +83,7 @@ export function NotificationProvider({ children }) {
     setShowPanel(false);
   }, []);
 
-  // Simulate incoming notifications for demo
-  useEffect(() => {
-    const demoNotifs = [
-      { type: 'lab', title: 'Lab Results Ready', message: 'CBC results for James Anderson are now available.', delay: 8000 },
-      { type: 'message', title: 'New Message', message: 'Dr. April T. sent a message about Maria Garcia.', delay: 15000 },
-      { type: 'appointment', title: 'Check-in Alert', message: 'Robert Chen has checked in for 2:30 PM appointment.', delay: 25000 },
-      { type: 'order', title: 'Order Signed', message: 'Lithium level order for David Thompson signed.', delay: 40000 },
-      { type: 'warning', title: 'Prior Auth Required', message: 'Prior authorization needed for Ashley Kim - Vyvanse.', delay: 55000 },
-    ];
-    const timers = demoNotifs.map(n =>
-      setTimeout(() => addNotification(n), n.delay)
-    );
-    return () => timers.forEach(clearTimeout);
-  }, []); // eslint-disable-line
+  // Demo notifications removed — notifications loaded from backend API only
 
   return (
     <NotificationContext.Provider value={{
