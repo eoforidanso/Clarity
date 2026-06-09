@@ -10,15 +10,8 @@ const STATUS_COLORS = {
   Received:  { bg: '#dbeafe', color: '#1e40af', dot: '#3b82f6' },
 };
 
-const MOCK_FAXES = [
-  { id: 'fax-1', direction: 'Outbound', recipientName: 'Springfield Neurology Associates', recipientFax: '(555) 234-5678', patientName: 'James Anderson', subject: 'Referral — EEG Evaluation', pages: 4, status: 'Delivered', sentDate: '2026-04-14 10:22 AM', deliveredDate: '2026-04-14 10:24 AM', sender: 'Dr. Chris L.', documents: ['Referral form', 'Medication list', 'Progress notes', 'Lab results'], confirmationNumber: 'FAX-2026-8842', retries: 0 },
-  { id: 'fax-2', direction: 'Outbound', recipientName: 'Aetna Prior Auth Department', recipientFax: '(800) 555-1234', patientName: 'Maria Garcia', subject: 'Prior Authorization — Neuropsych Testing', pages: 6, status: 'Delivered', sentDate: '2026-04-14 09:15 AM', deliveredDate: '2026-04-14 09:18 AM', sender: 'Front Desk Staff', documents: ['PA form', 'Clinical summary', 'GAD-7 scores', 'PHQ-9 scores', 'Treatment plan', 'Letter of necessity'], confirmationNumber: 'FAX-2026-8840', retries: 0 },
-  { id: 'fax-3', direction: 'Inbound', recipientName: 'Clarity Behavioral Health', recipientFax: '(555) 100-2000', patientName: 'Robert Chen', subject: 'PCP Records — Treatment-Resistant Depression', pages: 12, status: 'Received', sentDate: '2026-04-13 02:45 PM', deliveredDate: '2026-04-13 02:45 PM', sender: 'Dr. Amanda Liu (PCP)', documents: ['Patient records', 'Lab panel', 'Pharmacy history', 'Referral letter'], confirmationNumber: 'FAX-IN-4420', retries: 0 },
-  { id: 'fax-4', direction: 'Outbound', recipientName: 'UnitedHealthcare Appeals', recipientFax: '(800) 555-9876', patientName: 'Ashley Kim', subject: 'Appeal — Spravato Prior Auth Denial', pages: 8, status: 'Sending', sentDate: '2026-04-15 08:30 AM', deliveredDate: '', sender: 'Dr. Chris L.', documents: ['Appeal letter', 'Updated medication history', 'Peer-reviewed literature', 'Treatment plan', 'Provider notes', 'Patient consent', 'Original denial letter', 'Letter of necessity'], confirmationNumber: '', retries: 0 },
-  { id: 'fax-5', direction: 'Outbound', recipientName: 'Cigna Clinical Review', recipientFax: '(800) 555-4321', patientName: 'Robert Chen', subject: 'Additional Info — IOP Authorization', pages: 5, status: 'Failed', sentDate: '2026-04-14 04:10 PM', deliveredDate: '', sender: 'Front Desk Staff', documents: ['ASAM assessment', 'Treatment history', 'Letter of necessity', 'Clinical summary', 'Authorization form'], confirmationNumber: '', retries: 2 },
-  { id: 'fax-6', direction: 'Inbound', recipientName: 'Clarity Behavioral Health', recipientFax: '(555) 100-2000', patientName: 'Dorothy Wilson', subject: 'Cardiology Notes & EKG Report', pages: 8, status: 'Received', sentDate: '2026-04-12 11:20 AM', deliveredDate: '2026-04-12 11:20 AM', sender: 'Dr. James Park (Cardiologist)', documents: ['Cardiology notes', 'EKG report', 'Current medications', 'Referral request'], confirmationNumber: 'FAX-IN-4418', retries: 0 },
-  { id: 'fax-7', direction: 'Outbound', recipientName: 'LabCorp — Downtown', recipientFax: '(555) 345-6789', patientName: 'James Anderson', subject: 'Lab Order — Lithium Level, TSH, BMP', pages: 2, status: 'Queued', sentDate: '', deliveredDate: '', sender: 'Dr. Chris L.', documents: ['Lab order form', 'Insurance authorization'], confirmationNumber: '', retries: 0 },
-];
+// Cleared for production — fax history loaded from backend API only
+const MOCK_FAXES = [];
 
 export default function EFaxCenter() {
   const { currentUser } = useAuth();
