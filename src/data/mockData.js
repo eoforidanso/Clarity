@@ -185,7 +185,9 @@ export const users = [
 ];
 
 // ========== PATIENTS ==========
+// Cleared for production — patients loaded from backend API only
 export const patients = [
+/*
   {
     id: 'p1',
     locationId: 'loc-apmg',
@@ -797,7 +799,8 @@ export const patients = [
     isBTG: false, isActive: true, lastVisit: '2026-05-25', nextAppointment: '2026-06-22',
     flags: ['ADHD', 'Anxiety'],
   },
-];
+*/
+]; // End of archived mock data
 
 // ========== ALLERGIES ==========
 export const allergies = {
@@ -1397,7 +1400,9 @@ export const orderInsurance = {
 };
 
 // ========== CLINICAL INBOX MESSAGES ==========
+// Cleared for production — messages loaded from backend API only
 export const inboxMessages = [
+/*
   { id: 'msg1', type: 'Rx Refill Request', from: 'CVS Pharmacy - Main St', to: 'u1', patient: 'p1', patientName: 'James Anderson', subject: 'Refill Request: Sertraline 100mg', body: 'Patient requesting refill of Sertraline 100mg #90. Last filled 03/15/2026. 0 refills remaining.', date: '2026-04-08', time: '09:15', read: false, priority: 'Normal', status: 'Pending' },
   { id: 'msg2', type: 'Lab Result', from: 'Quest Diagnostics', to: 'u1', patient: 'p1', patientName: 'James Anderson', subject: 'Lab Results Ready: CBC, CMP, HbA1c, Lipid Panel', body: 'Lab results are now available for review. Click to view full results.', date: '2026-04-08', time: '08:30', read: false, priority: 'Normal', status: 'Pending' },
   { id: 'msg3', type: 'Patient Message', from: 'Maria Garcia', to: 'u1', patient: 'p2', patientName: 'Maria Garcia', subject: 'Medication Side Effects', body: 'Dr. Chris L., I have been experiencing increased dizziness and headaches since starting Prazosin. Should I continue taking it? I am also having trouble sleeping. Please advise.', date: '2026-04-07', time: '16:45', read: false, priority: 'High', status: 'Pending' },
@@ -1409,7 +1414,8 @@ export const inboxMessages = [
   // Front desk messages
   { id: 'msg9', type: 'Check-in Alert', from: 'System', to: 'u3', patient: 'p1', patientName: 'James Anderson', subject: 'Patient Checked In - 10:00 AM Appointment', body: 'James Anderson has checked in for his 10:00 AM appointment with Dr. Chris L.. Insurance verified. Copay: $30 collected.', date: '2026-04-09', time: '09:45', read: false, priority: 'Normal', status: 'Pending' },
   { id: 'msg10', type: 'Insurance Alert', from: 'System', to: 'u3', patient: 'p3', patientName: 'David Thompson', subject: 'Insurance Eligibility Failed', body: 'United Healthcare eligibility check failed for David Thompson. Policy may be inactive. Please verify coverage before next appointment on 04/15.', date: '2026-04-08', time: '16:00', read: false, priority: 'High', status: 'Pending' },
-];
+*/
+]; // End of archived mock data
 
 // ========== SMART PHRASES ==========
 export const smartPhrases = [
@@ -1426,7 +1432,9 @@ export const smartPhrases = [
 ];
 
 // ========== APPOINTMENTS (Today's Schedule) ==========
+// Cleared for production — appointments loaded from backend API only
 export const appointments = [
+/*
   // ── April 9, 2026 (past) ──
   { id: 'apt1', patientId: 'p1', patientName: 'James Anderson', provider: 'u1', providerName: 'Dr. Chris L.', date: '2026-04-09', time: '09:00', duration: 30, type: 'Follow-Up', status: 'Completed', reason: 'Med management - depression/anxiety', visitType: 'In-Person', room: 'Room 3' },
   { id: 'apt2', patientId: 'p2', patientName: 'Maria Garcia', provider: 'u1', providerName: 'Dr. Chris L.', date: '2026-04-09', time: '09:30', duration: 60, type: 'Follow-Up', status: 'Completed', reason: 'PTSD follow-up, medication review', visitType: 'Telehealth', room: 'Virtual' },
@@ -1606,7 +1614,8 @@ export const appointments = [
   { id: 'bp2', patientId: 'pb2', patientName: 'Ryan Fitzgerald', provider: '268c2dfe-f8ac-402c-89be-f095f3f2e1cd', providerName: 'Dr. Emelia Appiagyei', date: '2026-05-25', time: '14:00', duration: 30, type: 'Follow-Up', status: 'Completed', reason: 'ADHD + Anxiety — Adderall check, GAD-7', visitType: 'In-Person', room: 'BP Room 2', locationId: '2779f608-aff9-4a3f-a776-deba3fb899ef' },
   { id: 'bp3', patientId: 'pb1', patientName: 'Sandra Mitchell', provider: '268c2dfe-f8ac-402c-89be-f095f3f2e1cd', providerName: 'Dr. Emelia Appiagyei', date: '2026-06-09', time: '13:00', duration: 45, type: 'Follow-Up', status: 'Scheduled', reason: 'Grief — 6-week antidepressant check, grief group referral', visitType: 'In-Person', room: 'BP Room 1', locationId: '2779f608-aff9-4a3f-a776-deba3fb899ef' },
   { id: 'bp4', patientId: 'pb2', patientName: 'Ryan Fitzgerald', provider: '268c2dfe-f8ac-402c-89be-f095f3f2e1cd', providerName: 'Dr. Emelia Appiagyei', date: '2026-06-22', time: '14:00', duration: 30, type: 'Follow-Up', status: 'Scheduled', reason: 'ADHD — Vyvanse switch consideration, academic performance', visitType: 'In-Person', room: 'BP Room 2', locationId: '2779f608-aff9-4a3f-a776-deba3fb899ef' },
-];
+*/
+]; // End of archived mock data
 
 // ========== ENCOUNTER HISTORY ==========
 export const encounterHistory = {
