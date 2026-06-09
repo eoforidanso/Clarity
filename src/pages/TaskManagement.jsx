@@ -18,24 +18,10 @@ const PRIORITY_COLORS = {
 };
 const CATEGORIES = ['Clinical', 'Administrative', 'Billing', 'Follow-Up', 'Compliance', 'Lab/Order', 'Referral', 'Other'];
 
-const TEAM_MEMBERS = [
-  { id: 'u1', name: 'Dr. Chris Lee', role: 'Psychiatrist', avatar: '👨‍⚕️' },
-  { id: 'u2', name: 'Kelly Nguyen', role: 'Nurse', avatar: '👩‍⚕️' },
-  { id: 'u3', name: 'Front Desk Staff', role: 'Front Desk', avatar: '🏥' },
-  { id: 'u4', name: 'April Torres', role: 'Therapist', avatar: '👩‍⚕️' },
-  { id: 'u5', name: 'Billing Team', role: 'Billing', avatar: '💰' },
-];
+// Cleared for production — team members and tasks loaded from backend API only
+const TEAM_MEMBERS = [];
 
-export const MOCK_TASKS = [
-  { id: 't-1', title: 'Review abnormal lab — James Anderson lithium level', description: 'Lithium level 1.3 mEq/L (high). Evaluate for toxicity symptoms and adjust dose.', category: 'Clinical', priority: 'Critical', status: 'To Do', assignee: 'u1', createdBy: 'u2', patientName: 'James Anderson', dueDate: '2026-04-15', createdDate: '2026-04-14', completedDate: '', comments: [{ author: 'Kelly Nguyen', text: 'Lab came back flagged high. Patient called and reports tremor and nausea.', date: '2026-04-14' }] },
-  { id: 't-2', title: 'Prior auth follow-up — Maria Garcia neuropsych testing', description: 'Aetna requested additional clinical documentation for neuropsych testing PA. Need to send GAD-7 and PHQ-9 scores.', category: 'Referral', priority: 'High', status: 'In Progress', assignee: 'u3', createdBy: 'u1', patientName: 'Maria Garcia', dueDate: '2026-04-16', createdDate: '2026-04-12', completedDate: '', comments: [] },
-  { id: 't-3', title: 'Complete MIPS reporting for Q1', description: 'Finalize quality measure reporting for CMS MIPS. Deadline approaching.', category: 'Compliance', priority: 'High', status: 'In Progress', assignee: 'u3', createdBy: 'u1', patientName: '', dueDate: '2026-04-18', createdDate: '2026-04-10', completedDate: '', comments: [] },
-  { id: 't-4', title: 'Call patient — Robert Chen medication side effects', description: 'Patient reported dizziness and fatigue after starting Venlafaxine 75mg. Follow up to assess.', category: 'Follow-Up', priority: 'High', status: 'To Do', assignee: 'u2', createdBy: 'u1', patientName: 'Robert Chen', dueDate: '2026-04-15', createdDate: '2026-04-14', completedDate: '', comments: [] },
-  { id: 't-5', title: 'Submit denied claim appeal — Ashley Kim', description: 'Cigna denied 90837 session. Appeal with updated treatment plan and medical necessity letter.', category: 'Billing', priority: 'Normal', status: 'To Do', assignee: 'u5', createdBy: 'u3', patientName: 'Ashley Kim', dueDate: '2026-04-20', createdDate: '2026-04-13', completedDate: '', comments: [] },
-  { id: 't-6', title: 'Onboard new patient — intake forms', description: 'Dorothy Wilson referred from cardiology. Send intake packet and verify insurance.', category: 'Administrative', priority: 'Normal', status: 'Completed', assignee: 'u3', createdBy: 'u2', patientName: 'Dorothy Wilson', dueDate: '2026-04-12', createdDate: '2026-04-10', completedDate: '2026-04-12', comments: [{ author: 'Front Desk Staff', text: 'Intake forms sent via portal. Insurance verified — Medicare Part B active.', date: '2026-04-12' }] },
-  { id: 't-7', title: 'Co-sign therapy note — April Torres', description: 'Supervisory co-sign needed for LCSW therapy note from 4/11.', category: 'Clinical', priority: 'Normal', status: 'To Do', assignee: 'u1', createdBy: 'u4', patientName: 'Ashley Kim', dueDate: '2026-04-16', createdDate: '2026-04-11', completedDate: '', comments: [] },
-  { id: 't-8', title: 'Credential renewal — DEA license', description: 'DEA license expires 5/30/2026. Begin renewal process.', category: 'Compliance', priority: 'Low', status: 'To Do', assignee: 'u1', createdBy: 'u3', patientName: '', dueDate: '2026-05-15', createdDate: '2026-04-01', completedDate: '', comments: [] },
-];
+export const MOCK_TASKS = [];
 
 export default function TaskManagement() {
   const { currentUser } = useAuth();
