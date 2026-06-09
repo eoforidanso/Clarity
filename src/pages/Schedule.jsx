@@ -9,7 +9,7 @@ import { users as allUsers } from "../data/mockData";
 const PROVIDERS = allUsers.filter(u => u.role === "prescriber" || u.role === "nurse" || u.role === "therapist");
 
 /* ── helpers ── */
-const TODAY = new Date();
+const getToday = () => new Date();
 const toKey = d =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const isSame = (a, b) => toKey(a) === toKey(b);
@@ -172,7 +172,7 @@ function TodayRibbon({ dateAppts, todayKey, activeDate }) {
    MINI CALENDAR
 ══════════════════════════════════════════════ */
 function MiniCalendar({ selectedDate, onSelect, aptsByDate, blockedByDate }) {
-  const [base, setBase] = useState(() => new Date(TODAY.getFullYear(), TODAY.getMonth(), 1));
+  const [base, setBase] = useState(() => new Date(getToday().getFullYear(), getToday().getMonth(), 1));
   const weeks = useMemo(() => getCalendarWeeks(base.getFullYear(), base.getMonth()), [base]);
   return (
     <div style={{ userSelect: "none" }}>
@@ -201,7 +201,7 @@ function MiniCalendar({ selectedDate, onSelect, aptsByDate, blockedByDate }) {
             const key = toKey(day);
             const hasApts = (aptsByDate[key] || []).length > 0;
             const blocked = (blockedByDate[key] || []).length > 0;
-            const isToday = isSame(day, TODAY);
+            const isToday = isSame(day, getToday());
             const isSel = selectedDate === key;
             const isWknd = day.getDay() === 0 || day.getDay() === 6;
             return (
@@ -957,7 +957,7 @@ function WalkInModal({ show, onClose, patients, onSave }) {
               onSave({ patientId:form.isNewPatient?null:form.patientId||null,
                 patientName:form.isNewPatient?`New Patient - ${form.newPatientName.trim()}`:pat?`${pat.firstName} ${pat.lastName}`:"",
                 provider:form.provider, providerName:prov?`${prov.firstName} ${prov.lastName}`.trim():"",
-                date:toKey(TODAY), time:`${hh}:${mm}`, duration:30, type:form.type,
+                date:toKey(getToday()), time:`${hh}:${mm}`, duration:30, type:form.type,
                 status:"Checked In", reason:form.reason.trim(), visitType:"In-Person",
                 room:form.room.trim(), isWalkIn:true, checkInTime:Date.now() });
               setDone(true); setTimeout(()=>onClose(),1200);
@@ -1206,7 +1206,7 @@ function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, a
             📆 Next 3 Days
           </div>
           {[1,2,3].map(offset => {
-            const d = new Date(TODAY); d.setDate(d.getDate()+offset);
+            const d = new Date(getToday()); d.setDate(d.getDate()+offset);
             const k = toKey(d);
             const dayApts = allAppts.filter(a=>a.date===k);
             const label = d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
@@ -1711,7 +1711,7 @@ export default function Schedule() {
   const canBlockDays = authorizedProviders.length > 0;
 
   const [activeTab, setActiveTab] = useState("schedule");
-  const [selectedDate, setSelectedDate] = useState(() => toKey(TODAY));
+  const [selectedDate, setSelectedDate] = useState(() => toKey(getToday()));
   const [providerFilter, setProviderFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("All");
   // Reset provider filter when site changes so a provider from another location isn't stuck
@@ -1762,7 +1762,7 @@ export default function Schedule() {
     if (!isFiltered) return byRole;
     return byRole.filter(a => appointmentSiteId(a) === activeSiteId);
   }, [appointments, currentUser, isFrontDesk, activeSiteId, isFiltered]);
-  const todayKey = toKey(TODAY);
+  const todayKey = toKey(getToday());
 
   const aptsByDate = useMemo(() => {
     const map = {};
@@ -1884,7 +1884,7 @@ export default function Schedule() {
                 ))}
               </div>
               )}
-              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedDate(toKey(TODAY))}>Today</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedDate(toKey(getToday()))}>Today</button>
               {canBlockDays && (
                 <button onClick={() => setShowBlockPanel(v=>!v)}
                   style={{ padding:"6px 14px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer",
@@ -2020,8 +2020,8 @@ export default function Schedule() {
             {(!isMobile || showSidebarMobile) && (
             <div style={{ width: isMobile ? '100%' : 218, flexShrink:0, display:"flex", flexDirection:"column", gap:12 }}>
               <div style={{ ...card({ padding:"14px 12px" }) }}>
-                <MiniCalendar selectedDate={activeDate} onSelect={k=>setSelectedDate(k||toKey(TODAY))} aptsByDate={aptsByDate} blockedByDate={blockedByDate} />
-                <button onClick={() => setSelectedDate(toKey(TODAY))}
+                <MiniCalendar selectedDate={activeDate} onSelect={k=>setSelectedDate(k||toKey(getToday()))} aptsByDate={aptsByDate} blockedByDate={blockedByDate} />
+                <button onClick={() => setSelectedDate(toKey(getToday()))}
                   style={{ width:"100%", marginTop:10, padding:"7px 0", borderRadius:7, fontSize:11, fontWeight:700, cursor:"pointer",
                     border:"1.5px solid #4f46e5", background:isSelToday?"#4f46e5":"#fff",
                     color:isSelToday?"#fff":"#4f46e5", transition:"all 0.12s" }}>
@@ -2221,7 +2221,7 @@ export default function Schedule() {
                                 { icon:"📹", label:"New Telehealth", sub:"Schedule video visit", color:"#7c3aed", border:"#7c3aed", bg:"#f5f3ff",
                                   action:() => { setModalDate(activeDate); setModalVisitType("Telehealth"); setShowModal(true); } },
                                 { icon:"📆", label:"Browse Days", sub:"View another date", color:"var(--text-secondary)", border:"var(--border)", bg:"#f8fafc",
-                                  action:() => setSelectedDate(toKey(TODAY)) },
+                                  action:() => setSelectedDate(toKey(getToday())) },
                               ].map(item => (
                                 <button key={item.label} onClick={item.action}
                                   style={{ padding:"16px 12px", borderRadius:10, border:`1.5px solid ${item.border}`, background:item.bg, cursor:"pointer", textAlign:"center", transition:"all 0.15s" }}
@@ -2267,7 +2267,7 @@ export default function Schedule() {
                 <div style={{ fontSize:11, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:10 }}>Upcoming Week</div>
                 <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:4 }}>
                   {Array.from({length:7},(_,i)=>{
-                    const d=new Date(TODAY); d.setDate(d.getDate()+i);
+                    const d=new Date(getToday()); d.setDate(d.getDate()+i);
                     const k=toKey(d);
                     const cnt=(aptsByDate[k]||[]).length;
                     const isT=k===todayKey;

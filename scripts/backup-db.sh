@@ -26,7 +26,9 @@ set -euo pipefail
 # ── Load env from server .env if not already set ─────────────────────────────
 ENV_FILE="/var/www/ehr/server/.env"
 if [ -f "$ENV_FILE" ]; then
-  export $(grep -v '^#' "$ENV_FILE" | grep -v '^$' | xargs)
+  set -o allexport
+  source "$ENV_FILE"
+  set +o allexport
 fi
 
 # ── Config ────────────────────────────────────────────────────────────────────
