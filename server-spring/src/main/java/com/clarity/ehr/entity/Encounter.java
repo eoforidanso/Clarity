@@ -35,6 +35,8 @@ public class Encounter {
     @Column(name = "safety_notes", columnDefinition = "text") private String safetyNotes;
     @Column(name = "follow_up") private String followUp;
     private String disposition;
+    @Column(name = "medication_orders", columnDefinition = "jsonb") private String medicationOrders;
+    @Column(name = "lab_orders", columnDefinition = "jsonb") private String labOrders;
     @Column(name = "created_at") private LocalDateTime createdAt;
     @Column(name = "updated_at") private LocalDateTime updatedAt;
     @PrePersist void prePersist() { createdAt = updatedAt = LocalDateTime.now(); }

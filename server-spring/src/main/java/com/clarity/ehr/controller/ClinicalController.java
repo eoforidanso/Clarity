@@ -2,6 +2,7 @@ package com.clarity.ehr.controller;
 
 import com.clarity.ehr.entity.*;
 import com.clarity.ehr.repository.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -128,27 +129,90 @@ public class ClinicalController {
 
     @PostMapping("/encounters")
     public ResponseEntity<?> addEncounter(@PathVariable String patientId, @RequestBody Map<String, Object> body) {
-        Encounter e = Encounter.builder()
-                .id(UUID.randomUUID().toString())
-                .patientId(patientId)
-                .date(LocalDate.parse((String) body.get("date")))
-                .time((String) body.getOrDefault("time", ""))
-                .provider((String) body.getOrDefault("provider", ""))
-                .providerName((String) body.getOrDefault("providerName", ""))
-                .credentials((String) body.getOrDefault("credentials", ""))
-                .visitType((String) body.getOrDefault("visitType", ""))
-                .cptCode((String) body.getOrDefault("cptCode", ""))
-                .icdCode((String) body.getOrDefault("icdCode", ""))
-                .reason((String) body.getOrDefault("reason", ""))
-                .duration((String) body.getOrDefault("duration", ""))
-                .chiefComplaint((String) body.getOrDefault("chiefComplaint", ""))
-                .hpi((String) body.getOrDefault("hpi", ""))
-                .assessment((String) body.getOrDefault("assessment", ""))
-                .plan((String) body.getOrDefault("plan", ""))
-                .safetySiLevel((String) body.getOrDefault("safetySiLevel", "None"))
-                .safetyHiLevel((String) body.getOrDefault("safetyHiLevel", "None"))
-                .build();
-        encounterRepository.save(e);
-        return ResponseEntity.status(201).body(e);
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            String medicationOrdersJson = null;
+            String labOrdersJson = null;
+
+            if (body.containsKey("medicationOrders") && body.get("medicationOrders") != null) {
+                medicationOrdersJson = mapper.writeValueAsString(body.get("medicationOrders"));
+            }
+            if (body.containsKey("labOrders") && body.get("labOrders") != null) {
+                labOrdersJson = mapper.writeValueAsString(body.get("labOrders"));
+            }
+
+            Encounter e = Encounter.builder()
+                    .id(UUID.randomUUID().toString())
+                    .patientId(patientId)
+                    .date(LocalDate.parse((String) body.get("date")))
+                    .time((String) body.getOrDefault("time", ""))
+                    .provider((String) body.getOrDefault("provider", ""))
+                    .providerName((String) body.getOrDefault("providerName", ""))
+                    .credentials((String) body.getOrDefault("credentials", ""))
+                    .visitType((String) body.getOrDefault("visitType", ""))
+                    .cptCode((String) body.getOrDefault("cptCode", ""))
+                    .icdCode((String) body.getOrDefault("icdCode", ""))
+                    .reason((String) body.getOrDefault("reason", ""))
+                    .duration((String) body.getOrDefault("duration", ""))
+                    .chiefComplaint((String) body.getOrDefault("chiefComplaint", ""))
+                    .hpi((String) body.getOrDefault("hpi", ""))
+                    .assessment((String) body.getOrDefault("assessment", ""))
+                    .plan((String) body.getOrDefault("plan", ""))
+                    .safetySiLevel((String) body.getOrDefault("safetySiLevel", "None"))
+                    .safetyHiLevel((String) body.getOrDefault("safetyHiLevel", "None"))
+                    .medicationOrders(medicationOrdersJson)
+                    .labOrders(labOrdersJson)
+                    .build();
+            encounterRepository.save(e);
+            return ResponseEntity.status(201).body(e);
+        } catch (Exception e) {
+            return ResponseEntity.status(400).body(Map.of("error", "Failed to save encounter: " + e.getMessage()));
+        }
+    }
+
+    @PutMapping("/encounters/{encounterId}")
+    public ResponseEntity<?> updateEncounter(@PathVariable String patientId, @PathVariable String encounterId, @RequestBody Map<String, Object> body) {
+        try {
+            return encounterRepository.findById(encounterId).map(existing -> {
+                ObjectMapper mapper = new ObjectMapper();
+
+                if (body.containsKey("date")) existing.setDate(LocalDate.parse((String) body.get("date")));
+                if (body.containsKey("time")) existing.setTime((String) body.get("time"));
+                if (body.containsKey("provider")) existing.setProvider((String) body.get("provider"));
+                if (body.containsKey("providerName")) existing.setProviderName((String) body.get("providerName"));
+                if (body.containsKey("credentials")) existing.setCredentials((String) body.get("credentials"));
+                if (body.containsKey("visitType")) existing.setVisitType((String) body.get("visitType"));
+                if (body.containsKey("cptCode")) existing.setCptCode((String) body.get("cptCode"));
+                if (body.containsKey("icdCode")) existing.setIcdCode((String) body.get("icdCode"));
+                if (body.containsKey("reason")) existing.setReason((String) body.get("reason"));
+                if (body.containsKey("duration")) existing.setDuration((String) body.get("duration"));
+                if (body.containsKey("chiefComplaint")) existing.setChiefComplaint((String) body.get("chiefComplaint"));
+                if (body.containsKey("hpi")) existing.setHpi((String) body.get("hpi"));
+                if (body.containsKey("assessment")) existing.setAssessment((String) body.get("assessment"));
+                if (body.containsKey("plan")) existing.setPlan((String) body.get("plan"));
+                if (body.containsKey("safetySiLevel")) existing.setSafetySiLevel((String) body.get("safetySiLevel"));
+                if (body.containsKey("safetyHiLevel")) existing.setSafetyHiLevel((String) body.get("safetyHiLevel"));
+
+                if (body.containsKey("medicationOrders") && body.get("medicationOrders") != null) {
+                    try {
+                        existing.setMedicationOrders(mapper.writeValueAsString(body.get("medicationOrders")));
+                    } catch (Exception ex) {
+                        // Keep existing value if conversion fails
+                    }
+                }
+                if (body.containsKey("labOrders") && body.get("labOrders") != null) {
+                    try {
+                        existing.setLabOrders(mapper.writeValueAsString(body.get("labOrders")));
+                    } catch (Exception ex) {
+                        // Keep existing value if conversion fails
+                    }
+                }
+
+                encounterRepository.save(existing);
+                return ResponseEntity.ok(existing);
+            }).orElse(ResponseEntity.notFound().build());
+        } catch (Exception e) {
+            return ResponseEntity.status(400).body(Map.of("error", "Failed to update encounter: " + e.getMessage()));
+        }
     }
 }
