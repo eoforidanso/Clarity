@@ -60,7 +60,7 @@ public class AuthController {
         Cookie jwtCookie = new Cookie("jwt", token);
         jwtCookie.setHttpOnly(true);
         jwtCookie.setPath("/");
-        jwtCookie.setMaxAge(8 * 60 * 60); // 8 hours
+        jwtCookie.setMaxAge(24 * 60 * 60); // 24 hours — daily token, matches token bucket reset
         jwtCookie.setSecure(request.isSecure());
         response.addCookie(jwtCookie);
 
