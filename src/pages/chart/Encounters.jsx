@@ -4103,7 +4103,6 @@ export default function Encounters({ patientId }) {
     setSelectedId(patientEncounters[0]?.id || null);
   };
   const saveNew = () => {
-    if (!draft.chiefComplaint.trim()) return;
     setBillingError(false);
     addEncounter(patientId, draft);
     setCreating(false);
@@ -4112,7 +4111,6 @@ export default function Encounters({ patientId }) {
   };
 
   const closeNew = () => {
-    if (!draft.chiefComplaint.trim()) return;
     if (!draft.cptCodes || draft.cptCodes.length === 0) {
       setBillingError(true);
       setActiveSection('billing');
@@ -4139,7 +4137,6 @@ export default function Encounters({ patientId }) {
   };
   const cancelEdit = () => { setEditing(false); setEditDraft(null); };
   const saveEdit = () => {
-    if (!editDraft.chiefComplaint.trim()) return;
     setBillingError(false);
     updateEncounter(patientId, editDraft.id, editDraft);
     setEditing(false);
@@ -4148,7 +4145,6 @@ export default function Encounters({ patientId }) {
   };
 
   const closeEdit = () => {
-    if (!editDraft.chiefComplaint.trim()) return;
     if (!editDraft.cptCodes || editDraft.cptCodes.length === 0) {
       setBillingError(true);
       setActiveSection('billing');
@@ -4521,12 +4517,12 @@ export default function Encounters({ patientId }) {
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button className="btn btn-sm" onClick={onCancel}>Cancel</button>
-            <button className="btn btn-sm btn-primary" onClick={onSave} disabled={!d.chiefComplaint.trim()}>
+            <button className="btn btn-sm btn-primary" onClick={onSave}>
               💾 Save Encounter
             </button>
-            <button className="btn btn-sm btn-success" onClick={onClose} disabled={!d.chiefComplaint.trim()}
+            <button className="btn btn-sm btn-success" onClick={onClose}
               title={(d.cptCodes || []).length === 0 ? 'Add at least one CPT code in the Billing section to close' : 'Save & close encounter as Completed'}
-              style={{ background: '#1a7f4b', borderColor: '#1a7f4b', opacity: d.chiefComplaint.trim() ? 1 : 0.5 }}>
+              style={{ background: '#1a7f4b', borderColor: '#1a7f4b' }}>
               ✅ Close Encounter
             </button>
           </div>
@@ -4825,14 +4821,13 @@ export default function Encounters({ patientId }) {
         <div style={{ padding: '10px 18px', borderTop: '1px solid var(--border)', background: '#f7f9fc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <button className="btn btn-sm" onClick={onCancel}>Cancel</button>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button className="btn btn-sm btn-primary" onClick={onSave} disabled={!d.chiefComplaint.trim()}>
+            <button className="btn btn-sm btn-primary" onClick={onSave}>
               💾 Save Encounter
             </button>
-            <button className="btn btn-sm" onClick={onClose} disabled={!d.chiefComplaint.trim()}
+            <button className="btn btn-sm" onClick={onClose}
               title={(d.cptCodes || []).length === 0 ? 'Add at least one CPT code in the Billing tab to close' : 'Save & close encounter as Completed'}
               style={{
                 background: '#1a7f4b', color: '#fff', border: '1px solid #1a7f4b',
-                opacity: d.chiefComplaint.trim() ? 1 : 0.5,
                 fontWeight: 700,
               }}>
               ✅ Close Encounter
