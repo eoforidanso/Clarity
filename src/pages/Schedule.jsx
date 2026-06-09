@@ -169,6 +169,46 @@ function TodayRibbon({ dateAppts, todayKey, activeDate }) {
 }
 
 /* ══════════════════════════════════════════════
+   DAY SUMMARY BAR
+══════════════════════════════════════════════ */
+function DaySummaryBar({ appts }) {
+  if (!appts.length) return null;
+  const telehealth = appts.filter(a => a.visitType === "Telehealth").length;
+  const inPerson   = appts.length - telehealth;
+  const newPts     = appts.filter(a => a.type === "New Patient").length;
+  const returning  = appts.length - newPts;
+  const completed  = appts.filter(a => a.status === "Completed").length;
+  const cancelled  = appts.filter(a => a.status === "Cancelled").length;
+  const noShows    = appts.filter(a => a.status === "No Show").length;
+
+  const items = [
+    { icon:"📋", label:"Total",        val: appts.length, color:"#4f46e5", always: true },
+    { icon:"📹", label:"Telehealth",   val: telehealth,   color:"#7c3aed", sub:`${inPerson} in-person`, always: true },
+    { icon:"👤", label:"New Patients", val: newPts,        color:"#f59e0b", sub:`${returning} returning`, always: true },
+    { icon:"✅", label:"Completed",    val: completed,    color:"#16a34a", always: true },
+    { icon:"❌", label:"Cancelled",    val: cancelled,    color:"#ef4444", always: false },
+    { icon:"⚠️", label:"No Shows",     val: noShows,      color:"#f97316", always: false },
+  ].filter(i => i.always || i.val > 0);
+
+  return (
+    <div style={{ background:"#fff", border:"1px solid var(--border)", borderRadius:10, padding:"12px 18px", marginBottom:12, display:"flex", alignItems:"center", gap:0, flexWrap:"wrap", boxShadow:"var(--shadow-sm)" }}>
+      {items.map((item, idx) => (
+        <React.Fragment key={item.label}>
+          {idx > 0 && <div style={{ width:1, height:36, background:"#e2e8f0", margin:"0 14px", flexShrink:0 }} />}
+          <div style={{ display:"flex", alignItems:"center", gap:7, padding:"2px 0" }}>
+            <span style={{ fontSize:16 }}>{item.icon}</span>
+            <div>
+              <div style={{ fontSize:18, fontWeight:800, color:item.color, lineHeight:1 }}>{item.val}</div>
+              <div style={{ fontSize:9.5, color:"var(--text-muted)", fontWeight:600, lineHeight:1.2, marginTop:1 }}>{item.label}{item.sub ? <span style={{ color:"#94a3b8" }}> · {item.sub}</span> : null}</div>
+            </div>
+          </div>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
    MINI CALENDAR
 ══════════════════════════════════════════════ */
 function MiniCalendar({ selectedDate, onSelect, aptsByDate, blockedByDate }) {
@@ -254,7 +294,12 @@ function urgencyStyle(apt) {
 /* ══════════════════════════════════════════════
    TIMELINE APPOINTMENT CARD (Schedule tab)
 ══════════════════════════════════════════════ */
-function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, isCurrent, patientPhoto, patientObj, allAppointments }) {
+const qaBtn = (accent) => ({
+  padding:"3px 10px", borderRadius:6, fontSize:10.5, fontWeight:600, cursor:"pointer",
+  border:`1px solid ${accent||"#e2e8f0"}`, background:"transparent", color: accent||"var(--text-secondary)",
+});
+
+function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, onUpdateStatus, onReschedule, isCurrent, patientPhoto, patientObj, allAppointments }) {
   const c = getTypeColor(apt);
   const ss = getStatusStyle(apt.status);
   const initials = apt.patientName?.split(" ").map(n => n[0]).join("").slice(0,2) || "?";
@@ -343,13 +388,51 @@ function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggl
           <div onClick={e => e.stopPropagation()}>{primaryCTA}</div>
         </div>
 
-        {/* Row 3: secondary actions */}
-        <div style={{ display: "flex", gap: 5, marginTop: 8, flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>
-          {apt.patientId && <button onClick={() => onOpenChart(apt)} style={{ padding: "3px 10px", borderRadius: 6, fontSize: 10.5, fontWeight: 600, border: "1px solid #e2e8f0", background: "transparent", color: "var(--text-secondary)", cursor: "pointer" }}>📋 Chart</button>}
-          {apt.status !== "Completed" && apt.status !== "Cancelled" && apt.status !== "No Show" && (
+        {/* Insurance & Flags row */}
+        <div style={{ display:"flex", gap:5, marginTop:7, flexWrap:"wrap", alignItems:"center" }}>
+          <span style={{ fontSize:10, padding:"2px 9px", borderRadius:20, fontWeight:600,
+            background: patientObj?.insurance?.primary?.name ? "#eff6ff" : "#f8fafc",
+            color: patientObj?.insurance?.primary?.name ? "#1e40af" : "#94a3b8",
+            border: `1px solid ${patientObj?.insurance?.primary?.name ? "#bfdbfe" : "#e2e8f0"}` }}>
+            🛡 {patientObj?.insurance?.primary?.name || "No Insurance on File"}
+          </span>
+          {(patientObj?.allergies?.length > 0) && (
+            <span style={{ fontSize:10, padding:"2px 9px", borderRadius:20, fontWeight:700, background:"#fef3c7", color:"#92400e", border:"1px solid #fcd34d" }}>⚠ Allergies</span>
+          )}
+          {apt.checkInTime && (
+            <span style={{ fontSize:10, padding:"2px 9px", borderRadius:20, fontWeight:600, background:"#dcfce7", color:"#166534", border:"1px solid #86efac" }}>
+              🟢 Checked in {Math.floor((Date.now()-apt.checkInTime)/60000)}m ago
+            </span>
+          )}
+        </div>
+
+        {/* Row 3: quick-action toolbar */}
+        <div style={{ display:"flex", gap:5, marginTop:8, flexWrap:"wrap" }} onClick={e => e.stopPropagation()}>
+          {(apt.status==="Scheduled"||apt.status==="Confirmed") && apt.date===todayKey && (
+            <button onClick={() => onCheckIn(apt)} style={qaBtn("#16a34a")}>✓ Check In</button>
+          )}
+          {apt.status==="Scheduled" && (
+            <button onClick={() => onUpdateStatus?.(apt.id,"Confirmed")} style={qaBtn("#0891b2")}>🟢 Arrived</button>
+          )}
+          {(apt.status==="Checked In"||apt.status==="Confirmed") && (
+            <button onClick={() => onGoToSession(apt)} style={qaBtn("#7c3aed")}>🩺 Start Visit</button>
+          )}
+          {apt.patientId && (
+            <button onClick={() => onOpenChart(apt)} style={qaBtn()}>📋 Chart</button>
+          )}
+          {apt.patientId && (
+            <button onClick={() => onOpenChart(apt)} style={qaBtn()}>📝 Note</button>
+          )}
+          {apt.status!=="Completed"&&apt.status!=="Cancelled"&&apt.status!=="No Show" && onReschedule && (
+            <button onClick={() => onReschedule(apt)} style={qaBtn("#f59e0b")}>🔁 Reschedule</button>
+          )}
+          {apt.status!=="Completed"&&apt.status!=="Cancelled"&&apt.status!=="No Show" && onUpdateStatus && (
+            <button onClick={() => onUpdateStatus(apt.id,"Cancelled")} style={{ ...qaBtn("#ef4444"), color:"#ef4444", background:"transparent" }}>✕ Cancel</button>
+          )}
+          {apt.status!=="Completed"&&apt.status!=="Cancelled"&&apt.status!=="No Show" && (
             <button onClick={() => onToggleVisitType(apt)}
-              style={{ padding: "3px 10px", borderRadius: 6, fontSize: 10.5, fontWeight: 600, cursor: "pointer", border: `1px solid ${apt.visitType === "Telehealth" ? "#3b82f6" : "#8b5cf6"}`, background: "transparent", color: apt.visitType === "Telehealth" ? "#1d4ed8" : "#6d28d9" }}>
-              {apt.visitType === "Telehealth" ? "🏥 In-Person" : "📹 Telehealth"}
+              style={{ ...qaBtn(), color: apt.visitType==="Telehealth"?"#1d4ed8":"#6d28d9", borderColor: apt.visitType==="Telehealth"?"#93c5fd":"#c4b5fd" }}>
+              {apt.visitType==="Telehealth"?"🏥 In-Person":"📹 Telehealth"}
             </button>
           )}
         </div>
@@ -373,7 +456,7 @@ const getSlotStatus = (count, capacity = DEFAULT_CAPACITY) => {
   return "";
 };
 
-function ScheduleTimeline({ appts, todayKey, isToday, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType }) {
+function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, onUpdateStatus, onReschedule }) {
   const now = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
 
@@ -392,15 +475,15 @@ function ScheduleTimeline({ appts, todayKey, isToday, onOpenChart, onCheckIn, on
     return next?.id || null;
   }, [appts, nowMins]);
 
-  // Group by hour for time markers
-  const grouped = useMemo(() => {
+  // Build byHour map for hours 8–18
+  const byHour = useMemo(() => {
     const map = new Map();
-    [...appts].sort((a, b) => (a.time || "").localeCompare(b.time || "")).forEach(apt => {
-      const hour = apt.time ? apt.time.split(":")[0].padStart(2, "0") + ":00" : "unknown";
-      if (!map.has(hour)) map.set(hour, []);
-      map.get(hour).push(apt);
+    for (let h = 8; h <= 18; h++) map.set(h, []);
+    appts.forEach(apt => {
+      const h = apt.time ? parseInt(apt.time.split(":")[0], 10) : null;
+      if (h !== null && h >= 8 && h <= 18) map.get(h).push(apt);
     });
-    return Array.from(map.entries());
+    return map;
   }, [appts]);
 
   return (
@@ -408,57 +491,76 @@ function ScheduleTimeline({ appts, todayKey, isToday, onOpenChart, onCheckIn, on
       {/* Vertical line */}
       <div style={{ position: "absolute", left: 44, top: 0, bottom: 0, width: 2, background: "linear-gradient(180deg, #e2e8f0 0%, #e2e8f0 100%)", borderRadius: 1 }} />
 
-      {grouped.map(([hour, hourAppts]) => {
+      {Array.from(byHour.entries()).map(([hour, hourAppts]) => {
         const slotCount    = hourAppts.length;
         const slotCapacity = DEFAULT_CAPACITY;
         const capacityClass = getSlotStatus(slotCount, slotCapacity);
         const dotColor = capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : "#e2e8f0";
         const dotBorder = capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : "#cbd5e1";
+        const isCurrentHour = isToday && now.getHours() === hour;
+        const hourKey = String(hour).padStart(2, "0") + ":00";
+
         return (
-          <div key={hour} className={`calendar-slot ${capacityClass}`} style={{ marginBottom: 4, borderRadius: 8 }}>
+          <div key={hour} className={`calendar-slot ${capacityClass}`} style={{ marginBottom: 4, borderRadius: 8, position: "relative" }}>
+            {/* Current-time bar */}
+            {isCurrentHour && (
+              <div style={{ position: "absolute", left: 44, right: 0, height: 2, background: "#ef4444", zIndex: 5, top: `${((now.getMinutes()/60)*100).toFixed(0)}%` }}>
+                <div style={{ position: "absolute", left: -5, top: -4, width: 10, height: 10, borderRadius: "50%", background: "#ef4444" }} />
+              </div>
+            )}
+
             {/* Hour marker */}
             <div style={{ position: "relative", marginBottom: 8, display: "flex", alignItems: "center" }}>
               <div style={{ position: "absolute", left: -72, width: 72, display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end", paddingRight: 14 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                  {hour !== "unknown" ? fmtTime12(hour).replace(":00", "") : "—"}
+                  {fmtTime12(hourKey).replace(":00", "")}
                 </span>
                 {/* Timeline dot — color-coded by capacity */}
                 <div style={{ width: 10, height: 10, borderRadius: "50%", background: dotColor, border: `2px solid ${dotBorder}`, flexShrink: 0, zIndex: 1, transition: "background 0.25s ease" }} />
               </div>
               {/* count/capacity + status badge */}
-              <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5 }}>
-                <span className="count" style={{
-                  fontSize: 10, fontWeight: 700, color: capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#b45309" : "#94a3b8",
-                  fontVariantNumeric: "tabular-nums",
-                }}>
-                  {slotCount}/{slotCapacity}
-                </span>
-                {capacityClass && (
-                  <span style={{
-                    fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 4,
-                    background: capacityClass === "full" ? "rgba(220,53,69,0.12)" : "rgba(255,193,7,0.15)",
-                    color: capacityClass === "full" ? "#dc3545" : "#b45309",
-                    border: `1px solid ${capacityClass === "full" ? "rgba(220,53,69,0.3)" : "rgba(255,193,7,0.4)"}`,
-                    textTransform: "uppercase", letterSpacing: "0.4px",
+              {slotCount > 0 && (
+                <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5 }}>
+                  <span className="count" style={{
+                    fontSize: 10, fontWeight: 700, color: capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#b45309" : "#94a3b8",
+                    fontVariantNumeric: "tabular-nums",
                   }}>
-                    {capacityClass === "full" ? "● Full" : "● Busy"}
+                    {slotCount}/{slotCapacity}
                   </span>
-                )}
-              </span>
+                  {capacityClass && (
+                    <span style={{
+                      fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 4,
+                      background: capacityClass === "full" ? "rgba(220,53,69,0.12)" : "rgba(255,193,7,0.15)",
+                      color: capacityClass === "full" ? "#dc3545" : "#b45309",
+                      border: `1px solid ${capacityClass === "full" ? "rgba(220,53,69,0.3)" : "rgba(255,193,7,0.4)"}`,
+                      textTransform: "uppercase", letterSpacing: "0.4px",
+                    }}>
+                      {capacityClass === "full" ? "● Full" : "● Busy"}
+                    </span>
+                  )}
+                </span>
+              )}
             </div>
 
-            {/* Cards for this hour */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-              {hourAppts.map(apt => (
-                <AptCard key={apt.id} apt={apt} todayKey={todayKey}
-                  isCurrent={isToday && apt.id === currentAptId}
-                  patientPhoto={patients?.find(p => p.id === apt.patientId)?.photo}
-                  patientObj={patients?.find(p => p.id === apt.patientId)}
-                  allAppointments={appointments}
-                  onOpenChart={onOpenChart} onCheckIn={onCheckIn}
-                  onGoToSession={onGoToSession} onToggleVisitType={onToggleVisitType} />
-              ))}
-            </div>
+            {/* Cards for this hour or empty slot */}
+            {slotCount > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                {hourAppts.map(apt => (
+                  <AptCard key={apt.id} apt={apt} todayKey={todayKey}
+                    isCurrent={isToday && apt.id === currentAptId}
+                    patientPhoto={patients?.find(p => p.id === apt.patientId)?.photo}
+                    patientObj={patients?.find(p => p.id === apt.patientId)}
+                    allAppointments={allAppointments}
+                    onOpenChart={onOpenChart} onCheckIn={onCheckIn}
+                    onGoToSession={onGoToSession} onToggleVisitType={onToggleVisitType}
+                    onUpdateStatus={onUpdateStatus} onReschedule={onReschedule} />
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: "8px 0 8px 0", color: "var(--text-dim)", fontSize: 11, fontStyle: "italic", borderBottom: "1px dashed #f1f5f9" }}>
+                — open —
+              </div>
+            )}
           </div>
         );
       })}
@@ -1733,6 +1835,7 @@ export default function Schedule() {
   }, []);
   const [modalVisitType, setModalVisitType] = useState('In-Person');
   const [modalDate, setModalDate] = useState("");
+  const [rescheduleAptSchedule, setRescheduleAptSchedule] = useState(null);
   const [showBlockPanel, setShowBlockPanel] = useState(false);
   const [blockProvider, setBlockProvider] = useState(() =>
     // Pre-select the current user if they are a provider, otherwise the first in the list
@@ -1797,7 +1900,35 @@ export default function Schedule() {
 
   const providerBreakdown = useMemo(() => {
     const base = allAppts.filter(a=>a.date===activeDate);
-    return PROVIDERS.map(p=>({...p, apts:base.filter(a=>a.provider===p.id)})).filter(p=>p.apts.length>0);
+    return PROVIDERS.map(p => {
+      const apts = base.filter(a => a.provider === p.id);
+      const telehealth = apts.filter(a => a.visitType === "Telehealth").length;
+      const inPerson   = apts.length - telehealth;
+      const avgDuration = apts.length ? Math.round(apts.reduce((s,a) => s + (a.duration||30), 0) / apts.length) : 0;
+
+      // gaps: consecutive pairs with ≥60 min gap
+      const sorted = [...apts].sort((a,b) => (a.time||"").localeCompare(b.time||""));
+      let gaps = 0;
+      for (let i = 1; i < sorted.length; i++) {
+        const [h1,m1] = (sorted[i-1].time||"0:0").split(":").map(Number);
+        const [h2,m2] = (sorted[i].time||"0:0").split(":").map(Number);
+        const prevEnd   = h1*60 + m1 + (sorted[i-1].duration||30);
+        const nextStart = h2*60 + m2;
+        if (nextStart - prevEnd >= 60) gaps++;
+      }
+
+      // overlaps: next apt starts before previous ends
+      let overlaps = 0;
+      for (let i = 1; i < sorted.length; i++) {
+        const [h1,m1] = (sorted[i-1].time||"0:0").split(":").map(Number);
+        const [h2,m2] = (sorted[i].time||"0:0").split(":").map(Number);
+        const prevEnd   = h1*60 + m1 + (sorted[i-1].duration||30);
+        const nextStart = h2*60 + m2;
+        if (nextStart < prevEnd) overlaps++;
+      }
+
+      return { ...p, apts, telehealth, inPerson, avgDuration, gaps, overlaps };
+    }).filter(p => p.apts.length > 0);
   }, [allAppts, activeDate]);
 
   // Providers visible in the filter sidebar:
@@ -1833,6 +1964,18 @@ export default function Schedule() {
     const newRoom = isCurrentlyTelehealth ? "" : "Virtual";
     updateAppointmentStatus(apt.id, apt.status, { visitType: newVisitType, room: newRoom });
   }, [updateAppointmentStatus]);
+
+  const handleRescheduleSchedule = useCallback((apt, newDate, newTime) => {
+    updateAppointmentStatus(apt.id, "Rescheduled");
+    addAppointment({
+      patientId: apt.patientId, patientName: apt.patientName,
+      provider: apt.provider, providerName: apt.providerName,
+      date: newDate, time: newTime, duration: apt.duration||30,
+      type: apt.type, status:"Scheduled", reason: apt.reason||"",
+      visitType: apt.visitType||"In-Person", room: apt.room||"",
+    });
+    setRescheduleAptSchedule(null);
+  }, [updateAppointmentStatus, addAppointment]);
 
   const handleAddBlock = () => {
     if (!blockDateFrom||!blockDateTo||!blockProvider||blockDateTo<blockDateFrom) return;
@@ -2006,6 +2149,7 @@ export default function Schedule() {
           {viewMode === 'day' && (
           <>
           <TodayRibbon dateAppts={dateAppts} todayKey={todayKey} activeDate={activeDate} />
+          <DaySummaryBar appts={allAppts.filter(a => a.date === activeDate)} />
           {/* Mobile sidebar toggle */}
           {isMobile && (
             <div style={{ marginBottom:10 }}>
@@ -2172,6 +2316,17 @@ export default function Schedule() {
                           <span>{doneCnt} done · {activeCnt} active</span>
                           <span style={{ fontWeight:700, color:pc }}>{pct}% complete</span>
                         </div>
+                        <div style={{ display:"flex", gap:8, marginTop:6, fontSize:10, color:"var(--text-muted)", flexWrap:"wrap" }}>
+                          <span>📹 {p.telehealth} telehealth</span>
+                          <span>🏥 {p.inPerson} in-person</span>
+                          <span>⏱ {p.avgDuration}m avg</span>
+                        </div>
+                        {(p.gaps > 0 || p.overlaps > 0) && (
+                          <div style={{ display:"flex", gap:8, marginTop:3, fontSize:10, flexWrap:"wrap" }}>
+                            {p.gaps > 0 && <span style={{ color:"#b45309", fontWeight:600 }}>⚡ {p.gaps} gap{p.gaps>1?"s":""}</span>}
+                            {p.overlaps > 0 && <span style={{ color:"#dc2626", fontWeight:600 }}>⚠ {p.overlaps} overlap{p.overlaps>1?"s":""}</span>}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -2253,10 +2408,14 @@ export default function Schedule() {
                         appts={dateAppts}
                         todayKey={todayKey}
                         isToday={activeDate === todayKey}
+                        patients={patients}
+                        allAppointments={allAppts}
                         onOpenChart={handleOpenChart}
                         onCheckIn={handleCheckIn}
                         onGoToSession={handleGoToSession}
                         onToggleVisitType={handleToggleVisitType}
+                        onUpdateStatus={updateAppointmentStatus}
+                        onReschedule={apt => setRescheduleAptSchedule(apt)}
                       />
                     </div>
                   )}
@@ -2353,6 +2512,13 @@ export default function Schedule() {
           updateAppointmentStatus={updateAppointmentStatus}
         />
       )}
+
+      <RescheduleModal
+        show={!!rescheduleAptSchedule}
+        apt={rescheduleAptSchedule}
+        onClose={() => setRescheduleAptSchedule(null)}
+        onConfirm={handleRescheduleSchedule}
+      />
 
       {/* Schedule Modal */}
       <ScheduleModal
