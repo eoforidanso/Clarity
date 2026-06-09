@@ -469,12 +469,13 @@ function ScheduleTimeline({ appts, todayKey, isToday, onOpenChart, onCheckIn, on
 /* ══════════════════════════════════════════════
    SCHEDULE MODAL
 ══════════════════════════════════════════════ */
-function ScheduleModal({ show, onClose, initialDate, initialVisitType, patients, onSave }) {
-  const EMPTY = { isNewPatient:false, patientId:"", newPatientName:"", provider:PROVIDERS[0]?.id||"",
+function ScheduleModal({ show, onClose, initialDate, initialVisitType, patients, onSave, defaultProvider }) {
+  const defaultProviderId = defaultProvider || PROVIDERS[0]?.id || "";
+  const EMPTY = { isNewPatient:false, patientId:"", newPatientName:"", provider:defaultProviderId,
     date:"", time:"09:00", duration:30, type:"Follow-Up", visitType:"In-Person", reason:"", room:"" };
   const [form, setForm] = useState(EMPTY);
   const [saved, setSaved] = useState(false);
-  useEffect(() => { if (show) { setForm({ ...EMPTY, date:initialDate||"", ...(initialVisitType ? { visitType:initialVisitType, type:initialVisitType==="Telehealth"?"Telehealth":"Follow-Up", room:initialVisitType==="Telehealth"?"Virtual":"" } : {}) }); setSaved(false); } }, [show, initialDate, initialVisitType]);
+  useEffect(() => { if (show) { setForm({ ...EMPTY, provider:defaultProvider||PROVIDERS[0]?.id||"", date:initialDate||"", ...(initialVisitType ? { visitType:initialVisitType, type:initialVisitType==="Telehealth"?"Telehealth":"Follow-Up", room:initialVisitType==="Telehealth"?"Virtual":"" } : {}) }); setSaved(false); } }, [show, initialDate, initialVisitType, defaultProvider]);
   const upd = (k, v) => setForm(f => ({ ...f, [k]:v }));
   const canSubmit = form.date && form.time && form.provider && (form.isNewPatient ? form.newPatientName.trim() : form.patientId);
   const handleSubmit = () => {
@@ -2360,6 +2361,7 @@ export default function Schedule() {
         initialDate={modalDate}
         initialVisitType={modalVisitType}
         patients={patients}
+        defaultProvider={isProvider ? currentUser?.id : undefined}
         onSave={apt => { addAppointment(apt); setShowModal(false); setModalVisitType('In-Person'); }}
       />
     </div>
