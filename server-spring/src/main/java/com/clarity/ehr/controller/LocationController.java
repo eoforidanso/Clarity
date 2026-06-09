@@ -1,9 +1,11 @@
 package com.clarity.ehr.controller;
 
 import com.clarity.ehr.entity.Location;
+import com.clarity.ehr.entity.User;
 import com.clarity.ehr.repository.LocationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -16,19 +18,59 @@ public class LocationController {
     private final LocationRepository locationRepository;
 
     @GetMapping
-    public ResponseEntity<?> list() {
+    public ResponseEntity<?> list(Authentication authentication) {
+        // Get current user
+        User user = (User) authentication.getPrincipal();
+        List<Location> locations;
+
+        // ──────────────────────────────────────────────────────────────────────────────
+        // ADMIN: Can see all locations
+        // OTHERS: Can only see their assigned location
+        // ──────────────────────────────────────────────────────────────────────────────
+        if ("admin".equalsIgnoreCase(user.getRole())) {
+            // Admin sees all active locations
+            locations = locationRepository.findByStatusOrderBySortOrderAscNameAsc("Active");
+        } else {
+            // Non-admin: only their location
+            if (user.getLocationId() == null) {
+                // No location assigned — return empty
+                return ResponseEntity.ok(new ArrayList<>());
+            }
+            locations = locationRepository.findById(user.getLocationId())
+                    .filter(loc -> "Active".equals(loc.getStatus()))
+                    .map(Collections::singletonList)
+                    .orElseGet(Collections::emptyList);
+        }
+
         List<Map<String, Object>> result = new ArrayList<>();
-        for (Location loc : locationRepository.findByStatusOrderBySortOrderAscNameAsc("Active")) {
+        for (Location loc : locations) {
             result.add(toMap(loc));
         }
         return ResponseEntity.ok(result);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> get(@PathVariable String id) {
+    public ResponseEntity<?> get(@PathVariable String id, Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+
+        // ──────────────────────────────────────────────────────────────────────────────
+        // ADMIN: Can access any location
+        // OTHERS: Can only access their assigned location
+        // ──────────────────────────────────────────────────────────────────────────────
         return locationRepository.findById(id)
+                .filter(loc -> {
+                    // Admin can see all
+                    if ("admin".equalsIgnoreCase(user.getRole())) {
+                        return true;
+                    }
+                    // Non-admin can only see their own location
+                    return id.equals(user.getLocationId());
+                })
                 .map(loc -> ResponseEntity.ok((Object) toMap(loc)))
-                .orElseGet(() -> ResponseEntity.status(404).body(Map.of("error", "Location not found")));
+                .orElseGet(() -> ResponseEntity.status(403).body(Map.of(
+                    "error", "Access denied",
+                    "message", "You do not have permission to access this location"
+                )));
     }
 
     private Map<String, Object> toMap(Location loc) {

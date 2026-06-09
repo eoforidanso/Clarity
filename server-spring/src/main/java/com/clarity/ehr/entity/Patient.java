@@ -96,6 +96,9 @@ public class Patient {
     @Column(name = "assigned_provider")
     private String assignedProvider;
 
+    @Column(name = "location_id")
+    private String locationId;
+
     @Column(columnDefinition = "text")
     private String photo;
 

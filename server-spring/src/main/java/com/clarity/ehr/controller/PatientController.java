@@ -1,9 +1,11 @@
 package com.clarity.ehr.controller;
 
 import com.clarity.ehr.entity.Patient;
+import com.clarity.ehr.entity.User;
 import com.clarity.ehr.repository.PatientRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -19,7 +21,10 @@ public class PatientController {
 
     @GetMapping
     public ResponseEntity<?> getAll(@RequestParam(required = false) String search,
-                                     @RequestParam(required = false) String active) {
+                                     @RequestParam(required = false) String active,
+                                     Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+
         List<Patient> patients;
         if (search != null && !search.isBlank()) {
             patients = patientRepository.search(search);
@@ -28,18 +33,57 @@ public class PatientController {
         } else {
             patients = patientRepository.findAllByOrderByLastNameAscFirstNameAsc();
         }
+
+        // ──────────────────────────────────────────────────────────────────────────────
+        // FILTER: Non-admins only see their location's patients
+        // ──────────────────────────────────────────────────────────────────────────────
+        if (!"admin".equalsIgnoreCase(user.getRole())) {
+            patients = patients.stream()
+                    .filter(p -> user.getLocationId() != null &&
+                               user.getLocationId().equals(p.getLocationId()))
+                    .toList();
+        }
+
         return ResponseEntity.ok(patients.stream().map(this::toDto).toList());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getById(@PathVariable String id) {
+    public ResponseEntity<?> getById(@PathVariable String id, Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+
         return patientRepository.findById(id)
+                .filter(p -> {
+                    // Admin can see all patients
+                    if ("admin".equalsIgnoreCase(user.getRole())) {
+                        return true;
+                    }
+                    // Non-admin can only see patients from their location
+                    return user.getLocationId() != null &&
+                           user.getLocationId().equals(p.getLocationId());
+                })
                 .map(p -> ResponseEntity.ok(toDto(p)))
-                .orElse(ResponseEntity.notFound().build());
+                .orElseGet(() -> ResponseEntity.status(403).body(Map.of(
+                    "error", "Access denied",
+                    "message", "You do not have permission to access this patient"
+                )));
     }
 
     @PostMapping
-    public ResponseEntity<?> create(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<?> create(@RequestBody Map<String, Object> body, Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+
+        // ──────────────────────────────────────────────────────────────────────────────
+        // Non-admins can only create patients in their own location
+        // ──────────────────────────────────────────────────────────────────────────────
+        if (!"admin".equalsIgnoreCase(user.getRole())) {
+            if (user.getLocationId() == null) {
+                return ResponseEntity.status(403).body(Map.of(
+                    "error", "Access denied",
+                    "message", "You are not assigned to a location"
+                ));
+            }
+        }
+
         String id = UUID.randomUUID().toString();
         String mrn = "MRN-" + String.valueOf(System.currentTimeMillis()).substring(8);
 
@@ -53,6 +97,8 @@ public class PatientController {
                 .email((String) body.getOrDefault("email", ""))
                 .phone((String) body.getOrDefault("phone", ""))
                 .language((String) body.getOrDefault("language", "English"))
+                // Set location to user's location (or admin-specified location)
+                .locationId((String) body.getOrDefault("locationId", user.getLocationId()))
                 .isActive(true).isBtg(false).flags(List.of())
                 .build();
 
@@ -61,8 +107,23 @@ public class PatientController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable String id, @RequestBody Map<String, Object> body) {
+    public ResponseEntity<?> update(@PathVariable String id, @RequestBody Map<String, Object> body,
+                                    Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+
         return patientRepository.findById(id).map(existing -> {
+            // ──────────────────────────────────────────────────────────────────────────────
+            // Non-admins can only update patients from their location
+            // ──────────────────────────────────────────────────────────────────────────────
+            if (!"admin".equalsIgnoreCase(user.getRole())) {
+                if (!user.getLocationId().equals(existing.getLocationId())) {
+                    return ResponseEntity.status(403).body(Map.of(
+                        "error", "Access denied",
+                        "message", "You can only update patients from your location"
+                    ));
+                }
+            }
+
             if (body.containsKey("firstName")) existing.setFirstName((String) body.get("firstName"));
             if (body.containsKey("lastName")) existing.setLastName((String) body.get("lastName"));
             if (body.containsKey("dob")) existing.setDob(LocalDate.parse((String) body.get("dob")));
