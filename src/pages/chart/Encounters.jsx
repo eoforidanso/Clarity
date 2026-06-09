@@ -48,6 +48,7 @@ function printOrderFaxSlip({ order, type, patient, provider }) {
     <tr><td class="lbl">Specimen</td><td>${order.specimen || '—'}</td></tr>
     <tr><td class="lbl">Fasting Required</td><td>${order.fasting ? 'Yes' : 'No'}</td></tr>
     ${order.labNetwork ? `<tr><td class="lbl">Send To Lab</td><td>${order.labNetwork}</td></tr>` : ''}
+    ${order.labAddress ? `<tr><td class="lbl">Lab Location</td><td>${order.labAddress}</td></tr>` : ''}
     ${order.diagnosis ? `<tr><td class="lbl">Clinical Indication</td><td>${order.diagnosis}</td></tr>` : ''}
     ${order.icdCodes ? `<tr><td class="lbl">ICD-10 Code(s)</td><td>${order.icdCodes}</td></tr>` : ''}
     ${order.notes ? `<tr><td class="lbl">Notes</td><td>${order.notes}</td></tr>` : ''}
@@ -2377,7 +2378,7 @@ const MED_SIGS = [
 ];
 
 const BLANK_MED_ORDER = { name: '', dose: '', sig: '', quantity: '', refills: '0', pharmacy: '', pharmAddress: '', route: '', notes: '', schedule: null };
-const BLANK_LAB_ORDER = { test: '', priority: 'Routine', diagnosis: '', fasting: false, labNetwork: '', notes: '' };
+const BLANK_LAB_ORDER = { test: '', priority: 'Routine', diagnosis: '', fasting: false, labNetwork: '', labAddress: '', notes: '' };
 
 // ── Medication defaults lookup — auto-fills dose, sig, qty, refills, notes ───
 // Matched by checking if the lowercase med name includes the key
@@ -3274,19 +3275,13 @@ function EncounterOrdersSection({ d, setD }) {
   const patientState = selectedPatient?.address?.state || '';
   const patientZip   = selectedPatient?.address?.zip   || '';
 
-  const scorePharm = (ph) => (ph.zip === patientZip ? 2 : 0) + (ph.city === patientCity ? 1 : 0);
-  const nearbyPharms = PHARMACY_LOCATIONS
-    .filter(ph => ph.state === patientState || !patientState)
-    .sort((a, b) => scorePharm(b) - scorePharm(a));
-
-  const filteredPharms = pharmSearch.trim()
-    ? PHARMACY_LOCATIONS.filter(ph =>
+  // Option A: suggest all US pharmacy chains (provider types specific address manually)
+  const filteredPharms = pharmSearch.trim().length >= 1
+    ? US_PHARMACY_FLAT.filter(ph =>
         ph.name.toLowerCase().includes(pharmSearch.toLowerCase()) ||
-        ph.chain.toLowerCase().includes(pharmSearch.toLowerCase()) ||
-        ph.city.toLowerCase().includes(pharmSearch.toLowerCase()) ||
-        ph.address.toLowerCase().includes(pharmSearch.toLowerCase())
-      ).sort((a, b) => scorePharm(b) - scorePharm(a))
-    : nearbyPharms;
+        ph.group.toLowerCase().includes(pharmSearch.toLowerCase())
+      ).slice(0, 20)
+    : US_PHARMACY_FLAT.slice(0, 20);
 
   const commitMedOrder = (order) => {
     setD(p => ({ ...p, medicationOrders: [...(p.medicationOrders || []), { ...order, id: Date.now() }] }));
@@ -3579,7 +3574,7 @@ function EncounterOrdersSection({ d, setD }) {
               <label className="form-label" style={{ fontSize: 11 }}>Send to Pharmacy</label>
               <input
                 className="form-input"
-                placeholder="Search pharmacy chain, mail order, or specialty pharmacy..."
+                placeholder="Type pharmacy name (e.g. CVS, Walgreens, Genoa, mail order…)"
                 value={medForm.pharmacy || pharmSearch}
                 onChange={e => {
                   const v = e.target.value;
@@ -3591,57 +3586,43 @@ function EncounterOrdersSection({ d, setD }) {
                 onBlur={() => setTimeout(() => setShowPharmDropdown(false), 150)}
                 style={{ fontSize: 13 }}
               />
-              {showPharmDropdown && filteredPharms.length > 0 && (
+              {showPharmDropdown && pharmSearch.trim().length >= 1 && filteredPharms.length > 0 && (
                 <div style={dropdownStyle}>
-                  {!pharmSearch.trim() && patientCity && (
-                    <div style={{ padding: '5px 12px 3px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#16a34a', background: '#f0fdf4', borderBottom: '1px solid #d1fae5' }}>
-                      📍 Near {patientCity}, {patientState} {patientZip}
-                    </div>
-                  )}
-                  {filteredPharms.slice(0, 20).map((ph, i) => {
-                    const isClosest = !pharmSearch.trim() && i < 3 && ph.state === patientState;
-                    return (
-                      <button key={ph.id} type="button"
-                        style={{ ...dropdownItemStyle(false), padding: '8px 12px' }}
-                        onMouseOver={e => e.currentTarget.style.background = '#f0fdf4'}
-                        onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-                        onMouseDown={e => e.preventDefault()}
-                        onClick={() => {
-                          const fullAddr = `${ph.address}, ${ph.city}, ${ph.state} ${ph.zip} · Ph: ${ph.phone} · Fax: ${ph.fax}`;
-                          setMedForm(p => ({ ...p, pharmacy: ph.name, pharmAddress: fullAddr }));
-                          setPharmSearch('');
-                          setShowPharmDropdown(false);
-                        }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                          <span style={{ fontWeight: 700, fontSize: 12.5 }}>{ph.name}</span>
-                          {isClosest && (
-                            <span style={{ fontSize: 9.5, fontWeight: 700, background: '#16a34a', color: '#fff', padding: '1px 6px', borderRadius: 10 }}>Nearby</span>
-                          )}
-                          <span style={{ fontSize: 10.5, color: '#16a34a', marginLeft: 'auto', background: '#f0fdf4', padding: '1px 5px', borderRadius: 4 }}>
-                            {ph.chain}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                          {ph.address}, {ph.city}, {ph.state} {ph.zip}
-                          <span style={{ marginLeft: 8, color: '#0891b2' }}>Ph: {ph.phone}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
+                  <div style={{ padding: '5px 12px 3px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#6b7280', background: '#f9fafb', borderBottom: '1px solid var(--border)' }}>
+                    💊 US Pharmacy Chains — select or keep typing
+                  </div>
+                  {filteredPharms.map((ph, i) => (
+                    <button key={`${ph.name}-${i}`} type="button"
+                      style={{ ...dropdownItemStyle(false), padding: '7px 12px' }}
+                      onMouseOver={e => e.currentTarget.style.background = '#f0fdf4'}
+                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => {
+                        setMedForm(p => ({ ...p, pharmacy: ph.name, pharmAddress: '' }));
+                        setPharmSearch('');
+                        setShowPharmDropdown(false);
+                      }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontWeight: 600, fontSize: 12.5 }}>{ph.name}</span>
+                        <span style={{ fontSize: 10.5, color: '#6b7280', marginLeft: 'auto', background: '#f3f4f6', padding: '1px 6px', borderRadius: 4 }}>
+                          {ph.group}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
 
-            {/* Pharmacy location — auto-populated from patient address */}
-            {medForm.pharmAddress && (
-              <div style={{ marginBottom: 10 }}>
-                <label className="form-label" style={{ fontSize: 11 }}>Pharmacy Location</label>
-                <input className="form-input"
-                  value={medForm.pharmAddress}
-                  onChange={e => setMedForm(p => ({ ...p, pharmAddress: e.target.value }))}
-                  style={{ fontSize: 12, color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd' }} />
-              </div>
-            )}
+            {/* Pharmacy address — free-text, provider types specific location */}
+            <div style={{ marginBottom: 10 }}>
+              <label className="form-label" style={{ fontSize: 11 }}>Pharmacy Address <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional — street, city, state, zip)</span></label>
+              <input className="form-input"
+                placeholder="e.g. 123 Main St, Atlanta, GA 30301 · Ph: (404) 555-0100 · Fax: (404) 555-0101"
+                value={medForm.pharmAddress}
+                onChange={e => setMedForm(p => ({ ...p, pharmAddress: e.target.value }))}
+                style={{ fontSize: 12, color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd' }} />
+            </div>
 
             <div style={{ marginBottom: 12 }}>
               <label className="form-label" style={{ fontSize: 11 }}>
@@ -3875,6 +3856,16 @@ function EncounterOrdersSection({ d, setD }) {
               </div>
             </div>
 
+            {/* Lab location — free-text, provider types specific branch/address */}
+            <div style={{ marginBottom: 10 }}>
+              <label className="form-label" style={{ fontSize: 11 }}>Lab Location / Address <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional — any US location)</span></label>
+              <input className="form-input"
+                placeholder="e.g. Quest Diagnostics — 400 Ponce de Leon Ave, Atlanta, GA 30308"
+                value={labForm.labAddress}
+                onChange={e => setLabForm(p => ({ ...p, labAddress: e.target.value }))}
+                style={{ fontSize: 12, color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd' }} />
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end', marginBottom: 10 }}>
               <div>
                 <label className="form-label" style={{ fontSize: 11 }}>Diagnosis / Clinical Indication</label>
@@ -3939,6 +3930,9 @@ function EncounterOrdersSection({ d, setD }) {
                     {order.labNetwork && (
                       <div style={{ fontSize: 11, color: '#0891b2', marginTop: 2, fontWeight: 600 }}>
                         🏥 {order.labNetwork}
+                        {order.labAddress && (
+                          <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 6 }}>— {order.labAddress}</span>
+                        )}
                       </div>
                     )}
                     {order.diagnosis && (

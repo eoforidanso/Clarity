@@ -322,7 +322,7 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
                         onChange={(e) => setLabFacilitySearch(e.target.value)}
                         onFocus={() => setLabFacilityFocused(true)}
                         onBlur={() => setTimeout(() => setLabFacilityFocused(false), 200)}
-                        placeholder="Search or browse all Illinois labs (Quest, LabCorp…)"
+                        placeholder="Search all US labs by name, chain, or city (Quest, LabCorp…)"
                       />
                       {labFacilityFocused && (
                         <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-white)', boxShadow: 'var(--shadow-md)' }}>
