@@ -26,6 +26,15 @@ export const users = [
     epcsPin: '9921',
     twoFactorEnabled: true,
     locationId: 'loc-apmg',
+    defaultPharmacy: 'Walgreens #03552',
+    defaultPharmacyAddress: '151 N State St, Chicago, IL 60601',
+    defaultPharmacyPhone: '(312) 984-0676',
+    defaultPharmacyFax: '(312) 984-0677',
+    sigFavorites: [
+      { medName: 'sertraline', sig: 'Take 1 tablet by mouth once daily in the morning with food' },
+      { medName: 'quetiapine', sig: 'Take 1 tablet by mouth at bedtime; may increase to 100mg at week 2' },
+      { medName: 'bupropion',  sig: 'Take 1 tablet by mouth once daily in the morning; avoid evening dosing' },
+    ],
   },
   {
     id: 'demo-u1',
@@ -42,6 +51,15 @@ export const users = [
     epcsPin: '9921',
     twoFactorEnabled: false,
     locationId: 'loc-apmg',
+    defaultPharmacy: 'CVS Pharmacy #01234',
+    defaultPharmacyAddress: '1234 N Michigan Ave, Chicago, IL 60610',
+    defaultPharmacyPhone: '(312) 266-8500',
+    defaultPharmacyFax: '(312) 266-8501',
+    sigFavorites: [
+      { medName: 'sertraline',   sig: 'Take 1 tablet by mouth once daily in the morning with food' },
+      { medName: 'escitalopram', sig: 'Take 1 tablet by mouth once daily at the same time each day' },
+      { medName: 'aripiprazole', sig: 'Take 1 tablet by mouth once daily; take with or without food' },
+    ],
   },
   {
     id: 'u4',

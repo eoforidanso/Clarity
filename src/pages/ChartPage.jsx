@@ -10,6 +10,7 @@ import { generateILPmpReport } from '../utils/pmpMock';
 import BTGGuard from '../components/BTGGuard';
 import { ILLINOIS_LABS, getLabProximityInfo } from '../data/illinoisLabs';
 import { checkInteractions } from '../data/drugInteractions';
+import { resolvePharmacy, resolveSigSuggestions, getActiveMedContext } from '../utils/rxAutoPopulate';
 import AssessmentScorer from '../components/AssessmentScorer';
 import SafetyPlanBuilder from '../components/SafetyPlanBuilder';
 import MedAdherenceTimeline from '../components/MedAdherenceTimeline';
@@ -170,7 +171,12 @@ export default function ChartPage() {
 
   // ── Order group state ────────────────────────────────────
   const [orderGroupName, setOrderGroupName] = useState('');
-  const BLANK_ORDER = { type: 'Lab', priority: 'Routine', notes: '', description: '', labPanel: '', labNetwork: '', labAddress: '', labPhone: '', medName: '', medDose: '', medRoute: 'Oral', medFrequency: '', medQuantity: '30', medRefills: '0', medSig: '', medDispenseAsWritten: false, medPharmacy: '', medPharmAddress: '', medPharmPhone: '', medPharmFax: '', imgModality: 'X-ray', imgBodyPart: '', imgLaterality: 'N/A', imgReason: '', refSpecialty: 'Psychiatry', refProvider: '', refReason: '' };
+  const BLANK_ORDER = { type: 'Lab', priority: 'Routine', notes: '', description: '', labPanel: '', labNetwork: '', labAddress: '', labPhone: '', _labSearch: '', medName: '', medDose: '', medRoute: 'Oral', medFrequency: '', medQuantity: '30', medRefills: '0', medSig: '', medDispenseAsWritten: false, medPharmacy: '', medPharmAddress: '', medPharmPhone: '', medPharmFax: '', imgModality: 'X-ray', imgBodyPart: '', imgLaterality: 'N/A', imgReason: '', refSpecialty: 'Psychiatry', refProvider: '', refReason: '',
+    // ── Auto-populate tracking ─────────────────────────────────────────────
+    _pharmAutoSource: null,     // sourceLabel string when pharmacy was auto-filled
+    _showActiveMeds: false,     // collapsible active-meds panel
+    _sigSuggestions: [],        // [{ sig, source, label }]
+  };
   const [orderGroupItems, setOrderGroupItems] = useState([{ ...BLANK_ORDER }]);
   const [orderGroupSaved, setOrderGroupSaved] = useState(false);
   const [showPatientLetter, setShowPatientLetter] = useState(false);
@@ -920,10 +926,14 @@ export default function ChartPage() {
       pharmacy.address2,
       pharmacy.city && `${pharmacy.city}${pharmacy.state ? ', ' + pharmacy.state : ''} ${pharmacy.zip}`,
     ].filter(Boolean).join(', ');
-    updateOrderGroupItem(pharmDrawerTargetIdx, 'medPharmacy',  pharmacy.name);
-    updateOrderGroupItem(pharmDrawerTargetIdx, 'medPharmAddress', addr.replace(/, $/, ''));
-    updateOrderGroupItem(pharmDrawerTargetIdx, 'medPharmPhone', pharmacy.phone);
-    updateOrderGroupItem(pharmDrawerTargetIdx, 'medPharmFax',  pharmacy.fax);
+    setOrderGroupItems(prev => prev.map((item, i) => i !== pharmDrawerTargetIdx ? item : {
+      ...item,
+      medPharmacy:      pharmacy.name,
+      medPharmAddress:  addr.replace(/, $/, ''),
+      medPharmPhone:    pharmacy.phone,
+      medPharmFax:      pharmacy.fax,
+      _pharmAutoSource: null,   // manual selection — clear auto label
+    }));
   };
 
   return (
@@ -1704,20 +1714,66 @@ export default function ChartPage() {
           const sorted = [...PSYCH_MED_DEFAULTS].sort((a, b) => b.match.length - a.match.length);
           return sorted.find(d => lower.includes(d.match)) || null;
         };
+
+        // ── Auto-populate handler ─────────────────────────────────────────────
         const handleMedNameChange = (idx, name) => {
-          const defaults = getPsychMedDefaults(name);
-          if (defaults) {
-            setOrderGroupItems(prev => prev.map((item, i) => i !== idx ? item : {
+          const defaults      = getPsychMedDefaults(name);
+          const sigSuggestions = resolveSigSuggestions(
+            name, patMeds, currentUser?.sigFavorites || [], PSYCH_MED_DEFAULTS
+          );
+          setOrderGroupItems(prev => prev.map((item, i) => {
+            if (i !== idx) return item;
+            // Only auto-fill pharmacy if none chosen yet
+            const pharmFill = !item.medPharmacy
+              ? resolvePharmacy(p, currentUser, patMeds)
+              : null;
+            return {
               ...item,
               medName: name,
-              medDose: item.medDose || defaults.dose,
-              medSig: item.medSig || defaults.sig,
-              medQuantity: (!item.medQuantity || item.medQuantity === '30') ? defaults.qty : item.medQuantity,
-              medRefills: (!item.medRefills || item.medRefills === '0') ? defaults.refills : item.medRefills,
-            }));
-          } else {
-            updateOrderGroupItem(idx, 'medName', name);
+              // Clinic defaults (dose, sig, qty, refills)
+              ...(defaults ? {
+                medDose:     item.medDose     || defaults.dose,
+                medSig:      item.medSig      || defaults.sig,
+                medQuantity: (!item.medQuantity || item.medQuantity === '30') ? defaults.qty     : item.medQuantity,
+                medRefills:  (!item.medRefills  || item.medRefills  === '0')  ? defaults.refills : item.medRefills,
+              } : {}),
+              // Pharmacy auto-fill
+              ...(pharmFill ? {
+                medPharmacy:     pharmFill.name,
+                medPharmAddress: pharmFill.address,
+                medPharmPhone:   pharmFill.phone,
+                medPharmFax:     pharmFill.fax,
+                _pharmAutoSource: pharmFill.sourceLabel,
+              } : {}),
+              _sigSuggestions: sigSuggestions,
+            };
+          }));
+        };
+
+        // ── Type-switch handler — auto-populate pharmacy when switching to Medication ──
+        const handleTypeChange = (idx, newType) => {
+          if (newType !== 'Medication') {
+            updateOrderGroupItem(idx, 'type', newType);
+            return;
           }
+          setOrderGroupItems(prev => prev.map((item, i) => {
+            if (i !== idx) return item;
+            if (item.type === 'Medication') return { ...item, type: newType }; // already med
+            const pharmFill = !item.medPharmacy
+              ? resolvePharmacy(p, currentUser, patMeds)
+              : null;
+            return {
+              ...item,
+              type: newType,
+              ...(pharmFill ? {
+                medPharmacy:      pharmFill.name,
+                medPharmAddress:  pharmFill.address,
+                medPharmPhone:    pharmFill.phone,
+                medPharmFax:      pharmFill.fax,
+                _pharmAutoSource: pharmFill.sourceLabel,
+              } : {}),
+            };
+          }));
         };
 
         const validCount = orderGroupItems.filter(i => getOrderDescription(i).trim()).length;
@@ -1777,7 +1833,7 @@ export default function ChartPage() {
                           {['Lab', 'Medication', 'Imaging', 'Referral', 'Procedure'].map(t => (
                             <button
                               key={t}
-                              onClick={() => updateOrderGroupItem(idx, 'type', t)}
+                              onClick={() => handleTypeChange(idx, t)}
                               style={{
                                 padding: '3px 9px', fontSize: 11, borderRadius: 6, cursor: 'pointer', fontWeight: item.type === t ? 700 : 400,
                                 background: item.type === t ? 'var(--primary)' : 'var(--bg-white)',
@@ -1872,6 +1928,79 @@ export default function ChartPage() {
                               <div style={{ fontSize: 10, color: '#16a34a', marginTop: 2 }}>✓ defaults auto-filled — edit any field to override</div>
                             )}
                           </div>
+
+                          {/* ── Active Medications Context Panel ── */}
+                          {(() => {
+                            if (item.medName.length < 2) return null;
+                            const ctx = getActiveMedContext(item.medName, patMeds);
+                            if (ctx.activeMeds.length === 0) return null;
+                            const hasDupes = ctx.duplicates.length > 0;
+                            return (
+                              <div style={{ border: `1px solid ${hasDupes ? '#fed7aa' : '#e2e8f0'}`, borderRadius: 8, overflow: 'hidden', fontSize: 12 }}>
+                                {/* Toggle header */}
+                                <button
+                                  type="button"
+                                  onClick={() => updateOrderGroupItem(idx, '_showActiveMeds', !item._showActiveMeds)}
+                                  style={{
+                                    width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                                    padding: '7px 11px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                                    background: hasDupes ? '#fff7ed' : '#f8fafc',
+                                    borderBottom: item._showActiveMeds ? `1px solid ${hasDupes ? '#fed7aa' : '#e2e8f0'}` : 'none',
+                                  }}
+                                >
+                                  <span style={{ fontSize: 10, color: '#6b7280' }}>{item._showActiveMeds ? '▲' : '▼'}</span>
+                                  <span style={{ fontWeight: 700, fontSize: 11.5, color: hasDupes ? '#92400e' : '#374151' }}>
+                                    {hasDupes
+                                      ? `⚠ Duplicate risk — ${ctx.duplicates.length} active match${ctx.duplicates.length > 1 ? 'es' : ''}`
+                                      : `Active Medications (${ctx.activeMeds.length})`}
+                                  </span>
+                                  {ctx.lastFill && hasDupes && (
+                                    <span style={{ fontSize: 10.5, color: '#6b7280', marginLeft: 'auto' }}>
+                                      Last filled: {ctx.lastFill}
+                                    </span>
+                                  )}
+                                  {!hasDupes && (
+                                    <span style={{ fontSize: 10.5, color: '#9ca3af', marginLeft: 'auto' }}>
+                                      {ctx.activeMeds.length} active · click to review
+                                    </span>
+                                  )}
+                                </button>
+                                {/* Expanded list */}
+                                {item._showActiveMeds && (
+                                  <div style={{ maxHeight: 192, overflowY: 'auto' }}>
+                                    {ctx.activeMeds.map((med, mi) => {
+                                      const isDupe = ctx.duplicates.some(d => d.id === med.id || d.name === med.name);
+                                      return (
+                                        <div key={med.id || mi} style={{
+                                          display: 'flex', alignItems: 'center', gap: 10,
+                                          padding: '6px 11px',
+                                          borderBottom: mi < ctx.activeMeds.length - 1 ? '1px solid #f3f4f6' : 'none',
+                                          background: isDupe ? '#fffbeb' : 'transparent',
+                                          borderLeft: `3px solid ${isDupe ? '#f59e0b' : 'transparent'}`,
+                                        }}>
+                                          <div style={{ flex: 1, minWidth: 0 }}>
+                                            <span style={{ fontWeight: 700, color: isDupe ? '#92400e' : '#111827', fontSize: 12 }}>{med.name}</span>
+                                            {med.dose && <span style={{ color: '#6b7280', marginLeft: 5, fontSize: 11 }}>{med.dose}</span>}
+                                            {med.frequency && <span style={{ color: '#9ca3af', marginLeft: 4, fontSize: 11 }}>· {med.frequency}</span>}
+                                          </div>
+                                          <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
+                                            {isDupe && (
+                                              <span style={{ fontSize: 9.5, fontWeight: 700, color: '#d97706', background: '#fef3c7', padding: '1px 6px', borderRadius: 8 }}>
+                                                duplicate
+                                              </span>
+                                            )}
+                                            {med.lastFilled && (
+                                              <span style={{ fontSize: 10, color: '#9ca3af' }}>filled {med.lastFilled}</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {/* ── PDMP Banner ── */}
                           {(() => {
@@ -1992,7 +2121,37 @@ export default function ChartPage() {
                               <input className="form-input" placeholder="0" value={item.medRefills} onChange={e => updateOrderGroupItem(idx, 'medRefills', e.target.value)} style={{ fontSize: 12 }} />
                             </div>
                           </div>
-                          <input className="form-input" placeholder="Sig / Patient instructions (e.g. Take 1 tablet by mouth each morning)" value={item.medSig} onChange={e => updateOrderGroupItem(idx, 'medSig', e.target.value)} style={{ fontSize: 12, background: getPsychMedDefaults(item.medName) && item.medSig ? '#f0fdf4' : undefined }} />
+                          {/* Sig input + smart suggestions */}
+                          <div>
+                            <input className="form-input" placeholder="Sig / Patient instructions (e.g. Take 1 tablet by mouth each morning)" value={item.medSig} onChange={e => updateOrderGroupItem(idx, 'medSig', e.target.value)} style={{ fontSize: 12, background: getPsychMedDefaults(item.medName) && item.medSig ? '#f0fdf4' : undefined }} />
+                            {/* Sig suggestions — show when sig is empty */}
+                            {!item.medSig && item._sigSuggestions?.length > 0 && (
+                              <div style={{ marginTop: 5 }}>
+                                <div style={{ fontSize: 9.5, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Sig suggestions</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                  {item._sigSuggestions.map((s, si) => (
+                                    <button key={si} type="button"
+                                      onClick={() => updateOrderGroupItem(idx, 'medSig', s.sig)}
+                                      style={{
+                                        textAlign: 'left', padding: '6px 10px',
+                                        background: s.source === 'patient_history' ? '#f0fdf4' : s.source === 'provider_favorite' ? '#eff6ff' : '#f9fafb',
+                                        border: `1px solid ${s.source === 'patient_history' ? '#86efac' : s.source === 'provider_favorite' ? '#bfdbfe' : '#e5e7eb'}`,
+                                        borderRadius: 6, cursor: 'pointer', lineHeight: 1.5,
+                                        transition: 'background 0.1s',
+                                      }}
+                                      onMouseOver={e => e.currentTarget.style.opacity = '0.8'}
+                                      onMouseOut={e => e.currentTarget.style.opacity = '1'}
+                                    >
+                                      <div style={{ fontSize: 9.5, fontWeight: 700, color: s.source === 'patient_history' ? '#15803d' : s.source === 'provider_favorite' ? '#1d4ed8' : '#6366f1', marginBottom: 2 }}>
+                                        {s.label}
+                                      </div>
+                                      <div style={{ fontSize: 11, color: '#1f2937' }}>{s.sig}</div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
                             <input type="checkbox" checked={item.medDispenseAsWritten} onChange={e => updateOrderGroupItem(idx, 'medDispenseAsWritten', e.target.checked)} />
                             Dispense As Written (DAW) — no generic substitution
@@ -2012,9 +2171,21 @@ export default function ChartPage() {
                                       {item.medPharmPhone && <span style={{ fontSize: 11.5, color: '#6b7280' }}>📞 {item.medPharmPhone}</span>}
                                       {item.medPharmFax   && <span style={{ fontSize: 11.5, color: '#6b7280' }}>📠 Fax: {item.medPharmFax}</span>}
                                     </div>
+                                    {/* Auto-selection source label */}
+                                    {item._pharmAutoSource && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6, fontSize: 10.5, color: '#0369a1' }}>
+                                        <span>🤖</span>
+                                        <span style={{ fontStyle: 'italic' }}>{item._pharmAutoSource}</span>
+                                        <button type="button"
+                                          onClick={() => updateOrderGroupItem(idx, '_pharmAutoSource', null)}
+                                          style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: '#9ca3af', padding: 0 }}
+                                          title="Dismiss label"
+                                        >✕</button>
+                                      </div>
+                                    )}
                                   </div>
                                   <button type="button"
-                                    onClick={() => { updateOrderGroupItem(idx, 'medPharmacy', ''); updateOrderGroupItem(idx, 'medPharmAddress', ''); updateOrderGroupItem(idx, 'medPharmPhone', ''); updateOrderGroupItem(idx, 'medPharmFax', ''); }}
+                                    onClick={() => { updateOrderGroupItem(idx, 'medPharmacy', ''); updateOrderGroupItem(idx, 'medPharmAddress', ''); updateOrderGroupItem(idx, 'medPharmPhone', ''); updateOrderGroupItem(idx, 'medPharmFax', ''); updateOrderGroupItem(idx, '_pharmAutoSource', null); }}
                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 14, padding: '0 2px', lineHeight: 1 }} title="Change pharmacy"
                                   >✕</button>
                                 </div>
