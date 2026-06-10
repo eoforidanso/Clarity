@@ -1159,7 +1159,24 @@ export default function ChartPage() {
 
       {/* ── Create Order Group ──────────────────────────────── */}
       {activePanel === 'ordergroup' && (() => {
-        const LAB_OPTIONS = ['CMP (Comprehensive Metabolic Panel)', 'BMP (Basic Metabolic Panel)', 'CBC with Differential', 'Lipid Panel', 'TSH + Free T3/T4', 'HbA1c + Fasting Glucose', 'Lithium Level (trough)', 'Valproate Level (trough)', 'Clozapine Level + ANC', 'Metabolic Syndrome Panel', 'Urine Drug Screen (10-panel)', 'Urine Pregnancy Test (hCG)', 'Liver Function Tests (LFTs)', 'Renal Function Panel', 'Vitamin B12 + Folate', 'Vitamin D (25-OH)', 'Iron Studies', 'HIV + Syphilis + Hepatitis Panel', 'Lamotrigine Level', 'Quetiapine Level', 'Other (free text)'];
+        const LAB_OPTIONS = [
+          // ── Metabolic / General ──────────────────────────────────────────────
+          'CMP (Comprehensive Metabolic Panel)', 'BMP (Basic Metabolic Panel)', 'CBC with Differential', 'Lipid Panel', 'TSH + Free T3/T4', 'HbA1c + Fasting Glucose', 'Metabolic Syndrome Panel', 'Liver Function Tests (LFTs)', 'Renal Function Panel',
+          // ── Mood Stabilizer Levels ───────────────────────────────────────────
+          'Lithium Level (trough)', 'Valproate / Depakote Total Level (trough)', 'Valproate Free Acid Level', 'Carbamazepine (Tegretol) Level (trough)', 'Oxcarbazepine (Trileptal) Level', 'Lamotrigine Level',
+          // ── Antipsychotic Levels ─────────────────────────────────────────────
+          'Clozapine Level + ANC', 'Olanzapine Level', 'Risperidone + 9-OH-Risperidone Level', 'Haloperidol Level', 'Quetiapine Level', 'Aripiprazole Level',
+          // ── Antidepressant Levels ────────────────────────────────────────────
+          'Nortriptyline Level', 'Amitriptyline Level', 'Bupropion + Hydroxybupropion Level',
+          // ── Depakote Safety Monitoring ───────────────────────────────────────
+          'Ammonia Level', 'Folic Acid Level', 'Fibrinogen Level (coagulation)',
+          // ── Antipsychotic Safety Monitoring ─────────────────────────────────
+          'Prolactin Level', 'Fasting Insulin + HOMA-IR',
+          // ── Urine Toxicology ─────────────────────────────────────────────────
+          'Urine Drug Screen — 5-panel (SAMHSA)', 'Urine Drug Screen — 10-panel', 'Urine Drug Screen — 12-panel (expanded)', 'Urine Toxicology — Comprehensive (extended)', 'Urine Drug Confirmation (GC-MS)', 'Urine Fentanyl Screen', 'Urine Benzo Screen', 'Urine Opioid Screen', 'Urine Stimulant Screen', 'Urine Pregnancy Test (hCG)',
+          // ── Nutrition / Other ────────────────────────────────────────────────
+          'Vitamin B12 + Folate', 'Vitamin D (25-OH)', 'Iron Studies', 'HIV + Syphilis + Hepatitis Panel', 'Other (free text)',
+        ];
         const ROUTES = ['Oral', 'Sublingual', 'Topical', 'Transdermal', 'IM (Intramuscular)', 'IV (Intravenous)', 'Intranasal', 'Inhaled', 'Rectal', 'Ophthalmic', 'Otic'];
         const FREQUENCIES = ['Once daily (QD)', 'Twice daily (BID)', 'Three times daily (TID)', 'Four times daily (QID)', 'Every 4 hours', 'Every 6 hours', 'Every 8 hours', 'Every 12 hours', 'Every other day', 'Weekly', 'Twice weekly', 'Monthly', 'As needed (PRN)', 'At bedtime (QHS)', 'With meals'];
         const MODALITIES = ['X-ray', 'CT Scan', 'MRI', 'Ultrasound', 'PET Scan', 'DEXA Scan', 'Mammogram', 'Echocardiogram', 'EEG', 'EMG/NCS'];
@@ -1171,6 +1188,9 @@ export default function ChartPage() {
           { label: '⚗️ Lithium Monitoring', items: [{ type: 'Lab', labPanel: 'Lithium Level (trough)', priority: 'Routine', notes: 'Trough level — draw before morning dose' }, { type: 'Lab', labPanel: 'CMP (Comprehensive Metabolic Panel)', priority: 'Routine' }, { type: 'Lab', labPanel: 'TSH + Free T3/T4', priority: 'Routine' }] },
           { label: '🔬 Clozapine Monitoring', items: [{ type: 'Lab', labPanel: 'Clozapine Level + ANC', priority: 'Routine', notes: 'Required per REMS — ANC must be within range before dispensing' }, { type: 'Lab', labPanel: 'CMP (Comprehensive Metabolic Panel)', priority: 'Routine' }] },
           { label: '🌿 Mood / Fatigue Workup', items: [{ type: 'Lab', labPanel: 'TSH + Free T3/T4', priority: 'Routine' }, { type: 'Lab', labPanel: 'Vitamin B12 + Folate', priority: 'Routine' }, { type: 'Lab', labPanel: 'Vitamin D (25-OH)', priority: 'Routine' }, { type: 'Lab', labPanel: 'Iron Studies', priority: 'Routine' }, { type: 'Lab', labPanel: 'CBC with Differential', priority: 'Routine' }] },
+          { label: '💊 Depakote Monitoring', items: [{ type: 'Lab', labPanel: 'Valproate / Depakote Total Level (trough)', priority: 'Routine', notes: 'Trough level — draw before morning dose. Therapeutic range: 50–125 mcg/mL' }, { type: 'Lab', labPanel: 'Ammonia Level', priority: 'Routine', notes: 'Check for valproate-induced hyperammonemia if altered mental status' }, { type: 'Lab', labPanel: 'Liver Function Tests (LFTs)', priority: 'Routine' }, { type: 'Lab', labPanel: 'CBC with Differential', priority: 'Routine', notes: 'Monitor for thrombocytopenia' }, { type: 'Lab', labPanel: 'Folic Acid Level', priority: 'Routine' }] },
+          { label: '🔬 Urine Toxicology', items: [{ type: 'Lab', labPanel: 'Urine Drug Screen — 10-panel', priority: 'Routine' }, { type: 'Lab', labPanel: 'Urine Fentanyl Screen', priority: 'Routine', notes: 'Standard UDS may miss fentanyl — order separately' }] },
+          { label: '💉 Antipsychotic Monitoring', items: [{ type: 'Lab', labPanel: 'Metabolic Syndrome Panel', priority: 'Routine' }, { type: 'Lab', labPanel: 'Fasting Insulin + HOMA-IR', priority: 'Routine' }, { type: 'Lab', labPanel: 'Prolactin Level', priority: 'Routine' }, { type: 'Lab', labPanel: 'Lipid Panel', priority: 'Routine' }] },
         ];
         const validCount = orderGroupItems.filter(i => getOrderDescription(i).trim()).length;
         return (
@@ -1866,18 +1886,37 @@ export default function ChartPage() {
           { id: 'lipid',      icon: '💉', label: 'Lipid Panel',                           tests: 'Total Cholesterol, LDL, HDL, Triglycerides',         indication: 'Cardiovascular risk / antipsychotics' },
           { id: 'thyroid',    icon: '🦋', label: 'Thyroid Panel (TSH, T3, T4)',           tests: 'TSH, Free T3, Free T4',                              indication: 'Mood / fatigue workup' },
           { id: 'hba1c',      icon: '🩺', label: 'HbA1c + Fasting Glucose',              tests: 'HbA1c, Fasting Glucose',                             indication: 'Diabetes / metabolic syndrome' },
-          { id: 'lithium',    icon: '⚗️', label: 'Lithium Level',                         tests: 'Serum Lithium (trough)',                             indication: 'Lithium toxicity monitoring' },
-          { id: 'valproate',  icon: '⚗️', label: 'Valproate Level',                       tests: 'Valproic Acid (trough)',                             indication: 'Depakote/Depakene monitoring' },
-          { id: 'clozapine',  icon: '⚗️', label: 'Clozapine Level + ANC',                tests: 'Clozapine level, ANC (absolute neutrophil count)',   indication: 'Clozapine REMS monitoring' },
-          { id: 'metabolic',  icon: '📊', label: 'Metabolic Syndrome Panel',              tests: 'CMP, CBC, Fasting Glucose, HbA1c, Lipid Panel, TSH', indication: 'Antipsychotic monitoring' },
-          { id: 'uds',        icon: '🔬', label: 'Urine Drug Screen (UDS)',               tests: '10-panel or 12-panel UDS',                           indication: 'Substance use monitoring / PDMP' },
-          { id: 'preg',       icon: '🌸', label: 'Urine Pregnancy Test (hCG)',            tests: 'Urine hCG',                                          indication: 'Pre-medication / teratogen check' },
-          { id: 'lft',        icon: '🫀', label: 'Liver Function Tests (LFTs)',           tests: 'ALT, AST, Alk Phos, Bilirubin, Albumin',            indication: 'Liver monitoring / alcohol use' },
-          { id: 'renal',      icon: '🫘', label: 'Renal Function Panel',                  tests: 'BUN, Creatinine, eGFR, BMP',                         indication: 'Renal monitoring for medications' },
-          { id: 'b12-folate', icon: '🌿', label: 'B12 + Folate',                          tests: 'Vitamin B12, Folate',                                 indication: 'Mood / cognitive workup' },
-          { id: 'vitd',       icon: '☀️', label: 'Vitamin D (25-OH)',                     tests: '25-Hydroxyvitamin D',                                indication: 'Mood / fatigue workup' },
-          { id: 'iron',       icon: '🔩', label: 'Iron Studies',                          tests: 'Serum Iron, TIBC, Ferritin, Transferrin',            indication: 'Fatigue / anemia evaluation' },
-          { id: 'std',        icon: '🔬', label: 'STI / Infectious Panel',               tests: 'HIV, Syphilis (RPR), Hepatitis B, Hepatitis C',       indication: 'Infectious disease screening' },
+          // ── Mood Stabilizer Levels ───────────────────────────────────────────
+          { id: 'lithium',    icon: '⚗️', label: 'Lithium Level (trough)',                tests: 'Serum Lithium — draw before morning dose',           indication: 'Therapeutic range: 0.6–1.2 mEq/L' },
+          { id: 'valproate',  icon: '💊', label: 'Depakote / Valproate Total Level',      tests: 'Valproic Acid total (trough)',                       indication: 'Therapeutic range: 50–125 mcg/mL — draw before dose' },
+          { id: 'valproate-free', icon: '💊', label: 'Valproate Free Acid Level',         tests: 'Free valproic acid',                                 indication: 'Check when albumin low or protein binding affected' },
+          { id: 'carbamazepine', icon: '⚗️', label: 'Carbamazepine (Tegretol) Level',    tests: 'Carbamazepine trough',                               indication: 'Therapeutic range: 4–12 mcg/mL' },
+          { id: 'lamotrigine', icon: '⚗️', label: 'Lamotrigine Level',                   tests: 'Lamotrigine serum level',                            indication: 'Therapeutic range: 3–14 mcg/mL' },
+          // ── Depakote Safety Labs ─────────────────────────────────────────────
+          { id: 'ammonia',    icon: '⚠️', label: 'Ammonia Level',                        tests: 'Serum Ammonia',                                      indication: 'Valproate-induced hyperammonemia — check if AMS' },
+          { id: 'folate',     icon: '🌿', label: 'Folic Acid Level',                     tests: 'Serum Folate',                                       indication: 'Depakote depletes folate — critical in pregnancy' },
+          // ── Antipsychotic Levels ─────────────────────────────────────────────
+          { id: 'clozapine',  icon: '⚗️', label: 'Clozapine Level + ANC',               tests: 'Clozapine level, ANC (absolute neutrophil count)',   indication: 'Clozapine REMS monitoring — required before dispensing' },
+          { id: 'olanzapine', icon: '⚗️', label: 'Olanzapine Level',                    tests: 'Olanzapine serum level',                             indication: 'Check adherence or subtherapeutic response' },
+          { id: 'haloperidol',icon: '⚗️', label: 'Haloperidol Level',                   tests: 'Haloperidol serum level',                            indication: 'Therapeutic range: 5–20 ng/mL' },
+          // ── Antipsychotic Safety Monitoring ─────────────────────────────────
+          { id: 'metabolic',  icon: '📊', label: 'Metabolic Syndrome Panel',             tests: 'CMP, CBC, Fasting Glucose, HbA1c, Lipid Panel, TSH', indication: 'Antipsychotic metabolic monitoring' },
+          { id: 'prolactin',  icon: '🧪', label: 'Prolactin Level',                      tests: 'Serum Prolactin',                                    indication: 'Antipsychotic-induced hyperprolactinemia' },
+          { id: 'fasting-insulin', icon: '📊', label: 'Fasting Insulin + HOMA-IR',       tests: 'Fasting Insulin, HOMA-IR calculated',                indication: 'Insulin resistance — atypical antipsychotics' },
+          // ── Urine Toxicology ─────────────────────────────────────────────────
+          { id: 'uds-10',     icon: '🔬', label: 'Urine Drug Screen — 10-panel',         tests: 'Amphetamines, Benzos, Cannabis, Cocaine, Opiates, PCP, Barbiturates, Methadone, Oxycodone, Methamphetamine', indication: 'Substance use monitoring / PDMP compliance' },
+          { id: 'uds-fentanyl', icon: '⚠️', label: 'Urine Fentanyl Screen',             tests: 'Urine fentanyl immunoassay',                         indication: 'Standard UDS misses fentanyl — order separately' },
+          { id: 'uds-benzo',  icon: '🔬', label: 'Urine Benzo Screen + Confirmation',   tests: 'Benzo immunoassay + GC-MS confirmation',             indication: 'Confirm benzodiazepine use/non-use' },
+          { id: 'uds-confirm',icon: '🔬', label: 'Urine Drug Confirmation (GC-MS)',      tests: 'GC-MS confirmatory testing',                         indication: 'Confirm or rule out positive immunoassay result' },
+          { id: 'uds-comprehensive', icon: '🔬', label: 'Urine Toxicology — Comprehensive', tests: 'Extended UDS — 20+ substances including synthetic opioids', indication: 'Comprehensive substance monitoring' },
+          { id: 'preg',       icon: '🌸', label: 'Urine Pregnancy Test (hCG)',           tests: 'Urine hCG',                                          indication: 'Pre-medication / teratogen check' },
+          // ── General ──────────────────────────────────────────────────────────
+          { id: 'lft',        icon: '🫀', label: 'Liver Function Tests (LFTs)',          tests: 'ALT, AST, Alk Phos, Bilirubin, Albumin',            indication: 'Liver monitoring / valproate / alcohol use' },
+          { id: 'renal',      icon: '🫘', label: 'Renal Function Panel',                 tests: 'BUN, Creatinine, eGFR, BMP',                         indication: 'Renal monitoring for medications' },
+          { id: 'b12-folate', icon: '🌿', label: 'B12 + Folate',                         tests: 'Vitamin B12, Folate',                                indication: 'Mood / cognitive workup' },
+          { id: 'vitd',       icon: '☀️', label: 'Vitamin D (25-OH)',                    tests: '25-Hydroxyvitamin D',                                indication: 'Mood / fatigue workup' },
+          { id: 'iron',       icon: '🔩', label: 'Iron Studies',                         tests: 'Serum Iron, TIBC, Ferritin, Transferrin',            indication: 'Fatigue / anemia evaluation' },
+          { id: 'std',        icon: '🔬', label: 'STI / Infectious Panel',              tests: 'HIV, Syphilis (RPR), Hepatitis B, Hepatitis C',       indication: 'Infectious disease screening' },
         ];
         return (
           <div style={overlayStyle} onClick={closePanel}>
