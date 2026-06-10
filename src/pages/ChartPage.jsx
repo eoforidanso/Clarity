@@ -493,27 +493,14 @@ export default function ChartPage() {
 
         {/* Actions toolbar */}
         <div className="athena-chart-actions-bar">
-          {/* Encounter Timer (Athena-style) */}
-          <div className="athena-timer">
-            <span className={`athena-timer-dot ${timerRunning ? 'running' : ''}`} />
-            <span className="athena-timer-display">{formatTimer(timerSeconds)}</span>
-            {!timerRunning ? (
-              <button className="athena-timer-btn" onClick={startTimer} title="Start timer">▶</button>
-            ) : (
-              <button className="athena-timer-btn" onClick={stopTimer} title="Pause timer">⏸</button>
-            )}
-            {timerSeconds > 0 && (
-              <button className="athena-timer-btn" onClick={resetTimer} title="Reset timer">↺</button>
-            )}
-          </div>
-
           <div ref={menuRef} style={{ position: 'relative' }}>
             <button
               className={`athena-toolbar-btn ${menuOpen ? 'active' : ''}`}
               onClick={() => setMenuOpen(!menuOpen)}
-              title="Chart actions"
+              title="Order Set"
+              style={{ fontSize: 16, padding: '12px 24px', fontWeight: 700 }}
             >
-              <span>☰</span> Actions
+              <span>📦</span> Order Set
             </button>
 
             {menuOpen && (
