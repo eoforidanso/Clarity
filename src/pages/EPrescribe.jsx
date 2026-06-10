@@ -7,6 +7,13 @@ import { medicationDatabase, pharmacies, users, problems, allergies } from '../d
 import { rxnorm as rxnormApi, openfda as openfdaApi, locations as locationsApi, nppes as nppesApi, dosespot as dosespotApi } from '../services/api';
 import { useSite } from '../contexts/SiteContext';
 import { generateILPmpReport } from '../utils/pmpMock';
+import { checkInteractions }    from '../data/drugInteractions';
+import { resolvePharmacy, resolveSigSuggestions, getActiveMedContext } from '../utils/rxAutoPopulate';
+import { buildSignaturePayload, buildSignatureBlockHtml, getSignatureOnFileWatermarkCss, getSignatureOnFileWatermarkHtml } from '../utils/providerSignature';
+import PharmacySelectorDrawer   from '../components/PharmacySelectorDrawer';
+import RxSignatureBlock         from '../components/RxSignatureBlock';
+import RxReadinessScore         from '../components/RxReadinessScore';
+import { PSYCH_MED_DEFAULTS }   from '../components/RxComposerDrawer';
 
 // ── Prescriber authorization: MDs, NPs, and PAs may authorize / receive refills ──
 const canApproveRefills = (user) => /\b(MD|NP|PA)\b/i.test(user?.credentials || '');
@@ -743,6 +750,12 @@ export default function EPrescribe() {
   const [showCommonSigs, setShowCommonSigs] = useState(false);
   const [showInteractionsModal, setShowInteractionsModal] = useState(false);
   const [showDiagFavorites, setShowDiagFavorites] = useState(false);
+
+  // ── Smart Rx features (matching Order Group behaviour) ───────────────────
+  const [pharmAutoSource, setPharmAutoSource]     = useState(null);
+  const [sigSuggestions,  setSigSuggestions]      = useState([]);
+  const [showActiveMeds,  setShowActiveMeds]      = useState(false);
+  const [ilPharmDrawer,   setIlPharmDrawer]       = useState(false);
   const [diagFavorites, setDiagFavorites] = useState(() => {
     try { return JSON.parse(localStorage.getItem('clarity_diag_favorites') || '[]'); } catch { return []; }
   });
@@ -763,6 +776,34 @@ export default function EPrescribe() {
       return () => clearTimeout(t);
     }
   }, [step, selectedMed?.isControlled, prescriptionPatient?.id]);
+
+  // ── Pharmacy auto-populate when patient or med changes ───────────────────
+  useEffect(() => {
+    if (step === 2 && selectedMed && !rx.pharmacy) {
+      const patMeds = prescriptionPatient ? (meds[prescriptionPatient.id] || []) : [];
+      const resolved = resolvePharmacy(prescriptionPatient, currentUser, patMeds);
+      if (resolved) {
+        setRx(prev => ({ ...prev, pharmacy: resolved.name }));
+        setPharmAutoSource(resolved.sourceLabel);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, selectedMed?.name, prescriptionPatient?.id]);
+
+  // ── Sig suggestions when medication selected ──────────────────────────────
+  useEffect(() => {
+    if (step === 2 && selectedMed) {
+      const patMeds = prescriptionPatient ? (meds[prescriptionPatient.id] || []) : [];
+      const suggestions = resolveSigSuggestions(
+        selectedMed.name,
+        patMeds,
+        currentUser?.sigFavorites || [],
+        PSYCH_MED_DEFAULTS,
+      );
+      setSigSuggestions(suggestions);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, selectedMed?.name, prescriptionPatient?.id]);
 
   // Only prescribers with valid credentials (MD, NP, PA) get full e-prescribe. Therapists/staff → staff form.
   if (currentUser?.role !== 'prescriber') {
@@ -933,6 +974,8 @@ export default function EPrescribe() {
       return;
     }
 
+    const sigPayload = buildSignaturePayload(currentUser);
+
     const newMed = {
       name: selectedMed.name,
       dose: rx.dose,
@@ -949,6 +992,7 @@ export default function EPrescribe() {
       sig: rx.sig || `Take ${rx.dose} by ${selectedMed.routes[0].toLowerCase()} ${rx.frequency.toLowerCase()}`,
       diagnosis: rx.diagnosis,
       diagnosisCode: rx.diagnosisCode,
+      ...sigPayload,
     };
 
     addMedication(prescriptionPatient.id, newMed);
@@ -960,6 +1004,7 @@ export default function EPrescribe() {
       orderedBy: `${currentUser.firstName} ${currentUser.lastName}`,
       priority: 'Routine',
       notes: rx.notes || `Qty: ${rx.quantity}, Refills: ${rx.refills}${selectedMed.isControlled ? ' [EPCS Authenticated]' : ''}`,
+      ...sigPayload,
     });
 
     setShowSuccess(true);
@@ -1034,10 +1079,13 @@ export default function EPrescribe() {
     const facilityPhone = facilityInfo?.phone || '';
     const facilityFax = facilityInfo?.fax || '';
     const facilityNpi = facilityInfo?.npi || '';
-    let sigDataUrl = null;
-    try { const all = JSON.parse(localStorage.getItem('clarity_signature') || '{}'); sigDataUrl = currentUser?.id ? (all[currentUser.id] || null) : null; } catch { /* noop */ }
+    // Use the signature already on currentUser (injected by AuthContext at login,
+    // kept in sync by updateUserSignature) — no localStorage re-read needed.
+    const sigDataUrl = currentUser?.signature || null;
     const win = window.open('', '_blank', 'width=780,height=700');
     if (!win) return;
+    const watermarkCss = !isControlled ? getSignatureOnFileWatermarkCss() : '';
+    const watermarkHtml = !isControlled ? getSignatureOnFileWatermarkHtml() : '';
     win.document.write(`<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"/><title>Prescription — ${patientName} — ${dateStr}</title><style>
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -1057,7 +1105,9 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
 .sig-area { margin-top:36px; padding-top:10px; border-top:1.5px solid #374151; font-size:11px; color:#374151; display:flex; justify-content:space-between; }
 .footer { margin-top:20px; padding-top:8px; border-top:1px solid #e5e7eb; font-size:10.5px; color:#6b7280; text-align:center; }
 @media print { body { padding:10px 16px; } }
+${watermarkCss}
 </style></head><body>
+${watermarkHtml}
 <div class="header"><div>
   <div class="facility-name">${facilityName}</div>
   <div class="facility-sub">${facilityAddress ? facilityAddress + '<br/>' : ''}${facilityPhone ? 'Phone: ' + facilityPhone : ''}${facilityFax ? ' &nbsp;|&nbsp; Fax: ' + facilityFax : ''}${facilityNpi ? '<br/>Facility NPI: ' + facilityNpi : ''}</div>
@@ -1088,7 +1138,7 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
   <tr><td class="lbl">Pharmacy</td><td>${rx.pharmacy || 'As directed by provider'}</td></tr>
   ${isControlled ? `<tr><td class="lbl">EPCS Status</td><td style="color:#15803d;font-weight:700">✓ EPCS Verified — Two-Factor Authenticated</td></tr>` : ''}
 </table></div>
-<div class="sig-area"><div>${sigDataUrl ? `<img src="${sigDataUrl}" style="max-height:60px;max-width:200px;display:block;margin-bottom:4px"/>` : 'Prescriber Signature: _______________________________'}</div><div>${providerName}</div></div>
+${buildSignatureBlockHtml({ provider: currentUser, sigDataUrl, timestamp: new Date().toISOString() })}
 <div class="footer">Printed ${dateStr} at ${timeStr} · Clarity EHR · Confidential — For authorized use only</div>
 </body></html>`);
     win.document.close();
@@ -1351,6 +1401,13 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
             </>
           )}
         </div>
+
+        {/* ── Prescription Readiness Score ── */}
+        <RxReadinessScore
+          provider={currentUser}
+          onFixSignature={() => window.open('/settings#signature', '_blank')}
+        />
+
         <div className="card">
           <div className="card-header">
             <h2>📝 Prescription Details — {selectedMed.name}</h2>
@@ -1386,6 +1443,87 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                 </div>
               </div>
             )}
+
+            {/* ── Drug Interaction Checker ───────────────────────────── */}
+            {(() => {
+              const patMeds = prescriptionPatient ? (meds[prescriptionPatient.id] || []) : [];
+              const ixns = patMeds.length > 0 ? checkInteractions(patMeds.map(m => m.name), selectedMed.name) : [];
+              if (!ixns.length) return null;
+              const worst = ixns.find(i => i.severity === 'Contraindicated') ? 'Contraindicated'
+                : ixns.find(i => i.severity === 'Major') ? 'Major' : 'Moderate';
+              const colors = {
+                Contraindicated: { bg: '#fef2f2', border: '#fca5a5', text: '#dc2626', badge: '#fee2e2' },
+                Major:           { bg: '#fff7ed', border: '#fed7aa', text: '#ea580c', badge: '#ffedd5' },
+                Moderate:        { bg: '#fefce8', border: '#fde68a', text: '#ca8a04', badge: '#fef9c3' },
+              };
+              const c = colors[worst];
+              return (
+                <div style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: c.text, marginBottom: 8 }}>
+                    ⚠ Drug Interaction Alert — {worst} ({ixns.length} interaction{ixns.length !== 1 ? 's' : ''} with active medications)
+                  </div>
+                  {ixns.slice(0, 4).map((ixn, i) => (
+                    <div key={i} style={{ fontSize: 12.5, color: c.text, marginBottom: i < ixns.length - 1 ? 7 : 0, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <span style={{ fontWeight: 700, background: c.badge, padding: '1px 7px', borderRadius: 4, flexShrink: 0, fontSize: 11 }}>{ixn.severity}</span>
+                      <div>
+                        <strong>{ixn.pairLabel}</strong> — {ixn.effect}
+                        {ixn.action && <div style={{ fontSize: 11, marginTop: 2, fontStyle: 'italic' }}>→ {ixn.action}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* ── Active Medications Context Panel ──────────────────── */}
+            {prescriptionPatient && (() => {
+              const patMeds = meds[prescriptionPatient.id] || [];
+              const { activeMeds, duplicates } = getActiveMedContext(selectedMed.name, patMeds);
+              if (!activeMeds.length) return null;
+              return (
+                <div style={{ border: `1px solid ${duplicates.length ? '#fde68a' : 'var(--border)'}`, borderRadius: 10, marginBottom: 16, overflow: 'hidden' }}>
+                  <button type="button"
+                    onClick={() => setShowActiveMeds(v => !v)}
+                    style={{
+                      width: '100%', textAlign: 'left', padding: '9px 14px',
+                      background: duplicates.length ? '#fffbeb' : 'var(--bg)',
+                      border: 'none', cursor: 'pointer',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      fontSize: 12.5, fontWeight: 700,
+                      color: duplicates.length ? '#92400e' : 'var(--text-secondary)',
+                    }}>
+                    <span>
+                      {duplicates.length > 0 ? '⚠ Possible Duplicate — ' : ''}
+                      Active Medications ({activeMeds.length} active
+                      {duplicates.length > 0 ? ` · ${duplicates.length} matching` : ''})
+                    </span>
+                    <span>{showActiveMeds ? '▲' : '▼'}</span>
+                  </button>
+                  {showActiveMeds && (
+                    <div style={{ maxHeight: 180, overflowY: 'auto', borderTop: '1px solid var(--border)' }}>
+                      {activeMeds.map((m, i) => {
+                        const isDup = duplicates.some(d => d.id === m.id);
+                        return (
+                          <div key={m.id || i} style={{
+                            padding: '8px 14px', fontSize: 12.5,
+                            borderBottom: '1px solid var(--border)',
+                            background: isDup ? '#fef9c3' : 'transparent',
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          }}>
+                            <div>
+                              {isDup && <span style={{ color: '#d97706', fontWeight: 700, marginRight: 5 }}>⚠</span>}
+                              <strong>{m.name}</strong> {m.dose}
+                              <span style={{ color: 'var(--text-muted)', marginLeft: 8, fontSize: 11 }}>{m.frequency}</span>
+                            </div>
+                            {m.lastFilled && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Last: {m.lastFilled}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* ── Illinois PMP Panel ─────────────────────────────────── */}
             {selectedMed.isControlled && (
@@ -1596,11 +1734,25 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                 </select>
               </div>
               <div className="form-group" style={{ position: 'relative' }}>
-                <label className="form-label">Pharmacy *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>Pharmacy *</label>
+                  <button type="button"
+                    onClick={() => setIlPharmDrawer(true)}
+                    style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
+                      background: 'linear-gradient(135deg,#4338ca,#6366f1)', color: '#fff', border: 'none' }}>
+                    🔍 IL Directory
+                  </button>
+                </div>
+                {pharmAutoSource && rx.pharmacy && (
+                  <div style={{ marginBottom: 6, padding: '4px 10px', borderRadius: 6, fontSize: 11, background: '#eff6ff', border: '1px solid #93c5fd', color: '#1d4ed8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>ℹ {pharmAutoSource}</span>
+                    <button type="button" onClick={() => setPharmAutoSource(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#6b7280' }}>✕</button>
+                  </div>
+                )}
                 {rx.pharmacy ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--primary-light)', border: '1px solid var(--primary)', borderRadius: 'var(--radius)', fontSize: 13 }}>
                     <span style={{ flex: 1 }}>🏥 <strong>{rx.pharmacy}</strong></span>
-                    <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-muted)' }} onClick={() => { setRx({ ...rx, pharmacy: '' }); setPharmacySearch(''); }}>×</button>
+                    <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-muted)' }} onClick={() => { setRx({ ...rx, pharmacy: '' }); setPharmacySearch(''); setPharmAutoSource(null); }}>×</button>
                   </div>
                 ) : (
                   <>
@@ -1747,6 +1899,31 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
                 onChange={(e) => setRx({ ...rx, sig: e.target.value })}
                 placeholder={`Take ${rx.dose} by ${selectedMed.routes[0].toLowerCase()} ${rx.frequency.toLowerCase()}`}
               />
+              {/* ── Sig suggestion chips (patient history → provider fave → clinic default) ── */}
+              {sigSuggestions.length > 0 && (
+                <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', alignSelf: 'center', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Smart SIG:</span>
+                  {sigSuggestions.map((s, i) => {
+                    const chip =
+                      s.source === 'patient_history'  ? { bg: '#f0fdf4', border: '#86efac', text: '#166534' } :
+                      s.source === 'provider_favorite' ? { bg: '#eff6ff', border: '#93c5fd', text: '#1d4ed8' } :
+                                                         { bg: '#f5f3ff', border: '#c4b5fd', text: '#6d28d9' };
+                    return (
+                      <button key={i} type="button"
+                        onClick={() => setRx(prev => ({ ...prev, sig: s.sig }))}
+                        title={s.sig}
+                        style={{
+                          padding: '3px 11px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+                          background: chip.bg, border: `1px solid ${chip.border}`,
+                          color: chip.text, cursor: 'pointer',
+                          maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                        {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="form-group">
@@ -2041,6 +2218,12 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
               </div>
             )}
 
+            {/* ── Prescriber signature preview — always visible before submit ── */}
+            <RxSignatureBlock
+              provider={currentUser}
+              onGoToSettings={() => window.open('/settings#signature', '_blank')}
+            />
+
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20 }}>
               <button className="btn btn-secondary" onClick={() => { setStep(1); setSelectedMed(null); }}>Cancel</button>
               <button
@@ -2063,6 +2246,22 @@ ${isControlled ? `<div class="controlled-box"><div class="controlled-title">⚠ 
         </div>
         </>
       )}
+
+      {/* ── Illinois Pharmacy Directory Drawer ── */}
+      <PharmacySelectorDrawer
+        isOpen={ilPharmDrawer}
+        onClose={() => setIlPharmDrawer(false)}
+        onSelect={(pharm) => {
+          setRx(prev => ({ ...prev, pharmacy: pharm.name || '' }));
+          setPharmAutoSource('Auto-selected: IL directory');
+          setIlPharmDrawer(false);
+          setPharmacySearch('');
+          setShowPharmacyDropdown(false);
+        }}
+        patientAddress={prescriptionPatient?.address
+          ? `${prescriptionPatient.address.street || ''} ${prescriptionPatient.address.city || ''} ${prescriptionPatient.address.state || ''} ${prescriptionPatient.address.zip || ''}`.trim()
+          : ''}
+      />
 
       {/* Step 3: EPCS Two-Factor Authentication */}
       {step === 3 && (

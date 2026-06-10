@@ -298,6 +298,21 @@ export default function Header() {
       {/* ── RIGHT: Icon Cluster + User Identity ── */}
       <div className="topbar-right">
         <button className="header-btn" title="Settings" onClick={() => navigate('/settings')}>⚙️</button>
+
+        {/* ── Signature Status Indicator ── */}
+        <button
+          className="header-btn"
+          title={currentUser?.signature ? 'Signature on file' : 'No signature on file — click to set up'}
+          onClick={() => navigate('/settings#signature')}
+          style={{
+            position: 'relative',
+            color: currentUser?.signature ? '#16a34a' : '#dc2626',
+            fontSize: 14,
+            fontWeight: 700,
+          }}>
+          {currentUser?.signature ? '✓' : '⚠'}
+        </button>
+
         <button className="header-btn" title="Staff Messaging" onClick={() => navigate('/staff-messaging')}>💬</button>
         <button className="header-btn notif-bell-btn" title="Notifications" onClick={togglePanel}>
           🔔{notifUnread > 0 && <span className="badge-count">{notifUnread}</span>}

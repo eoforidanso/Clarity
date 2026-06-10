@@ -90,6 +90,15 @@ async function issueFullSession(res, req, user) { const ip       = req.realIp ||
     domain: '.clarity-ehr.com', // shared across all subdomains
     maxAge: 8 * 60 * 60 * 1000, path: '/',  });
 
+  // Fetch provider signature (null for non-prescribers or those who haven't uploaded one yet)
+  let signatureDataUrl = null;
+  try {
+    const sigRow = await db.prepare(
+      `SELECT signature_data_url FROM provider_signatures WHERE provider_id = $1`
+    ).get(user.id);
+    signatureDataUrl = sigRow?.signature_data_url ?? null;
+  } catch { /* table may not exist yet during first deploy — safe to skip */ }
+
   return { mustChangePassword: !!user.must_change_password, user: {
       id: user.id, username: user.username, firstName: user.first_name, lastName: user.last_name, name: `${user.first_name } ${ user.last_name || '' }`.trim(),
       role: user.role,
@@ -102,6 +111,7 @@ async function issueFullSession(res, req, user) { const ip       = req.realIp ||
       mustChangePassword: !!user.must_change_password,
       patientId: user.patient_id,
       locationId: user.location_id || 'loc1',
+      signature: signatureDataUrl,   // ← hydrated from provider_signatures at login
     },
   };
 }

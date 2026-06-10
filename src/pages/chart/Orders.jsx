@@ -1,12 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePatient } from '../../contexts/PatientContext';
 import { labOrderDatabase, labFacilities, users, orderInsurance } from '../../data/mockData';
 import { locations as locationsApi } from '../../services/api';
+import { getControlledSchedule } from '../../utils/controlledSubstances';
+import { checkInteractions }     from '../../data/drugInteractions';
+import { resolvePharmacy, resolveSigSuggestions, getActiveMedContext } from '../../utils/rxAutoPopulate';
+import { generateILPmpReport }   from '../../utils/pmpMock';
+import { buildSignaturePayload } from '../../utils/providerSignature';
+import PDMPDrawer                from '../../components/PDMPDrawer';
+import PharmacySelectorDrawer    from '../../components/PharmacySelectorDrawer';
+import RxSignatureBlock          from '../../components/RxSignatureBlock';
+import RxReadinessScore          from '../../components/RxReadinessScore';
+import { PSYCH_MED_DEFAULTS }    from '../../components/RxComposerDrawer';
 
 export default function Orders({ patientId }) {
   const { currentUser } = useAuth();
-  const { orders, addOrder, updateOrder, addInboxMessage, patients } = usePatient();
+  const { orders, meds, addOrder, updateOrder, addInboxMessage, patients } = usePatient();
   const [showAdd, setShowAdd] = useState(false);
   const [orderType, setOrderType] = useState('Lab');
   const [search, setSearch] = useState('');
@@ -18,6 +28,21 @@ export default function Orders({ patientId }) {
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [formError, setFormError] = useState('');
   const [officeLocation, setOfficeLocation] = useState(null);
+
+  // ── Prescription sub-form state (mirrors Order Group features) ────────────
+  const [rxForm, setRxForm] = useState({
+    name: '', dose: '', sig: '', quantity: '30', refills: '0',
+    pharmacy: '', pharmAddress: '', notes: '',
+  });
+  const [rxPharmAutoSource, setRxPharmAutoSource]     = useState(null);
+  const [rxSigSuggestions, setRxSigSuggestions]       = useState([]);
+  const [rxShowActiveMeds, setRxShowActiveMeds]       = useState(false);
+  const [rxPharmDrawerOpen, setRxPharmDrawerOpen]     = useState(false);
+  const [rxPdmpDrawerOpen, setRxPdmpDrawerOpen]       = useState(false);
+  const [rxPdmpReport, setRxPdmpReport]               = useState(null);
+  const [rxPdmpLoading, setRxPdmpLoading]             = useState(false);
+  const [rxPdmpAcknowledged, setRxPdmpAcknowledged]   = useState(false);
+  const rxPdmpTimer = useRef(null);
 
   useEffect(() => {
     locationsApi.list().then(locs => {
@@ -33,6 +58,57 @@ export default function Orders({ patientId }) {
   const isAdmin      = currentUser?.role === 'admin';
   const mustForward  = isFrontDesk;
   const providers = users.filter(u => u.role === 'prescriber');
+
+  // ── Derived smart Rx values ───────────────────────────────────────────────
+  const patientMeds   = meds?.[patientId] || [];
+  const rxSchedule    = getControlledSchedule(rxForm.name);
+  const rxInteractions = rxForm.name.length >= 3
+    ? checkInteractions(patientMeds.map(m => m.name), rxForm.name)
+    : [];
+  const rxIxnWorst = rxInteractions.find(i => i.severity === 'Contraindicated') ? 'Contraindicated'
+    : rxInteractions.find(i => i.severity === 'Major') ? 'Major'
+    : rxInteractions.length > 0 ? 'Moderate' : null;
+  const { activeMeds: rxActiveMeds, duplicates: rxDuplicates } = getActiveMedContext(rxForm.name, patientMeds);
+
+  // ── Pharmacy auto-populate when prescription form opens ──────────────────
+  useEffect(() => {
+    if (form.type === 'Prescription' && showAdd && !rxForm.pharmacy) {
+      const resolved = resolvePharmacy(patient, currentUser, patientMeds);
+      if (resolved) {
+        setRxForm(p => ({ ...p, pharmacy: resolved.name, pharmAddress: resolved.address || '' }));
+        setRxPharmAutoSource(resolved.sourceLabel);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.type, showAdd]);
+
+  // ── Sig suggestions when drug name changes ────────────────────────────────
+  useEffect(() => {
+    const suggestions = resolveSigSuggestions(
+      rxForm.name, patientMeds, currentUser?.sigFavorites || [], PSYCH_MED_DEFAULTS,
+    );
+    setRxSigSuggestions(suggestions);
+    if (!rxForm.sig && suggestions.length > 0) {
+      setRxForm(p => ({ ...p, sig: suggestions[0].sig }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rxForm.name]);
+
+  // ── PDMP auto-query for controlled substances ─────────────────────────────
+  useEffect(() => {
+    clearTimeout(rxPdmpTimer.current);
+    if (rxSchedule && patient && rxForm.name.length >= 3) {
+      setRxPdmpReport(null); setRxPdmpAcknowledged(false); setRxPdmpLoading(true);
+      rxPdmpTimer.current = setTimeout(() => {
+        setRxPdmpReport(generateILPmpReport(patient, rxForm.name, rxSchedule));
+        setRxPdmpLoading(false);
+      }, 900);
+    } else {
+      setRxPdmpReport(null); setRxPdmpAcknowledged(false); setRxPdmpLoading(false);
+    }
+    return () => clearTimeout(rxPdmpTimer.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rxForm.name, rxSchedule, patient?.id]);
 
   const patient = patients?.find(p => p.id === patientId);
 
@@ -104,6 +180,70 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
     : labOrderDatabase;
 
   const handleAdd = () => {
+    // ── Prescription path ──────────────────────────────────────
+    if (form.type === 'Prescription') {
+      if (!rxForm.name.trim()) { setFormError('Medication name is required.'); return; }
+      if (!rxForm.sig.trim())  { setFormError('SIG instructions are required.'); return; }
+      if (rxSchedule && !rxPdmpAcknowledged) { setFormError('You must review the IL PMP report before prescribing a controlled substance.'); return; }
+      if (mustForward && !forwardTo) { setFormError('Please select a provider to forward this prescription to.'); return; }
+      setFormError('');
+
+      const forwardProvider = mustForward ? providers.find(p => p.id === forwardTo) : null;
+      const isPrescriber = currentUser?.role === 'prescriber';
+      const rxDescription = `${rxForm.name}${rxForm.dose ? ' ' + rxForm.dose : ''} — Qty: ${rxForm.quantity || '—'}, Refills: ${rxForm.refills || '0'}, Pharmacy: ${rxForm.pharmacy || 'TBD'}`;
+      const sigPayload = buildSignaturePayload(currentUser);
+
+      addOrder(patientId, {
+        type: 'Prescription',
+        description: rxDescription,
+        priority: form.priority || 'Routine',
+        notes: rxForm.notes,
+        sig: rxForm.sig,
+        dose: rxForm.dose,
+        quantity: rxForm.quantity,
+        refills: rxForm.refills,
+        pharmacy: rxForm.pharmacy,
+        pharmAddress: rxForm.pharmAddress,
+        controlledSchedule: rxSchedule || null,
+        status: rxSchedule ? 'Pending EPCS Auth' : mustForward ? 'Pending Provider Review' : 'Active',
+        orderedDate: new Date().toISOString().split('T')[0],
+        orderedBy: mustForward
+          ? `${currentUser.firstName} ${currentUser.lastName} → ${forwardProvider.firstName} ${forwardProvider.lastName}`
+          : `${currentUser.firstName} ${currentUser.lastName}`,
+        forwardedTo: forwardProvider ? `${forwardProvider.firstName} ${forwardProvider.lastName}` : null,
+        orderedByNpi: isPrescriber ? (currentUser.npi || '') : '',
+        orderedByDea: isPrescriber ? (currentUser.deaNumber || '') : '',
+        ...sigPayload,
+      });
+
+      if (mustForward && forwardProvider) {
+        addInboxMessage({
+          type: 'Order Forward',
+          from: `${currentUser.firstName} ${currentUser.lastName} (${isFrontDesk ? 'Front Desk' : currentUser.role})`,
+          to: forwardProvider.id,
+          subject: `Rx Forwarded: ${rxForm.name}${rxForm.dose ? ' ' + rxForm.dose : ''}`,
+          body: `${currentUser.firstName} ${currentUser.lastName} has forwarded a prescription for your review and signature.\n\nMedication: ${rxForm.name} ${rxForm.dose || ''}\nSIG: ${rxForm.sig}\nQty: ${rxForm.quantity} · Refills: ${rxForm.refills}\nPharmacy: ${rxForm.pharmacy || 'Not specified'}\nNotes: ${rxForm.notes || 'None'}\n\nPlease review and authorize.`,
+          patient: patientId,
+          date: new Date().toISOString().split('T')[0],
+          status: 'Unread',
+          urgent: form.priority === 'STAT',
+        });
+      }
+
+      setRxForm({ name: '', dose: '', sig: '', quantity: '30', refills: '0', pharmacy: '', pharmAddress: '', notes: '' });
+      setRxPharmAutoSource(null);
+      setRxSigSuggestions([]);
+      setRxShowActiveMeds(false);
+      setRxPdmpReport(null);
+      setRxPdmpAcknowledged(false);
+      setForm({ type: 'Lab', description: '', priority: 'Routine', notes: '' });
+      setForwardTo('');
+      setFormError('');
+      setShowAdd(false);
+      return;
+    }
+
+    // ── Generic orders path ────────────────────────────────────
     if (!form.description.trim()) {
       setFormError('Order description is required.');
       return;
@@ -287,6 +427,7 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
         </div>
 
         {showAdd && (
+          <>
           <div className="card-body" style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
             <div className="form-row">
               <div className="form-group">
@@ -304,6 +445,167 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
                 </select>
               </div>
             </div>
+
+            {/* ── Prescription sub-form with all smart features ── */}
+            {form.type === 'Prescription' && (
+              <>
+              {/* ── Prescription Readiness Score ── */}
+              <RxReadinessScore
+                provider={currentUser}
+                onFixSignature={() => window.open('/settings#signature', '_blank')}
+              />
+
+              <div style={{ border: '1px solid #e0e7ff', borderRadius: 10, padding: '14px 16px', background: '#fafafe', marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#4338ca', letterSpacing: '0.5px', marginBottom: 12 }}>
+                  💊 Prescription Details
+                </div>
+
+                {/* Drug name */}
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: 11 }}>Medication *</label>
+                  <input className="form-input"
+                    value={rxForm.name}
+                    onChange={e => setRxForm(p => ({ ...p, name: e.target.value, sig: '' }))}
+                    placeholder="Medication name (e.g. sertraline, quetiapine…)"
+                    style={{ fontSize: 13 }} />
+                  {rxSchedule && (
+                    <span style={{ display: 'inline-block', marginTop: 4, fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}>
+                      🔒 Controlled — {rxSchedule}
+                    </span>
+                  )}
+                </div>
+
+                {/* Drug interaction alert */}
+                {rxIxnWorst && (() => {
+                  const c = { Contraindicated: { bg: '#fef2f2', border: '#fca5a5', text: '#dc2626', badge: '#fee2e2' }, Major: { bg: '#fff7ed', border: '#fed7aa', text: '#ea580c', badge: '#ffedd5' }, Moderate: { bg: '#fefce8', border: '#fde68a', text: '#ca8a04', badge: '#fef9c3' } }[rxIxnWorst];
+                  return (
+                    <div style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 8, padding: '10px 14px', marginBottom: 10 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12.5, color: c.text, marginBottom: 6 }}>
+                        ⚠ Drug Interaction — {rxIxnWorst} ({rxInteractions.length})
+                      </div>
+                      {rxInteractions.slice(0, 3).map((ixn, i) => (
+                        <div key={i} style={{ fontSize: 12, color: c.text, marginBottom: 4, display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                          <span style={{ fontWeight: 700, background: c.badge, padding: '1px 6px', borderRadius: 4, fontSize: 11, flexShrink: 0 }}>{ixn.severity}</span>
+                          <div><strong>{ixn.pairLabel}</strong> — {ixn.effect}{ixn.action && <div style={{ fontSize: 11, fontStyle: 'italic', marginTop: 1 }}>→ {ixn.action}</div>}</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* Active meds context panel */}
+                {rxActiveMeds.length > 0 && (
+                  <div style={{ border: `1px solid ${rxDuplicates.length ? '#fde68a' : 'var(--border)'}`, borderRadius: 8, marginBottom: 10, overflow: 'hidden' }}>
+                    <button type="button" onClick={() => setRxShowActiveMeds(v => !v)}
+                      style={{ width: '100%', textAlign: 'left', padding: '7px 12px', background: rxDuplicates.length ? '#fffbeb' : 'var(--bg)', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, color: rxDuplicates.length ? '#92400e' : 'var(--text-secondary)' }}>
+                      <span>{rxDuplicates.length ? '⚠ Duplicate? — ' : ''}Active Meds ({rxActiveMeds.length}{rxDuplicates.length ? ` · ${rxDuplicates.length} matching` : ''})</span>
+                      <span>{rxShowActiveMeds ? '▲' : '▼'}</span>
+                    </button>
+                    {rxShowActiveMeds && (
+                      <div style={{ maxHeight: 150, overflowY: 'auto', borderTop: '1px solid var(--border)' }}>
+                        {rxActiveMeds.map((m, i) => {
+                          const isDup = rxDuplicates.some(d => d.id === m.id);
+                          return (
+                            <div key={m.id || i} style={{ padding: '6px 12px', fontSize: 12, borderBottom: '1px solid var(--border)', background: isDup ? '#fef9c3' : 'transparent', display: 'flex', justifyContent: 'space-between' }}>
+                              <span>{isDup && <span style={{ color: '#d97706', fontWeight: 700, marginRight: 4 }}>⚠</span>}<strong>{m.name}</strong> {m.dose} <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{m.frequency}</span></span>
+                              {m.lastFilled && <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>Last: {m.lastFilled}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* PDMP banner */}
+                {rxSchedule && (
+                  <div style={{ background: rxPdmpAcknowledged ? '#f0fdf4' : '#fff7ed', border: `1px solid ${rxPdmpAcknowledged ? '#86efac' : '#fed7aa'}`, borderRadius: 8, padding: '10px 14px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12.5, color: rxPdmpAcknowledged ? '#15803d' : '#ea580c' }}>
+                        {rxPdmpAcknowledged ? '✅ IL PMP Reviewed' : `⚠ Controlled Substance — ${rxSchedule}`}
+                      </div>
+                      <div style={{ fontSize: 11, color: rxPdmpAcknowledged ? '#166534' : '#9a3412', marginTop: 2 }}>
+                        {rxPdmpAcknowledged ? 'IL PMP report reviewed and acknowledged.' : 'Illinois PMP check required before prescribing.'}
+                      </div>
+                    </div>
+                    {!rxPdmpAcknowledged && (
+                      <button type="button" onClick={() => setRxPdmpDrawerOpen(true)} disabled={rxPdmpLoading || !rxPdmpReport}
+                        style={{ padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: '#ea580c', color: '#fff', border: 'none', cursor: 'pointer', opacity: rxPdmpLoading ? 0.6 : 1, flexShrink: 0 }}>
+                        {rxPdmpLoading ? '⏳ Loading…' : '🏛️ View PDMP →'}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Dose + sig row */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: 11 }}>Dose / Strength</label>
+                    <input className="form-input" value={rxForm.dose} onChange={e => setRxForm(p => ({ ...p, dose: e.target.value }))} placeholder="e.g. 50mg" style={{ fontSize: 13 }} />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: 11 }}>Qty / Refills</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input className="form-input" type="number" min={1} value={rxForm.quantity} onChange={e => setRxForm(p => ({ ...p, quantity: e.target.value }))} placeholder="Qty" style={{ fontSize: 13 }} />
+                      <input className="form-input" type="number" min={0} max={rxSchedule === 'Schedule II' ? 0 : 12} value={rxForm.refills} onChange={e => setRxForm(p => ({ ...p, refills: e.target.value }))} placeholder="Refills" style={{ fontSize: 13 }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* SIG */}
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: 11 }}>SIG (Patient Instructions) *</label>
+                  <textarea className="form-input" rows={2} value={rxForm.sig} onChange={e => setRxForm(p => ({ ...p, sig: e.target.value }))} placeholder="e.g. Take 1 tablet by mouth once daily in the morning" style={{ fontSize: 12.5, resize: 'vertical' }} />
+                  {/* Sig suggestion chips */}
+                  {rxSigSuggestions.length > 0 && (
+                    <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', alignSelf: 'center', textTransform: 'uppercase' }}>Smart SIG:</span>
+                      {rxSigSuggestions.map((s, i) => {
+                        const chip = s.source === 'patient_history' ? { bg: '#f0fdf4', border: '#86efac', text: '#166534' } : s.source === 'provider_favorite' ? { bg: '#eff6ff', border: '#93c5fd', text: '#1d4ed8' } : { bg: '#f5f3ff', border: '#c4b5fd', text: '#6d28d9' };
+                        return (
+                          <button key={i} type="button" onClick={() => setRxForm(p => ({ ...p, sig: s.sig }))} title={s.sig}
+                            style={{ padding: '3px 9px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: chip.bg, border: `1px solid ${chip.border}`, color: chip.text, cursor: 'pointer', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {s.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Pharmacy */}
+                <div className="form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <label className="form-label" style={{ marginBottom: 0, fontSize: 11 }}>Send to Pharmacy</label>
+                    <button type="button" onClick={() => setRxPharmDrawerOpen(true)}
+                      style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, cursor: 'pointer', background: 'linear-gradient(135deg,#4338ca,#6366f1)', color: '#fff', border: 'none' }}>
+                      🔍 IL Directory
+                    </button>
+                  </div>
+                  {rxPharmAutoSource && rxForm.pharmacy && (
+                    <div style={{ marginBottom: 6, padding: '4px 10px', borderRadius: 6, fontSize: 11, background: '#eff6ff', border: '1px solid #93c5fd', color: '#1d4ed8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>ℹ {rxPharmAutoSource}</span>
+                      <button type="button" onClick={() => setRxPharmAutoSource(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#6b7280' }}>✕</button>
+                    </div>
+                  )}
+                  <input className="form-input" value={rxForm.pharmacy} onChange={e => { setRxForm(p => ({ ...p, pharmacy: e.target.value })); setRxPharmAutoSource(null); }} placeholder="Pharmacy name" style={{ fontSize: 13, marginBottom: 6 }} />
+                  <input className="form-input" value={rxForm.pharmAddress} onChange={e => setRxForm(p => ({ ...p, pharmAddress: e.target.value }))} placeholder="Address, city, state, zip…" style={{ fontSize: 12, color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd' }} />
+                </div>
+
+                {/* Notes */}
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: 11 }}>Notes</label>
+                  <textarea className="form-input" rows={2} value={rxForm.notes} onChange={e => setRxForm(p => ({ ...p, notes: e.target.value }))} placeholder="Special instructions…" style={{ fontSize: 12.5, resize: 'vertical' }} />
+                </div>
+
+                {/* ── Prescriber signature preview ── */}
+                <RxSignatureBlock
+                  provider={currentUser}
+                  onGoToSettings={() => window.open('/settings#signature', '_blank')}
+                />
+              </div>
+              </>
+            )}
 
             {form.type === 'Lab' && (
               <>
@@ -375,14 +677,18 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
               </>
             )}
 
-            <div className="form-group">
-              <label className="form-label">Order Description *</label>
-              <input className="form-input" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the order..." />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Clinical Notes</label>
-              <textarea className="form-textarea" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Additional notes..." />
-            </div>
+            {form.type !== 'Prescription' && (
+              <>
+                <div className="form-group">
+                  <label className="form-label">Order Description *</label>
+                  <input className="form-input" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the order..." />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Clinical Notes</label>
+                  <textarea className="form-textarea" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Additional notes..." />
+                </div>
+              </>
+            )}
             {mustForward && (
               <div className="form-group">
                 <label className="form-label">Forward to Provider *</label>
@@ -405,12 +711,39 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
               </div>
             )}
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-sm btn-primary" onClick={handleAdd} disabled={!form.description.trim() || (mustForward && !forwardTo)}>
-                {mustForward ? '📨 Forward to Provider' : 'Place Order'}
+              <button className="btn btn-sm btn-primary" onClick={handleAdd}
+                disabled={
+                  form.type === 'Prescription'
+                    ? (!rxForm.name.trim() || !rxForm.sig.trim() || (rxSchedule && !rxPdmpAcknowledged) || (mustForward && !forwardTo))
+                    : (!form.description.trim() || (mustForward && !forwardTo))
+                }>
+                {mustForward ? '📨 Forward to Provider' : form.type === 'Prescription' ? '💊 Send Prescription' : 'Place Order'}
               </button>
-              <button className="btn btn-sm btn-secondary" onClick={() => { setShowAdd(false); setFormError(''); }}>Cancel</button>
+              <button className="btn btn-sm btn-secondary" onClick={() => { setShowAdd(false); setFormError(''); setRxForm({ name: '', dose: '', sig: '', quantity: '30', refills: '0', pharmacy: '', pharmAddress: '', notes: '' }); setRxPharmAutoSource(null); }}>Cancel</button>
             </div>
           </div>
+
+          {/* PDMPDrawer — prescription controlled substance */}
+          <PDMPDrawer
+            isOpen={rxPdmpDrawerOpen}
+            onClose={() => setRxPdmpDrawerOpen(false)}
+            report={rxPdmpReport}
+            onAcknowledge={() => { setRxPdmpAcknowledged(true); setRxPdmpDrawerOpen(false); }}
+          />
+          {/* PharmacySelectorDrawer — IL directory */}
+          <PharmacySelectorDrawer
+            isOpen={rxPharmDrawerOpen}
+            onClose={() => setRxPharmDrawerOpen(false)}
+            onSelect={(pharm) => {
+              setRxForm(p => ({ ...p, pharmacy: pharm.name || '', pharmAddress: pharm.address || '' }));
+              setRxPharmAutoSource('Auto-selected: IL directory');
+              setRxPharmDrawerOpen(false);
+            }}
+            patientAddress={patient?.address
+              ? `${patient.address.street || ''} ${patient.address.city || ''} ${patient.address.state || ''} ${patient.address.zip || ''}`.trim()
+              : ''}
+          />
+          </>
         )}
 
         <div className="card-body no-pad">

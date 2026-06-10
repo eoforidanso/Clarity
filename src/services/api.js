@@ -340,6 +340,20 @@ export const dosespot = {
   getSsoUrl: (patientId) => get(`/dosespot/sso${patientId ? `?patientId=${patientId}` : ''}`),
 };
 
+// ─── Provider Signatures ───────────────────────────
+// Server-side storage for electronic signatures, indexed by provider ID.
+// Endpoint: /provider-signatures/{providerId}
+export const providerSignatures = {
+  // GET /provider-signatures/{providerId}
+  // Returns { signature: dataUrl|null, uploadedAt: ISO string|null, providerId }
+  get: (providerId) => get(`/provider-signatures/${providerId}`),
+
+  // PUT /provider-signatures/{providerId}
+  // Payload: { signature: dataUrl }
+  // Returns { signature: dataUrl, uploadedAt: ISO string, providerId }
+  update: (providerId, dataUrl) => put(`/provider-signatures/${providerId}`, { signature: dataUrl }),
+};
+
 // ─── Users (admin) ─────────────────────────────────
 export const users = {
   list: () => get('/users'),

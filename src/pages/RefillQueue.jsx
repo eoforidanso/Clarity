@@ -36,9 +36,13 @@ export default function RefillQueue() {
     refills: 0,
     notes: '',
     priority: 'normal',
+    verifyInsurance: false,
   });
   const [showDetails, setShowDetails] = useState(null);
   const [toast, setToast] = useState(null);
+  const [eligibilityData, setEligibilityData] = useState(null);
+  const [verifyingInsurance, setVerifyingInsurance] = useState(false);
+  const [copayAmount, setCopayAmount] = useState(null);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -162,8 +166,37 @@ export default function RefillQueue() {
       refills: refill.refillsRemaining,
       notes: '',
       priority: refill.priority,
+      verifyInsurance: false,
     });
+    setEligibilityData(null);
+    setCopayAmount(null);
     setShowPharmacyModal(true);
+  };
+
+  const handleVerifyInsurance = async () => {
+    if (!selectedRefillForAction) return;
+
+    setVerifyingInsurance(true);
+    try {
+      const response = await fetch(`/api/refills/${selectedRefillForAction.id}/verify-insurance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setEligibilityData(data);
+        setCopayAmount(data.copayAmount);
+        showToast(`✓ Eligible • Copay: $${data.copayAmount.toFixed(2)}`);
+      } else {
+        showToast('✗ Eligibility check failed');
+      }
+    } catch (error) {
+      console.error('Insurance verification error:', error);
+      showToast('✗ Could not verify insurance');
+    } finally {
+      setVerifyingInsurance(false);
+    }
   };
 
   const handleSendRefill = (refillId) => {
@@ -625,6 +658,55 @@ export default function RefillQueue() {
             </div>
 
             <div style={{ padding: '24px' }}>
+              {/* Insurance Eligibility Check */}
+              <div style={{ marginBottom: 16, padding: 12, background: '#f0fdf4', borderRadius: 8, border: '1px solid #86efac' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                  <input
+                    type="checkbox"
+                    id="verify-insurance"
+                    checked={pharmForm.verifyInsurance}
+                    onChange={(e) => setPharmForm(prev => ({ ...prev, verifyInsurance: e.target.checked }))}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <label htmlFor="verify-insurance" style={{ fontSize: 13, fontWeight: 700, color: '#166534', cursor: 'pointer' }}>
+                    Verify insurance eligibility before sending
+                  </label>
+                </div>
+                {pharmForm.verifyInsurance && !eligibilityData && (
+                  <button
+                    onClick={handleVerifyInsurance}
+                    disabled={verifyingInsurance}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 6,
+                      border: '1px solid #86efac',
+                      background: 'white',
+                      color: '#166534',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: verifyingInsurance ? 'not-allowed' : 'pointer',
+                      opacity: verifyingInsurance ? 0.6 : 1,
+                    }}
+                  >
+                    {verifyingInsurance ? '⏳ Checking...' : '✓ Check Eligibility'}
+                  </button>
+                )}
+                {eligibilityData && (
+                  <div style={{ fontSize: 12, color: '#166534', marginTop: 8 }}>
+                    ✓ Eligible • Coverage: {eligibilityData.coverageType} • Copay: ${eligibilityData.copayAmount.toFixed(2)}
+                  </div>
+                )}
+              </div>
+
+              {/* Copay Display */}
+              {copayAmount && (
+                <div style={{ marginBottom: 16, padding: 12, background: '#fef3c7', borderRadius: 8, border: '1px solid #fcd34d' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#78350f', marginBottom: 4 }}>💰 Patient Copay</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#92400e' }}>${copayAmount.toFixed(2)}</div>
+                  <div style={{ fontSize: 11, color: '#b45309', marginTop: 4 }}>This is the estimated patient out-of-pocket cost. Verify with pharmacy/insurance for accuracy.</div>
+                </div>
+              )}
+
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: '#475569' }}>Pharmacy *</label>
                 <input

@@ -57,6 +57,8 @@ import locationRoutes from './routes/locations.js';
 import adminRoutes from './routes/admin.js';
 import dosespotRoutes from './routes/dosespot.js';
 import patientPortalRoutes from './routes/patientPortal.js';
+import providerSignatureRoutes from './routes/providerSignatures.js';
+import refillRoutes from './routes/refills.js';
 
 const app = express();
 
@@ -244,6 +246,7 @@ app.use('/api/billing',       authenticate, requireFacility);
 app.use('/api/users',         authenticate, requireFacility);
 app.use('/api/locations',     authenticate, requireFacility);
 app.use('/api/dosespot',      authenticate, requireFacility);
+app.use('/api/refills',       authenticate, requireFacility);
 
 // Routes with their own authenticate calls (keep as-is, gate still fires first)
 app.use('/api/patients', patientRoutes);
@@ -271,6 +274,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/dosespot', dosespotRoutes);
 app.use('/api/patient-portal', patientPortalRoutes);
+app.use('/api/provider-signatures', providerSignatureRoutes);
+app.use('/api/refills', refillRoutes);
 
 // SPA fallback — serve index.html for all non-API routes
 app.get('*', (_req, res) => {

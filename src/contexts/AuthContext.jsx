@@ -1,10 +1,31 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { auth as authApi, setToken } from '../services/api';
 import { users as mockUsers } from '../data/mockData';
+import { getProviderSignature, saveProviderSignatureLocal, fetchProviderSignatureFromBackend, saveProviderSignatureToBackend } from '../utils/providerSignature';
 
 const AuthContext = createContext(null);
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes inactivity timeout
+
+/** Attach the provider's stored signature to the user object at login time.
+ *  Reads from localStorage first (fastest), then fetches from backend
+ *  asynchronously to refresh the cache.
+ */
+function withSignature(user) {
+  return { ...user, signature: getProviderSignature(user.id) };
+}
+
+/** After login, fetch signature from backend asynchronously (non-blocking).
+ *  If backend returns a signature, update currentUser with the fresh copy.
+ *  This keeps the localStorage cache in sync with the backend source of truth.
+ */
+async function hydrateSignatureFromBackend(user, setCurrentUser) {
+  if (!user?.id) return;
+  try {
+    const sig = await fetchProviderSignatureFromBackend(user.id);
+    setCurrentUser(prev => ({ ...prev, signature: sig || null }));
+  } catch { /* silently ignore — localStorage version is still available */ }
+}
 
 const LOADING_MESSAGES = [
   'Checking your session…',
@@ -123,9 +144,12 @@ export function AuthProvider({ children }) {
           ...user,
           name: user.name || `${user.firstName} ${user.lastName || ''}`.trim(),
         };
-        setCurrentUser(enriched);
+        const userWithSig = withSignature(enriched);
+        setCurrentUser(userWithSig);
         setIsAuthenticated(true);
         setAuthMode('backend');
+        // Fetch signature from backend asynchronously to refresh cache
+        hydrateSignatureFromBackend(userWithSig, setCurrentUser);
       } catch (err) {
         const isAborted = err.name === 'AbortError' || err.name === 'TimeoutError';
         if (!isAborted) {
@@ -162,10 +186,13 @@ export function AuthProvider({ children }) {
             ...safeUser,
             name: safeUser.name || `${safeUser.firstName} ${safeUser.lastName || ''}`.trim(),
           };
-          setCurrentUser(enriched);
+          const userWithSig = withSignature(enriched);
+          setCurrentUser(userWithSig);
           setIsAuthenticated(true);
           setAuthMode('mock');
           lastActivityRef.current = Date.now();
+          // Fetch signature from backend asynchronously (non-blocking on mock)
+          hydrateSignatureFromBackend(userWithSig, setCurrentUser);
           return { ok: true, mustChangePassword: !!enriched.mustChangePassword };
         }
         return { ok: false, requiresTwoFactor: true, tempToken: data.tempToken, emailHint: data.emailHint };
@@ -175,10 +202,13 @@ export function AuthProvider({ children }) {
         ...user,
         name: user.name || `${user.firstName} ${user.lastName || ''}`.trim(),
       };
-      setCurrentUser(enriched);
+      const userWithSig = withSignature(enriched);
+      setCurrentUser(userWithSig);
       setIsAuthenticated(true);
       setAuthMode('backend');
       lastActivityRef.current = Date.now();
+      // Fetch signature from backend asynchronously to refresh cache
+      hydrateSignatureFromBackend(userWithSig, setCurrentUser);
       return { ok: true, mustChangePassword: !!enriched.mustChangePassword };
     } catch (backendErr) {
       const code = backendErr.code || 'client';
@@ -193,11 +223,14 @@ export function AuthProvider({ children }) {
             ...safeUser,
             name: safeUser.name || `${safeUser.firstName} ${safeUser.lastName || ''}`.trim(),
           };
-          setCurrentUser(enriched);
+          const userWithSig = withSignature(enriched);
+          setCurrentUser(userWithSig);
           setIsAuthenticated(true);
           setAuthMode('mock');
           setServerDown(true);
           lastActivityRef.current = Date.now();
+          // Attempt to fetch signature from backend asynchronously (non-blocking on offline)
+          hydrateSignatureFromBackend(userWithSig, setCurrentUser);
           return { ok: true, mustChangePassword: !!enriched.mustChangePassword };
         }
         setLoginError('Unable to reach the Clarity EHR server. The service may be temporarily unavailable.');
@@ -219,10 +252,13 @@ export function AuthProvider({ children }) {
       ...safeUser,
       name: safeUser.name || `${safeUser.firstName} ${safeUser.lastName || ''}`.trim(),
     };
-    setCurrentUser(enriched);
+    const userWithSig = withSignature(enriched);
+    setCurrentUser(userWithSig);
     setIsAuthenticated(true);
     setAuthMode('mock');
     lastActivityRef.current = Date.now();
+    // Attempt to fetch signature from backend asynchronously (non-blocking on demo)
+    hydrateSignatureFromBackend(userWithSig, setCurrentUser);
     return { ok: true, mustChangePassword: !!enriched.mustChangePassword };
   }, []);
 
@@ -235,10 +271,13 @@ export function AuthProvider({ children }) {
         ...user,
         name: user.name || `${user.firstName} ${user.lastName || ''}`.trim(),
       };
-      setCurrentUser(enriched);
+      const userWithSig = withSignature(enriched);
+      setCurrentUser(userWithSig);
       setIsAuthenticated(true);
       setAuthMode('backend');
       lastActivityRef.current = Date.now();
+      // Fetch signature from backend asynchronously to refresh cache
+      hydrateSignatureFromBackend(userWithSig, setCurrentUser);
       return { ok: true, mustChangePassword: !!enriched.mustChangePassword };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -326,6 +365,18 @@ export function AuthProvider({ children }) {
     } catch { /* session expired — logout will handle it */ }
   }, []);
 
+  // ── Update provider signature ──────────────────────────────
+  // Tries to save to backend first, falls back to localStorage.
+  // Updates currentUser.signature in memory so all prescribing components
+  // see the new signature immediately.
+  const updateUserSignature = useCallback(async (dataUrl) => {
+    if (!currentUser?.id) return;
+    // Update in-memory immediately (optimistic)
+    setCurrentUser(prev => ({ ...prev, signature: dataUrl || null }));
+    // Then persist to backend (non-blocking)
+    await saveProviderSignatureToBackend(currentUser.id, dataUrl);
+  }, [currentUser?.id]);
+
   // Never block the entire render with a full-screen overlay.
   // Login page renders immediately; ProtectedLayout waits on sessionChecking.
 
@@ -349,6 +400,7 @@ export function AuthProvider({ children }) {
         verifyEPCS,
         generateEPCSOTP,
         verifyEPCSOTP,
+        updateUserSignature,
       }}
     >
       {children}
