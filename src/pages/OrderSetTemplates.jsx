@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
+import { checkSystemAdminAccess } from '../utils/accessControl';
 
 /* ─── Pre-built Order Set Templates (athenaOne-style) ─────────────────────── */
 const ORDER_SET_TEMPLATES = [
@@ -170,6 +171,10 @@ const PRIORITY_COLOR = { Routine: '#22c55e', Urgent: '#f59e0b', STAT: '#ef4444' 
 export default function OrderSetTemplates() {
   const { currentUser } = useAuth();
   const { addOrder, orders } = usePatient();
+  const isSystemAdmin = checkSystemAdminAccess(currentUser);
+
+  // ⭐ Only system admins can create/edit global templates
+  const canEditGlobalTemplates = isSystemAdmin;
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');

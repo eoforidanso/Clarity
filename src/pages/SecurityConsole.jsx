@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { checkSystemAdminAccess } from '../utils/accessControl';
 
 const API = import.meta.env?.VITE_API_URL || '/api';
 
@@ -53,6 +54,19 @@ const timeSince = (iso) => {
 // ── Main component ────────────────────────────────────────────────────────────
 export default function SecurityConsole() {
   const { currentUser } = useAuth();
+  const isSystemAdmin = checkSystemAdminAccess(currentUser);
+
+  // ⭐ Only system admins can access Security Console
+  if (!isSystemAdmin) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+        <h2 style={{ marginBottom: 8 }}>Access Restricted</h2>
+        <p>Security Console is only available to System Administrators.</p>
+      </div>
+    );
+  }
+
   const [events,    setEvents]    = useState([]);
   const [summary,   setSummary]   = useState(null);
   const [anomalies, setAnomalies] = useState([]);

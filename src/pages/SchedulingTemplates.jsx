@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { checkAdminAccess, checkSystemAdminAccess } from '../utils/accessControl';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const TIME_SLOTS = Array.from({ length: 24 }, (_, i) => {
@@ -85,17 +86,23 @@ function getBlockSpan(block) {
 
 export default function SchedulingTemplates() {
   const { currentUser } = useAuth();
+  const { canAccess, isLocal, facilityId } = checkAdminAccess(currentUser);
+  const isSystemAdmin = checkSystemAdminAccess(currentUser);
 
-  // ──────────────────────────────────────────────────────────────────────────────
-  // FILTER: Non-admins only see templates for their assigned location
-  // ──────────────────────────────────────────────────────────────────────────────
+  // ⭐ FILTER: Template visibility by admin type
+  // - Global admin: see all templates
+  // - Local admin: see only their facility's templates
+  // - Non-admin: see only their facility's templates
   const filteredTemplates = useMemo(() => {
-    if (currentUser?.role === 'admin') {
-      return MOCK_TEMPLATES; // Admin sees all templates
+    if (isSystemAdmin) {
+      return MOCK_TEMPLATES; // System admin sees all
+    }
+    if (canAccess && isLocal) {
+      return MOCK_TEMPLATES.filter(t => t.locationId === facilityId);
     }
     // Non-admin: only see templates from their location
-    return MOCK_TEMPLATES.filter(t => t.locationId === currentUser?.locationId);
-  }, [currentUser?.role, currentUser?.locationId]);
+    return MOCK_TEMPLATES.filter(t => t.locationId === currentUser?.locationId || t.locationId === currentUser?.facility_id);
+  }, [isSystemAdmin, canAccess, isLocal, facilityId, currentUser?.locationId, currentUser?.facility_id]);
 
   const [templates, setTemplates] = useState(filteredTemplates);
   const [selectedTpl, setSelectedTpl] = useState(filteredTemplates[0]);

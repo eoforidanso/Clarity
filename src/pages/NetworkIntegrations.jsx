@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { checkSystemAdminAccess } from '../utils/accessControl';
 
 const NETWORK_STATS = {
   labs: 277000,
@@ -40,6 +42,20 @@ const INTEGRATIONS = [
 const TYPE_FILTERS = ['All', 'Lab', 'Pharmacy', 'HIE', 'Clearinghouse', 'Registry', 'TEFCA'];
 
 export default function NetworkIntegrations() {
+  const { currentUser } = useAuth();
+  const isSystemAdmin = checkSystemAdminAccess(currentUser);
+
+  // ⭐ Only system admins can manage integrations
+  if (!isSystemAdmin) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+        <h2 style={{ marginBottom: 8 }}>Access Restricted</h2>
+        <p>API keys and network integrations are only available to System Administrators.</p>
+      </div>
+    );
+  }
+
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [dedupStats, setDedupStats] = useState({ scanned: 0, duplicates: 0, merged: 0, pending: 0, running: false, complete: false });

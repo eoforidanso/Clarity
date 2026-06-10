@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import DemoGuard from '../demo/DemoGuard';
 import { useAuth } from '../contexts/AuthContext';
+import { checkAdminAccess } from '../utils/accessControl';
 
 const API = import.meta.env.VITE_API_URL || '/api';
 
@@ -41,6 +42,19 @@ const MOCK_ACTIVITIES = [
 
 function AuditTrail_Inner() {
   const { currentUser } = useAuth();
+  const { canAccess, isGlobal, isLocal, facilityId } = checkAdminAccess(currentUser);
+
+  // ⭐ Only admins can access audit logs
+  if (!canAccess) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+        <h2 style={{ marginBottom: 8 }}>Access Restricted</h2>
+        <p>Audit Trail is only available to Administrators.</p>
+      </div>
+    );
+  }
+
   const [filter, setFilter]       = useState('all');
   const [userFilter, setUserFilter] = useState('all');
   const [search, setSearch]       = useState('');
@@ -104,13 +118,24 @@ function AuditTrail_Inner() {
     return activities.filter(a => {
       if (filter !== 'all' && a.type !== filter) return false;
       if (userFilter !== 'all' && a.userId !== userFilter) return false;
+
+      // ⭐ Local admins can only see their facility's audit logs
+      // For now, we filter based on userId's facility association
+      // In production, activities would have facility_id field
+      if (isLocal && facilityId) {
+        // Mock data check - in real app, would check a.facility_id
+        // For demo purposes, local admins see their own users' activities
+        const allowedUsers = ['u1', 'u4']; // Example facility users
+        if (!allowedUsers.includes(a.userId)) return false;
+      }
+
       if (search) {
         const q = search.toLowerCase();
         return a.detail.toLowerCase().includes(q) || a.user.toLowerCase().includes(q) || (a.patient || '').toLowerCase().includes(q);
       }
       return true;
     });
-  }, [filter, userFilter, search]);
+  }, [filter, userFilter, search, isLocal, facilityId]);
 
   const typeCounts = useMemo(() => {
     const counts = {};
