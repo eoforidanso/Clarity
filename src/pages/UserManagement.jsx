@@ -106,7 +106,7 @@ const inputStyle = {
   color: 'var(--text-primary)', outline: 'none',
 };
 
-function UserForm({ initial, onSave, onCancel, loading, error, locationOptions }) {
+function UserForm({ initial, onSave, onCancel, loading, error, locationOptions, isLocalAdmin }) {
   const [form, setForm] = useState(initial);
   const [showPwd, setShowPwd] = useState(false);
   const isEdit = !!initial.id;
@@ -196,9 +196,16 @@ function UserForm({ initial, onSave, onCancel, loading, error, locationOptions }
       )}
 
       <Field label="Primary Location">
-        <select style={inputStyle} value={form.locationId} onChange={e => set('locationId', e.target.value)}>
+        <select
+          style={inputStyle}
+          value={form.locationId}
+          onChange={e => set('locationId', e.target.value)}
+          disabled={isLocalAdmin}
+          title={isLocalAdmin ? 'Local admins can only manage users in their assigned facility' : ''}
+        >
           {(locationOptions || []).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
+        {isLocalAdmin && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>🔒 Your facility (local admin)</div>}
       </Field>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
@@ -254,8 +261,9 @@ function UserForm({ initial, onSave, onCancel, loading, error, locationOptions }
 function ResetPasswordModal({ user, onClose }) {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'admin';
-  // Admins skip re-auth; other privileged roles still need elevation
-  const [step, setStep]       = useState(isAdmin ? 'reset' : 'reauth');
+  const isGlobalAdmin = currentUser?.is_global === true;
+  // Global admins skip re-auth; local admins and other roles need elevation
+  const [step, setStep]       = useState(isGlobalAdmin ? 'reset' : 'reauth');
   const [myPwd, setMyPwd]     = useState('');
   const [newPwd, setNewPwd]   = useState('');
   const [showMyPwd, setShowMyPwd]   = useState(false);
@@ -280,13 +288,13 @@ function ResetPasswordModal({ user, onClose }) {
     }
   };
 
-  // Step 2 — submit the new password (admins need no elevated token)
+  // Step 2 — submit the new password (global admins need no elevated token)
   const handleReset = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      await admin.users.resetPassword(user.id, newPwd, isAdmin ? null : elevatedToken);
+      await admin.users.resetPassword(user.id, newPwd, isGlobalAdmin ? null : elevatedToken);
       setStep('done');
     } catch (err) {
       setError(err.message);
@@ -425,6 +433,12 @@ function UserManagement_Inner() {
   const { reloadSites } = useSite();
   const [locationOptions, setLocationOptions] = useState(SITES_FALLBACK.filter(l => l.id !== 'all'));
 
+  // ⭐ Check if current user is admin (local or global)
+  const isAdmin = currentUser?.role === 'admin';
+  const isGlobalAdmin = currentUser?.is_global === true;
+  const canManageAllUsers = isGlobalAdmin;
+  const canManageLocalUsers = isAdmin && !isGlobalAdmin;
+
   const loadLocations = useCallback(async () => {
     const fallbackOnly = SITES_FALLBACK.filter(l => l.id !== 'all');
     try {
@@ -505,8 +519,8 @@ function UserManagement_Inner() {
     };
   }, [loadUsers, reloadSites]);
 
-  // Only admins may manage users
-  if (currentUser?.role !== 'admin') {
+  // Only admins (local or global) may manage users
+  if (!isAdmin) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
         <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
@@ -521,7 +535,11 @@ function UserManagement_Inner() {
     const q = search.toLowerCase();
     const matchesSearch = !q || [u.firstName, u.lastName, u.username, u.email, u.credentials, u.specialty]
       .some(field => (field || '').toLowerCase().includes(q));
-    return matchesRole && matchesSearch;
+
+    // ⭐ Local admins can only see users from their facility
+    const matchesFacility = canManageAllUsers || u.location_id === currentUser?.facility_id;
+
+    return matchesRole && matchesSearch && matchesFacility;
   });
 
   // ── Handlers ─────────────────────────────────────────────────────────
@@ -562,7 +580,12 @@ function UserManagement_Inner() {
     setFormLoading(true);
     setFormError('');
     try {
-      await admin.users.create(form);
+      // ⭐ Local admins can only create users in their facility
+      const payload = { ...form };
+      if (canManageLocalUsers) {
+        payload.location_id = currentUser?.facility_id;
+      }
+      await admin.users.create(payload);
     } catch (err) {
       setFormError(err?.message || 'Failed to create user. Please try again.');
       setFormLoading(false);
@@ -810,12 +833,16 @@ function UserManagement_Inner() {
       {modal === 'add' && (
         <Modal title="Add New User" onClose={closeModal}>
           <UserForm
-            initial={{ ...EMPTY_FORM, locationId: locationOptions[0]?.id || EMPTY_FORM.locationId }}
+            initial={{
+              ...EMPTY_FORM,
+              locationId: canManageLocalUsers ? currentUser?.facility_id : (locationOptions[0]?.id || EMPTY_FORM.locationId)
+            }}
             onSave={handleCreate}
             onCancel={closeModal}
             loading={formLoading}
             error={formError}
             locationOptions={locationOptions}
+            isLocalAdmin={canManageLocalUsers}
           />
         </Modal>
       )}
@@ -836,13 +863,14 @@ function UserManagement_Inner() {
               npi: selectedUser.npi || '',
               deaNumber: selectedUser.deaNumber || '',
               twoFactorEnabled: selectedUser.twoFactorEnabled,
-              locationId: selectedUser.locationId || locationOptions[0]?.id || '',
+              locationId: selectedUser.locationId || currentUser?.facility_id || locationOptions[0]?.id || '',
             }}
             onSave={handleUpdate}
             onCancel={closeModal}
             loading={formLoading}
             error={formError}
             locationOptions={locationOptions}
+            isLocalAdmin={canManageLocalUsers}
           />
         </Modal>
       )}
