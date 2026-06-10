@@ -495,6 +495,200 @@ export default function ChartPage() {
 
   const closePanel = () => setActivePanel(null);
 
+  // ── Panel print utility ──────────────────────────────────
+  const openPrintWindow = (html) => {
+    const win = window.open('', '_blank', 'width=960,height=720');
+    if (!win) { alert('Please allow pop-ups to print.'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 350);
+  };
+
+  const buildPrintShell = (title, body) => {
+    const css = `
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:28px 36px}
+      h1{font-size:19px;font-weight:800;color:#1d4ed8;letter-spacing:-.5px}
+      h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#374151;border-bottom:1px solid #e2e8f0;padding-bottom:4px;margin:16px 0 6px}
+      .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1d4ed8;padding-bottom:12px;margin-bottom:14px}
+      .practice{font-size:11px;color:#6b7280;margin-top:3px;line-height:1.6}
+      .meta{text-align:right;font-size:11px;color:#6b7280;line-height:1.6}
+      .ptbox{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr;gap:3px 16px;font-size:12px}
+      .ptname{font-size:16px;font-weight:800;grid-column:1/-1;margin-bottom:4px}
+      .lbl{color:#6b7280;font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+      .val{font-weight:500}
+      .span2{grid-column:1/-1}
+      table{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
+      th{background:#f1f5f9;padding:6px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#475569;border:1px solid #e2e8f0}
+      td{padding:7px 10px;border:1px solid #e2e8f0;vertical-align:top}
+      tr:nth-child(even) td{background:#f8fafc}
+      .badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px}
+      .badge-lab{background:#dbeafe;color:#1e40af}
+      .badge-rx{background:#d1fae5;color:#065f46}
+      .badge-img{background:#fef3c7;color:#92400e}
+      .badge-ref{background:#ede9fe;color:#5b21b6}
+      .badge-proc{background:#fce7f3;color:#831843}
+      .badge-allergy{background:#fee2e2;color:#991b1b}
+      .nkda{color:#16a34a;font-weight:700}
+      .sig-block{margin-top:36px;border-top:1px solid #cbd5e1;padding-top:12px;display:flex;gap:48px}
+      .sig-line{border-bottom:1px solid #374151;width:220px;margin-top:32px;margin-bottom:3px}
+      .sig-caption{font-size:10px;color:#6b7280}
+      @media print{body{padding:20px}}
+    `;
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><title>${title}</title><style>${css}</style></head><body>${body}</body></html>`;
+  };
+
+  const printPanel = (panelKey, extra = {}) => {
+    if (!p) return;
+    const now   = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+    const provName = `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}${currentUser?.credentials ? ', ' + currentUser.credentials : ''}`.trim();
+    const provNpi  = currentUser?.npi || '—';
+
+    const HDR = `<div class="hdr">
+      <div><h1>${PRACTICE_NAME}</h1><div class="practice">${PRACTICE_ADDRESS} &nbsp;·&nbsp; ${PRACTICE_PHONE}</div></div>
+      <div class="meta">${provName}<br/>NPI: ${provNpi}<br/>${dateStr} &nbsp;${timeStr}</div>
+    </div>`;
+
+    const allergyStr = patAllergies.length
+      ? patAllergies.map(a => `<span class="badge badge-allergy">${a.allergen || a.name}</span>`).join(' ')
+      : '<span class="nkda">✓ NKDA</span>';
+
+    const PT = `<div class="ptbox">
+      <div class="ptname">${p.lastName}, ${p.firstName}</div>
+      <div><div class="lbl">DOB</div><div class="val">${p.dob}</div></div>
+      <div><div class="lbl">Sex</div><div class="val">${p.gender}</div></div>
+      <div><div class="lbl">MRN</div><div class="val">${p.mrn}</div></div>
+      <div><div class="lbl">Phone</div><div class="val">${p.phone || '—'}</div></div>
+      <div><div class="lbl">Insurance</div><div class="val">${p.insurance?.primary?.name || '—'}</div></div>
+      <div><div class="lbl">Member ID</div><div class="val">${p.insurance?.primary?.memberId || '—'}</div></div>
+      <div class="span2"><div class="lbl">Allergies</div><div style="margin-top:2px">${allergyStr}</div></div>
+      ${p.preferredPharmacy ? `<div class="span2"><div class="lbl">Preferred Pharmacy</div><div class="val">${p.preferredPharmacy}${p.preferredPharmacyPhone ? ' · ' + p.preferredPharmacyPhone : ''}${p.preferredPharmacyFax ? ' · Fax: ' + p.preferredPharmacyFax : ''}</div></div>` : ''}
+    </div>`;
+
+    const SIG = `<div class="sig-block">
+      <div><div class="sig-line"></div><div class="sig-caption">Ordered by — ${provName}</div></div>
+      <div><div class="sig-line"></div><div class="sig-caption">Signature</div></div>
+      <div><div class="sig-line"></div><div class="sig-caption">Date / Time</div></div>
+    </div>`;
+
+    let body = '';
+    let title = `${panelKey} — ${p.lastName}, ${p.firstName}`;
+
+    if (panelKey === 'quickview') {
+      title = `Chart Snapshot — ${p.lastName}, ${p.firstName}`;
+      const activeProbs = patProblems.filter(pr => pr.status === 'Active');
+      const activeMeds  = patMeds.filter(m => m.status === 'Active');
+      const lv = patVitals[0];
+      body = `${HDR}${PT}
+        <h2>Active Problems (${activeProbs.length})</h2>
+        ${activeProbs.length ? `<table><tr><th>#</th><th>Problem</th><th>ICD-10</th><th>Status</th><th>Onset</th></tr>${activeProbs.map((pr,i) => `<tr><td>${i+1}</td><td><strong>${pr.name||pr.problem||'—'}</strong></td><td>${pr.icd10||pr.code||'—'}</td><td>${pr.status||'Active'}</td><td>${pr.onset||'—'}</td></tr>`).join('')}</table>` : '<p style="color:#6b7280;margin-top:4px">No active problems documented.</p>'}
+        <h2>Active Medications (${activeMeds.length})</h2>
+        ${activeMeds.length ? `<table><tr><th>#</th><th>Medication</th><th>Dose</th><th>Route</th><th>Frequency</th><th>Sig</th></tr>${activeMeds.map((m,i) => `<tr><td>${i+1}</td><td><strong>${m.name}</strong></td><td>${m.dose||'—'}</td><td>${m.route||'—'}</td><td>${m.frequency||'—'}</td><td style="font-size:11px">${m.sig||'—'}</td></tr>`).join('')}</table>` : '<p style="color:#6b7280;margin-top:4px">No active medications.</p>'}
+        <h2>Allergies &amp; Adverse Reactions</h2>
+        ${patAllergies.length ? `<table><tr><th>Allergen</th><th>Reaction</th><th>Severity</th><th>Type</th></tr>${patAllergies.map(a => `<tr><td><strong>${a.allergen||a.name||'—'}</strong></td><td>${a.reaction||'—'}</td><td>${a.severity||'—'}</td><td>${a.type||'—'}</td></tr>`).join('')}</table>` : '<p class="nkda" style="margin-top:4px">✓ NKDA — No Known Drug Allergies</p>'}
+        <h2>Latest Vitals</h2>
+        ${lv ? `<table><tr><th>BP</th><th>HR</th><th>Temp</th><th>SpO2</th><th>Weight</th><th>BMI</th><th>Recorded</th></tr><tr><td>${lv.bp||'—'}</td><td>${lv.hr||'—'}</td><td>${lv.temp||'—'}°</td><td>${lv.spo2||'—'}%</td><td>${lv.weight||'—'}</td><td>${lv.bmi||'—'}</td><td>${lv.date||'—'}</td></tr></table>` : '<p style="color:#6b7280;margin-top:4px">No vitals on record.</p>'}
+        <h2>Care Team &amp; Upcoming</h2>
+        <table><tr><th>Next Appointment</th><th>PCP</th><th>Assigned Provider</th><th>Pending Orders</th></tr>
+        <tr><td>${p.nextAppointment||'—'}</td><td>${p.pcp||'—'}</td><td>${p.assignedProvider||'—'}</td><td>${patOrders.filter(o=>o.status==='Pending').length}</td></tr></table>`;
+    }
+
+    else if (panelKey === 'ordergroup') {
+      title = `Order Group — ${p.lastName}, ${p.firstName}`;
+      const validItems = orderGroupItems.filter(i => getOrderDescription(i).trim());
+      const badgeClass = (t) => t==='Lab'?'badge-lab':t==='Medication'?'badge-rx':t==='Imaging'?'badge-img':t==='Referral'?'badge-ref':'badge-proc';
+      const rows = validItems.map((item, i) => {
+        let det = '';
+        if (item.type === 'Medication') {
+          det = [
+            item.medName && `<strong>${item.medName}</strong>${item.medDose ? ' ' + item.medDose : ''}`,
+            item.medRoute && item.medFrequency && `${item.medRoute} · ${item.medFrequency}`,
+            item.medSig && `<em>${item.medSig}</em>`,
+            (item.medQuantity || item.medRefills) && `Qty: ${item.medQuantity||'?'} · Refills: ${item.medRefills||'0'}`,
+            item.medDispenseAsWritten && `<strong>DAW</strong>`,
+            item.medPharmacy && `📍 ${item.medPharmacy}${item.medPharmAddress ? '<br/>' + item.medPharmAddress : ''}`,
+          ].filter(Boolean).join('<br/>');
+        } else if (item.type === 'Lab') {
+          det = [
+            `<strong>${item.labPanel||item.description||'—'}</strong>`,
+            item.labNetwork && `🏥 ${item.labNetwork}${item.labAddress ? ' — ' + item.labAddress : ''}`,
+          ].filter(Boolean).join('<br/>');
+        } else if (item.type === 'Imaging') {
+          det = [`<strong>${[item.imgModality, item.imgBodyPart, item.imgLaterality!=='N/A'?item.imgLaterality:''].filter(Boolean).join(' — ')}</strong>`, item.imgReason && `Indication: ${item.imgReason}`].filter(Boolean).join('<br/>');
+        } else if (item.type === 'Referral') {
+          det = [`<strong>${item.refSpecialty}</strong>`, item.refProvider && `To: ${item.refProvider}`, item.refReason && `Reason: ${item.refReason}`].filter(Boolean).join('<br/>');
+        } else {
+          det = `<strong>${item.description||'—'}</strong>`;
+        }
+        return `<tr><td style="width:32px;text-align:center">${i+1}</td><td style="width:90px"><span class="badge ${badgeClass(item.type)}">${item.type}</span></td><td>${det}</td><td style="width:70px">${item.priority||'Routine'}</td><td style="font-size:11px;color:#6b7280">${item.notes||'—'}</td></tr>`;
+      }).join('');
+      body = `${HDR}${PT}
+        <h2>Orders (${validItems.length} item${validItems.length!==1?'s':''})</h2>
+        <table><tr><th>#</th><th>Type</th><th>Details</th><th>Priority</th><th>Notes</th></tr>
+          ${rows||'<tr><td colspan="5" style="text-align:center;color:#6b7280;padding:16px">No orders</td></tr>'}
+        </table>
+        ${SIG}`;
+    }
+
+    else if (panelKey === 'letters') {
+      title = `Patient Letter — ${p.lastName}, ${p.firstName}`;
+      const addrLine = [p.address?.street, p.address?.city && p.address?.state ? p.address.city + ', ' + p.address.state + ' ' + (p.address.zip||'') : ''].filter(Boolean).join('<br/>');
+      body = `${HDR}
+        <div style="font-size:12px;color:#6b7280;margin-bottom:20px">${dateStr}</div>
+        ${addrLine ? `<div style="margin-bottom:20px;font-size:13px"><strong>${p.firstName} ${p.lastName}</strong><br/>${addrLine}</div>` : `<div style="margin-bottom:20px;font-size:13px"><strong>RE: ${p.firstName} ${p.lastName} (DOB: ${p.dob}, MRN: ${p.mrn})</strong></div>`}
+        ${lettersSubject ? `<div style="font-size:13px;font-weight:700;margin-bottom:20px;border-left:3px solid #1d4ed8;padding-left:10px">RE: ${lettersSubject}</div>` : ''}
+        <div style="white-space:pre-wrap;font-size:13px;line-height:1.8;min-height:200px">${lettersBody || '[Letter body not entered]'}</div>
+        <div style="margin-top:48px">
+          <div style="border-bottom:1px solid #374151;width:240px;margin-bottom:4px"></div>
+          <div style="font-size:12px">${provName}</div>
+          <div style="font-size:11px;color:#6b7280">NPI: ${provNpi}</div>
+        </div>`;
+    }
+
+    else if (panelKey === 'referral') {
+      title = `Referral — ${p.lastName}, ${p.firstName}`;
+      const activeProbs = patProblems.filter(pr => pr.status === 'Active');
+      const activeMeds  = patMeds.filter(m => m.status === 'Active');
+      body = `${HDR}${PT}
+        <h2>Referral Details</h2>
+        <table>
+          <tr><td class="lbl" style="width:35%">Specialty</td><td><strong>${referralData.specialty||'—'}</strong></td></tr>
+          <tr><td class="lbl">Provider / Facility</td><td>${referralData.provider||'—'}</td></tr>
+          <tr><td class="lbl">Urgency</td><td>${referralData.urgency||'Routine'}</td></tr>
+          <tr><td class="lbl">Reason for Referral</td><td>${(referralData.reason||'—').replace(/\n/g,'<br/>')}</td></tr>
+          <tr><td class="lbl">Clinical Notes</td><td>${(referralData.notes||'—').replace(/\n/g,'<br/>')}</td></tr>
+          <tr><td class="lbl">Delivery Method</td><td>${referralData.delivery||'—'}</td></tr>
+        </table>
+        <h2>Clinical Context</h2>
+        <table>
+          <tr><td class="lbl" style="width:35%">Active Diagnoses</td><td>${activeProbs.map(pr=>`${pr.name||pr.problem||'—'}${pr.icd10?' ('+pr.icd10+')':''}`).join(', ')||'—'}</td></tr>
+          <tr><td class="lbl">Current Medications</td><td>${activeMeds.map(m=>`${m.name} ${m.dose||''}`).join(', ')||'—'}</td></tr>
+          <tr><td class="lbl">Insurance</td><td>${p.insurance?.primary?.name||'—'} · ID: ${p.insurance?.primary?.memberId||'—'}</td></tr>
+          <tr><td class="lbl">PCP</td><td>${p.pcp||'—'}</td></tr>
+        </table>
+        ${SIG}`;
+    }
+
+    else if (panelKey === 'quicklabs') {
+      title = `Lab Order — ${p.lastName}, ${p.firstName}`;
+      const resolvedPanels = extra.panels || [];
+      const rows = resolvedPanels.map((lab,i) => `<tr><td>${i+1}</td><td><strong>${lab.label}</strong></td><td style="font-size:11px">${lab.tests}</td><td style="font-size:11px;font-style:italic">${lab.indication}</td></tr>`).join('');
+      body = `${HDR}${PT}
+        <h2>Lab Orders (${resolvedPanels.length} panel${resolvedPanels.length!==1?'s':''}) — Priority: ${labPriority}</h2>
+        <table><tr><th>#</th><th>Panel</th><th>Components</th><th>Indication</th></tr>
+          ${rows||'<tr><td colspan="4" style="text-align:center;color:#6b7280;padding:16px">No labs selected</td></tr>'}
+        </table>
+        ${(quickLabNetwork||quickLabAddress) ? `<div style="margin-top:12px;padding:8px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;font-size:12px"><strong>Send to:</strong> ${[quickLabNetwork,quickLabAddress].filter(Boolean).join(' — ')}</div>` : ''}
+        ${labNotes ? `<div style="margin-top:10px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px"><strong>Notes:</strong> ${labNotes}</div>` : ''}
+        ${SIG}`;
+    }
+
+    if (body) openPrintWindow(buildPrintShell(title, body));
+  };
+
   // ── Order Group handlers ─────────────────────────────────
   const addOrderGroupItem = (preset = null) => {
     setOrderGroupItems(prev => [...prev, preset ? { ...BLANK_ORDER, ...preset } : { ...BLANK_ORDER }]);
@@ -754,7 +948,10 @@ export default function ChartPage() {
           <div style={panelStyle} onClick={e => e.stopPropagation()}>
             <div style={panelHeaderStyle}>
               <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>👁️ Quick View — {p.lastName}, {p.firstName}</h3>
-              <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button onClick={() => printPanel('quickview')} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text-secondary)' }}>🖨️ Print</button>
+                <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+              </div>
             </div>
             <div style={panelBodyStyle}>
               {/* Demographics snapshot */}
@@ -1352,7 +1549,10 @@ export default function ChartPage() {
           <div style={{ ...panelStyle, width: 540, maxWidth: '96vw' }} onClick={e => e.stopPropagation()}>
             <div style={panelHeaderStyle}>
               <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>📦 Order Group — {p.lastName}, {p.firstName}</h3>
-              <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button onClick={() => printPanel('ordergroup')} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text-secondary)' }}>🖨️ Print</button>
+                <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+              </div>
             </div>
             <div style={panelBodyStyle}>
               {orderGroupSaved ? (
@@ -1752,7 +1952,10 @@ export default function ChartPage() {
           <div style={panelStyle} onClick={e => e.stopPropagation()}>
             <div style={panelHeaderStyle}>
               <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>📤 Chart Export — {p.lastName}, {p.firstName}</h3>
-              <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button onClick={() => printPanel('quickview')} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text-secondary)' }}>🖨️ Print Chart</button>
+                <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+              </div>
             </div>
             <div style={panelBodyStyle}>
               {exportStarted ? (
@@ -1823,6 +2026,7 @@ export default function ChartPage() {
             <div style={panelHeaderStyle}>
               <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>📨 Send Forms & Screeners</h3>
               <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+
             </div>
             <div style={panelBodyStyle}>
               {formsSent ? (
@@ -1933,7 +2137,10 @@ export default function ChartPage() {
             <div style={{ ...panelStyle, width: 520, maxWidth: '95vw' }} onClick={e => e.stopPropagation()}>
               <div style={panelHeaderStyle}>
                 <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>📝 Patient Letters — {p.lastName}, {p.firstName}</h3>
-                <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <button onClick={() => printPanel('letters')} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text-secondary)' }}>🖨️ Print</button>
+                  <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+                </div>
               </div>
               <div style={panelBodyStyle}>
                 {lettersSent ? (
@@ -2045,7 +2252,10 @@ export default function ChartPage() {
           <div style={panelStyle} onClick={e => e.stopPropagation()}>
             <div style={panelHeaderStyle}>
               <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>🔗 Referral — {p.lastName}, {p.firstName}</h3>
-              <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button onClick={() => printPanel('referral')} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text-secondary)' }}>🖨️ Print</button>
+                <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+              </div>
             </div>
             <div style={panelBodyStyle}>
               {referralSent ? (
@@ -2158,7 +2368,13 @@ export default function ChartPage() {
             <div style={panelStyle} onClick={e => e.stopPropagation()}>
               <div style={panelHeaderStyle}>
                 <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>🧪 Quick Labs — {p.lastName}, {p.firstName}</h3>
-                <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <button
+                    onClick={() => printPanel('quicklabs', { panels: selectedLabs.map(id => LAB_PANELS.find(l => l.id === id)).filter(Boolean) })}
+                    style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text-secondary)' }}
+                  >🖨️ Print</button>
+                  <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+                </div>
               </div>
               <div style={panelBodyStyle}>
                 {labsSent ? (
