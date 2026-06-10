@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import PatientBanner from '../components/PatientBanner';
+import PharmacySelectorDrawer from '../components/PharmacySelectorDrawer';
 import BTGGuard from '../components/BTGGuard';
 
 import ChartSummary from './chart/ChartSummary';
@@ -159,7 +160,7 @@ export default function ChartPage() {
 
   // ── Order group state ────────────────────────────────────
   const [orderGroupName, setOrderGroupName] = useState('');
-  const BLANK_ORDER = { type: 'Lab', priority: 'Routine', notes: '', description: '', labPanel: '', labNetwork: '', labAddress: '', medName: '', medDose: '', medRoute: 'Oral', medFrequency: '', medQuantity: '30', medRefills: '0', medSig: '', medDispenseAsWritten: false, medPharmacy: '', medPharmAddress: '', imgModality: 'X-ray', imgBodyPart: '', imgLaterality: 'N/A', imgReason: '', refSpecialty: 'Psychiatry', refProvider: '', refReason: '' };
+  const BLANK_ORDER = { type: 'Lab', priority: 'Routine', notes: '', description: '', labPanel: '', labNetwork: '', labAddress: '', labPhone: '', medName: '', medDose: '', medRoute: 'Oral', medFrequency: '', medQuantity: '30', medRefills: '0', medSig: '', medDispenseAsWritten: false, medPharmacy: '', medPharmAddress: '', medPharmPhone: '', medPharmFax: '', imgModality: 'X-ray', imgBodyPart: '', imgLaterality: 'N/A', imgReason: '', refSpecialty: 'Psychiatry', refProvider: '', refReason: '' };
   const [orderGroupItems, setOrderGroupItems] = useState([{ ...BLANK_ORDER }]);
   const [orderGroupSaved, setOrderGroupSaved] = useState(false);
   const [showPatientLetter, setShowPatientLetter] = useState(false);
@@ -183,11 +184,16 @@ export default function ChartPage() {
   const [labPriority, setLabPriority] = useState('Routine');
   const [labNotes, setLabNotes] = useState('');
   const [labsSent, setLabsSent] = useState(false);
-  const [quickLabNetwork, setQuickLabNetwork] = useState('');
-  const [quickLabAddress, setQuickLabAddress] = useState('');
+  const [quickLabSearch, setQuickLabSearch] = useState('');
+  const [quickLabSelected, setQuickLabSelected] = useState(null);
+  const [showQuickLabDrop, setShowQuickLabDrop] = useState(false);
 
-  // ── Order Group location dropdowns ──────────────────────
-  const [pharmDropdownIdx, setPharmDropdownIdx] = useState(null);
+  // ── Pharmacy drawer ──────────────────────────────────────
+  const [pharmDrawerOpen,      setPharmDrawerOpen]      = useState(false);
+  const [pharmDrawerTargetIdx, setPharmDrawerTargetIdx] = useState(null);
+
+  // ── Lab location dropdown ────────────────────────────────
+  const [labDropdownIdx, setLabDropdownIdx] = useState(null);
 
   // ── Sample letter templates ──────────────────────────────
   const PRACTICE_NAME    = 'Advanced Practice Medical Group';
@@ -609,12 +615,12 @@ export default function ChartPage() {
             item.medSig && `<em>${item.medSig}</em>`,
             (item.medQuantity || item.medRefills) && `Qty: ${item.medQuantity||'?'} · Refills: ${item.medRefills||'0'}`,
             item.medDispenseAsWritten && `<strong>DAW</strong>`,
-            item.medPharmacy && `📍 ${item.medPharmacy}${item.medPharmAddress ? '<br/>' + item.medPharmAddress : ''}`,
+            item.medPharmacy && `📍 ${item.medPharmacy}${item.medPharmAddress ? '<br/>' + item.medPharmAddress : ''}${item.medPharmPhone ? '<br/>📞 ' + item.medPharmPhone : ''}${item.medPharmFax ? ' · Fax: ' + item.medPharmFax : ''}`,
           ].filter(Boolean).join('<br/>');
         } else if (item.type === 'Lab') {
           det = [
             `<strong>${item.labPanel||item.description||'—'}</strong>`,
-            item.labNetwork && `🏥 ${item.labNetwork}${item.labAddress ? ' — ' + item.labAddress : ''}`,
+            item.labNetwork && `🏥 ${item.labNetwork}${item.labAddress ? '<br/>' + item.labAddress : ''}${item.labPhone ? '<br/>📞 ' + item.labPhone : ''}`,
           ].filter(Boolean).join('<br/>');
         } else if (item.type === 'Imaging') {
           det = [`<strong>${[item.imgModality, item.imgBodyPart, item.imgLaterality!=='N/A'?item.imgLaterality:''].filter(Boolean).join(' — ')}</strong>`, item.imgReason && `Indication: ${item.imgReason}`].filter(Boolean).join('<br/>');
@@ -844,9 +850,34 @@ export default function ChartPage() {
   };
   const bannerStyle = isPatientInactive ? STATUS_BANNER_STYLES[patStatusRecord.status] : null;
 
+  // ── Pharmacy drawer callback ─────────────────────────────
+  const handlePharmacySelect = (pharmacy) => {
+    const addr = [
+      pharmacy.address1,
+      pharmacy.address2,
+      pharmacy.city && `${pharmacy.city}${pharmacy.state ? ', ' + pharmacy.state : ''} ${pharmacy.zip}`,
+    ].filter(Boolean).join(', ');
+    updateOrderGroupItem(pharmDrawerTargetIdx, 'medPharmacy',  pharmacy.name);
+    updateOrderGroupItem(pharmDrawerTargetIdx, 'medPharmAddress', addr.replace(/, $/, ''));
+    updateOrderGroupItem(pharmDrawerTargetIdx, 'medPharmPhone', pharmacy.phone);
+    updateOrderGroupItem(pharmDrawerTargetIdx, 'medPharmFax',  pharmacy.fax);
+  };
+
   return (
     <div className="athena-chart-layout">
       <PatientBanner />
+
+      {/* Pharmacy Selector Drawer */}
+      <PharmacySelectorDrawer
+        isOpen={pharmDrawerOpen}
+        onClose={() => setPharmDrawerOpen(false)}
+        onSelect={handlePharmacySelect}
+        onSetDefault={(ph) => {
+          /* Persist default to patient record if needed */
+          console.info('Default pharmacy set:', ph.name);
+        }}
+        recentlyUsedIds={[]}
+      />
 
       {/* Inactive patient banner */}
       {isPatientInactive && bannerStyle && (
@@ -1403,38 +1434,96 @@ export default function ChartPage() {
         // ── Preferred pharmacy from patient's most recent active med ──────────
         const preferredPharmacy = (p?.medications || []).find(m => m.status === 'Active' && m.pharmacy)?.pharmacy || '';
 
-        // ── Compact pharmacy chain list ───────────────────────────────────────
-        const US_PHARM_CHAINS = [
-          { name: 'CVS Pharmacy', group: 'Major Retail' },
-          { name: 'Walgreens', group: 'Major Retail' },
-          { name: 'Rite Aid', group: 'Major Retail' },
-          { name: 'Walmart Pharmacy', group: 'Major Retail' },
-          { name: "Sam's Club Pharmacy", group: 'Major Retail' },
-          { name: 'Costco Pharmacy', group: 'Major Retail' },
-          { name: 'Target (CVS) Pharmacy', group: 'Major Retail' },
-          { name: 'Kroger Pharmacy', group: 'Grocery' },
-          { name: 'Publix Pharmacy', group: 'Grocery' },
-          { name: 'H-E-B Pharmacy', group: 'Grocery' },
-          { name: 'Jewel-Osco Pharmacy', group: 'Grocery' },
-          { name: 'Walgreens Specialty Pharmacy', group: 'Specialty' },
-          { name: 'CVS Specialty', group: 'Specialty' },
-          { name: 'Genoa Healthcare (behavioral health)', group: 'Specialty' },
-          { name: 'Accredo (Express Scripts)', group: 'Specialty' },
-          { name: 'CVS Caremark Mail Order', group: 'Mail Order' },
-          { name: 'Express Scripts (Evernorth)', group: 'Mail Order' },
-          { name: 'OptumRx Mail Order', group: 'Mail Order' },
-          { name: 'Amazon Pharmacy', group: 'Mail Order' },
-          { name: 'Hospital Outpatient Pharmacy', group: 'Other' },
-          { name: 'VA Pharmacy', group: 'Other' },
-          { name: 'Independent / Local Pharmacy (specify)', group: 'Other' },
-          { name: 'Compounding Pharmacy (specify)', group: 'Other' },
+        // ── Pharmacy directory (national) ─────────────────────────────────────
+        const PHARMACY_DIRECTORY = [
+          // ── Walgreens ──
+          { name: 'Walgreens #02561', group: 'Walgreens', address: '757 N Michigan Ave, Chicago, IL 60611', phone: '(312) 664-8686', fax: '(312) 664-8687' },
+          { name: 'Walgreens #06712', group: 'Walgreens', address: '136 E 57th St, New York, NY 10022', phone: '(212) 755-0197', fax: '(212) 755-0198' },
+          { name: 'Walgreens #09241', group: 'Walgreens', address: '250 N Alvarado St, Los Angeles, CA 90026', phone: '(213) 484-5700', fax: '(213) 484-5701' },
+          { name: 'Walgreens #03318', group: 'Walgreens', address: '6500 N MacArthur Blvd, Irving, TX 75039', phone: '(972) 550-7400', fax: '(972) 550-7401' },
+          { name: 'Walgreens #04831', group: 'Walgreens', address: '800 Peachtree St NE, Atlanta, GA 30308', phone: '(404) 875-3500', fax: '(404) 875-3501' },
+          { name: 'Walgreens #11042', group: 'Walgreens', address: '4800 SW 40th Ave, Miami, FL 33155', phone: '(305) 666-1640', fax: '(305) 666-1641' },
+          { name: 'Walgreens #07563', group: 'Walgreens', address: '1101 Market St, Philadelphia, PA 19107', phone: '(215) 829-9990', fax: '(215) 829-9991' },
+          { name: 'Walgreens #08904', group: 'Walgreens', address: '1300 E Colfax Ave, Denver, CO 80218', phone: '(303) 832-8181', fax: '(303) 832-8182' },
+          // ── CVS ──
+          { name: 'CVS Pharmacy #01234', group: 'CVS', address: '1234 N Michigan Ave, Chicago, IL 60610', phone: '(312) 266-8500', fax: '(312) 266-8501' },
+          { name: 'CVS Pharmacy #05678', group: 'CVS', address: '200 W 57th St, New York, NY 10019', phone: '(212) 541-9200', fax: '(212) 541-9201' },
+          { name: 'CVS Pharmacy #09012', group: 'CVS', address: '8001 Sunset Blvd, Los Angeles, CA 90046', phone: '(323) 654-7100', fax: '(323) 654-7101' },
+          { name: 'CVS Pharmacy #03456', group: 'CVS', address: '2000 Westheimer Rd, Houston, TX 77098', phone: '(713) 529-3900', fax: '(713) 529-3901' },
+          { name: 'CVS Pharmacy #07890', group: 'CVS', address: '50 Peachtree St NW, Atlanta, GA 30303', phone: '(404) 589-7900', fax: '(404) 589-7901' },
+          { name: 'CVS Pharmacy #02341', group: 'CVS', address: '3051 NW 7th Ave, Miami, FL 33127', phone: '(305) 573-7800', fax: '(305) 573-7801' },
+          { name: 'CVS Pharmacy #06784', group: 'CVS', address: '1600 Market St, Philadelphia, PA 19103', phone: '(215) 564-0260', fax: '(215) 564-0261' },
+          // ── Rite Aid ──
+          { name: 'Rite Aid #05678', group: 'Rite Aid', address: '303 W Erie St, Chicago, IL 60654', phone: '(312) 335-1960', fax: '(312) 335-1961' },
+          { name: 'Rite Aid #02345', group: 'Rite Aid', address: '310 Columbus Ave, New York, NY 10023', phone: '(212) 595-2290', fax: '(212) 595-2291' },
+          { name: 'Rite Aid #07612', group: 'Rite Aid', address: '5600 Wilshire Blvd, Los Angeles, CA 90036', phone: '(323) 937-0540', fax: '(323) 937-0541' },
+          // ── Walmart ──
+          { name: 'Walmart Pharmacy #1234', group: 'Walmart', address: '2551 E 79th St, Chicago, IL 60649', phone: '(773) 221-5000', fax: '(773) 221-5001' },
+          { name: 'Walmart Pharmacy #2345', group: 'Walmart', address: '5401 S Expressway 83, Harlingen, TX 78550', phone: '(956) 428-0050', fax: '(956) 428-0051' },
+          { name: 'Walmart Pharmacy #3456', group: 'Walmart', address: '2020 W Cactus Rd, Phoenix, AZ 85029', phone: '(602) 942-3801', fax: '(602) 942-3802' },
+          { name: 'Walmart Pharmacy #4567', group: 'Walmart', address: '4700 Central Ave SW, Albuquerque, NM 87105', phone: '(505) 873-4450', fax: '(505) 873-4451' },
+          // ── Costco / Sam's Club ──
+          { name: "Costco Pharmacy #122", group: 'Costco', address: '10 Imm Luther King Jr Dr, Teterboro, NJ 07608', phone: '(201) 462-4860', fax: '(201) 462-4861' },
+          { name: "Costco Pharmacy #536", group: 'Costco', address: '1375 N Meacham Rd, Schaumburg, IL 60173', phone: '(847) 240-2540', fax: '(847) 240-2544' },
+          { name: "Sam's Club Pharmacy #6344", group: "Sam's Club", address: '4600 Ambassador Caffery Pkwy, Lafayette, LA 70508', phone: '(337) 989-7980', fax: '(337) 989-7981' },
+          // ── Grocery ──
+          { name: 'Kroger Pharmacy #617', group: 'Kroger', address: '2626 Ridgmar Blvd, Fort Worth, TX 76116', phone: '(817) 370-8000', fax: '(817) 370-8001' },
+          { name: 'Publix Pharmacy #0456', group: 'Publix', address: '1440 NE Miami Gardens Dr, Miami, FL 33179', phone: '(305) 947-1200', fax: '(305) 947-1201' },
+          { name: 'H-E-B Pharmacy #789', group: 'H-E-B', address: '2101 S Lamar Blvd, Austin, TX 78704', phone: '(512) 440-3800', fax: '(512) 440-3801' },
+          { name: 'Safeway Pharmacy #0932', group: 'Safeway', address: '1601 S Colorado Blvd, Denver, CO 80222', phone: '(303) 757-8870', fax: '(303) 757-8871' },
+          // ── Specialty / Behavioral Health ──
+          { name: 'Genoa Healthcare Pharmacy — Chicago', group: 'Specialty', address: '1700 W Van Buren St Ste 100, Chicago, IL 60612', phone: '(312) 996-7100', fax: '(312) 996-7101' },
+          { name: 'Genoa Healthcare Pharmacy — Los Angeles', group: 'Specialty', address: '4070 Cesar Chavez Ave, Los Angeles, CA 90063', phone: '(323) 263-1028', fax: '(323) 263-1029' },
+          { name: 'Genoa Healthcare Pharmacy — New York', group: 'Specialty', address: '722 W 168th St, New York, NY 10032', phone: '(212) 305-6001', fax: '(212) 305-6002' },
+          { name: 'Genoa Healthcare Pharmacy — Houston', group: 'Specialty', address: '3000 Essex Ln, Houston, TX 77027', phone: '(713) 523-0700', fax: '(713) 523-0701' },
+          { name: 'Walgreens Specialty Pharmacy', group: 'Specialty', address: '3200 Highland Ave, Downers Grove, IL 60515', phone: '(855) 922-0512', fax: '(855) 922-0513' },
+          { name: 'CVS Specialty Pharmacy', group: 'Specialty', address: '1 CVS Dr, Woonsocket, RI 02895', phone: '(800) 237-2767', fax: '(800) 635-5605' },
+          { name: 'Accredo Specialty Pharmacy (Express Scripts)', group: 'Specialty', address: '1640 Century Center Pkwy, Memphis, TN 38134', phone: '(800) 803-2523', fax: '(800) 462-5327' },
+          // ── Mail Order ──
+          { name: 'CVS Caremark Mail Service Pharmacy', group: 'Mail Order', address: '1 CVS Dr, Woonsocket, RI 02895', phone: '(800) 552-8159', fax: '(800) 378-0323' },
+          { name: 'Express Scripts (Evernorth) Mail Order', group: 'Mail Order', address: '4000 Express Scripts Blvd, St. Louis, MO 63121', phone: '(800) 282-2881', fax: '(800) 758-1488' },
+          { name: 'OptumRx Mail Order Pharmacy', group: 'Mail Order', address: '2300 Main St, Irvine, CA 92614', phone: '(855) 427-4682', fax: '(855) 427-4683' },
+          { name: 'Amazon Pharmacy', group: 'Mail Order', address: '440 Terry Ave N, Seattle, WA 98109', phone: '(855) 745-5725', fax: '(855) 745-5726' },
+          // ── Hospital ──
+          { name: 'Hospital Outpatient Pharmacy (on-site)', group: 'Hospital', address: 'See facility directory', phone: '', fax: '' },
+          { name: 'VA Outpatient Pharmacy — VA Medical Center', group: 'VA', address: 'See VA directory', phone: '(800) 827-1000', fax: '' },
         ];
 
-        // ── Lab networks ──────────────────────────────────────────────────────
-        const LAB_NETWORKS = [
-          'Quest Diagnostics', 'LabCorp', 'Hospital Lab (in-house)',
-          'ARUP Laboratories', 'BioReference Laboratories',
-          'Mayo Clinic Laboratories', 'Sonic Healthcare', 'Other (specify)',
+        // ── Lab directory (national) ──────────────────────────────────────────
+        const LAB_DIRECTORY = [
+          // ── Quest Diagnostics ──
+          { name: 'Quest Diagnostics — Chicago Loop', network: 'Quest Diagnostics', address: '222 W Adams St Ste 100, Chicago, IL 60606', phone: '(312) 621-0390', fax: '(312) 621-0395' },
+          { name: 'Quest Diagnostics — Chicago North', network: 'Quest Diagnostics', address: '680 N Lake Shore Dr Ste 1200, Chicago, IL 60611', phone: '(312) 642-7830', fax: '(312) 642-7831' },
+          { name: 'Quest Diagnostics — Midtown Manhattan', network: 'Quest Diagnostics', address: '510 Lexington Ave, New York, NY 10017', phone: '(212) 833-0444', fax: '(212) 833-0449' },
+          { name: 'Quest Diagnostics — Upper East Side NY', network: 'Quest Diagnostics', address: '1249 Park Ave, New York, NY 10128', phone: '(212) 534-5100', fax: '(212) 534-5101' },
+          { name: 'Quest Diagnostics — Beverly Hills', network: 'Quest Diagnostics', address: '8383 Wilshire Blvd Ste 440, Beverly Hills, CA 90211', phone: '(310) 248-4080', fax: '(310) 248-4081' },
+          { name: 'Quest Diagnostics — Los Angeles Downtown', network: 'Quest Diagnostics', address: '520 W 7th St Ste 860, Los Angeles, CA 90014', phone: '(213) 622-9750', fax: '(213) 622-9751' },
+          { name: 'Quest Diagnostics — Houston Medical Center', network: 'Quest Diagnostics', address: '7500 Greenbriar Dr, Houston, TX 77030', phone: '(713) 796-5380', fax: '(713) 796-5381' },
+          { name: 'Quest Diagnostics — Atlanta Midtown', network: 'Quest Diagnostics', address: '1140 Hammond Dr NE Ste 100, Atlanta, GA 30328', phone: '(404) 851-5500', fax: '(404) 851-5501' },
+          { name: 'Quest Diagnostics — Miami', network: 'Quest Diagnostics', address: '5950 NW 183rd St, Hialeah, FL 33015', phone: '(305) 626-1000', fax: '(305) 626-1001' },
+          { name: 'Quest Diagnostics — Philadelphia', network: 'Quest Diagnostics', address: '3600 Market St Ste 300, Philadelphia, PA 19104', phone: '(215) 662-4100', fax: '(215) 662-4101' },
+          { name: 'Quest Diagnostics — Dallas', network: 'Quest Diagnostics', address: '5420 LBJ Freeway Ste 310, Dallas, TX 75240', phone: '(972) 233-5040', fax: '(972) 233-5041' },
+          { name: 'Quest Diagnostics — Phoenix', network: 'Quest Diagnostics', address: '3030 N Central Ave Ste 200, Phoenix, AZ 85012', phone: '(602) 248-9490', fax: '(602) 248-9491' },
+          // ── LabCorp ──
+          { name: 'LabCorp — Chicago River North', network: 'LabCorp', address: '444 N Michigan Ave Ste 100, Chicago, IL 60611', phone: '(312) 828-0990', fax: '(312) 828-0995' },
+          { name: 'LabCorp — Upper East Side NYC', network: 'LabCorp', address: '1249 Park Ave, New York, NY 10128', phone: '(212) 534-5100', fax: '(212) 534-5101' },
+          { name: 'LabCorp — Los Angeles Downtown', network: 'LabCorp', address: '520 W 7th St Ste 860, Los Angeles, CA 90014', phone: '(213) 622-9750', fax: '(213) 622-9751' },
+          { name: 'LabCorp — Houston Greenway', network: 'LabCorp', address: '3900 Essex Ln Ste 200, Houston, TX 77027', phone: '(713) 622-7400', fax: '(713) 622-7401' },
+          { name: 'LabCorp — Atlanta Perimeter', network: 'LabCorp', address: '1100 Johnson Ferry Rd NE Ste 375, Atlanta, GA 30342', phone: '(770) 551-7010', fax: '(770) 551-7011' },
+          { name: 'LabCorp — Miami', network: 'LabCorp', address: '8500 NW 53rd St, Doral, FL 33166', phone: '(305) 597-9080', fax: '(305) 597-9081' },
+          { name: 'LabCorp — Denver Tech Center', network: 'LabCorp', address: '6301 S Fiddlers Green Cir Ste 200, Greenwood Village, CO 80111', phone: '(303) 850-9000', fax: '(303) 850-9001' },
+          // ── Hospital Labs ──
+          { name: 'Northwestern Memorial Hospital Lab', network: 'Hospital Lab (in-house)', address: '251 E Huron St, Chicago, IL 60611', phone: '(312) 926-5411', fax: '(312) 926-5412' },
+          { name: 'Rush University Medical Center Lab', network: 'Hospital Lab (in-house)', address: '1620 W Harrison St, Chicago, IL 60612', phone: '(312) 942-5495', fax: '(312) 942-5499' },
+          { name: 'NewYork-Presbyterian Hospital Lab', network: 'Hospital Lab (in-house)', address: '525 E 68th St, New York, NY 10065', phone: '(212) 746-3000', fax: '(212) 746-3001' },
+          { name: 'Cedars-Sinai Medical Center Lab', network: 'Hospital Lab (in-house)', address: '8700 Beverly Blvd, Los Angeles, CA 90048', phone: '(310) 423-6000', fax: '(310) 423-6001' },
+          { name: 'Houston Methodist Hospital Lab', network: 'Hospital Lab (in-house)', address: '6565 Fannin St, Houston, TX 77030', phone: '(713) 441-2345', fax: '(713) 441-2346' },
+          { name: 'Emory University Hospital Lab', network: 'Hospital Lab (in-house)', address: '1364 Clifton Rd NE, Atlanta, GA 30322', phone: '(404) 712-7021', fax: '(404) 712-7022' },
+          // ── Reference Labs ──
+          { name: 'ARUP Laboratories', network: 'ARUP Laboratories', address: '500 Chipeta Way, Salt Lake City, UT 84108', phone: '(800) 522-2787', fax: '(801) 584-5207' },
+          { name: 'Mayo Clinic Laboratories', network: 'Mayo Clinic Laboratories', address: '200 First St SW, Rochester, MN 55905', phone: '(800) 533-1710', fax: '(507) 284-0043' },
+          { name: 'BioReference Laboratories', network: 'BioReference Laboratories', address: '481 Edward H. Ross Dr, Elmwood Park, NJ 07407', phone: '(800) 229-5227', fax: '(201) 791-1941' },
+          { name: 'Sonic Healthcare — Austin', network: 'Sonic Healthcare', address: '4000 Medical Pkwy Ste 100, Austin, TX 78756', phone: '(512) 459-6543', fax: '(512) 459-6544' },
         ];
 
         // ── Psych med auto-fill defaults ──────────────────────────────────────
@@ -1634,24 +1723,47 @@ export default function ChartPage() {
                           {/* Lab destination */}
                           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
                             <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>🏥 Send to Lab</label>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                              <select
-                                className="form-select"
-                                value={item.labNetwork}
-                                onChange={e => updateOrderGroupItem(idx, 'labNetwork', e.target.value)}
-                                style={{ fontSize: 12 }}
-                              >
-                                <option value="">— Select lab network —</option>
-                                {LAB_NETWORKS.map(n => <option key={n} value={n}>{n}</option>)}
-                              </select>
-                              <input
-                                className="form-input"
-                                placeholder="Location / address (optional)"
-                                value={item.labAddress}
-                                onChange={e => updateOrderGroupItem(idx, 'labAddress', e.target.value)}
-                                style={{ fontSize: 11 }}
-                              />
-                            </div>
+                            {item.labNetwork ? (
+                              <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 6, padding: '8px 10px', fontSize: 12 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                  <div>
+                                    <div style={{ fontWeight: 700, color: '#0c4a6e' }}>{item.labNetwork}</div>
+                                    {item.labAddress && <div style={{ color: '#374151', marginTop: 2 }}>{item.labAddress}</div>}
+                                    {item.labPhone && <div style={{ color: '#6b7280', marginTop: 2 }}>📞 {item.labPhone}</div>}
+                                  </div>
+                                  <button type="button" onClick={() => { updateOrderGroupItem(idx, 'labNetwork', ''); updateOrderGroupItem(idx, 'labAddress', ''); updateOrderGroupItem(idx, 'labPhone', ''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#6b7280', padding: '0 2px', lineHeight: 1 }} title="Change lab">✕</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ position: 'relative' }}>
+                                <input
+                                  className="form-input"
+                                  placeholder="🔍 Search lab — Quest, LabCorp, hospital, reference…"
+                                  value={labDropdownIdx === idx ? (item._labSearch || '') : ''}
+                                  onChange={e => { updateOrderGroupItem(idx, '_labSearch', e.target.value); setLabDropdownIdx(idx); }}
+                                  onFocus={() => setLabDropdownIdx(idx)}
+                                  onBlur={() => setTimeout(() => setLabDropdownIdx(null), 180)}
+                                  style={{ fontSize: 12 }}
+                                />
+                                {labDropdownIdx === idx && (
+                                  <div style={{ position: 'absolute', zIndex: 300, left: 0, right: 0, top: '100%', border: '1px solid var(--border)', borderRadius: 6, background: '#fff', maxHeight: 220, overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.13)' }}>
+                                    {LAB_DIRECTORY.filter(lab => { const q = (item._labSearch || '').toLowerCase(); return !q || lab.name.toLowerCase().includes(q) || lab.network.toLowerCase().includes(q) || lab.address.toLowerCase().includes(q); }).slice(0, 12).map((lab, li) => (
+                                      <button key={li} type="button"
+                                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', border: 'none', borderBottom: '1px solid #f3f4f6', background: 'transparent', cursor: 'pointer' }}
+                                        onMouseOver={e => e.currentTarget.style.background = '#f0f9ff'}
+                                        onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                                        onMouseDown={e => e.preventDefault()}
+                                        onClick={() => { updateOrderGroupItem(idx, 'labNetwork', lab.name); updateOrderGroupItem(idx, 'labAddress', lab.address); updateOrderGroupItem(idx, 'labPhone', lab.phone); updateOrderGroupItem(idx, '_labSearch', ''); setLabDropdownIdx(null); }}
+                                      >
+                                        <div style={{ fontWeight: 600, fontSize: 12, color: '#1e3a5f' }}>{lab.name}</div>
+                                        <div style={{ fontSize: 10.5, color: '#6b7280', marginTop: 1 }}>{lab.address}</div>
+                                        {lab.phone && <div style={{ fontSize: 10.5, color: '#6b7280' }}>📞 {lab.phone}{lab.fax ? `  ·  Fax: ${lab.fax}` : ''}</div>}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -1699,51 +1811,49 @@ export default function ChartPage() {
                           </label>
                           <input className="form-input" placeholder="Clinical notes / special instructions" value={item.notes} onChange={e => updateOrderGroupItem(idx, 'notes', e.target.value)} style={{ fontSize: 12 }} />
                           {/* Pharmacy destination */}
-                          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
-                            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>📍 Send to Pharmacy</label>
-                            {preferredPharmacy && !item.medPharmacy && (
-                              <button
-                                type="button"
-                                onClick={() => updateOrderGroupItem(idx, 'medPharmacy', preferredPharmacy)}
-                                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', marginBottom: 4, background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 5, fontSize: 11, cursor: 'pointer', color: '#166534' }}
-                              >
-                                ↩ Use preferred: <strong>{preferredPharmacy}</strong>
-                              </button>
-                            )}
-                            <div style={{ position: 'relative' }}>
-                              <input
-                                className="form-input"
-                                placeholder="Pharmacy name (e.g. CVS, Walgreens, Genoa, mail order…)"
-                                value={item.medPharmacy}
-                                onChange={e => updateOrderGroupItem(idx, 'medPharmacy', e.target.value)}
-                                onFocus={() => setPharmDropdownIdx(idx)}
-                                onBlur={() => setTimeout(() => setPharmDropdownIdx(null), 150)}
-                                style={{ fontSize: 12 }}
-                              />
-                              {pharmDropdownIdx === idx && (
-                                <div style={{ position: 'absolute', zIndex: 200, left: 0, right: 0, top: '100%', border: '1px solid var(--border)', borderRadius: 6, background: '#fff', maxHeight: 200, overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}>
-                                  {US_PHARM_CHAINS.filter(ph => !item.medPharmacy || ph.name.toLowerCase().includes(item.medPharmacy.toLowerCase()) || ph.group.toLowerCase().includes(item.medPharmacy.toLowerCase())).slice(0, 15).map((ph, pi) => (
-                                    <button key={pi} type="button"
-                                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11.5, borderBottom: '1px solid #f8fafc' }}
-                                      onMouseOver={e => e.currentTarget.style.background = '#f0fdf4'}
-                                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-                                      onMouseDown={e => e.preventDefault()}
-                                      onClick={() => { updateOrderGroupItem(idx, 'medPharmacy', ph.name); setPharmDropdownIdx(null); }}
-                                    >
-                                      <span style={{ fontWeight: 600 }}>{ph.name}</span>
-                                      <span style={{ marginLeft: 6, fontSize: 10, color: '#6b7280', background: '#f3f4f6', padding: '1px 5px', borderRadius: 4 }}>{ph.group}</span>
-                                    </button>
-                                  ))}
+                          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
+                            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.4px' }}>📍 Send to Pharmacy</label>
+                            {item.medPharmacy ? (
+                              /* ── Selected card (like picture) ── */
+                              <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: '10px 12px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: 700, fontSize: 13, color: '#0c4a6e' }}>{item.medPharmacy}</div>
+                                    {item.medPharmAddress && <div style={{ fontSize: 12, color: '#374151', marginTop: 3 }}>{item.medPharmAddress}</div>}
+                                    <div style={{ display: 'flex', gap: 12, marginTop: 4, flexWrap: 'wrap' }}>
+                                      {item.medPharmPhone && <span style={{ fontSize: 11.5, color: '#6b7280' }}>📞 {item.medPharmPhone}</span>}
+                                      {item.medPharmFax   && <span style={{ fontSize: 11.5, color: '#6b7280' }}>📠 Fax: {item.medPharmFax}</span>}
+                                    </div>
+                                  </div>
+                                  <button type="button"
+                                    onClick={() => { updateOrderGroupItem(idx, 'medPharmacy', ''); updateOrderGroupItem(idx, 'medPharmAddress', ''); updateOrderGroupItem(idx, 'medPharmPhone', ''); updateOrderGroupItem(idx, 'medPharmFax', ''); }}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 14, padding: '0 2px', lineHeight: 1 }} title="Change pharmacy"
+                                  >✕</button>
                                 </div>
-                              )}
-                            </div>
-                            <input
-                              className="form-input"
-                              placeholder="Address / fax (optional — e.g. 123 Main St, Chicago IL 60601 · Fax: 312-555-0100)"
-                              value={item.medPharmAddress}
-                              onChange={e => updateOrderGroupItem(idx, 'medPharmAddress', e.target.value)}
-                              style={{ fontSize: 11, marginTop: 4, color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd' }}
-                            />
+                                <button type="button"
+                                  onClick={() => { setPharmDrawerTargetIdx(idx); setPharmDrawerOpen(true); }}
+                                  style={{ marginTop: 8, fontSize: 11, color: '#0369a1', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                                >Change pharmacy</button>
+                              </div>
+                            ) : (
+                              /* ── Open drawer button ── */
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                {preferredPharmacy && (
+                                  <button type="button"
+                                    onClick={() => updateOrderGroupItem(idx, 'medPharmacy', preferredPharmacy)}
+                                    style={{ textAlign: 'left', padding: '6px 9px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6, fontSize: 11, cursor: 'pointer', color: '#166534' }}
+                                  >↩ Use preferred: <strong>{preferredPharmacy}</strong></button>
+                                )}
+                                <button type="button"
+                                  onClick={() => { setPharmDrawerTargetIdx(idx); setPharmDrawerOpen(true); }}
+                                  style={{ padding: '8px 12px', background: '#1a1f2e', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 8, fontSize: 12, cursor: 'pointer', color: '#a5b4fc', fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
+                                  onMouseOver={e => { e.currentTarget.style.background = '#232838'; }}
+                                  onMouseOut={e => { e.currentTarget.style.background = '#1a1f2e'; }}
+                                >
+                                  💊 <span>Select Pharmacy…</span>
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
