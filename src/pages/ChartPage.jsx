@@ -165,6 +165,24 @@ export default function ChartPage() {
   const [patientLetter, setPatientLetter] = useState({ subject: '', body: '', delivery: 'portal' });
   const [letterTemplateOpen, setLetterTemplateOpen] = useState(false);
 
+  // ── Patient Letters panel state ──────────────────────────
+  const [lettersDelivery, setLettersDelivery] = useState('portal');
+  const [lettersSubject, setLettersSubject] = useState('');
+  const [lettersBody, setLettersBody] = useState('');
+  const [lettersSent, setLettersSent] = useState(false);
+  const [lettersCategoryFilter, setLettersCategoryFilter] = useState('all');
+  const [lettersSearch, setLettersSearch] = useState('');
+
+  // ── Referral panel state ─────────────────────────────────
+  const [referralData, setReferralData] = useState({ specialty: 'Psychiatry', provider: '', reason: '', urgency: 'Routine', notes: '', delivery: 'fax' });
+  const [referralSent, setReferralSent] = useState(false);
+
+  // ── Quick Labs panel state ───────────────────────────────
+  const [selectedLabs, setSelectedLabs] = useState([]);
+  const [labPriority, setLabPriority] = useState('Routine');
+  const [labNotes, setLabNotes] = useState('');
+  const [labsSent, setLabsSent] = useState(false);
+
   // ── Sample letter templates ──────────────────────────────
   const PRACTICE_NAME    = 'Advanced Practice Medical Group';
   const PRACTICE_ADDRESS = '2280 Hicks Rd Suite 508, Rolling Meadows, IL 60008';
@@ -180,45 +198,210 @@ export default function ChartPage() {
     const patMedsList = patMeds.map(m => `${m.name} ${m.dose || ''}`).join(', ') || 'N/A';
 
     return [
-      {
-        id: 'accommodation',
-        icon: '♿',
-        label: 'Accommodation Letter',
-        subject: 'Accommodation Letter',
-        body: `${today}\n\nTo Whom It May Concern,\n\nI am writing on behalf of my patient, ${patName} (DOB: ${patDOB}), who is currently under my care for the treatment of a mental health condition.\n\nBased on my clinical evaluation and ongoing treatment, ${p.firstName} has a condition that substantially limits one or more major life activities. In accordance with the Americans with Disabilities Act (ADA) and/or Section 504 of the Rehabilitation Act, I am recommending the following reasonable accommodations:\n\n• [Accommodation 1]\n• [Accommodation 2]\n• [Accommodation 3]\n\nThese accommodations are medically necessary and directly related to ${p.firstName}'s condition. They will enable ${p.firstName} to perform essential functions and participate fully in their activities.\n\nPlease do not hesitate to contact our office if you require additional information.\n\nSincerely,\n${providerName}\nNPI: ${currentUser?.npi || '[NPI Number]'}\n${practiceBlock}`,
-      },
-      {
-        id: 'return-school',
-        icon: '🎓',
-        label: 'Return to School Letter',
-        subject: 'Return to School Authorization',
-        body: `${today}\n\nTo Whom It May Concern,\n\nThis letter is to certify that ${patName} (DOB: ${patDOB}) has been under my psychiatric/medical care.\n\n${p.firstName} was unable to attend school/classes from [Start Date] through [End Date] due to a medical/mental health condition requiring treatment.\n\nI am pleased to confirm that ${p.firstName} is now medically cleared to return to school effective [Return Date].\n\nRecommendations for transition back:\n• [Any academic accommodations needed]\n• [Gradual return schedule if applicable]\n• [Follow-up appointment scheduled for: Date]\n\nPlease provide any attendance or academic make-up accommodations as needed during this transition period.\n\nIf you have any questions or need additional information, please contact our office.\n\nSincerely,\n${providerName}\n${practiceBlock}`,
-      },
-      {
-        id: 'esa',
-        icon: '🐾',
-        label: 'Emotional Support Animal',
-        subject: 'Emotional Support Animal Letter',
-        body: `${today}\n\nTo Whom It May Concern,\n\nI am writing to confirm that ${patName} (DOB: ${patDOB}) is a patient currently under my care. I am a licensed mental health provider and have been treating ${p.firstName} for a diagnosed mental health condition.\n\nBased on my professional assessment, ${p.firstName} has a disability-related need for an Emotional Support Animal (ESA). The presence of an ESA is a critical component of ${p.firstName}'s treatment plan and provides therapeutic benefit by alleviating one or more identified symptoms of their condition, including but not limited to:\n\n• Reduction of anxiety and panic symptoms\n• Mitigation of depressive episodes\n• Improvement in overall emotional regulation\n• Enhanced sense of security and stability\n\nUnder the Fair Housing Act (FHA), ${p.firstName} is entitled to reasonable accommodation to keep an emotional support animal in their residence, even in housing with a "no pets" policy, without being charged additional pet fees or deposits.\n\nThis letter is valid for one year from the date of issuance. Please feel free to contact me if you have any questions.\n\nSincerely,\n${providerName}\nLicense #: [License Number]\n${practiceBlock}`,
-      },
+      // ── Clinical Documentation ──────────────────────────
       {
         id: 'encounter-summary',
         icon: '📋',
-        label: 'Encounter Summary',
+        label: 'Encounter / Visit Summary',
+        category: 'clinical',
         subject: 'Visit Summary',
         body: `${today}\n\nDear ${p.firstName},\n\nThank you for your visit on ${today}. Below is a summary of your appointment:\n\nPATIENT: ${patName} (DOB: ${patDOB}, MRN: ${p.mrn})\n\nDIAGNOSES:\n${patProblems.length > 0 ? patProblems.map(pr => `  • ${pr.name || pr.problem}${pr.icd10 ? ' (' + pr.icd10 + ')' : ''}`).join('\n') : '  • See chart for details'}\n\nCURRENT MEDICATIONS:\n${patMeds.length > 0 ? patMeds.map(m => `  • ${m.name} ${m.dose || ''} ${m.route || ''} ${m.frequency || ''}`).join('\n') : '  • No active medications'}\n\nPLAN:\n• [Treatment plan details]\n• [Medication changes if any]\n• [Follow-up instructions]\n\nNEXT APPOINTMENT: ${p.nextAppointment || '[To be scheduled]'}\n\nIf you experience any worsening symptoms, side effects, or have questions about your treatment plan, please contact our office immediately.\n\nFor emergencies, call 911 or go to your nearest emergency room.\nSuicide & Crisis Lifeline: 988\n\nSincerely,\n${providerName}\n${practiceBlock}`,
       },
       {
+        id: 'problem-list',
+        icon: '🩺',
+        label: 'Patient Problem List',
+        category: 'clinical',
+        subject: 'Patient Problem List Summary',
+        body: `${today}\n\nPATIENT PROBLEM LIST\n${'═'.repeat(40)}\n\nPatient: ${patName}\nDOB: ${patDOB}\nMRN: ${p.mrn}\nGenerated by: ${providerName}\n\nACTIVE PROBLEMS:\n${patProblems.length > 0 ? patProblems.map((pr, i) => `  ${i + 1}. ${pr.name || pr.problem}${pr.icd10 ? '  [' + pr.icd10 + ']' : ''}${pr.onset ? '  (Onset: ' + pr.onset + ')' : ''}${pr.status ? '  Status: ' + pr.status : ''}`).join('\n') : '  No active problems documented.'}\n\nCURRENT MEDICATIONS:\n${patMeds.length > 0 ? patMeds.map((m, i) => `  ${i + 1}. ${m.name} ${m.dose || ''} ${m.route || ''} ${m.frequency || ''}`).join('\n') : '  No active medications.'}\n\nALLERGIES:\n${patAllergies.length > 0 ? patAllergies.map(a => `  • ${a.allergen || a.name || a} — ${a.reaction || 'Reaction not specified'} (${a.severity || 'Severity unknown'})`).join('\n') : '  NKDA (No Known Drug Allergies)'}\n\nThis summary was generated from the electronic health record and is current as of the date listed above.\n\n— ${providerName}`,
+      },
+      {
+        id: 'medication-list',
+        icon: '💊',
+        label: 'Medication List Letter',
+        category: 'clinical',
+        subject: 'Current Medication List',
+        body: `${today}\n\nTo Whom It May Concern,\n\nRE: ${patName} (DOB: ${patDOB}, MRN: ${p.mrn})\n\nThe following is a current medication list for ${patName}, as maintained in our clinical records:\n\nCURRENT MEDICATIONS:\n${patMeds.length > 0 ? patMeds.map((m, i) => `  ${i + 1}. ${m.name} ${m.dose || ''} ${m.route || ''} ${m.frequency || ''}\n     Indication: ${patProblems[0]?.name || '[See chart]'}`).join('\n') : '  No active medications on file.'}\n\nALLERGIES / ADVERSE REACTIONS:\n${patAllergies.length > 0 ? patAllergies.map(a => `  • ${a.allergen || a.name} — ${a.reaction || 'Unknown'} (${a.severity || 'Unknown severity'})`).join('\n') : '  NKDA — No Known Drug Allergies'}\n\nThis medication list is current as of ${today} and was generated from the electronic health record.\n\nSincerely,\n${providerName}\nNPI: ${currentUser?.npi || '[NPI Number]'}\n${practiceBlock}`,
+      },
+      {
+        id: 'treatment-verification',
+        icon: '✅',
+        label: 'Treatment / Attendance Verification',
+        category: 'clinical',
+        subject: 'Verification of Mental Health Treatment',
+        body: `${today}\n\nTo Whom It May Concern,\n\nThis letter serves as verification that ${patName} (DOB: ${patDOB}) is currently an active patient at our practice and is receiving ongoing mental health treatment.\n\nTREATMENT DETAILS:\n• Patient Name: ${patName}\n• Date of Birth: ${patDOB}\n• Treatment Start Date: [Date]\n• Frequency of Visits: [Weekly / Biweekly / Monthly]\n• Treatment Type: [Medication Management / Psychotherapy / Both]\n• Currently Active in Care: Yes\n\nThis information is provided at the patient's request and with their written authorization. Specific clinical details have been omitted to protect patient confidentiality unless otherwise authorized.\n\nIf you have any questions, please contact our office.\n\nSincerely,\n${providerName}\nNPI: ${currentUser?.npi || '[NPI Number]'}\n${practiceBlock}`,
+      },
+
+      // ── Work & Employment ───────────────────────────────
+      {
+        id: 'fmla',
+        icon: '🏥',
+        label: 'FMLA / Medical Leave of Absence',
+        category: 'work',
+        subject: 'Medical Leave of Absence — FMLA Documentation',
+        body: `${today}\n\nTo Whom It May Concern,\n\nRE: Family and Medical Leave Act (FMLA) Certification for ${patName}\n\nI am the treating physician/provider for ${patName} (DOB: ${patDOB}), who has been under my care for a serious health condition.\n\nFMLA CERTIFICATION:\n• Condition: [Diagnosis / Mental Health Condition — do not specify without patient consent]\n• Date Condition Commenced: [Date]\n• Probable Duration of Condition: [Duration]\n• Medical Necessity for Leave: Yes\n\nLEAVE DETAILS:\n[ ] Continuous leave\n[ ] Intermittent leave — estimated frequency: [e.g., 2 days per month]\n[ ] Reduced schedule — estimated hours: [e.g., 20 hours/week]\n\nEstimated return to full duty: [Date or "Ongoing"]\n\nThis patient is unable to perform the essential functions of their position due to the medical condition described above.\n\nSincerely,\n${providerName}\nNPI: ${currentUser?.npi || '[NPI Number]'}\n${practiceBlock}`,
+      },
+      {
+        id: 'return-work',
+        icon: '💼',
+        label: 'Return to Work Clearance',
+        category: 'work',
+        subject: 'Return to Work Medical Clearance',
+        body: `${today}\n\nTo Whom It May Concern,\n\nThis letter is to certify that ${patName} (DOB: ${patDOB}) has been under my care and was absent from work from [Start Date] through [End Date] due to a medical/mental health condition.\n\nCLEARANCE:\nI am pleased to confirm that ${p.firstName} is now medically cleared to return to work effective [Return Date].\n\nWORK RESTRICTIONS (if applicable):\n[ ] No restrictions — full duty\n[ ] Light duty for [duration]: [specify restrictions]\n[ ] Modified schedule: [hours/days]\n[ ] No [specify tasks] until [date]\n\nRecommendations:\n• Follow-up appointment scheduled for: [Date]\n• [Any additional workplace accommodations]\n\nPlease contact our office if you need further clarification.\n\nSincerely,\n${providerName}\n${practiceBlock}`,
+      },
+      {
+        id: 'work-restrictions',
+        icon: '⚠️',
+        label: 'Work Restrictions / Modified Duty',
+        category: 'work',
+        subject: 'Work Restriction Letter',
+        body: `${today}\n\nTo Whom It May Concern,\n\nRE: Work Restrictions for ${patName} (DOB: ${patDOB})\n\nThis letter is to inform you that ${patName} is currently under my psychiatric/medical care and requires the following work restrictions due to a medical condition:\n\nREQUIRED RESTRICTIONS (effective ${today} through [End Date]):\n• [ ] No night shifts / No shift work\n• [ ] Maximum [__] hours per day / [__] hours per week\n• [ ] No high-stress environments or time-critical deadlines\n• [ ] Remote work accommodation preferred\n• [ ] Flexible start time (preferred start no earlier than [time])\n• [ ] Reduced workload — no more than [__]% of standard duties\n• [ ] No customer-facing responsibilities\n• [ ] Other: [specify]\n\nThese restrictions are medically necessary and are expected to be temporary. The patient will be reassessed at their next appointment.\n\nSincerely,\n${providerName}\n${practiceBlock}`,
+      },
+      {
+        id: 'work-absence-excuse',
+        icon: '📅',
+        label: 'Work Absence / Excused Absence',
+        category: 'work',
+        subject: 'Medical Excuse — Absence from Work',
+        body: `${today}\n\nTo Whom It May Concern,\n\nThis letter certifies that ${patName} (DOB: ${patDOB}) was seen in our office and/or was under medical care and unable to report to work on the following date(s):\n\n• Date(s) of Absence: [Date or Date Range]\n• Reason: Medical appointment / Medical condition requiring rest\n\n${p.firstName} is expected to return to work on: [Return Date]\n\nPlease excuse ${p.firstName}'s absence from work as medically necessary.\n\nSincerely,\n${providerName}\n${practiceBlock}`,
+      },
+
+      // ── School ──────────────────────────────────────────
+      {
+        id: 'return-school',
+        icon: '🎓',
+        label: 'Return to School Clearance',
+        category: 'school',
+        subject: 'Return to School Medical Clearance',
+        body: `${today}\n\nTo Whom It May Concern,\n\nThis letter is to certify that ${patName} (DOB: ${patDOB}) has been under my psychiatric/medical care.\n\n${p.firstName} was unable to attend school/classes from [Start Date] through [End Date] due to a medical/mental health condition requiring treatment.\n\nI am pleased to confirm that ${p.firstName} is now medically cleared to return to school effective [Return Date].\n\nRecommendations for transition back:\n• [Any academic accommodations needed]\n• [Gradual return schedule if applicable]\n• [Follow-up appointment scheduled for: Date]\n\nPlease provide any attendance or academic make-up accommodations as needed during this transition period.\n\nIf you have any questions or need additional information, please contact our office.\n\nSincerely,\n${providerName}\n${practiceBlock}`,
+      },
+      {
+        id: 'school-accommodation',
+        icon: '🏫',
+        label: 'School Academic Accommodation',
+        category: 'school',
+        subject: 'Request for Academic Accommodation — Medical Documentation',
+        body: `${today}\n\nTo Whom It May Concern,\n\nI am writing on behalf of my patient, ${patName} (DOB: ${patDOB}), who is currently receiving treatment for a mental health condition at our practice.\n\nBased on my clinical evaluation, I am requesting the following academic accommodations in accordance with the Americans with Disabilities Act (ADA) and/or Section 504:\n\nREQUESTED ACCOMMODATIONS:\n• [ ] Extended time on tests and assignments (1.5x or 2x)\n• [ ] Quiet, distraction-reduced testing environment\n• [ ] Flexible attendance / excused absences for medical appointments\n• [ ] Extended deadlines for assignments\n• [ ] Preferred seating\n• [ ] Note-taking assistance\n• [ ] Access to recorded lectures\n• [ ] Reduced course load (if applicable)\n• Other: [specify]\n\nThese accommodations are medically necessary and will enable ${p.firstName} to access their education on an equal basis. This condition is expected to be ongoing.\n\nSincerely,\n${providerName}\nNPI: ${currentUser?.npi || '[NPI Number]'}\n${practiceBlock}`,
+      },
+      {
+        id: 'school-absence-excuse',
+        icon: '📝',
+        label: 'School Absence Excuse',
+        category: 'school',
+        subject: 'Medical Excuse — School Absence',
+        body: `${today}\n\nTo Whom It May Concern,\n\nThis letter certifies that ${patName} (DOB: ${patDOB}) is a patient under my care and was unable to attend school on the following date(s):\n\n• Date(s) of Absence: [Date or Date Range]\n• Reason: Medical appointment / Illness requiring rest\n\n${p.firstName} is expected to return to school on: [Return Date]\n\nPlease excuse ${p.firstName}'s absence(s) as medically necessary and allow make-up work accordingly.\n\nSincerely,\n${providerName}\n${practiceBlock}`,
+      },
+
+      // ── Housing ─────────────────────────────────────────
+      {
+        id: 'esa',
+        icon: '🐾',
+        label: 'Emotional Support Animal (ESA)',
+        category: 'housing',
+        subject: 'Emotional Support Animal Letter',
+        body: `${today}\n\nTo Whom It May Concern,\n\nI am writing to confirm that ${patName} (DOB: ${patDOB}) is a patient currently under my care. I am a licensed mental health provider and have been treating ${p.firstName} for a diagnosed mental health condition.\n\nBased on my professional assessment, ${p.firstName} has a disability-related need for an Emotional Support Animal (ESA). The presence of an ESA is a critical component of ${p.firstName}'s treatment plan and provides therapeutic benefit by alleviating one or more identified symptoms of their condition, including but not limited to:\n\n• Reduction of anxiety and panic symptoms\n• Mitigation of depressive episodes\n• Improvement in overall emotional regulation\n• Enhanced sense of security and stability\n\nUnder the Fair Housing Act (FHA), ${p.firstName} is entitled to reasonable accommodation to keep an emotional support animal in their residence, even in housing with a "no pets" policy, without being charged additional pet fees or deposits.\n\nThis letter is valid for one year from the date of issuance. Please feel free to contact me if you have any questions.\n\nSincerely,\n${providerName}\nLicense #: [License Number]\n${practiceBlock}`,
+      },
+      {
+        id: 'housing-accommodation',
+        icon: '🏠',
+        label: 'Housing Disability Accommodation',
+        category: 'housing',
+        subject: 'Request for Reasonable Housing Accommodation',
+        body: `${today}\n\nTo Whom It May Concern,\n\nRE: Request for Reasonable Accommodation under the Fair Housing Act\n\nI am the treating provider for ${patName} (DOB: ${patDOB}), who has a disability as defined under the Fair Housing Act and the Americans with Disabilities Act.\n\n${p.firstName}'s disability substantially limits one or more major life activities. As a result, the following housing accommodations are medically necessary:\n\nREQUESTED ACCOMMODATIONS:\n• [ ] Ground-floor unit (mobility/panic disorder)\n• [ ] Unit away from high-traffic areas (sensory sensitivity/PTSD)\n• [ ] Permission to have an emotional support animal\n• [ ] Reserved/accessible parking space\n• [ ] Modified lease terms for medical necessity\n• Other: [specify]\n\nI confirm that there is a nexus between ${p.firstName}'s disability and the accommodation requested above. Denial of this accommodation would negatively impact ${p.firstName}'s health and well-being.\n\nSincerely,\n${providerName}\nNPI: ${currentUser?.npi || '[NPI Number]'}\n${practiceBlock}`,
+      },
+
+      // ── Legal & Benefits ────────────────────────────────
+      {
+        id: 'disability',
+        icon: '🛡️',
+        label: 'Disability Documentation (SSA/SSDI)',
+        category: 'legal',
+        subject: 'Medical Documentation — Disability Determination',
+        body: `${today}\n\nTo Whom It May Concern,\n\nRE: Medical Documentation for Disability Determination\nPatient: ${patName} (DOB: ${patDOB})\n\nI am the treating mental health provider for ${patName} and am providing this letter in support of ${p.firstName}'s disability claim.\n\nCLINICAL FINDINGS:\n• Diagnoses: ${patProbs}\n• Duration of Treatment: [Start Date — Present]\n• Functional Limitations:\n  — Difficulty maintaining concentration and focus\n  — Impaired ability to manage stress and workplace demands\n  — [List other specific limitations]\n  — Unable to engage in substantial gainful activity due to the above\n\nFREQUENCY OF TREATMENT:\n• Currently seen [frequency] for [medication management / therapy]\n• Current medications: ${patMedsList}\n\nCONCLUSION:\nBased on my clinical assessment, ${patName}'s psychiatric condition significantly impairs their ability to maintain full-time employment. I support ${p.firstName}'s application for disability benefits.\n\nPlease do not hesitate to contact my office for additional records or documentation.\n\nSincerely,\n${providerName}\nNPI: ${currentUser?.npi || '[NPI Number]'}\n${practiceBlock}`,
+      },
+      {
+        id: 'short-long-disability',
+        icon: '📄',
+        label: 'Short/Long-Term Disability Insurance',
+        category: 'legal',
+        subject: 'Physician Statement — Disability Insurance Claim',
+        body: `${today}\n\nTo Whom It May Concern,\n\nRE: Disability Insurance Claim — ${patName} (DOB: ${patDOB})\nInsurance Claim #: [Claim Number]\n\nI am the treating provider for ${patName}. This letter is provided in support of ${p.firstName}'s claim for [short-term / long-term] disability benefits.\n\nCLINICAL INFORMATION:\n• Primary Diagnosis: [Diagnosis]\n• ICD-10 Code: [Code]\n• Date First Treated: [Date]\n• Date Disability Commenced: [Date]\n• Expected Duration: [Duration or "Indefinite — to be reassessed"]\n\nFUNCTIONAL LIMITATIONS:\n${p.firstName} is currently unable to perform the following due to their condition:\n• [Specific job function limitations]\n• Unable to maintain a full work schedule\n• Unable to manage occupational stress at current level\n\nThis disability is [temporary / permanent] and is expected to prevent ${p.firstName} from performing their occupational duties during the specified period.\n\nSincerely,\n${providerName}\nNPI: ${currentUser?.npi || '[NPI Number]'}\n${practiceBlock}`,
+      },
+      {
+        id: 'ada-accommodation',
+        icon: '♿',
+        label: 'ADA Workplace Accommodation',
+        category: 'legal',
+        subject: 'ADA Reasonable Accommodation Letter',
+        body: `${today}\n\nTo Whom It May Concern,\n\nI am writing on behalf of my patient, ${patName} (DOB: ${patDOB}), who is currently under my care for the treatment of a mental health condition.\n\nBased on my clinical evaluation and ongoing treatment, ${p.firstName} has a condition that substantially limits one or more major life activities. In accordance with the Americans with Disabilities Act (ADA) and/or Section 504 of the Rehabilitation Act, I am recommending the following reasonable accommodations:\n\n• [ ] Flexible schedule (start/end times or breaks for treatment)\n• [ ] Work-from-home / remote work option\n• [ ] Reduced workload or modified job duties\n• [ ] Quiet workspace or private office\n• [ ] Frequent short breaks during the workday\n• [ ] Additional time for tasks requiring concentration\n• Other: [Accommodation]\n\nThese accommodations are medically necessary and directly related to ${p.firstName}'s condition. They will enable ${p.firstName} to perform essential functions of their role.\n\nSincerely,\n${providerName}\nNPI: ${currentUser?.npi || '[NPI Number]'}\n${practiceBlock}`,
+      },
+      {
+        id: 'insurance-appeal',
+        icon: '⚖️',
+        label: 'Insurance Appeal — Medical Necessity',
+        category: 'legal',
+        subject: 'Appeal: Medical Necessity for Continued Treatment',
+        body: `${today}\n\nVia Fax / Certified Mail\n\n[Insurance Company Name]\n[Address]\n\nRE: Appeal for Medical Necessity\nMember Name: ${patName}\nMember ID: ${p.insurance?.primary?.memberId || '[Member ID]'}\nGroup #: ${p.insurance?.primary?.groupNumber || '[Group Number]'}\nClaim/Reference #: [Reference Number]\n\nDear Appeals Review Board,\n\nI am writing to appeal the denial of [service/medication/treatment] for my patient, ${patName}, on the grounds of medical necessity.\n\nCLINICAL JUSTIFICATION:\n• Diagnosis: ${patProbs}\n• Treatment Requested: [Specific treatment/medication]\n• Why Medically Necessary: [Clinical rationale]\n• Alternative Treatments Tried and Failed:\n  — [Treatment 1: dates, doses, outcome]\n  — [Treatment 2: dates, doses, outcome]\n• Risk of Denial: Without this treatment, ${p.firstName} faces significant risk of [hospitalization / worsening symptoms / functional decline].\n\nSupporting clinical documentation is enclosed. I respectfully request a peer-to-peer review if denial is upheld.\n\nSincerely,\n${providerName}\nNPI: ${currentUser?.npi || '[NPI Number]'}\n${practiceBlock}`,
+      },
+      {
+        id: 'legal-court',
+        icon: '⚖️',
+        label: 'Court / Legal Documentation',
+        category: 'legal',
+        subject: 'Psychiatric Letter for Legal Proceedings',
+        body: `${today}\n\nTo Whom It May Concern,\n\nRE: ${patName} (DOB: ${patDOB})\nCase/Docket #: [Case Number]\n\nI am the treating [psychiatrist / mental health provider] for ${patName} and have been providing care since [Date].\n\nThis letter is provided at the patient's request for use in legal proceedings.\n\nCLINICAL SUMMARY:\n• Diagnoses: ${patProbs}\n• Current treatment: [Medication Management / Therapy]\n• Treatment compliance: [Good / Fair / Poor]\n• Current functional status: [Brief description]\n\nCLINICAL OPINION:\n[Specify the clinical opinion relevant to the legal matter, e.g., fitness to stand trial, capacity, mental state, etc.]\n\nIMPORTANT NOTE: This letter represents my clinical opinion as the treating provider and is not a substitute for a formal forensic psychiatric evaluation.\n\nSincerely,\n${providerName}\nNPI: ${currentUser?.npi || '[NPI Number]'}\n${practiceBlock}`,
+      },
+
+      // ── Travel ──────────────────────────────────────────
+      {
+        id: 'travel-medication',
+        icon: '✈️',
+        label: 'Travel / Medication Letter (TSA/Airport)',
+        category: 'travel',
+        subject: 'Traveling with Prescription Medication — Physician Letter',
+        body: `${today}\n\nTo Whom It May Concern,\n\nThis letter is to confirm that ${patName} (DOB: ${patDOB}) is a patient under my care and has been prescribed the following medications as part of their ongoing medical treatment:\n\nPRESCRIBED MEDICATIONS FOR TRAVEL:\n${patMeds.length > 0 ? patMeds.map(m => `  • ${m.name} ${m.dose || ''} — ${m.frequency || ''}`).join('\n') : '  • [Medication Name, Dose, Frequency]'}\n\nThese medications are medically necessary and must be kept with the patient at all times, including during air travel. Some medications may require special handling (e.g., refrigeration, syringes, or liquid quantities exceeding standard TSA limits).\n\nI respectfully request that security personnel and customs officials allow ${patName} to travel with these medications.\n\nFor questions, please contact our office.\n\nSincerely,\n${providerName}\nNPI: ${currentUser?.npi || '[NPI Number]'}\nPhone: ${PRACTICE_PHONE}\n${practiceBlock}`,
+      },
+      {
+        id: 'travel-international',
+        icon: '🌍',
+        label: 'International Travel / Controlled Substances',
+        category: 'travel',
+        subject: 'International Travel — Controlled Substance Documentation',
+        body: `${today}\n\nTo Whom It May Concern / To the Relevant Customs Authority,\n\nRE: Medical Documentation for International Travel with Controlled Substances\n\nI certify that ${patName} (DOB: ${patDOB}, Passport #: [Passport Number]) is a patient under my care and has been prescribed the following controlled substance(s) as medically necessary:\n\nCONTROLLED MEDICATIONS:\n${patMeds.filter(m => m.controlled || m.schedule).length > 0 ? patMeds.filter(m => m.controlled || m.schedule).map(m => `  • ${m.name} ${m.dose || ''} — ${m.frequency || ''}\n    Schedule: [Schedule II/III/IV/V]\n    Quantity for Travel: [30-day supply]`).join('\n') : '  • [Medication Name]\n    [Schedule and dose]\n    [Quantity for travel]'}\n\nThe patient has a legitimate medical need for these medications and is carrying the quantity necessary for the duration of their travel ([Travel Dates]).\n\nThis documentation is provided to assist the patient in clearing customs and complying with international regulations regarding controlled substances.\n\nSincerely,\n${providerName}\nDEA #: ${currentUser?.deaNumber || '[DEA Number]'}\nNPI: ${currentUser?.npi || '[NPI Number]'}\n${practiceBlock}`,
+      },
+
+      // ── Special Programs ────────────────────────────────
+      {
+        id: 'prior-auth',
+        icon: '📋',
+        label: 'Prior Authorization Support Letter',
+        category: 'clinical',
+        subject: 'Prior Authorization — Medical Necessity',
+        body: `${today}\n\nTo Whom It May Concern,\n\nRE: Prior Authorization Request for ${patName} (DOB: ${patDOB})\nMember ID: ${p.insurance?.primary?.memberId || '[Member ID]'}\nInsurance: ${p.insurance?.primary?.name || '[Insurance]'}\n\nI am requesting prior authorization for the following:\n\nSERVICE / MEDICATION REQUESTED: [Name]\nCPT / NDC Code: [Code]\nFrequency / Duration: [e.g., Weekly x 12 weeks]\n\nCLINICAL JUSTIFICATION:\n• Primary Diagnosis: ${patProbs}\n• Why this treatment is medically necessary: [Rationale]\n• Previous treatments tried (step therapy):\n  — [Treatment 1, dates, outcome]\n  — [Treatment 2, dates, outcome]\n• Anticipated outcome without treatment: [Risk]\n\nSupporting records are available upon request. Please process urgently as delays may result in clinical deterioration.\n\nSincerely,\n${providerName}\nNPI: ${currentUser?.npi || '[NPI Number]'}\n${practiceBlock}`,
+      },
+      {
         id: 'spravato',
         icon: '💉',
-        label: 'Spravato Letter',
+        label: 'Spravato (Esketamine) Letter',
+        category: 'clinical',
         subject: 'Spravato (Esketamine) Treatment Authorization',
         body: `${today}\n\nTo Whom It May Concern,\n\nRE: ${patName} (DOB: ${patDOB})\n\nI am writing to document the medical necessity for Spravato® (esketamine) nasal spray treatment for my patient, ${patName}.\n\nCLINICAL JUSTIFICATION:\n${p.firstName} has been diagnosed with Treatment-Resistant Depression (TRD). ${p.firstName} has had an inadequate response to at least two adequate trials of oral antidepressant medications, including:\n\n• [Medication 1, dose, duration, response]\n• [Medication 2, dose, duration, response]\n\nCurrent psychiatric medications:\n${patMedsList}\n\nSPRAVATO TREATMENT PLAN:\n• Induction Phase (Weeks 1-4): 56 mg or 84 mg intranasally, twice weekly\n• Maintenance Phase: Once weekly or every 2 weeks, based on response\n• All treatments administered in a certified healthcare setting with 2-hour post-dose monitoring per REMS requirements\n\nThe patient has been enrolled in the Spravato REMS program and meets all eligibility criteria.\n\nPlease contact our office for any additional clinical documentation needed for prior authorization.\n\nSincerely,\n${providerName}\nDEA #: ${currentUser?.deaNumber || '[DEA Number]'}\n${practiceBlock}`,
+      },
+
+      // ── Administrative ──────────────────────────────────
+      {
+        id: 'accommodation',
+        icon: '🤝',
+        label: 'General Accommodation Request',
+        category: 'admin',
+        subject: 'Accommodation Letter',
+        body: `${today}\n\nTo Whom It May Concern,\n\nI am writing on behalf of my patient, ${patName} (DOB: ${patDOB}), who is currently under my care for the treatment of a mental health condition.\n\nBased on my clinical evaluation and ongoing treatment, ${p.firstName} has a condition that substantially limits one or more major life activities. In accordance with the Americans with Disabilities Act (ADA) and/or Section 504 of the Rehabilitation Act, I am recommending the following reasonable accommodations:\n\n• [Accommodation 1]\n• [Accommodation 2]\n• [Accommodation 3]\n\nThese accommodations are medically necessary and directly related to ${p.firstName}'s condition. They will enable ${p.firstName} to perform essential functions and participate fully in their activities.\n\nPlease do not hesitate to contact our office if you require additional information.\n\nSincerely,\n${providerName}\nNPI: ${currentUser?.npi || '[NPI Number]'}\n${practiceBlock}`,
       },
       {
         id: 'thank-you',
         icon: '💛',
         label: 'Thank You Letter',
+        category: 'admin',
         subject: 'Thank You for Your Visit',
         body: `${today}\n\nDear ${p.firstName},\n\nThank you for choosing our practice for your mental health care. It was a pleasure seeing you at your recent appointment.\n\nYour health and well-being are our top priority, and we value the trust you place in our team. We are committed to supporting you on your wellness journey.\n\nAs a reminder:\n• Your next appointment is: ${p.nextAppointment || '[Please call to schedule]'}\n• Continue taking all medications as prescribed\n• Don't hesitate to reach out if you have any questions or concerns between visits\n\nWe encourage you to use the patient portal for:\n• Secure messaging with your care team\n• Reviewing your visit summaries and lab results\n• Requesting prescription refills\n• Scheduling appointments\n\nThank you again for trusting us with your care. We look forward to seeing you at your next visit.\n\nWarm regards,\n${providerName}\n${practiceBlock}`,
       },
@@ -226,15 +409,9 @@ export default function ChartPage() {
         id: 'discharge',
         icon: '📤',
         label: 'Discharge from Practice',
+        category: 'admin',
         subject: 'Notice of Discharge from Practice',
         body: `${today}\n\nDear ${p.firstName},\n\nVIA CERTIFIED MAIL / RETURN RECEIPT REQUESTED\n\nRE: Notification of Termination of Provider-Patient Relationship\n\nI am writing to inform you that I will no longer be able to serve as your healthcare provider, effective [Date — typically 30 days from letter date].\n\nREASON: [Select one: Non-compliance with treatment plan / Missed appointments / Other — specify]\n\nUntil the effective date, I will continue to provide necessary care. To ensure continuity of your treatment, I recommend the following:\n\n1. FIND A NEW PROVIDER: Contact your insurance company for a list of in-network mental health providers in your area, or visit psychologytoday.com.\n\n2. PRESCRIPTION COVERAGE: I will provide a [30/60/90]-day supply of your current medications to bridge until you establish care with a new provider.\n\nCurrent medications:\n${patMedsList}\n\n3. MEDICAL RECORDS: You may request a copy of your records by submitting a signed release of information to our office.\n\n4. CRISIS RESOURCES:\n   • 988 Suicide & Crisis Lifeline: Call or text 988\n   • Crisis Text Line: Text HOME to 741741\n   • Nearest Emergency Room\n\nThis letter will be retained in your medical record.\n\nSincerely,\n${providerName}\n${practiceBlock}`,
-      },
-      {
-        id: 'problem-list',
-        icon: '🩺',
-        label: 'Patient Problem List',
-        subject: 'Patient Problem List Summary',
-        body: `${today}\n\nPATIENT PROBLEM LIST\n${'═'.repeat(40)}\n\nPatient: ${patName}\nDOB: ${patDOB}\nMRN: ${p.mrn}\nGenerated by: ${providerName}\n\nACTIVE PROBLEMS:\n${patProblems.length > 0 ? patProblems.map((pr, i) => `  ${i + 1}. ${pr.name || pr.problem}${pr.icd10 ? '  [' + pr.icd10 + ']' : ''}${pr.onset ? '  (Onset: ' + pr.onset + ')' : ''}${pr.status ? '  Status: ' + pr.status : ''}`).join('\n') : '  No active problems documented.'}\n\nCURRENT MEDICATIONS:\n${patMeds.length > 0 ? patMeds.map((m, i) => `  ${i + 1}. ${m.name} ${m.dose || ''} ${m.route || ''} ${m.frequency || ''} ${m.prescriber ? '— Prescribed by: ' + m.prescriber : ''}`).join('\n') : '  No active medications.'}\n\nALLERGIES:\n${patAllergies.length > 0 ? patAllergies.map(a => `  • ${a.allergen || a.name || a} — ${a.reaction || 'Reaction not specified'} (${a.severity || 'Severity unknown'})`).join('\n') : '  NKDA (No Known Drug Allergies)'}\n\nThis summary was generated from the electronic health record and is current as of the date listed above.\n\n— ${providerName}`,
       },
     ];
   };
@@ -511,12 +688,15 @@ export default function ChartPage() {
             </button>
 
             {menuOpen && (
-              <div className="athena-dropdown-menu" style={{ position: 'fixed', top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, display: 'block', visibility: 'visible' }}>
+              <div className="athena-dropdown-menu" style={{ position: 'fixed', top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, display: 'block', visibility: 'visible', width: 280 }}>
                 {[
-                  { key: 'quickview', icon: '👁️', label: 'Quick View', desc: 'At-a-glance chart snapshot' },
-                  ...(currentUser?.role !== 'therapist' ? [{ key: 'ordergroup', icon: '📦', label: 'Order Group', desc: 'Batch multiple orders' }] : []),
-                  { key: 'export', icon: '📤', label: 'Chart Export', desc: 'Download chart data' },
-                  { key: 'forms', icon: '📨', label: 'Send Forms', desc: 'Patient forms & screeners' },
+                  { key: 'quickview',  icon: '👁️', label: 'Quick View',     desc: 'At-a-glance chart snapshot' },
+                  ...(currentUser?.role !== 'therapist' ? [{ key: 'ordergroup', icon: '📦', label: 'Order Group', desc: 'Batch lab, imaging & referral orders' }] : []),
+                  { key: 'letters',    icon: '📝', label: 'Patient Letters', desc: 'FMLA, disability, ESA & more' },
+                  { key: 'referral',   icon: '🔗', label: 'Referral',        desc: 'Send to specialist or facility' },
+                  { key: 'quicklabs',  icon: '🧪', label: 'Quick Labs',      desc: 'Common lab panels in one click' },
+                  { key: 'export',     icon: '📤', label: 'Chart Export',    desc: 'Download chart data' },
+                  { key: 'forms',      icon: '📨', label: 'Send Forms',      desc: 'Patient forms & screeners' },
                 ].map((item, i, arr) => (
                   <div
                     key={item.key}
@@ -1321,6 +1501,305 @@ export default function ChartPage() {
           </div>
         </div>
       )}
+
+      {/* ── Patient Letters ──────────────────────────────── */}
+      {activePanel === 'letters' && (() => {
+        const CATEGORIES = [
+          { key: 'all',      label: 'All Letters' },
+          { key: 'clinical', label: '🩺 Clinical' },
+          { key: 'work',     label: '💼 Work' },
+          { key: 'school',   label: '🎓 School' },
+          { key: 'housing',  label: '🏠 Housing' },
+          { key: 'legal',    label: '⚖️ Legal' },
+          { key: 'travel',   label: '✈️ Travel' },
+          { key: 'admin',    label: '📂 Admin' },
+        ];
+        const allTemplates = getLetterTemplates();
+        const filtered = allTemplates.filter(t => {
+          const matchCat = lettersCategoryFilter === 'all' || t.category === lettersCategoryFilter;
+          const matchSearch = !lettersSearch || t.label.toLowerCase().includes(lettersSearch.toLowerCase());
+          return matchCat && matchSearch;
+        });
+        return (
+          <div style={overlayStyle} onClick={closePanel}>
+            <div style={{ ...panelStyle, width: 520, maxWidth: '95vw' }} onClick={e => e.stopPropagation()}>
+              <div style={panelHeaderStyle}>
+                <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>📝 Patient Letters — {p.lastName}, {p.firstName}</h3>
+                <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+              </div>
+              <div style={panelBodyStyle}>
+                {lettersSent ? (
+                  <div className="empty-state" style={{ padding: '40px 20px' }}>
+                    <span style={{ fontSize: 36 }}>✅</span>
+                    <h3>Letter Sent</h3>
+                    <p>"{lettersSubject}" sent to {p.firstName} {p.lastName} via {lettersDelivery === 'portal' ? 'Patient Portal' : lettersDelivery === 'email' ? 'Email' : lettersDelivery === 'print' ? 'Print' : 'Fax'}.</p>
+                    <button className="btn btn-sm btn-secondary" onClick={() => { setLettersSent(false); setLettersSubject(''); setLettersBody(''); }} style={{ marginTop: 12 }}>Write Another Letter</button>
+                  </div>
+                ) : lettersBody ? (
+                  /* ── Edit & Send Mode ── */
+                  <>
+                    <div style={{ marginBottom: 10 }}>
+                      <button className="btn btn-sm btn-secondary" onClick={() => setLettersBody('')} style={{ fontSize: 11 }}>← Back to Templates</button>
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>DELIVERY METHOD</label>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {[{ key: 'portal', label: '🌐 Portal' }, { key: 'email', label: '✉️ Email' }, { key: 'print', label: '🖨️ Print' }, { key: 'fax', label: '📠 Fax' }].map(d => (
+                          <button key={d.key} className={`btn btn-sm ${lettersDelivery === d.key ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setLettersDelivery(d.key)} style={{ fontSize: 11 }}>{d.label}</button>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                        {lettersDelivery === 'portal' && `Sends to ${p.firstName}'s patient portal inbox`}
+                        {lettersDelivery === 'email' && `Sends to: ${p.email || 'No email on file'}`}
+                        {lettersDelivery === 'print' && 'Letter will be formatted for printing'}
+                        {lettersDelivery === 'fax' && 'Letter will be queued for fax transmission'}
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>SUBJECT</label>
+                      <input className="form-input" value={lettersSubject} onChange={e => setLettersSubject(e.target.value)} style={{ fontSize: 12 }} />
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>LETTER BODY</label>
+                      <textarea
+                        className="form-input"
+                        value={lettersBody}
+                        onChange={e => setLettersBody(e.target.value)}
+                        style={{ fontSize: 12, minHeight: 340, resize: 'vertical', fontFamily: 'monospace', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}
+                      />
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>Edit the letter above — bracketed fields [like this] need to be filled in.</div>
+                    </div>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => setLettersSent(true)}
+                      disabled={!lettersSubject.trim() || !lettersBody.trim()}
+                      style={{ width: '100%', opacity: !lettersSubject.trim() || !lettersBody.trim() ? 0.5 : 1 }}
+                    >
+                      {lettersDelivery === 'print' ? '🖨️ Print Letter' : lettersDelivery === 'fax' ? '📠 Send via Fax' : `📤 Send Letter to ${p.firstName}`}
+                    </button>
+                  </>
+                ) : (
+                  /* ── Template Browser ── */
+                  <>
+                    <div style={{ marginBottom: 10 }}>
+                      <input
+                        className="form-input"
+                        placeholder="🔍 Search letters..."
+                        value={lettersSearch}
+                        onChange={e => setLettersSearch(e.target.value)}
+                        style={{ fontSize: 12, marginBottom: 8 }}
+                      />
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {CATEGORIES.map(cat => (
+                          <button
+                            key={cat.key}
+                            className={`btn btn-sm ${lettersCategoryFilter === cat.key ? 'btn-primary' : 'btn-secondary'}`}
+                            onClick={() => setLettersCategoryFilter(cat.key)}
+                            style={{ fontSize: 10, padding: '3px 8px' }}
+                          >{cat.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>{filtered.length} letter{filtered.length !== 1 ? 's' : ''} available</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {filtered.map(t => (
+                        <div
+                          key={t.id}
+                          className="card"
+                          style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, transition: 'box-shadow 0.1s' }}
+                          onClick={() => { setLettersSubject(t.subject); setLettersBody(t.body); }}
+                          onMouseEnter={e => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'}
+                          onMouseLeave={e => e.currentTarget.style.boxShadow = ''}
+                        >
+                          <span style={{ fontSize: 22, flexShrink: 0, width: 30, textAlign: 'center' }}>{t.icon}</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13 }}>{t.label}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{t.subject}</div>
+                          </div>
+                          <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 600, flexShrink: 0 }}>Use →</span>
+                        </div>
+                      ))}
+                      {filtered.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', fontSize: 13 }}>No letters match your search.</div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Referral ─────────────────────────────────────── */}
+      {activePanel === 'referral' && (
+        <div style={overlayStyle} onClick={closePanel}>
+          <div style={panelStyle} onClick={e => e.stopPropagation()}>
+            <div style={panelHeaderStyle}>
+              <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>🔗 Referral — {p.lastName}, {p.firstName}</h3>
+              <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+            </div>
+            <div style={panelBodyStyle}>
+              {referralSent ? (
+                <div className="empty-state" style={{ padding: '40px 20px' }}>
+                  <span style={{ fontSize: 36 }}>✅</span>
+                  <h3>Referral Sent</h3>
+                  <p>{referralData.specialty} referral for {p.firstName} {p.lastName} sent via {referralData.delivery === 'fax' ? 'Fax' : referralData.delivery === 'portal' ? 'Provider Portal' : 'Phone'}.</p>
+                  <button className="btn btn-sm btn-secondary" onClick={() => { setReferralSent(false); setReferralData({ specialty: 'Psychiatry', provider: '', reason: '', urgency: 'Routine', notes: '', delivery: 'fax' }); }} style={{ marginTop: 12 }}>New Referral</button>
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>SPECIALTY</label>
+                      <select className="form-select" value={referralData.specialty} onChange={e => setReferralData(p => ({ ...p, specialty: e.target.value }))} style={{ fontSize: 12, width: '100%' }}>
+                        {['Psychiatry', 'Psychology / Therapy', 'Neuropsychology', 'Neurology', 'Primary Care / PCP', 'Cardiology', 'Endocrinology', 'Sleep Medicine', 'Pain Management', 'Substance Use Treatment (IOP)', 'Substance Use Treatment (PHP)', 'Inpatient Psychiatric', 'Case Management / Social Work', 'Vocational Rehabilitation', 'Dietitian / Nutritionist', 'Physical Therapy', 'Occupational Therapy', 'Other'].map(s => <option key={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>URGENCY</label>
+                      <select className="form-select" value={referralData.urgency} onChange={e => setReferralData(p => ({ ...p, urgency: e.target.value }))} style={{ fontSize: 12, width: '100%' }}>
+                        <option>Routine</option>
+                        <option>Urgent (within 1-2 weeks)</option>
+                        <option>STAT (within 48 hours)</option>
+                        <option>Emergency</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>REFERRING TO (Provider / Facility)</label>
+                    <input className="form-input" placeholder="e.g. Dr. Jane Smith, Northwestern Memorial Hospital..." value={referralData.provider} onChange={e => setReferralData(p => ({ ...p, provider: e.target.value }))} style={{ fontSize: 12 }} />
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>REASON FOR REFERRAL</label>
+                    <textarea className="form-input" placeholder="Clinical indication, specific concerns, what you are requesting..." value={referralData.reason} onChange={e => setReferralData(p => ({ ...p, reason: e.target.value }))} style={{ fontSize: 12, minHeight: 80, resize: 'vertical' }} />
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>PATIENT CONTEXT (auto-filled)</label>
+                    <div className="card" style={{ padding: 10, fontSize: 12, background: 'var(--bg)' }}>
+                      <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text-muted)' }}>Diagnoses:</span> {patProblems.slice(0, 3).map(pr => pr.name || pr.problem).join(', ') || '—'}</div>
+                      <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text-muted)' }}>Current meds:</span> {patMeds.slice(0, 3).map(m => m.name).join(', ') || '—'}</div>
+                      <div><span style={{ color: 'var(--text-muted)' }}>Insurance:</span> {p.insurance?.primary?.name || '—'}</div>
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>ADDITIONAL NOTES</label>
+                    <textarea className="form-input" placeholder="Preferred providers, scheduling notes, special instructions..." value={referralData.notes} onChange={e => setReferralData(p => ({ ...p, notes: e.target.value }))} style={{ fontSize: 12, minHeight: 60, resize: 'vertical' }} />
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>SEND VIA</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {[{ key: 'fax', label: '📠 Fax' }, { key: 'portal', label: '🌐 Provider Portal' }, { key: 'phone', label: '📞 Phone' }].map(d => (
+                        <button key={d.key} className={`btn btn-sm ${referralData.delivery === d.key ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setReferralData(p => ({ ...p, delivery: d.key }))} style={{ fontSize: 12 }}>{d.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <button className="btn btn-primary" onClick={() => setReferralSent(true)} disabled={!referralData.reason.trim()} style={{ width: '100%', opacity: !referralData.reason.trim() ? 0.5 : 1 }}>
+                    🔗 Submit Referral
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Quick Labs ────────────────────────────────────── */}
+      {activePanel === 'quicklabs' && (() => {
+        const LAB_PANELS = [
+          { id: 'cmp',        icon: '🧬', label: 'CMP (Comprehensive Metabolic Panel)',   tests: 'Glucose, BUN, Creatinine, eGFR, Electrolytes, LFTs', indication: 'Baseline / medication monitoring' },
+          { id: 'bmp',        icon: '🧬', label: 'BMP (Basic Metabolic Panel)',            tests: 'Glucose, BUN, Creatinine, Electrolytes',             indication: 'Quick metabolic check' },
+          { id: 'cbc',        icon: '🩸', label: 'CBC with Differential',                 tests: 'WBC, RBC, Hgb, Hct, Platelets, Differential',       indication: 'Anemia, infection screen' },
+          { id: 'lipid',      icon: '💉', label: 'Lipid Panel',                           tests: 'Total Cholesterol, LDL, HDL, Triglycerides',         indication: 'Cardiovascular risk / antipsychotics' },
+          { id: 'thyroid',    icon: '🦋', label: 'Thyroid Panel (TSH, T3, T4)',           tests: 'TSH, Free T3, Free T4',                              indication: 'Mood / fatigue workup' },
+          { id: 'hba1c',      icon: '🩺', label: 'HbA1c + Fasting Glucose',              tests: 'HbA1c, Fasting Glucose',                             indication: 'Diabetes / metabolic syndrome' },
+          { id: 'lithium',    icon: '⚗️', label: 'Lithium Level',                         tests: 'Serum Lithium (trough)',                             indication: 'Lithium toxicity monitoring' },
+          { id: 'valproate',  icon: '⚗️', label: 'Valproate Level',                       tests: 'Valproic Acid (trough)',                             indication: 'Depakote/Depakene monitoring' },
+          { id: 'clozapine',  icon: '⚗️', label: 'Clozapine Level + ANC',                tests: 'Clozapine level, ANC (absolute neutrophil count)',   indication: 'Clozapine REMS monitoring' },
+          { id: 'metabolic',  icon: '📊', label: 'Metabolic Syndrome Panel',              tests: 'CMP, CBC, Fasting Glucose, HbA1c, Lipid Panel, TSH', indication: 'Antipsychotic monitoring' },
+          { id: 'uds',        icon: '🔬', label: 'Urine Drug Screen (UDS)',               tests: '10-panel or 12-panel UDS',                           indication: 'Substance use monitoring / PDMP' },
+          { id: 'preg',       icon: '🌸', label: 'Urine Pregnancy Test (hCG)',            tests: 'Urine hCG',                                          indication: 'Pre-medication / teratogen check' },
+          { id: 'lft',        icon: '🫀', label: 'Liver Function Tests (LFTs)',           tests: 'ALT, AST, Alk Phos, Bilirubin, Albumin',            indication: 'Liver monitoring / alcohol use' },
+          { id: 'renal',      icon: '🫘', label: 'Renal Function Panel',                  tests: 'BUN, Creatinine, eGFR, BMP',                         indication: 'Renal monitoring for medications' },
+          { id: 'b12-folate', icon: '🌿', label: 'B12 + Folate',                          tests: 'Vitamin B12, Folate',                                 indication: 'Mood / cognitive workup' },
+          { id: 'vitd',       icon: '☀️', label: 'Vitamin D (25-OH)',                     tests: '25-Hydroxyvitamin D',                                indication: 'Mood / fatigue workup' },
+          { id: 'iron',       icon: '🔩', label: 'Iron Studies',                          tests: 'Serum Iron, TIBC, Ferritin, Transferrin',            indication: 'Fatigue / anemia evaluation' },
+          { id: 'std',        icon: '🔬', label: 'STI / Infectious Panel',               tests: 'HIV, Syphilis (RPR), Hepatitis B, Hepatitis C',       indication: 'Infectious disease screening' },
+        ];
+        return (
+          <div style={overlayStyle} onClick={closePanel}>
+            <div style={panelStyle} onClick={e => e.stopPropagation()}>
+              <div style={panelHeaderStyle}>
+                <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>🧪 Quick Labs — {p.lastName}, {p.firstName}</h3>
+                <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+              </div>
+              <div style={panelBodyStyle}>
+                {labsSent ? (
+                  <div className="empty-state" style={{ padding: '40px 20px' }}>
+                    <span style={{ fontSize: 36 }}>✅</span>
+                    <h3>Labs Ordered</h3>
+                    <p>{selectedLabs.length} lab panel{selectedLabs.length !== 1 ? 's' : ''} ordered for {p.firstName} {p.lastName} — {labPriority} priority.</p>
+                    <button className="btn btn-sm btn-secondary" onClick={() => { setLabsSent(false); setSelectedLabs([]); setLabNotes(''); }} style={{ marginTop: 12 }}>Order More Labs</button>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+                      Select one or more panels — tap a panel to add it to the order.
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+                      {LAB_PANELS.map(lab => {
+                        const isSelected = selectedLabs.includes(lab.id);
+                        return (
+                          <div
+                            key={lab.id}
+                            onClick={() => setSelectedLabs(prev => isSelected ? prev.filter(id => id !== lab.id) : [...prev, lab.id])}
+                            className="card"
+                            style={{ padding: '10px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border)', background: isSelected ? 'var(--primary-light)' : '#fff', transition: 'all 0.1s' }}
+                          >
+                            <span style={{ fontSize: 18, width: 26, textAlign: 'center', flexShrink: 0 }}>{lab.icon}</span>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: isSelected ? 700 : 500, fontSize: 12 }}>{lab.label}</div>
+                              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{lab.tests}</div>
+                              <div style={{ fontSize: 10, color: isSelected ? 'var(--primary)' : 'var(--text-muted)', fontStyle: 'italic', marginTop: 1 }}>Indication: {lab.indication}</div>
+                            </div>
+                            {isSelected && <span style={{ color: 'var(--primary)', fontSize: 16, fontWeight: 800 }}>✓</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>PRIORITY</label>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {['Routine', 'Urgent', 'STAT'].map(p => (
+                          <button key={p} className={`btn btn-sm ${labPriority === p ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setLabPriority(p)} style={{ fontSize: 12 }}>{p}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>NOTES FOR LAB</label>
+                      <input className="form-input" placeholder="Fasting required, trough level, specific instructions..." value={labNotes} onChange={e => setLabNotes(e.target.value)} style={{ fontSize: 12 }} />
+                    </div>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => {
+                        selectedLabs.forEach(labId => {
+                          const lab = LAB_PANELS.find(l => l.id === labId);
+                          if (lab) addOrder(patientId, { type: 'Lab', description: lab.label, priority: labPriority, notes: labNotes || lab.indication, status: 'Pending', orderedDate: new Date().toISOString().split('T')[0], orderedBy: `${currentUser.firstName} ${currentUser.lastName}` });
+                        });
+                        setLabsSent(true);
+                      }}
+                      disabled={selectedLabs.length === 0}
+                      style={{ width: '100%', opacity: selectedLabs.length === 0 ? 0.5 : 1 }}
+                    >
+                      🧪 Order {selectedLabs.length} Lab Panel{selectedLabs.length !== 1 ? 's' : ''} — {labPriority}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Sticky Note FAB + Widget ──────────────────────── */}
       {!stickyOpen && (
