@@ -323,3 +323,86 @@ export const ILLINOIS_PHARMACIES = [
   { id:'silver-chi',  name:'Stroger Hospital (Cook County) Pharmacy', address1:'1901 W Harrison St', city:'Chicago', state:'IL', zip:'60612', phone:'(312) 864-6000', fax:'(312) 864-6001', npi:'1777700072', ncpdp:'7000072', capabilities:CAP.HOSP, hours:H.HOSP, ...D },
   { id:'uch-ingls',   name:'Ingalls Memorial Hospital Pharmacy', address1:'1 Ingalls Dr', city:'Harvey', state:'IL', zip:'60426', phone:'(708) 333-2300', fax:'(708) 333-2301', npi:'1777700073', ncpdp:'7000073', capabilities:CAP.HOSP, hours:H.HOSP, ...D },
 ];
+
+// ── City → Region map ─────────────────────────────────────────────────────────
+// Used for secondary proximity matching when ZIP prefix doesn't overlap.
+const CITY_REGION = {
+  'chicago':'chicago','harvey':'chicago','hines':'chicago','maywood':'chicago',
+  'evanston':'northcook','skokie':'northcook','morton grove':'northcook',
+  'park ridge':'northcook','des plaines':'northcook','niles':'northcook',
+  'glenview':'northcook','northbrook':'northcook','arlington heights':'northcook',
+  'palatine':'northcook','rolling meadows':'northcook','hoffman estates':'northcook',
+  'waukegan':'northlake','gurnee':'northlake','vernon hills':'northlake',
+  'libertyville':'northlake','mundelein':'northlake','highland park':'northlake',
+  'lake forest':'northlake','barrington':'northlake','south barrington':'northlake',
+  'antioch':'northlake','zion':'northlake',
+  'schaumburg':'northwest','algonquin':'northwest','aurora':'northwest',
+  'elgin':'northwest','crystal lake':'northwest','st. charles':'northwest',
+  'geneva':'northwest','mchenry':'northwest','woodstock':'northwest',
+  'huntley':'northwest',
+  'naperville':'west','wheaton':'west','downers grove':'west','lombard':'west',
+  'elmhurst':'west','bolingbrook':'west','glen ellyn':'west','westmont':'west',
+  'lisle':'west','addison':'west',
+  'joliet':'southwest','orland park':'southwest','tinley park':'southwest',
+  'oak lawn':'southwest','bridgeview':'southwest','evergreen park':'southwest',
+  'oak park':'southwest','berwyn':'southwest','cicero':'southwest',
+  'matteson':'southwest','calumet city':'southwest','homewood':'southwest',
+  'rockford':'rockford','loves park':'rockford','belvidere':'rockford',
+  'freeport':'rockford',
+  'peoria':'peoria','bloomington':'peoria','normal':'peoria',
+  'washington':'peoria','morton':'peoria','kewanee':'peoria','galesburg':'peoria',
+  'springfield':'springfield','decatur':'springfield','kankakee':'springfield',
+  'champaign':'champaign','danville':'champaign',
+  'belleville':'southernIL',"o'fallon":'southernIL','edwardsville':'southernIL',
+  'collinsville':'southernIL','carbondale':'southernIL','marion':'southernIL',
+  'mount vernon':'southernIL','centralia':'southernIL',
+  'moline':'quadcities','rock island':'quadcities','silvis':'quadcities',
+  'quincy':'quincy',
+};
+
+/**
+ * Compute proximity between a patient address and a pharmacy.
+ * Returns { score, label } — lower score means closer.
+ *
+ * score 0  → same ZIP           → "< 1 mi"
+ * score 1  → 4-digit ZIP prefix → "~2 mi"
+ * score 2  → same city name     → "~5 mi"
+ * score 3  → 3-digit ZIP prefix → "~8 mi"
+ * score 4  → same region        → "~15 mi"
+ * score 99 → unrelated          → null (no label shown)
+ *
+ * @param {{ city?: string, zip?: string }} patientAddress
+ * @param {{ city: string, zip: string }}  pharmacy
+ */
+export function getProximityInfo(patientAddress, pharmacy) {
+  if (!patientAddress) return { score: 99, label: null };
+
+  const patZip  = (patientAddress.zip  || '').replace(/\D/g, '');
+  const patCity = (patientAddress.city || '').toLowerCase().trim();
+  const phZip   = (pharmacy.zip  || '').replace(/\D/g, '');
+  const phCity  = (pharmacy.city || '').toLowerCase().trim();
+
+  // Exact ZIP
+  if (patZip && phZip && patZip === phZip)
+    return { score: 0, label: '< 1 mi' };
+
+  // 4-digit ZIP prefix (very tight area — typically 2–3 mi)
+  if (patZip.length >= 4 && phZip.length >= 4 && patZip.slice(0, 4) === phZip.slice(0, 4))
+    return { score: 1, label: '~2 mi' };
+
+  // Same city name
+  if (patCity && phCity && patCity === phCity)
+    return { score: 2, label: '~5 mi' };
+
+  // 3-digit ZIP prefix (county / metro level — typically 5–10 mi)
+  if (patZip.length >= 3 && phZip.length >= 3 && patZip.slice(0, 3) === phZip.slice(0, 3))
+    return { score: 3, label: '~8 mi' };
+
+  // Same region
+  const patRegion = CITY_REGION[patCity];
+  const phRegion  = CITY_REGION[phCity];
+  if (patRegion && phRegion && patRegion === phRegion)
+    return { score: 4, label: '~15 mi' };
+
+  return { score: 99, label: null };
+}

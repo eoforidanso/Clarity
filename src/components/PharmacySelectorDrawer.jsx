@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ILLINOIS_PHARMACIES } from '../data/illinoisPharmacies';
+import { ILLINOIS_PHARMACIES, getProximityInfo } from '../data/illinoisPharmacies';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const BG          = '#1a1f2e';
@@ -50,12 +50,14 @@ function SectionHeader({ label }) {
   );
 }
 
-function PharmItem({ ph, focused, selected, onClick }) {
+function PharmItem({ ph, focused, selected, onClick, distLabel }) {
   const [hov, setHov] = useState(false);
   const bg = selected ? ITEM_SEL : (hov || focused) ? ITEM_HOV : ITEM_DEF;
   const addrLine = ph.address1 !== 'On-site'
     ? `${ph.city}${ph.state ? `, ${ph.state}` : ''} ${ph.zip}`
     : 'On-site facility';
+  // Resolve best distance label: dynamic proximity > static field
+  const dist = distLabel ?? (ph.distanceMiles != null ? `${ph.distanceMiles} mi` : null);
   return (
     <div
       role="option"
@@ -75,7 +77,14 @@ function PharmItem({ ph, focused, selected, onClick }) {
           <div style={{ color: T_PRI, fontWeight: 600, fontSize: 13.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {ph.name}
           </div>
-          <div style={{ color: T_SEC, fontSize: 11.5, marginTop: 2 }}>{addrLine}</div>
+          <div style={{ color: T_SEC, fontSize: 11.5, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>{addrLine}</span>
+            {dist && (
+              <span style={{ color: '#4ade80', fontSize: 10.5, fontWeight: 600, background: 'rgba(74,222,128,0.12)', padding: '1px 6px', borderRadius: 4, flexShrink: 0 }}>
+                {dist}
+              </span>
+            )}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 3, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 96 }}>
           {ph.capabilities.erx  && <Badge type="erx"  />}
@@ -137,9 +146,10 @@ export default function PharmacySelectorDrawer({
   onClose,
   onSelect,
   onSetDefault,
-  selectedId   = null,
-  defaultId    = null,
+  selectedId      = null,
+  defaultId       = null,
   recentlyUsedIds = [],
+  patientAddress  = null,   // { street?, city, state, zip }
 }) {
   const [searchInput,   setSearchInput]   = useState('');
   const [searchQuery,   setSearchQuery]   = useState('');
@@ -169,11 +179,21 @@ export default function PharmacySelectorDrawer({
     debRef.current = setTimeout(() => { setSearchQuery(v); setFocusedIdx(0); }, 250);
   };
 
-  // Filtered list
+  // ── Proximity map (memoised — only recomputes when patientAddress changes) ──
+  const proximityMap = useMemo(() => {
+    if (!patientAddress?.city && !patientAddress?.zip) return null;
+    const map = new Map();
+    for (const ph of ALL_PHARMACIES) {
+      map.set(ph.id, getProximityInfo(patientAddress, ph));
+    }
+    return map;
+  }, [patientAddress]);
+
+  // ── Filtered list (search) ────────────────────────────────────────────────
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return null;
     const q = searchQuery.toLowerCase();
-    return ALL_PHARMACIES.filter(ph =>
+    const matches = ALL_PHARMACIES.filter(ph =>
       ph.name.toLowerCase().includes(q) ||
       ph.city.toLowerCase().includes(q) ||
       ph.state.toLowerCase().includes(q) ||
@@ -181,17 +201,54 @@ export default function PharmacySelectorDrawer({
       ph.phone.replace(/\D/g,'').includes(q.replace(/\D/g,'')) ||
       ph.npi.includes(q)
     );
-  }, [searchQuery]);
+    // Sort search results by proximity if we have patient address
+    if (proximityMap) {
+      matches.sort((a, b) => (proximityMap.get(a.id)?.score ?? 99) - (proximityMap.get(b.id)?.score ?? 99));
+    }
+    return matches;
+  }, [searchQuery, proximityMap]);
 
-  // Categorised
-  const recentList   = ALL_PHARMACIES.filter(ph => ph.lastUsedAt || recentlyUsedIds.includes(ph.id))
-                         .sort((a, b) => (b.lastUsedAt||0) - (a.lastUsedAt||0));
-  const favList      = ALL_PHARMACIES.filter(ph => ph.isFavorite && !recentList.includes(ph));
-  const nearbyList   = ALL_PHARMACIES.filter(ph => ph.category === 'nearby' && !recentList.includes(ph) && !favList.includes(ph))
-                         .sort((a, b) => (a.distanceMiles ?? 999) - (b.distanceMiles ?? 999));
-  const mailList     = ALL_PHARMACIES.filter(ph => ph.category === 'mail');
+  // ── Categorised list ──────────────────────────────────────────────────────
+  const recentList = useMemo(() =>
+    ALL_PHARMACIES
+      .filter(ph => ph.lastUsedAt || recentlyUsedIds.includes(ph.id))
+      .sort((a, b) => (b.lastUsedAt||0) - (a.lastUsedAt||0)),
+  [recentlyUsedIds]);
 
-  // Flat visible list (for keyboard nav)
+  const favList = useMemo(() =>
+    ALL_PHARMACIES.filter(ph => ph.isFavorite && !recentList.includes(ph)),
+  [recentList]);
+
+  // nearbyList: when patient address known → ALL remaining pharmacies sorted by
+  // proximity (score asc), then alphabetically; no distance filter so provider
+  // can always see the full state.  Without address → original category filter.
+  const nearbyList = useMemo(() => {
+    const excluded = new Set([...recentList, ...favList].map(p => p.id));
+    const pool = ALL_PHARMACIES.filter(ph => !excluded.has(ph.id) && ph.category !== 'mail');
+    if (proximityMap) {
+      return [...pool].sort((a, b) => {
+        const sa = proximityMap.get(a.id)?.score ?? 99;
+        const sb = proximityMap.get(b.id)?.score ?? 99;
+        if (sa !== sb) return sa - sb;
+        return a.name.localeCompare(b.name);
+      });
+    }
+    // Fallback: original static sort by category + distanceMiles
+    return pool
+      .filter(ph => ph.category === 'nearby')
+      .sort((a, b) => (a.distanceMiles ?? 999) - (b.distanceMiles ?? 999));
+  }, [recentList, favList, proximityMap]);
+
+  const mailList = useMemo(() =>
+    ALL_PHARMACIES.filter(ph => ph.category === 'mail'),
+  []);
+
+  // ── Nearby section label ──────────────────────────────────────────────────
+  const nearbyLabel = patientAddress?.city
+    ? `Near ${patientAddress.city}${patientAddress.zip ? ', ' + patientAddress.zip : ''}`
+    : 'Pharmacies';
+
+  // ── Flat list for keyboard nav ────────────────────────────────────────────
   const visibleList = filtered ?? [
     ...recentList, ...favList, ...nearbyList, ...mailList,
   ];
@@ -251,7 +308,11 @@ export default function PharmacySelectorDrawer({
         <div style={{ padding: '16px 20px 14px', borderBottom: `1px solid ${COL_BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div>
             <div style={{ color: T_PRI, fontWeight: 700, fontSize: 16 }}>💊 Select Pharmacy</div>
-            <div style={{ color: T_MUT, fontSize: 12, marginTop: 2 }}>Search and select a pharmacy for this prescription</div>
+            <div style={{ color: T_MUT, fontSize: 12, marginTop: 2 }}>
+              {patientAddress?.city
+                ? <>Showing pharmacies near <span style={{ color: T_SEC, fontWeight: 600 }}>{patientAddress.city}{patientAddress.zip ? `, ${patientAddress.zip}` : ''}</span></>
+                : 'Search and select a pharmacy for this prescription'}
+            </div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: T_MUT, fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: '2px 6px', borderRadius: 4 }}>✕</button>
         </div>
@@ -297,8 +358,13 @@ export default function PharmacySelectorDrawer({
                   <>
                     <SectionHeader label={`Results (${filtered.length})`} />
                     {filtered.map((ph, i) => (
-                      <PharmItem key={ph.id} ph={ph} focused={focusedIdx === i} selected={detail?.id === ph.id}
-                        onClick={() => { setDetail(ph); setShowHours(false); setDefaultSet(false); }} />
+                      <PharmItem
+                        key={ph.id} ph={ph}
+                        focused={focusedIdx === i}
+                        selected={detail?.id === ph.id}
+                        distLabel={proximityMap?.get(ph.id)?.label}
+                        onClick={() => { setDetail(ph); setShowHours(false); setDefaultSet(false); }}
+                      />
                     ))}
                   </>
                 )
@@ -308,29 +374,56 @@ export default function PharmacySelectorDrawer({
                   {recentList.length > 0 && (
                     <>
                       <SectionHeader label="Recently Used" />
-                      {recentList.map(ph => <PharmItem key={ph.id} ph={ph} focused={false} selected={detail?.id === ph.id}
-                        onClick={() => { setDetail(ph); setShowHours(false); setDefaultSet(false); }} />)}
+                      {recentList.map(ph => (
+                        <PharmItem
+                          key={ph.id} ph={ph}
+                          focused={false}
+                          selected={detail?.id === ph.id}
+                          distLabel={proximityMap?.get(ph.id)?.label}
+                          onClick={() => { setDetail(ph); setShowHours(false); setDefaultSet(false); }}
+                        />
+                      ))}
                     </>
                   )}
                   {favList.length > 0 && (
                     <>
                       <SectionHeader label="Favorites" />
-                      {favList.map(ph => <PharmItem key={ph.id} ph={ph} focused={false} selected={detail?.id === ph.id}
-                        onClick={() => { setDetail(ph); setShowHours(false); setDefaultSet(false); }} />)}
+                      {favList.map(ph => (
+                        <PharmItem
+                          key={ph.id} ph={ph}
+                          focused={false}
+                          selected={detail?.id === ph.id}
+                          distLabel={proximityMap?.get(ph.id)?.label}
+                          onClick={() => { setDetail(ph); setShowHours(false); setDefaultSet(false); }}
+                        />
+                      ))}
                     </>
                   )}
                   {nearbyList.length > 0 && (
                     <>
-                      <SectionHeader label="Pharmacies" />
-                      {nearbyList.map(ph => <PharmItem key={ph.id} ph={ph} focused={false} selected={detail?.id === ph.id}
-                        onClick={() => { setDetail(ph); setShowHours(false); setDefaultSet(false); }} />)}
+                      <SectionHeader label={nearbyLabel} />
+                      {nearbyList.map(ph => (
+                        <PharmItem
+                          key={ph.id} ph={ph}
+                          focused={false}
+                          selected={detail?.id === ph.id}
+                          distLabel={proximityMap?.get(ph.id)?.label}
+                          onClick={() => { setDetail(ph); setShowHours(false); setDefaultSet(false); }}
+                        />
+                      ))}
                     </>
                   )}
                   {mailList.length > 0 && (
                     <>
                       <SectionHeader label="Mail-Order Pharmacies" />
-                      {mailList.map(ph => <PharmItem key={ph.id} ph={ph} focused={false} selected={detail?.id === ph.id}
-                        onClick={() => { setDetail(ph); setShowHours(false); setDefaultSet(false); }} />)}
+                      {mailList.map(ph => (
+                        <PharmItem
+                          key={ph.id} ph={ph}
+                          focused={false}
+                          selected={detail?.id === ph.id}
+                          onClick={() => { setDetail(ph); setShowHours(false); setDefaultSet(false); }}
+                        />
+                      ))}
                     </>
                   )}
                 </>

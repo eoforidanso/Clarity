@@ -877,6 +877,7 @@ export default function ChartPage() {
           console.info('Default pharmacy set:', ph.name);
         }}
         recentlyUsedIds={[]}
+        patientAddress={p?.address ?? null}
       />
 
       {/* Inactive patient banner */}
