@@ -187,6 +187,7 @@ export default function Sidebar() {
           {navItem('/schedule',  '📅', 'Schedule', todayApptCount)}
           {navItem('/inbox',     '📬', 'Clinical Inbox', unreadCount)}
           {navItem('/patients',  '🔍', 'Patient Search')}
+          {navItem('/patient-registration', '📝', 'Patient Registration')}
           {navItem('/staff-messaging', '💬', 'Staff Messaging')}
         </ul>
         )}

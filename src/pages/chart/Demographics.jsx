@@ -225,26 +225,52 @@ export default function Demographics({ patientId }) {
 
       {/* ── Edit / Save toolbar ── */}
       {canEdit && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, padding: '10px 16px', background: editing ? 'var(--bg-surface)' : 'transparent', border: editing ? '1px solid var(--border)' : 'none', borderRadius: 10 }}>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            {editing ? '✏️ Editing patient demographics — changes will be saved to the chart.' : ''}
-            {saveSuccess && <span style={{ color: '#10b981', fontWeight: 700 }}>✅ Saved successfully</span>}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, padding: '16px 20px', background: editing ? 'linear-gradient(135deg, #eff6ff 0%, #e0f2fe 100%)' : 'linear-gradient(135deg, #f0f9ff 0%, #e0f4ff 100%)', border: editing ? '2px solid #0284c7' : '2px solid #06b6d4', borderRadius: 12, boxShadow: '0 2px 8px rgba(2, 132, 199, 0.1)' }}>
+          <div style={{ fontSize: 14, color: 'var(--text-primary)', fontWeight: 600 }}>
+            {editing && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#0c4a6e' }}>
+                <span style={{ fontSize: 18 }}>✏️</span>
+                Editing patient demographics — changes will be saved to the chart.
+              </span>
+            )}
+            {!editing && saveSuccess && <span style={{ color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>✅ Saved successfully</span>}
+            {!editing && !saveSuccess && <span style={{ color: '#0c4a6e' }}>Update patient information as needed</span>}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 10 }}>
             {!editing ? (
               <DemoDisabled reason="Editing patient demographics is disabled in demo mode">
-                <button className="btn btn-secondary" style={{ fontSize: 13, padding: '6px 16px' }} onClick={() => setEditing(true)}>
+                <button
+                  className="btn btn-primary"
+                  style={{
+                    fontSize: 14,
+                    padding: '10px 24px',
+                    fontWeight: 700,
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    border: 'none',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onClick={() => setEditing(true)}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'translateY(-2px)';
+                    e.target.style.boxShadow = '0 6px 16px rgba(2, 132, 199, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = '0 4px 12px rgba(2, 132, 199, 0.3)';
+                  }}
+                >
                   ✏️ Edit Demographics
                 </button>
               </DemoDisabled>
             ) : (
               <>
-                <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: '6px 14px' }} onClick={handleCancel} disabled={saving}>
+                <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: '8px 16px', fontWeight: 600 }} onClick={handleCancel} disabled={saving}>
                   Cancel
                 </button>
                 <DemoDisabled reason="Saving patient data is disabled in demo mode">
-                  <button type="button" className="btn btn-primary" style={{ fontSize: 13, padding: '6px 18px' }} onClick={handleSave} disabled={saving}>
-                    {saving ? 'Saving…' : '💾 Save Changes'}
+                  <button type="button" className="btn btn-primary" style={{ fontSize: 14, padding: '10px 22px', fontWeight: 700, background: '#10b981', border: 'none', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }} onClick={handleSave} disabled={saving}>
+                    {saving ? '⏳ Saving…' : '💾 Save Changes'}
                   </button>
                 </DemoDisabled>
               </>

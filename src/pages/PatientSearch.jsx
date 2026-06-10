@@ -1015,10 +1015,29 @@ export default function PatientSearch() {
       <div className="card">
         <div className="card-body no-pad">
           {search && filtered.length === 0 ? (
-            <div className="empty-state" style={{ padding: 40 }}>
+            <div className="empty-state" style={{ padding: 40, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <span className="icon">🔍</span>
               <h3>No patients found</h3>
-              <p>Try adjusting your search terms</p>
+              <p>Try adjusting your search terms or add a new patient</p>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  const terms = search.trim().split(/\s+/);
+                  let newForm = { ...DEFAULT_PT };
+                  if (terms.length === 1) {
+                    newForm.firstName = terms[0];
+                  } else if (terms.length >= 2) {
+                    newForm.firstName = terms[0];
+                    newForm.lastName = terms[1];
+                  }
+                  setPtForm(newForm);
+                  setPtError('');
+                  setAddModal(true);
+                }}
+                style={{ marginTop: 16 }}
+              >
+                + Add Patient "{search}"
+              </button>
             </div>
           ) : (
             <>

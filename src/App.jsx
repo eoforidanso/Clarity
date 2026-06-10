@@ -23,6 +23,7 @@ import AdminRoute from './components/AdminRoute';
 // Lazy-loaded routes — split into separate chunks
 const Schedule = lazy(() => import('./pages/Schedule'));
 const PatientSearch = lazy(() => import('./pages/PatientSearch'));
+const PatientRegistration = lazy(() => import('./pages/PatientRegistration'));
 const ChartPage = lazy(() => import('./pages/ChartPage'));
 const EPrescribe = lazy(() => import('./pages/EPrescribe'));
 const Telehealth = lazy(() => import('./pages/Telehealth'));
@@ -275,6 +276,7 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/schedule" element={<Schedule />} />
             <Route path="/patients" element={<PatientSearch />} />
+            <Route path="/patient-registration" element={<PatientRegistration />} />
             <Route path="/chart/:patientId/:tab" element={<ChartPage />} />
             <Route path="/chart/:patientId" element={<Navigate to="summary" replace />} />
             <Route path="/prescribe" element={<EPrescribe />} />
