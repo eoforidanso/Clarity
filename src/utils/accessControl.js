@@ -48,18 +48,10 @@ export function hasAccess(currentUser, featureType = 'adminOnly') {
 }
 
 /**
- * Generate access restricted message
+ * Generate access restricted message text
  */
-export function getAccessDeniedUI(featureType = 'admin') {
-  const message = featureType === 'systemAdminOnly'
+export function getAccessDeniedMessage(featureType = 'admin') {
+  return featureType === 'systemAdminOnly'
     ? 'This feature is only available to System Administrators.'
     : 'This feature is only available to Administrators.';
-
-  return (
-    <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-      <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
-      <h2 style={{ marginBottom: 8 }}>Access Restricted</h2>
-      <p>{message}</p>
-    </div>
-  );
 }
