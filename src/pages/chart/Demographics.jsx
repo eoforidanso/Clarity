@@ -41,6 +41,9 @@ function toForm(p) {
     insuranceSecondaryName: p.insurance?.secondary?.name || '',
     insuranceSecondaryMemberId: p.insurance?.secondary?.memberId || '',
     pcp: p.pcp || '',
+    preferredPharmacy: p.preferredPharmacy || '',
+    preferredPharmacyPhone: p.preferredPharmacyPhone || '',
+    preferredPharmacyFax: p.preferredPharmacyFax || '',
   };
 }
 
@@ -108,6 +111,9 @@ export default function Demographics({ patientId }) {
           } : null,
         },
         pcp: form.pcp,
+        preferredPharmacy: form.preferredPharmacy,
+        preferredPharmacyPhone: form.preferredPharmacyPhone,
+        preferredPharmacyFax: form.preferredPharmacyFax,
       });
       setSaveSuccess(true);
       setEditing(false);
@@ -417,6 +423,26 @@ export default function Demographics({ patientId }) {
               <Field label="Last Visit" value={p.lastVisit} />
               <Field label="Next Appointment" value={p.nextAppointment} />
               <Field label="Status" value={p.isActive ? '● Active' : '○ Inactive'} />
+            </div>
+            <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>💊 Preferred Pharmacy</div>
+              <div className="athena-field-grid">
+                {editing ? (
+                  <EField label="Pharmacy Name / Address" field="preferredPharmacy" span />
+                ) : (
+                  <Field label="Pharmacy Name / Address" value={p.preferredPharmacy} />
+                )}
+                {editing ? (
+                  <EField label="Phone" field="preferredPharmacyPhone" />
+                ) : (
+                  <Field label="Phone" value={p.preferredPharmacyPhone} />
+                )}
+                {editing ? (
+                  <EField label="Fax" field="preferredPharmacyFax" />
+                ) : (
+                  <Field label="Fax" value={p.preferredPharmacyFax} />
+                )}
+              </div>
             </div>
 
             {p.flags?.length > 0 && (

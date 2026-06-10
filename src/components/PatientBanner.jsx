@@ -77,6 +77,7 @@ export default function PatientBanner() {
               <span>PCP: {p.pcp || '—'}</span>
               <span className="athena-sep">|</span>
               <span>Ins: {p.insurance?.primary?.name || 'Self-Pay'} <DemoSafe mask="·ID ████████">{p.insurance?.primary?.memberId ? `· ID ${p.insurance.primary.memberId}` : ''}</DemoSafe></span>
+              {p.preferredPharmacy && <><span className="athena-sep">|</span><span>💊 {p.preferredPharmacy}{p.preferredPharmacyPhone ? ` · ${p.preferredPharmacyPhone}` : ''}</span></>}
               {p.lastVisit && <><span className="athena-sep">|</span><span>Last visit: {p.lastVisit}</span></>}
               {p.nextAppointment && <><span className="athena-sep">|</span><span>Next: {p.nextAppointment}</span></>}
             </div>
@@ -160,6 +161,21 @@ export default function PatientBanner() {
                 <div className="athena-vital"><span className="athena-vital-label">BMI</span><span className="athena-vital-value">{latestVital.bmi}</span></div>
               </div>
             ) : <div className="athena-snapshot-empty">No vitals recorded</div>}
+          </div>
+
+          <div className="athena-snapshot-col">
+            <div className="athena-snapshot-title">💊 Preferred Pharmacy</div>
+            {p.preferredPharmacy ? (
+              <>
+                <div className="athena-snapshot-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                  <span style={{ fontWeight: 600, fontSize: 12 }}>{p.preferredPharmacy}</span>
+                  {p.preferredPharmacyPhone && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>📞 {p.preferredPharmacyPhone}</span>}
+                  {p.preferredPharmacyFax && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>📠 Fax: {p.preferredPharmacyFax}</span>}
+                </div>
+              </>
+            ) : (
+              <div className="athena-snapshot-empty">No preferred pharmacy on file</div>
+            )}
           </div>
 
           <div className="athena-snapshot-col">

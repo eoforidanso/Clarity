@@ -85,7 +85,7 @@ export default function PatientSearch() {
     address: { street: '', city: '', state: '', zip: '' },
     emergencyContact: { name: '', relationship: '', phone: '' },
     insurance: { primary: { name: '', memberId: '', groupNumber: '', copay: '' } },
-    pcp: '', assignedProvider: '',
+    pcp: '', assignedProvider: '', preferredPharmacy: '', preferredPharmacyPhone: '', preferredPharmacyFax: '',
     language: 'English',
     race: 'Not Specified',
     ethnicity: 'Not Hispanic or Latino',
@@ -682,6 +682,8 @@ export default function PatientSearch() {
                     ]},
                     { key: 'care', title: 'Care Team', fields: [
                       ['PCP', ptForm.pcp], ['Assigned Provider', ptForm.assignedProvider],
+                      ['Preferred Pharmacy', ptForm.preferredPharmacy],
+                      ['Pharmacy Phone', ptForm.preferredPharmacyPhone], ['Pharmacy Fax', ptForm.preferredPharmacyFax],
                     ]},
                   ].map(({ key, title, fields }) => (
                     <div key={key} className="ap-review-section">
@@ -923,6 +925,22 @@ export default function PatientSearch() {
                     <div><label className="form-label" htmlFor="ap-prov">Assigned Provider</label>
                       <input id="ap-prov" className="form-input" placeholder="e.g., Dr. Chris L."
                         value={ptForm.assignedProvider} onChange={e => setPtForm(p => ({ ...p, assignedProvider: e.target.value }))} /></div>
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <label className="form-label">💊 Preferred Pharmacy</label>
+                    <input className="form-input" placeholder="e.g., CVS Pharmacy — 123 Main St"
+                      value={ptForm.preferredPharmacy}
+                      onChange={e => setPtForm(p => ({ ...p, preferredPharmacy: e.target.value }))} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 10 }}>
+                    <div><label className="form-label">Pharmacy Phone</label>
+                      <input className="form-input" placeholder="(555) 000-0000"
+                        value={ptForm.preferredPharmacyPhone}
+                        onChange={e => setPtForm(p => ({ ...p, preferredPharmacyPhone: e.target.value }))} /></div>
+                    <div><label className="form-label">Pharmacy Fax</label>
+                      <input className="form-input" placeholder="(555) 000-0001"
+                        value={ptForm.preferredPharmacyFax}
+                        onChange={e => setPtForm(p => ({ ...p, preferredPharmacyFax: e.target.value }))} /></div>
                   </div>
                 </div>
               </div>

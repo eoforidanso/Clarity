@@ -541,7 +541,7 @@ export default function ChartPage() {
     // Build text content for export
     const lines = [`Chart Export — ${p.lastName}, ${p.firstName} (MRN ${p.mrn})`, `Generated: ${new Date().toLocaleString()}`, `Format: ${exportFormat}`, ''];
     if (exportSections.includes('demographics')) {
-      lines.push('══ DEMOGRAPHICS ══', `Name: ${p.lastName}, ${p.firstName}`, `DOB: ${p.dob} | Age: ${p.age} | Gender: ${p.gender}`, `Phone: ${p.phone || '—'} | Email: ${p.email || '—'}`, `Insurance: ${p.insurance?.primary?.name || '—'}`, '');
+      lines.push('══ DEMOGRAPHICS ══', `Name: ${p.lastName}, ${p.firstName}`, `DOB: ${p.dob} | Age: ${p.age} | Gender: ${p.gender}`, `Phone: ${p.phone || '—'} | Email: ${p.email || '—'}`, `Insurance: ${p.insurance?.primary?.name || '—'}`, `Preferred Pharmacy: ${p.preferredPharmacy || '—'}${p.preferredPharmacyPhone ? ' | Ph: ' + p.preferredPharmacyPhone : ''}${p.preferredPharmacyFax ? ' | Fax: ' + p.preferredPharmacyFax : ''}`, '');
     }
     if (exportSections.includes('allergies')) {
       lines.push('══ ALLERGIES ══');
@@ -769,6 +769,12 @@ export default function ChartPage() {
                     <div><span style={{ color: 'var(--text-muted)' }}>Phone:</span> {p.phone || '—'}</div>
                     <div><span style={{ color: 'var(--text-muted)' }}>Email:</span> {p.email || '—'}</div>
                     <div style={{ gridColumn: '1/-1' }}><span style={{ color: 'var(--text-muted)' }}>Insurance:</span> {p.insurance?.primary?.name || '—'} ({p.insurance?.primary?.memberId || '—'})</div>
+                    <div style={{ gridColumn: '1/-1' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>💊 Preferred Pharmacy:</span>{' '}
+                      {p.preferredPharmacy ? (
+                        <strong>{p.preferredPharmacy}{p.preferredPharmacyPhone ? ` · ${p.preferredPharmacyPhone}` : ''}{p.preferredPharmacyFax ? ` · Fax: ${p.preferredPharmacyFax}` : ''}</strong>
+                      ) : <span style={{ color: 'var(--text-muted)' }}>Not on file</span>}
+                    </div>
                   </div>
                 </div>
               </div>
