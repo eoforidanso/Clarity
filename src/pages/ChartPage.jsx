@@ -159,7 +159,8 @@ export default function ChartPage() {
 
   // ── Order group state ────────────────────────────────────
   const [orderGroupName, setOrderGroupName] = useState('');
-  const [orderGroupItems, setOrderGroupItems] = useState([{ type: 'Lab', description: '', priority: 'Routine', notes: '' }]);
+  const BLANK_ORDER = { type: 'Lab', priority: 'Routine', notes: '', description: '', labPanel: '', medName: '', medDose: '', medRoute: 'Oral', medFrequency: '', medQuantity: '30', medRefills: '0', medSig: '', medDispenseAsWritten: false, imgModality: 'X-ray', imgBodyPart: '', imgLaterality: 'N/A', imgReason: '', refSpecialty: 'Psychiatry', refProvider: '', refReason: '' };
+  const [orderGroupItems, setOrderGroupItems] = useState([{ ...BLANK_ORDER }]);
   const [orderGroupSaved, setOrderGroupSaved] = useState(false);
   const [showPatientLetter, setShowPatientLetter] = useState(false);
   const [patientLetter, setPatientLetter] = useState({ subject: '', body: '', delivery: 'portal' });
@@ -490,8 +491,8 @@ export default function ChartPage() {
   const closePanel = () => setActivePanel(null);
 
   // ── Order Group handlers ─────────────────────────────────
-  const addOrderGroupItem = () => {
-    setOrderGroupItems(prev => [...prev, { type: 'Lab', description: '', priority: 'Routine', notes: '' }]);
+  const addOrderGroupItem = (preset = null) => {
+    setOrderGroupItems(prev => [...prev, preset ? { ...BLANK_ORDER, ...preset } : { ...BLANK_ORDER }]);
   };
   const updateOrderGroupItem = (index, field, value) => {
     setOrderGroupItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
@@ -499,12 +500,26 @@ export default function ChartPage() {
   const removeOrderGroupItem = (index) => {
     setOrderGroupItems(prev => prev.filter((_, i) => i !== index));
   };
+  const getOrderDescription = (item) => {
+    if (item.type === 'Medication') {
+      const parts = [item.medName, item.medDose, item.medRoute, item.medFrequency].filter(Boolean);
+      return parts.join(' ') || item.description;
+    }
+    if (item.type === 'Lab') return item.labPanel || item.description;
+    if (item.type === 'Imaging') return [item.imgModality, item.imgBodyPart, item.imgLaterality !== 'N/A' ? item.imgLaterality : ''].filter(Boolean).join(' — ') || item.description;
+    if (item.type === 'Referral') return [item.refSpecialty, item.refProvider].filter(Boolean).join(' — ') || item.description;
+    return item.description;
+  };
   const submitOrderGroup = () => {
-    const validItems = orderGroupItems.filter(i => i.description.trim());
+    const validItems = orderGroupItems.filter(i => getOrderDescription(i).trim());
     if (validItems.length === 0) return;
     validItems.forEach(item => {
       addOrder(patientId, {
-        ...item,
+        type: item.type,
+        description: getOrderDescription(item),
+        priority: item.priority,
+        notes: item.notes,
+        ...(item.type === 'Medication' ? { medDose: item.medDose, medRoute: item.medRoute, medFrequency: item.medFrequency, medQuantity: item.medQuantity, medRefills: item.medRefills, medSig: item.medSig, medDispenseAsWritten: item.medDispenseAsWritten } : {}),
         groupName: orderGroupName || 'Untitled Group',
         status: 'Pending',
         orderedDate: new Date().toISOString().split('T')[0],
@@ -512,7 +527,7 @@ export default function ChartPage() {
       });
     });
     setOrderGroupSaved(true);
-    setTimeout(() => { setOrderGroupItems([{ type: 'Lab', description: '', priority: 'Routine', notes: '' }]); setOrderGroupName(''); setShowPatientLetter(false); setPatientLetter({ subject: '', body: '', delivery: 'portal' }); }, 1500);
+    setTimeout(() => { setOrderGroupItems([{ ...BLANK_ORDER }]); setOrderGroupName(''); setShowPatientLetter(false); setPatientLetter({ subject: '', body: '', delivery: 'portal' }); }, 1500);
   };
 
   // ── Export handler ───────────────────────────────────────
@@ -1143,65 +1158,202 @@ export default function ChartPage() {
       )}
 
       {/* ── Create Order Group ──────────────────────────────── */}
-      {activePanel === 'ordergroup' && (
+      {activePanel === 'ordergroup' && (() => {
+        const LAB_OPTIONS = ['CMP (Comprehensive Metabolic Panel)', 'BMP (Basic Metabolic Panel)', 'CBC with Differential', 'Lipid Panel', 'TSH + Free T3/T4', 'HbA1c + Fasting Glucose', 'Lithium Level (trough)', 'Valproate Level (trough)', 'Clozapine Level + ANC', 'Metabolic Syndrome Panel', 'Urine Drug Screen (10-panel)', 'Urine Pregnancy Test (hCG)', 'Liver Function Tests (LFTs)', 'Renal Function Panel', 'Vitamin B12 + Folate', 'Vitamin D (25-OH)', 'Iron Studies', 'HIV + Syphilis + Hepatitis Panel', 'Lamotrigine Level', 'Quetiapine Level', 'Other (free text)'];
+        const ROUTES = ['Oral', 'Sublingual', 'Topical', 'Transdermal', 'IM (Intramuscular)', 'IV (Intravenous)', 'Intranasal', 'Inhaled', 'Rectal', 'Ophthalmic', 'Otic'];
+        const FREQUENCIES = ['Once daily (QD)', 'Twice daily (BID)', 'Three times daily (TID)', 'Four times daily (QID)', 'Every 4 hours', 'Every 6 hours', 'Every 8 hours', 'Every 12 hours', 'Every other day', 'Weekly', 'Twice weekly', 'Monthly', 'As needed (PRN)', 'At bedtime (QHS)', 'With meals'];
+        const MODALITIES = ['X-ray', 'CT Scan', 'MRI', 'Ultrasound', 'PET Scan', 'DEXA Scan', 'Mammogram', 'Echocardiogram', 'EEG', 'EMG/NCS'];
+        const LATERALITY = ['N/A', 'Left', 'Right', 'Bilateral'];
+        const REF_SPECIALTIES = ['Psychiatry', 'Psychology / Therapy', 'Neuropsychology', 'Neurology', 'Primary Care / PCP', 'Cardiology', 'Endocrinology', 'Sleep Medicine', 'Pain Management', 'Substance Use (IOP)', 'Substance Use (PHP)', 'Inpatient Psychiatric', 'Social Work / Case Management', 'Dietitian / Nutritionist', 'Physical Therapy', 'OB/GYN', 'Other'];
+        const QUICK_BUNDLES = [
+          { label: '🆕 New Patient Workup', items: [{ type: 'Lab', labPanel: 'CMP (Comprehensive Metabolic Panel)', priority: 'Routine' }, { type: 'Lab', labPanel: 'CBC with Differential', priority: 'Routine' }, { type: 'Lab', labPanel: 'Lipid Panel', priority: 'Routine' }, { type: 'Lab', labPanel: 'TSH + Free T3/T4', priority: 'Routine' }, { type: 'Lab', labPanel: 'HbA1c + Fasting Glucose', priority: 'Routine' }] },
+          { label: '📊 Metabolic Monitoring', items: [{ type: 'Lab', labPanel: 'Metabolic Syndrome Panel', priority: 'Routine' }, { type: 'Lab', labPanel: 'Lipid Panel', priority: 'Routine' }, { type: 'Lab', labPanel: 'HbA1c + Fasting Glucose', priority: 'Routine' }] },
+          { label: '⚗️ Lithium Monitoring', items: [{ type: 'Lab', labPanel: 'Lithium Level (trough)', priority: 'Routine', notes: 'Trough level — draw before morning dose' }, { type: 'Lab', labPanel: 'CMP (Comprehensive Metabolic Panel)', priority: 'Routine' }, { type: 'Lab', labPanel: 'TSH + Free T3/T4', priority: 'Routine' }] },
+          { label: '🔬 Clozapine Monitoring', items: [{ type: 'Lab', labPanel: 'Clozapine Level + ANC', priority: 'Routine', notes: 'Required per REMS — ANC must be within range before dispensing' }, { type: 'Lab', labPanel: 'CMP (Comprehensive Metabolic Panel)', priority: 'Routine' }] },
+          { label: '🌿 Mood / Fatigue Workup', items: [{ type: 'Lab', labPanel: 'TSH + Free T3/T4', priority: 'Routine' }, { type: 'Lab', labPanel: 'Vitamin B12 + Folate', priority: 'Routine' }, { type: 'Lab', labPanel: 'Vitamin D (25-OH)', priority: 'Routine' }, { type: 'Lab', labPanel: 'Iron Studies', priority: 'Routine' }, { type: 'Lab', labPanel: 'CBC with Differential', priority: 'Routine' }] },
+        ];
+        const validCount = orderGroupItems.filter(i => getOrderDescription(i).trim()).length;
+        return (
         <div style={overlayStyle} onClick={closePanel}>
-          <div style={panelStyle} onClick={e => e.stopPropagation()}>
+          <div style={{ ...panelStyle, width: 540, maxWidth: '96vw' }} onClick={e => e.stopPropagation()}>
             <div style={panelHeaderStyle}>
-              <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>📦 Create Order Group</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>📦 Order Group — {p.lastName}, {p.firstName}</h3>
               <button onClick={closePanel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
             </div>
             <div style={panelBodyStyle}>
               {orderGroupSaved ? (
                 <div className="empty-state" style={{ padding: '40px 20px' }}>
                   <span style={{ fontSize: 36 }}>✅</span>
-                  <h3>Order Group Submitted</h3>
-                  <p>{orderGroupItems.filter(i => i.description.trim()).length} orders placed for {p.lastName}, {p.firstName}</p>
+                  <h3>Orders Submitted</h3>
+                  <p>{validCount} order{validCount !== 1 ? 's' : ''} placed for {p.lastName}, {p.firstName}</p>
                   {showPatientLetter && patientLetter.body.trim() && (
-                    <p style={{ color: 'var(--success)', fontWeight: 600, marginTop: 4 }}>📧 Patient letter sent via {patientLetter.delivery === 'portal' ? 'Patient Portal' : patientLetter.delivery === 'email' ? 'Email' : patientLetter.delivery === 'print' ? 'Print' : 'SMS'}</p>
+                    <p style={{ color: 'var(--success)', fontWeight: 600, marginTop: 4 }}>📧 Patient letter sent</p>
                   )}
+                  <button className="btn btn-sm btn-secondary" onClick={() => { setOrderGroupSaved(false); setOrderGroupItems([{ ...BLANK_ORDER }]); setOrderGroupName(''); setShowPatientLetter(false); setPatientLetter({ subject: '', body: '', delivery: 'portal' }); }} style={{ marginTop: 12 }}>New Order Group</button>
                 </div>
               ) : (
                 <>
-                  <div style={{ marginBottom: 16 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Group Name</label>
-                    <input
-                      className="form-input"
-                      placeholder="e.g. Quarterly Monitoring, New Patient Workup…"
-                      value={orderGroupName}
-                      onChange={e => setOrderGroupName(e.target.value)}
-                    />
+                  {/* ── Group Name ── */}
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>GROUP NAME</label>
+                    <input className="form-input" placeholder="e.g. Quarterly Monitoring, New Patient Workup…" value={orderGroupName} onChange={e => setOrderGroupName(e.target.value)} style={{ fontSize: 12 }} />
                   </div>
 
-                  <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Orders ({orderGroupItems.length})</div>
+                  {/* ── Quick Bundles ── */}
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>QUICK BUNDLES</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {QUICK_BUNDLES.map(bundle => (
+                        <button
+                          key={bundle.label}
+                          className="btn btn-sm btn-secondary"
+                          style={{ fontSize: 11, padding: '4px 10px' }}
+                          onClick={() => setOrderGroupItems(bundle.items.map(it => ({ ...BLANK_ORDER, ...it })))}
+                        >{bundle.label}</button>
+                      ))}
+                    </div>
+                  </div>
 
-                  {orderGroupItems.map((item, i) => (
-                    <div key={i} className="card" style={{ padding: 12, marginBottom: 10, background: 'var(--bg)' }}>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>#{i + 1}</span>
-                        <select className="form-select" value={item.type} onChange={e => updateOrderGroupItem(i, 'type', e.target.value)} style={{ fontSize: 12, flex: '0 0 100px' }}>
-                          <option>Lab</option>
-                          <option>Imaging</option>
-                          <option>Referral</option>
-                          <option>Procedure</option>
-                          <option>Consult</option>
-                        </select>
-                        <select className="form-select" value={item.priority} onChange={e => updateOrderGroupItem(i, 'priority', e.target.value)} style={{ fontSize: 12, flex: '0 0 90px' }}>
+                  {/* ── Orders ── */}
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>ORDERS ({orderGroupItems.length})</div>
+
+                  {orderGroupItems.map((item, idx) => (
+                    <div key={idx} className="card" style={{ padding: 12, marginBottom: 10, background: 'var(--bg)', border: '1px solid var(--border)' }}>
+                      {/* Row 1: type tabs + priority + delete */}
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', minWidth: 20 }}>#{idx + 1}</span>
+                        <div style={{ display: 'flex', gap: 3, flex: 1, flexWrap: 'wrap' }}>
+                          {['Lab', 'Medication', 'Imaging', 'Referral', 'Procedure'].map(t => (
+                            <button
+                              key={t}
+                              onClick={() => updateOrderGroupItem(idx, 'type', t)}
+                              style={{
+                                padding: '3px 9px', fontSize: 11, borderRadius: 6, cursor: 'pointer', fontWeight: item.type === t ? 700 : 400,
+                                background: item.type === t ? 'var(--primary)' : 'var(--bg-white)',
+                                color: item.type === t ? '#fff' : 'var(--text-secondary)',
+                                border: item.type === t ? '1px solid var(--primary)' : '1px solid var(--border)',
+                              }}
+                            >{t === 'Medication' ? '💊 Rx' : t === 'Lab' ? '🧪 Lab' : t === 'Imaging' ? '🩻 Imaging' : t === 'Referral' ? '🔗 Referral' : '🔧 Procedure'}</button>
+                          ))}
+                        </div>
+                        <select className="form-select" value={item.priority} onChange={e => updateOrderGroupItem(idx, 'priority', e.target.value)} style={{ fontSize: 11, flex: '0 0 80px' }}>
                           <option>Routine</option>
                           <option>Urgent</option>
                           <option>STAT</option>
                         </select>
                         {orderGroupItems.length > 1 && (
-                          <button onClick={() => removeOrderGroupItem(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--danger)', marginLeft: 'auto' }}>🗑️</button>
+                          <button onClick={() => removeOrderGroupItem(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--danger)' }}>🗑️</button>
                         )}
                       </div>
-                      <input className="form-input" placeholder="Order description…" value={item.description} onChange={e => updateOrderGroupItem(i, 'description', e.target.value)} style={{ fontSize: 12, marginBottom: 6 }} />
-                      <input className="form-input" placeholder="Notes (optional)" value={item.notes} onChange={e => updateOrderGroupItem(i, 'notes', e.target.value)} style={{ fontSize: 12 }} />
+
+                      {/* ── Lab fields ── */}
+                      {item.type === 'Lab' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <select className="form-select" value={item.labPanel} onChange={e => updateOrderGroupItem(idx, 'labPanel', e.target.value)} style={{ fontSize: 12 }}>
+                            <option value="">— Select lab panel —</option>
+                            {LAB_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                          </select>
+                          {item.labPanel === 'Other (free text)' && (
+                            <input className="form-input" placeholder="Describe the lab…" value={item.description} onChange={e => updateOrderGroupItem(idx, 'description', e.target.value)} style={{ fontSize: 12 }} />
+                          )}
+                          <input className="form-input" placeholder="Clinical indication / notes" value={item.notes} onChange={e => updateOrderGroupItem(idx, 'notes', e.target.value)} style={{ fontSize: 12 }} />
+                        </div>
+                      )}
+
+                      {/* ── Medication fields ── */}
+                      {item.type === 'Medication' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <input className="form-input" placeholder="Drug name (e.g. Sertraline, Lithium Carbonate…)" value={item.medName} onChange={e => updateOrderGroupItem(idx, 'medName', e.target.value)} style={{ fontSize: 12, fontWeight: 600 }} />
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                            <input className="form-input" placeholder="Dose (e.g. 50mg)" value={item.medDose} onChange={e => updateOrderGroupItem(idx, 'medDose', e.target.value)} style={{ fontSize: 12 }} />
+                            <select className="form-select" value={item.medRoute} onChange={e => updateOrderGroupItem(idx, 'medRoute', e.target.value)} style={{ fontSize: 12 }}>
+                              {ROUTES.map(r => <option key={r}>{r}</option>)}
+                            </select>
+                            <select className="form-select" value={item.medFrequency} onChange={e => updateOrderGroupItem(idx, 'medFrequency', e.target.value)} style={{ fontSize: 12 }}>
+                              <option value="">— Frequency —</option>
+                              {FREQUENCIES.map(f => <option key={f}>{f}</option>)}
+                            </select>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>Qty / Supply</label>
+                              <input className="form-input" placeholder="30" value={item.medQuantity} onChange={e => updateOrderGroupItem(idx, 'medQuantity', e.target.value)} style={{ fontSize: 12 }} />
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>Refills</label>
+                              <input className="form-input" placeholder="0" value={item.medRefills} onChange={e => updateOrderGroupItem(idx, 'medRefills', e.target.value)} style={{ fontSize: 12 }} />
+                            </div>
+                          </div>
+                          <input className="form-input" placeholder="Sig / Patient instructions (e.g. Take 1 tablet by mouth each morning)" value={item.medSig} onChange={e => updateOrderGroupItem(idx, 'medSig', e.target.value)} style={{ fontSize: 12 }} />
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={item.medDispenseAsWritten} onChange={e => updateOrderGroupItem(idx, 'medDispenseAsWritten', e.target.checked)} />
+                            Dispense As Written (DAW) — no generic substitution
+                          </label>
+                          <input className="form-input" placeholder="Notes / pharmacy instructions" value={item.notes} onChange={e => updateOrderGroupItem(idx, 'notes', e.target.value)} style={{ fontSize: 12 }} />
+                        </div>
+                      )}
+
+                      {/* ── Imaging fields ── */}
+                      {item.type === 'Imaging' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>Modality</label>
+                              <select className="form-select" value={item.imgModality} onChange={e => updateOrderGroupItem(idx, 'imgModality', e.target.value)} style={{ fontSize: 12 }}>
+                                {MODALITIES.map(m => <option key={m}>{m}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>Body Part / Area</label>
+                              <input className="form-input" placeholder="e.g. Brain, Chest, Spine" value={item.imgBodyPart} onChange={e => updateOrderGroupItem(idx, 'imgBodyPart', e.target.value)} style={{ fontSize: 12 }} />
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>Laterality</label>
+                              <select className="form-select" value={item.imgLaterality} onChange={e => updateOrderGroupItem(idx, 'imgLaterality', e.target.value)} style={{ fontSize: 12 }}>
+                                {LATERALITY.map(l => <option key={l}>{l}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          <input className="form-input" placeholder="Clinical indication / reason for imaging" value={item.imgReason} onChange={e => updateOrderGroupItem(idx, 'imgReason', e.target.value)} style={{ fontSize: 12 }} />
+                          <input className="form-input" placeholder="Additional notes (contrast, protocol, etc.)" value={item.notes} onChange={e => updateOrderGroupItem(idx, 'notes', e.target.value)} style={{ fontSize: 12 }} />
+                        </div>
+                      )}
+
+                      {/* ── Referral fields ── */}
+                      {item.type === 'Referral' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>Specialty</label>
+                              <select className="form-select" value={item.refSpecialty} onChange={e => updateOrderGroupItem(idx, 'refSpecialty', e.target.value)} style={{ fontSize: 12 }}>
+                                {REF_SPECIALTIES.map(s => <option key={s}>{s}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>Provider / Facility (optional)</label>
+                              <input className="form-input" placeholder="e.g. Dr. Smith, Northwestern" value={item.refProvider} onChange={e => updateOrderGroupItem(idx, 'refProvider', e.target.value)} style={{ fontSize: 12 }} />
+                            </div>
+                          </div>
+                          <textarea className="form-input" placeholder="Reason for referral / clinical notes" value={item.refReason} onChange={e => updateOrderGroupItem(idx, 'refReason', e.target.value)} style={{ fontSize: 12, minHeight: 60, resize: 'vertical' }} />
+                          <input className="form-input" placeholder="Additional notes" value={item.notes} onChange={e => updateOrderGroupItem(idx, 'notes', e.target.value)} style={{ fontSize: 12 }} />
+                        </div>
+                      )}
+
+                      {/* ── Procedure fields ── */}
+                      {item.type === 'Procedure' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <input className="form-input" placeholder="Procedure description (e.g. Spravato nasal spray 56mg, TMS session)" value={item.description} onChange={e => updateOrderGroupItem(idx, 'description', e.target.value)} style={{ fontSize: 12, fontWeight: 600 }} />
+                          <input className="form-input" placeholder="Clinical indication / notes" value={item.notes} onChange={e => updateOrderGroupItem(idx, 'notes', e.target.value)} style={{ fontSize: 12 }} />
+                        </div>
+                      )}
                     </div>
                   ))}
 
-                  <button className="btn btn-sm btn-secondary" onClick={addOrderGroupItem} style={{ width: '100%', marginBottom: 12 }}>
-                    + Add Another Order
-                  </button>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                    <button className="btn btn-sm btn-secondary" onClick={() => addOrderGroupItem()} style={{ flex: 1 }}>+ Add Order</button>
+                    <button className="btn btn-sm btn-secondary" onClick={() => addOrderGroupItem({ type: 'Medication' })} style={{ flex: 1 }}>+ Add Rx</button>
+                    <button className="btn btn-sm btn-secondary" onClick={() => addOrderGroupItem({ type: 'Lab' })} style={{ flex: 1 }}>+ Add Lab</button>
+                  </div>
 
                   {/* ── Patient Letter Toggle ────────────────── */}
                   {!showPatientLetter ? (
@@ -1328,15 +1480,16 @@ export default function ChartPage() {
                     </div>
                   )}
 
-                  <button className="btn btn-primary" onClick={submitOrderGroup} style={{ width: '100%' }}>
-                    Submit Order Group ({orderGroupItems.filter(i => i.description.trim()).length} orders{showPatientLetter && patientLetter.body.trim() ? ' + letter' : ''})
+                  <button className="btn btn-primary" onClick={submitOrderGroup} disabled={validCount === 0} style={{ width: '100%', opacity: validCount === 0 ? 0.5 : 1 }}>
+                    Submit {validCount} Order{validCount !== 1 ? 's' : ''}{showPatientLetter && patientLetter.body.trim() ? ' + Letter' : ''}
                   </button>
                 </>
               )}
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ── Chart Export ─────────────────────────────────────── */}
       {activePanel === 'export' && (
