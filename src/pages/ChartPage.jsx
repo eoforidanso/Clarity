@@ -76,6 +76,7 @@ export default function ChartPage() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [activePanel, setActivePanel] = useState(null); // 'quickview' | 'ordergroup' | 'export' | 'forms'
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const menuRef = useRef(null);
 
   // ── Sticky Note ──────────────────────────────────────────
@@ -496,7 +497,13 @@ export default function ChartPage() {
           <div ref={menuRef} style={{ position: 'relative' }}>
             <button
               className={`athena-toolbar-btn ${menuOpen ? 'active' : ''}`}
-              onClick={() => setMenuOpen(!menuOpen)}
+              onClick={(e) => {
+                if (!menuOpen) {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setMenuPosition({ top: rect.bottom + 6, left: rect.right - 260 });
+                }
+                setMenuOpen(!menuOpen);
+              }}
               title="Order Set"
               style={{ fontSize: 16, padding: '12px 24px', fontWeight: 700 }}
             >
@@ -504,7 +511,7 @@ export default function ChartPage() {
             </button>
 
             {menuOpen && (
-              <div className="athena-dropdown-menu">
+              <div className="athena-dropdown-menu" style={{ position: 'fixed', top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, display: 'block', visibility: 'visible' }}>
                 {[
                   { key: 'quickview', icon: '👁️', label: 'Quick View', desc: 'At-a-glance chart snapshot' },
                   ...(currentUser?.role !== 'therapist' ? [{ key: 'ordergroup', icon: '📦', label: 'Order Group', desc: 'Batch multiple orders' }] : []),
@@ -515,6 +522,7 @@ export default function ChartPage() {
                     key={item.key}
                     className="athena-dropdown-item"
                     onClick={() => openPanel(item.key)}
+                    style={{ cursor: 'pointer' }}
                   >
                     <span className="athena-dropdown-icon">{item.icon}</span>
                     <div className="athena-dropdown-content">
