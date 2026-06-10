@@ -164,10 +164,17 @@ export function SiteProvider({ children }) {
   // ── Role-based access ────────────────────────────────────────────────────
   const allowedIds = useMemo(() => {
     const base = ROLE_SITE_ACCESS[role];
+
+    // ⭐ Admins with is_global=false are scoped to their facility
+    if (role === 'admin' && currentUser?.is_global === false) {
+      const userLocId = currentUser?.facility_id || 'loc1';
+      return [userLocId];
+    }
+
     if (base !== null && base !== undefined) return base;
-    const userLocId = currentUser?.locationId || 'loc1';
+    const userLocId = currentUser?.facility_id || currentUser?.locationId || 'loc1';
     return [userLocId];
-  }, [role, currentUser?.locationId]);
+  }, [role, currentUser?.facility_id, currentUser?.locationId, currentUser?.is_global]);
 
   const canSeeAll = allowedIds.includes('all');
 
