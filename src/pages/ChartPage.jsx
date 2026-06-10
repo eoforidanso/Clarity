@@ -8,6 +8,13 @@ import PDMPDrawer from '../components/PDMPDrawer';
 import { getControlledSchedule } from '../utils/controlledSubstances';
 import { generateILPmpReport } from '../utils/pmpMock';
 import BTGGuard from '../components/BTGGuard';
+import { ILLINOIS_LABS, getLabProximityInfo } from '../data/illinoisLabs';
+import { checkInteractions } from '../data/drugInteractions';
+import AssessmentScorer from '../components/AssessmentScorer';
+import SafetyPlanBuilder from '../components/SafetyPlanBuilder';
+import MedAdherenceTimeline from '../components/MedAdherenceTimeline';
+import PriorAuthDrawer from '../components/PriorAuthDrawer';
+import PatientPortalInbox from '../components/PatientPortalInbox';
 
 import ChartSummary from './chart/ChartSummary';
 import Demographics from './chart/Demographics';
@@ -202,6 +209,24 @@ export default function ChartPage() {
   const [pdmpMedName,      setPdmpMedName]       = useState('');
   const [pdmpAcknowledged, setPdmpAcknowledged] = useState({});   // { orderIdx: true }
   const [pdmpRequering,    setPdmpRequering]     = useState(false);
+
+  // ── Assessment Scorer ────────────────────────────────────
+  const [assessScorerOpen,  setAssessScorerOpen]  = useState(false);
+  const [assessmentHistory, setAssessmentHistory] = useState({});
+
+  // ── Safety Plan ──────────────────────────────────────────
+  const [safetyPlanOpen,  setSafetyPlanOpen]  = useState(false);
+  const [safetyPlanData,  setSafetyPlanData]  = useState(null);
+
+  // ── Adherence Timeline ───────────────────────────────────
+  const [adherenceOpen, setAdherenceOpen] = useState(false);
+
+  // ── Prior Auth Drawer ────────────────────────────────────
+  const [priorAuthOpen, setPriorAuthOpen] = useState(false);
+  const [priorAuthList, setPriorAuthList] = useState([]);
+
+  // ── Patient Portal Inbox ─────────────────────────────────
+  const [portalInboxOpen, setPortalInboxOpen] = useState(false);
 
   // ── Lab location dropdown ────────────────────────────────
   const [labDropdownIdx, setLabDropdownIdx] = useState(null);
@@ -844,6 +869,11 @@ export default function ChartPage() {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
   };
   const panelBodyStyle = { flex: 1, overflow: 'auto', padding: '16px 20px' };
+  const centeredOverlayStyle = {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000,
+    display: 'flex', justifyContent: 'center', alignItems: 'flex-start',
+    overflowY: 'auto', padding: '24px 16px', animation: 'fadeIn 0.15s ease',
+  };
 
   // ── Toggle export sections ───────────────────────────────
   const toggleExportSection = (sec) => {
@@ -960,6 +990,43 @@ export default function ChartPage() {
 
         {/* Actions toolbar */}
         <div className="athena-chart-actions-bar">
+          {/* ── Clinical Tools ── */}
+          <button
+            className="athena-toolbar-btn"
+            onClick={() => setPortalInboxOpen(true)}
+            title="Patient Portal Messages"
+            style={{ position: 'relative' }}
+          >
+            💬 Messages
+          </button>
+          <button
+            className="athena-toolbar-btn"
+            onClick={() => setPriorAuthOpen(true)}
+            title="Prior Authorization Tracker"
+          >
+            📋 Prior Auth
+          </button>
+          <button
+            className="athena-toolbar-btn"
+            onClick={() => setAssessScorerOpen(true)}
+            title="PHQ-9 / GAD-7 / C-SSRS Auto-Scoring"
+          >
+            📊 Assessments
+          </button>
+          <button
+            className="athena-toolbar-btn"
+            onClick={() => setSafetyPlanOpen(true)}
+            title="Stanley-Brown Safety Plan Builder"
+          >
+            🛡 Safety Plan
+          </button>
+          <button
+            className="athena-toolbar-btn"
+            onClick={() => setAdherenceOpen(true)}
+            title="Medication Adherence & Refill Timeline"
+          >
+            💊 Adherence
+          </button>
           <div ref={menuRef} style={{ position: 'relative' }}>
             <button
               className={`athena-toolbar-btn ${menuOpen ? 'active' : ''}`}
@@ -1533,42 +1600,19 @@ export default function ChartPage() {
           { name: 'VA Outpatient Pharmacy — VA Medical Center', group: 'VA', address: 'See VA directory', phone: '(800) 827-1000', fax: '' },
         ];
 
-        // ── Lab directory (national) ──────────────────────────────────────────
-        const LAB_DIRECTORY = [
-          // ── Quest Diagnostics ──
-          { name: 'Quest Diagnostics — Chicago Loop', network: 'Quest Diagnostics', address: '222 W Adams St Ste 100, Chicago, IL 60606', phone: '(312) 621-0390', fax: '(312) 621-0395' },
-          { name: 'Quest Diagnostics — Chicago North', network: 'Quest Diagnostics', address: '680 N Lake Shore Dr Ste 1200, Chicago, IL 60611', phone: '(312) 642-7830', fax: '(312) 642-7831' },
-          { name: 'Quest Diagnostics — Midtown Manhattan', network: 'Quest Diagnostics', address: '510 Lexington Ave, New York, NY 10017', phone: '(212) 833-0444', fax: '(212) 833-0449' },
-          { name: 'Quest Diagnostics — Upper East Side NY', network: 'Quest Diagnostics', address: '1249 Park Ave, New York, NY 10128', phone: '(212) 534-5100', fax: '(212) 534-5101' },
-          { name: 'Quest Diagnostics — Beverly Hills', network: 'Quest Diagnostics', address: '8383 Wilshire Blvd Ste 440, Beverly Hills, CA 90211', phone: '(310) 248-4080', fax: '(310) 248-4081' },
-          { name: 'Quest Diagnostics — Los Angeles Downtown', network: 'Quest Diagnostics', address: '520 W 7th St Ste 860, Los Angeles, CA 90014', phone: '(213) 622-9750', fax: '(213) 622-9751' },
-          { name: 'Quest Diagnostics — Houston Medical Center', network: 'Quest Diagnostics', address: '7500 Greenbriar Dr, Houston, TX 77030', phone: '(713) 796-5380', fax: '(713) 796-5381' },
-          { name: 'Quest Diagnostics — Atlanta Midtown', network: 'Quest Diagnostics', address: '1140 Hammond Dr NE Ste 100, Atlanta, GA 30328', phone: '(404) 851-5500', fax: '(404) 851-5501' },
-          { name: 'Quest Diagnostics — Miami', network: 'Quest Diagnostics', address: '5950 NW 183rd St, Hialeah, FL 33015', phone: '(305) 626-1000', fax: '(305) 626-1001' },
-          { name: 'Quest Diagnostics — Philadelphia', network: 'Quest Diagnostics', address: '3600 Market St Ste 300, Philadelphia, PA 19104', phone: '(215) 662-4100', fax: '(215) 662-4101' },
-          { name: 'Quest Diagnostics — Dallas', network: 'Quest Diagnostics', address: '5420 LBJ Freeway Ste 310, Dallas, TX 75240', phone: '(972) 233-5040', fax: '(972) 233-5041' },
-          { name: 'Quest Diagnostics — Phoenix', network: 'Quest Diagnostics', address: '3030 N Central Ave Ste 200, Phoenix, AZ 85012', phone: '(602) 248-9490', fax: '(602) 248-9491' },
-          // ── LabCorp ──
-          { name: 'LabCorp — Chicago River North', network: 'LabCorp', address: '444 N Michigan Ave Ste 100, Chicago, IL 60611', phone: '(312) 828-0990', fax: '(312) 828-0995' },
-          { name: 'LabCorp — Upper East Side NYC', network: 'LabCorp', address: '1249 Park Ave, New York, NY 10128', phone: '(212) 534-5100', fax: '(212) 534-5101' },
-          { name: 'LabCorp — Los Angeles Downtown', network: 'LabCorp', address: '520 W 7th St Ste 860, Los Angeles, CA 90014', phone: '(213) 622-9750', fax: '(213) 622-9751' },
-          { name: 'LabCorp — Houston Greenway', network: 'LabCorp', address: '3900 Essex Ln Ste 200, Houston, TX 77027', phone: '(713) 622-7400', fax: '(713) 622-7401' },
-          { name: 'LabCorp — Atlanta Perimeter', network: 'LabCorp', address: '1100 Johnson Ferry Rd NE Ste 375, Atlanta, GA 30342', phone: '(770) 551-7010', fax: '(770) 551-7011' },
-          { name: 'LabCorp — Miami', network: 'LabCorp', address: '8500 NW 53rd St, Doral, FL 33166', phone: '(305) 597-9080', fax: '(305) 597-9081' },
-          { name: 'LabCorp — Denver Tech Center', network: 'LabCorp', address: '6301 S Fiddlers Green Cir Ste 200, Greenwood Village, CO 80111', phone: '(303) 850-9000', fax: '(303) 850-9001' },
-          // ── Hospital Labs ──
-          { name: 'Northwestern Memorial Hospital Lab', network: 'Hospital Lab (in-house)', address: '251 E Huron St, Chicago, IL 60611', phone: '(312) 926-5411', fax: '(312) 926-5412' },
-          { name: 'Rush University Medical Center Lab', network: 'Hospital Lab (in-house)', address: '1620 W Harrison St, Chicago, IL 60612', phone: '(312) 942-5495', fax: '(312) 942-5499' },
-          { name: 'NewYork-Presbyterian Hospital Lab', network: 'Hospital Lab (in-house)', address: '525 E 68th St, New York, NY 10065', phone: '(212) 746-3000', fax: '(212) 746-3001' },
-          { name: 'Cedars-Sinai Medical Center Lab', network: 'Hospital Lab (in-house)', address: '8700 Beverly Blvd, Los Angeles, CA 90048', phone: '(310) 423-6000', fax: '(310) 423-6001' },
-          { name: 'Houston Methodist Hospital Lab', network: 'Hospital Lab (in-house)', address: '6565 Fannin St, Houston, TX 77030', phone: '(713) 441-2345', fax: '(713) 441-2346' },
-          { name: 'Emory University Hospital Lab', network: 'Hospital Lab (in-house)', address: '1364 Clifton Rd NE, Atlanta, GA 30322', phone: '(404) 712-7021', fax: '(404) 712-7022' },
-          // ── Reference Labs ──
-          { name: 'ARUP Laboratories', network: 'ARUP Laboratories', address: '500 Chipeta Way, Salt Lake City, UT 84108', phone: '(800) 522-2787', fax: '(801) 584-5207' },
-          { name: 'Mayo Clinic Laboratories', network: 'Mayo Clinic Laboratories', address: '200 First St SW, Rochester, MN 55905', phone: '(800) 533-1710', fax: '(507) 284-0043' },
-          { name: 'BioReference Laboratories', network: 'BioReference Laboratories', address: '481 Edward H. Ross Dr, Elmwood Park, NJ 07407', phone: '(800) 229-5227', fax: '(201) 791-1941' },
-          { name: 'Sonic Healthcare — Austin', network: 'Sonic Healthcare', address: '4000 Medical Pkwy Ste 100, Austin, TX 78756', phone: '(512) 459-6543', fax: '(512) 459-6544' },
-        ];
+        // ── Illinois Lab directory (proximity-sorted) ────────────────────────
+        const LAB_DIRECTORY = ILLINOIS_LABS.map(lab => ({
+          name:    lab.name,
+          network: lab.network,
+          address: [lab.address1, lab.address2, lab.city && `${lab.city}, ${lab.state} ${lab.zip}`].filter(Boolean).join(', '),
+          phone:   lab.phone,
+          fax:     lab.fax,
+          _prox:   p?.address ? getLabProximityInfo(p.address, lab) : null,
+        })).sort((a, b) => {
+          const sa = a._prox?.score ?? 999;
+          const sb = b._prox?.score ?? 999;
+          return sa - sb || a.name.localeCompare(b.name);
+        });
 
         // ── Psych med auto-fill defaults ──────────────────────────────────────
         const PSYCH_MED_DEFAULTS = [
@@ -1894,6 +1938,40 @@ export default function ChartPage() {
                               </div>
                             );
                           })()}
+
+                          {/* ── Drug Interaction Check ── */}
+                          {(() => {
+                            if (!item.medName || item.medName.length < 3) return null;
+                            const ixns = checkInteractions(patMeds.map(m => m.name), item.medName);
+                            if (ixns.length === 0) return null;
+                            const worst = ixns.find(i => i.severity === 'Contraindicated') ? 'Contraindicated'
+                              : ixns.find(i => i.severity === 'Major') ? 'Major' : 'Moderate';
+                            const IXN_COLORS = {
+                              Contraindicated: { bg:'#fef2f2', border:'#fca5a5', color:'#dc2626', icon:'🚫' },
+                              Major:           { bg:'#fff7ed', border:'#fed7aa', color:'#ea580c', icon:'⚠️' },
+                              Moderate:        { bg:'#fffbeb', border:'#fde68a', color:'#d97706', icon:'⚡' },
+                            };
+                            const sc = IXN_COLORS[worst];
+                            return (
+                              <div style={{ background:sc.bg, border:`1px solid ${sc.border}`, borderRadius:8, padding:'9px 12px' }}>
+                                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+                                  <span style={{ fontSize:15 }}>{sc.icon}</span>
+                                  <span style={{ fontWeight:700, fontSize:12, color:sc.color }}>Drug Interaction — {worst}</span>
+                                  <span style={{ fontSize:10.5, color:sc.color, marginLeft:'auto', fontWeight:600 }}>
+                                    {ixns.length} alert{ixns.length > 1 ? 's' : ''}
+                                  </span>
+                                </div>
+                                {ixns.map((ix, i) => (
+                                  <div key={i} style={{ fontSize:11.5, marginBottom: i < ixns.length-1 ? 5 : 0, padding:'5px 8px', background:'rgba(255,255,255,0.6)', borderRadius:6 }}>
+                                    <div style={{ fontWeight:700, color:sc.color }}>{ix.pairLabel}</div>
+                                    <div style={{ color:'#374151', marginTop:2 }}>{ix.effect}</div>
+                                    {ix.action && <div style={{ fontSize:10.5, color:'#6b7280', marginTop:1, fontStyle:'italic' }}>{ix.action}</div>}
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
+
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                             <input className="form-input" placeholder="Dose (e.g. 50mg)" value={item.medDose} onChange={e => updateOrderGroupItem(idx, 'medDose', e.target.value)} style={{ fontSize: 12, background: getPsychMedDefaults(item.medName) && item.medDose ? '#f0fdf4' : undefined }} />
                             <select className="form-select" value={item.medRoute} onChange={e => updateOrderGroupItem(idx, 'medRoute', e.target.value)} style={{ fontSize: 12 }}>
@@ -2684,6 +2762,76 @@ export default function ChartPage() {
           </div>
         );
       })()}
+
+      {/* ══════════════════════════════════════════════════════
+          CLINICAL TOOL OVERLAYS
+          ══════════════════════════════════════════════════════ */}
+
+      {/* ── Assessment Scorer (PHQ-9 / GAD-7 / C-SSRS) ─────── */}
+      {assessScorerOpen && (
+        <div style={centeredOverlayStyle} onClick={() => setAssessScorerOpen(false)}>
+          <div style={{ width: 760, maxWidth: '100%', marginTop: 'auto', marginBottom: 'auto' }} onClick={e => e.stopPropagation()}>
+            <AssessmentScorer
+              patientId={patientId}
+              patientName={`${p.firstName} ${p.lastName}`}
+              existingScores={assessmentHistory}
+              onSave={(type, entry) => setAssessmentHistory(prev => ({ ...prev, [type]: [...(prev[type] || []), entry] }))}
+              onClose={() => setAssessScorerOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Safety Plan Builder ──────────────────────────────── */}
+      {safetyPlanOpen && (
+        <div style={centeredOverlayStyle} onClick={() => setSafetyPlanOpen(false)}>
+          <div style={{ width: 680, maxWidth: '100%', marginTop: 'auto', marginBottom: 'auto' }} onClick={e => e.stopPropagation()}>
+            <SafetyPlanBuilder
+              patient={p}
+              provider={currentUser ? `${currentUser.firstName} ${currentUser.lastName}${currentUser.credentials ? ', ' + currentUser.credentials : ''}` : ''}
+              existingPlan={safetyPlanData}
+              onSave={(plan) => { setSafetyPlanData(plan); }}
+              onClose={() => setSafetyPlanOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Medication Adherence Timeline ────────────────────── */}
+      {adherenceOpen && (
+        <div style={centeredOverlayStyle} onClick={() => setAdherenceOpen(false)}>
+          <div style={{ width: 720, maxWidth: '100%', marginTop: 'auto', marginBottom: 'auto' }} onClick={e => e.stopPropagation()}>
+            <MedAdherenceTimeline
+              meds={patMeds}
+              pdmpFills={pdmpReport?.fills || []}
+              today={new Date().toISOString().split('T')[0]}
+              onClose={() => setAdherenceOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Prior Authorization Drawer ───────────────────────── */}
+      <PriorAuthDrawer
+        isOpen={priorAuthOpen}
+        onClose={() => setPriorAuthOpen(false)}
+        patientId={patientId}
+        patientName={p ? `${p.firstName} ${p.lastName}` : ''}
+        insurance={p?.insurance?.primary}
+        existingPAs={priorAuthList}
+        onSave={(pa) => setPriorAuthList(prev => {
+          const idx = prev.findIndex(x => x.id === pa.id);
+          return idx >= 0 ? prev.map((x, i) => i === idx ? pa : x) : [...prev, pa];
+        })}
+      />
+
+      {/* ── Patient Portal Inbox ─────────────────────────────── */}
+      <PatientPortalInbox
+        isOpen={portalInboxOpen}
+        onClose={() => setPortalInboxOpen(false)}
+        patient={p}
+        provider={currentUser}
+      />
 
       {/* ── Sticky Note FAB + Widget ──────────────────────── */}
       {!stickyOpen && (
