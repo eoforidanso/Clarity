@@ -3,8 +3,8 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 /**
- * AdminRoute — Restricts access to admin users only
- * Non-admin users are redirected to dashboard
+ * AdminRoute — Restricts access to global admins only
+ * Local or non-admin users are redirected to dashboard
  */
 export default function AdminRoute({ children }) {
   const { currentUser, loading } = useAuth();
@@ -13,8 +13,8 @@ export default function AdminRoute({ children }) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
 
-  // Only admin can access
-  if (!currentUser || currentUser.role !== 'admin') {
+  // Only global admins can access (is_global = true)
+  if (!currentUser || !currentUser.is_global) {
     return <Navigate to="/dashboard" replace />;
   }
 

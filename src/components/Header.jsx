@@ -168,9 +168,9 @@ export default function Header() {
       <div className="topbar-left">
         {clinic && (
           <div className="location-capsule"
-            onClick={() => currentUser?.role === 'admin' && navigate('/multi-location')}
-            style={{ cursor: currentUser?.role === 'admin' ? 'pointer' : 'default', opacity: currentUser?.role === 'admin' ? 1 : 0.6 }}
-            title={currentUser?.role === 'admin' ? `${clinic.name} · Click to manage locations · API ${apiStatus}` : `${clinic.name} · API ${apiStatus}`}>
+            onClick={() => currentUser?.is_global && navigate('/multi-location')}
+            style={{ cursor: currentUser?.is_global ? 'pointer' : 'default', opacity: currentUser?.is_global ? 1 : 0.6 }}
+            title={currentUser?.is_global ? `${clinic.name} · Click to manage locations · API ${apiStatus}` : `${clinic.name} · API ${apiStatus}`}>
             <div className="loc-left">
               <div className="loc-name">{clinic.shortName || clinic.name}</div>
               <div className="loc-sub">{clinic.city ? `${clinic.city}, ${clinic.state}` : 'Clarity EHR'}</div>

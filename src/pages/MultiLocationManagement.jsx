@@ -215,7 +215,7 @@ function DeleteConfirm({ loc, onConfirm, onClose, loading }) {
 export default function MultiLocationManagement() {
   const { currentUser } = useAuth();
   const { reloadSites } = useSite();
-  const isAdmin = currentUser?.role === 'admin';
+  const isGlobalAdmin = currentUser?.is_global === true;
 
   const [locationData, setLocationData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -371,7 +371,7 @@ export default function MultiLocationManagement() {
             Manage clinic locations — changes appear live in the header dropdown across the EHR
           </p>
         </div>
-        {isAdmin && (
+        {isGlobalAdmin && (
           <button className="btn btn-primary" onClick={() => { setSelected(null); setFormError(''); setModal('add'); }} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             + Add Location
           </button>
@@ -479,7 +479,7 @@ export default function MultiLocationManagement() {
                       </div>
                     ))}
                   </div>
-                  {isAdmin && (
+                  {isGlobalAdmin && (
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setFormError(''); setModal('edit'); }}>Edit Location</button>
                       <button className="btn btn-danger" onClick={() => { setFormError(''); setModal('delete'); }}>Delete</button>
@@ -490,7 +490,7 @@ export default function MultiLocationManagement() {
                   <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                       <div style={{ fontWeight: 800, fontSize: 14 }}>👩‍⚕️ Providers</div>
-                      {isAdmin && (
+                      {isGlobalAdmin && (
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button className="btn btn-secondary" style={{ padding: '3px 10px', fontSize: 11 }}
                             onClick={() => { setProviderError(''); setAssignId(''); setProviderModal('assign'); }}>
@@ -519,7 +519,7 @@ export default function MultiLocationManagement() {
                                   {p.role.charAt(0).toUpperCase() + p.role.slice(1)}{p.specialty ? ' · ' + p.specialty : ''}
                                 </div>
                               </div>
-                              {isAdmin && (
+                              {isGlobalAdmin && (
                                 <div style={{ display: 'flex', gap: 4 }}>
                                   <button
                                     style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, padding: '2px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--text-primary)' }}
