@@ -4,6 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import PatientBanner from '../components/PatientBanner';
 import PharmacySelectorDrawer from '../components/PharmacySelectorDrawer';
+import PDMPDrawer from '../components/PDMPDrawer';
+import { getControlledSchedule } from '../utils/controlledSubstances';
+import { generateILPmpReport } from '../utils/pmpMock';
 import BTGGuard from '../components/BTGGuard';
 
 import ChartSummary from './chart/ChartSummary';
@@ -191,6 +194,14 @@ export default function ChartPage() {
   // ── Pharmacy drawer ──────────────────────────────────────
   const [pharmDrawerOpen,      setPharmDrawerOpen]      = useState(false);
   const [pharmDrawerTargetIdx, setPharmDrawerTargetIdx] = useState(null);
+
+  // ── PDMP state ─────────────────────────────────────────────────────────────
+  const [pdmpOpen,         setPdmpOpen]         = useState(false);
+  const [pdmpReport,       setPdmpReport]        = useState(null);
+  const [pdmpTargetIdx,    setPdmpTargetIdx]     = useState(null);
+  const [pdmpMedName,      setPdmpMedName]       = useState('');
+  const [pdmpAcknowledged, setPdmpAcknowledged] = useState({});   // { orderIdx: true }
+  const [pdmpRequering,    setPdmpRequering]     = useState(false);
 
   // ── Lab location dropdown ────────────────────────────────
   const [labDropdownIdx, setLabDropdownIdx] = useState(null);
@@ -850,6 +861,28 @@ export default function ChartPage() {
   };
   const bannerStyle = isPatientInactive ? STATUS_BANNER_STYLES[patStatusRecord.status] : null;
 
+  // ── PDMP callbacks ────────────────────────────────────────
+  const openPdmp = (idx, medName, schedule) => {
+    const report = generateILPmpReport(p, medName, schedule);
+    setPdmpReport(report);
+    setPdmpTargetIdx(idx);
+    setPdmpMedName(medName);
+    setPdmpOpen(true);
+  };
+
+  const handlePdmpAcknowledge = () => {
+    setPdmpAcknowledged(prev => ({ ...prev, [pdmpTargetIdx]: true }));
+  };
+
+  const handlePdmpRequery = () => {
+    setPdmpRequering(true);
+    setTimeout(() => {
+      const fresh = generateILPmpReport(p, pdmpMedName, getControlledSchedule(pdmpMedName));
+      setPdmpReport(fresh);
+      setPdmpRequering(false);
+    }, 1600);
+  };
+
   // ── Pharmacy drawer callback ─────────────────────────────
   const handlePharmacySelect = (pharmacy) => {
     const addr = [
@@ -878,6 +911,16 @@ export default function ChartPage() {
         }}
         recentlyUsedIds={[]}
         patientAddress={p?.address ?? null}
+      />
+
+      <PDMPDrawer
+        isOpen={pdmpOpen}
+        onClose={() => setPdmpOpen(false)}
+        onAcknowledge={handlePdmpAcknowledge}
+        onRequery={handlePdmpRequery}
+        isRequering={pdmpRequering}
+        report={pdmpReport}
+        medName={pdmpMedName}
       />
 
       {/* Inactive patient banner */}
@@ -1785,6 +1828,72 @@ export default function ChartPage() {
                               <div style={{ fontSize: 10, color: '#16a34a', marginTop: 2 }}>✓ defaults auto-filled — edit any field to override</div>
                             )}
                           </div>
+
+                          {/* ── PDMP Banner ── */}
+                          {(() => {
+                            const csSchedule = getControlledSchedule(item.medName || '');
+                            if (!csSchedule) return null;
+                            const acked = !!pdmpAcknowledged[idx];
+                            const schedColor = { CII:'#dc2626', CIII:'#d97706', 'CIII/CIV':'#d97706', CIV:'#7c3aed' };
+                            const sc = schedColor[csSchedule] || '#d97706';
+                            return (
+                              <div style={{
+                                borderRadius: 8, padding: '9px 12px',
+                                display: 'flex', alignItems: 'center', gap: 10,
+                                background: acked ? '#f0fdf4' : '#fff7ed',
+                                border: `1px solid ${acked ? '#86efac' : '#fcd34d'}`,
+                                transition: 'background 0.3s',
+                              }}>
+                                <span style={{ fontSize: 17, flexShrink: 0 }}>{acked ? '✅' : '⚠️'}</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontWeight: 700, fontSize: 12, color: acked ? '#15803d' : '#92400e', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    {acked ? 'IL-PMP Checked ✓' : 'Controlled Substance — PDMP Check Required'}
+                                    <span style={{
+                                      fontSize: 9.5, fontWeight: 800, padding: '1px 6px', borderRadius: 4,
+                                      background: acked ? 'rgba(22,163,74,0.15)' : `${sc}18`,
+                                      color: acked ? '#16a34a' : sc,
+                                      border: `1px solid ${acked ? '#86efac' : sc + '50'}`,
+                                      letterSpacing: '0.4px',
+                                    }}>
+                                      {csSchedule}
+                                    </span>
+                                  </div>
+                                  {!acked && (
+                                    <div style={{ fontSize: 10.5, color: '#92400e', marginTop: 1 }}>
+                                      Illinois law requires a PMP query before dispensing controlled substances.
+                                    </div>
+                                  )}
+                                </div>
+                                {!acked ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openPdmp(idx, item.medName, csSchedule)}
+                                    style={{
+                                      background: '#92400e', color: '#fff', border: 'none',
+                                      borderRadius: 6, padding: '6px 13px', fontSize: 11.5,
+                                      fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                                      boxShadow: '0 1px 6px rgba(146,64,14,0.35)',
+                                    }}
+                                  >
+                                    View PDMP Report →
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => openPdmp(idx, item.medName, csSchedule)}
+                                    style={{
+                                      background: 'none', border: '1px solid #86efac',
+                                      color: '#15803d', borderRadius: 6,
+                                      padding: '4px 10px', fontSize: 10.5, cursor: 'pointer',
+                                      whiteSpace: 'nowrap', flexShrink: 0,
+                                    }}
+                                  >
+                                    Re-view
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                             <input className="form-input" placeholder="Dose (e.g. 50mg)" value={item.medDose} onChange={e => updateOrderGroupItem(idx, 'medDose', e.target.value)} style={{ fontSize: 12, background: getPsychMedDefaults(item.medName) && item.medDose ? '#f0fdf4' : undefined }} />
                             <select className="form-select" value={item.medRoute} onChange={e => updateOrderGroupItem(idx, 'medRoute', e.target.value)} style={{ fontSize: 12 }}>

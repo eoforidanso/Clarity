@@ -3,6 +3,7 @@ import { usePatient } from '../../contexts/PatientContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSite } from '../../contexts/SiteContext';
 import { icd10 as icd10Api } from '../../services/api';
+import { CS_SCHEDULE_MAP, getControlledSchedule as _getControlledSchedule } from '../../utils/controlledSubstances';
 
 // ── Print a formatted order fax slip in a new window ────────────────────────
 function printOrderFaxSlip({ order, type, patient, provider, site }) {
@@ -2467,42 +2468,8 @@ function getMedDefaults(medName) {
 }
 
 // ── Controlled substance schedule detection ───────────────────────────────────
-const CS_SCHEDULE_MAP = [
-  { schedule: 'CII', patterns: [
-    'adderall', 'vyvanse', 'dexedrine', 'dextroamphetamine', 'evekeo', 'mydayis', 'azstarys',
-    'serdexmethylphenidate', 'amphetamine', 'methylphenidate', 'ritalin', 'concerta',
-    'daytrana', 'focalin', 'jornay', 'metadate',
-    'oxycodone', 'oxycontin', 'percocet', 'roxicodone',
-    'hydrocodone', 'vicodin', 'norco', 'morphine', 'ms contin', 'msir',
-    'hydromorphone', 'dilaudid', 'fentanyl', 'duragesic',
-    'tapentadol', 'nucynta', 'meperidine', 'demerol',
-    'methadone (dolophine',
-  ]},
-  { schedule: 'CIII', patterns: [
-    'buprenorphine', 'suboxone', 'subutex', 'sublocade', 'probuphine', 'butrans',
-    'testosterone cypionate', 'testosterone gel', 'testosterone patch',
-    'androgel', 'androderm', 'depo-testosterone',
-  ]},
-  { schedule: 'CIII/CIV', patterns: ['codeine/acetaminophen', 'tylenol #3'] },
-  { schedule: 'CIV', patterns: [
-    'lorazepam', 'ativan', 'clonazepam', 'klonopin', 'diazepam', 'valium',
-    'alprazolam', 'xanax', 'oxazepam', 'serax', 'temazepam', 'restoril',
-    'triazolam', 'halcion', 'flurazepam', 'dalmane', 'estazolam', 'quazepam',
-    'chlordiazepoxide', 'librium', 'clorazepate', 'tranxene', 'midazolam', 'versed',
-    'zolpidem', 'ambien', 'eszopiclone', 'lunesta', 'zaleplon', 'sonata',
-    'tramadol', 'ultram', 'modafinil', 'provigil', 'armodafinil', 'nuvigil',
-    'pregabalin', 'lyrica', 'carisoprodol', 'soma',
-    'suvorexant', 'belsomra', 'lemborexant', 'dayvigo',
-  ]},
-];
-
-function getControlledSchedule(medName) {
-  const lower = medName.toLowerCase();
-  for (const { schedule, patterns } of CS_SCHEDULE_MAP) {
-    if (patterns.some(p => lower.includes(p))) return schedule;
-  }
-  return null;
-}
+// Imported from shared utility — see src/utils/controlledSubstances.js
+const getControlledSchedule = _getControlledSchedule;
 
 // ── DrFirst EPCS 2FA Modal ─────────────────────────────────────────────────────
 function DrFirstEpcsModal({ order, onConfirm, onCancel, currentUser, verifyEPCS, generateEPCSOTP, verifyEPCSOTP }) {
