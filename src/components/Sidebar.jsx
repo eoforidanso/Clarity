@@ -188,6 +188,7 @@ export default function Sidebar() {
           {navItem('/inbox',     '📬', 'Clinical Inbox', unreadCount)}
           {navItem('/patients',  '🔍', 'Patient Search')}
           {navItem('/patient-registration', '📝', 'Patient Registration')}
+          {navItem('/refill-queue', '💊', 'Refill Queue')}
           {navItem('/staff-messaging', '💬', 'Staff Messaging')}
         </ul>
         )}

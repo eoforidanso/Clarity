@@ -24,6 +24,7 @@ import AdminRoute from './components/AdminRoute';
 const Schedule = lazy(() => import('./pages/Schedule'));
 const PatientSearch = lazy(() => import('./pages/PatientSearch'));
 const PatientRegistration = lazy(() => import('./pages/PatientRegistration'));
+const RefillQueue = lazy(() => import('./pages/RefillQueue'));
 const ChartPage = lazy(() => import('./pages/ChartPage'));
 const EPrescribe = lazy(() => import('./pages/EPrescribe'));
 const Telehealth = lazy(() => import('./pages/Telehealth'));
@@ -277,6 +278,7 @@ export default function App() {
             <Route path="/schedule" element={<Schedule />} />
             <Route path="/patients" element={<PatientSearch />} />
             <Route path="/patient-registration" element={<PatientRegistration />} />
+            <Route path="/refill-queue" element={<RefillQueue />} />
             <Route path="/chart/:patientId/:tab" element={<ChartPage />} />
             <Route path="/chart/:patientId" element={<Navigate to="summary" replace />} />
             <Route path="/prescribe" element={<EPrescribe />} />
