@@ -28,6 +28,9 @@ export default function RefillQueue() {
   const [bulkSending, setBulkSending] = useState(false);
   const [showPharmacyModal, setShowPharmacyModal] = useState(false);
   const [selectedRefillForAction, setSelectedRefillForAction] = useState(null);
+  const [showTelehealth, setShowTelehealth] = useState(false);
+  const [selectedPatientForTelehealth, setSelectedPatientForTelehealth] = useState(null);
+  const [copiedLinkId, setCopiedLinkId] = useState(null);
   const [pharmForm, setPharmForm] = useState({
     pharmacy: '',
     refills: 0,
@@ -35,6 +38,24 @@ export default function RefillQueue() {
     priority: 'normal',
   });
   const [showDetails, setShowDetails] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2000);
+  };
+
+  const generateTelehealthLink = (patientId) => {
+    return `${window.location.origin}/telehealth/join/${patientId}?token=${btoa(patientId + Date.now())}`;
+  };
+
+  const copyTelehealthLink = (patientId, patientName) => {
+    const link = generateTelehealthLink(patientId);
+    navigator.clipboard.writeText(link).then(() => {
+      setCopiedLinkId(patientId);
+      setTimeout(() => setCopiedLinkId(null), 2000);
+    });
+  };
 
   // Load refill data from localStorage
   useEffect(() => {
@@ -242,6 +263,25 @@ export default function RefillQueue() {
       </div>
 
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px' }}>
+        {/* Toast Notification */}
+        {toast && (
+          <div style={{
+            position: 'fixed',
+            bottom: 24,
+            right: 24,
+            background: 'white',
+            padding: '12px 16px',
+            borderRadius: 8,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            fontSize: 13,
+            fontWeight: 700,
+            zIndex: 3000,
+            border: '1px solid #e2e8f0',
+          }}>
+            {toast}
+          </div>
+        )}
+
         {/* Toolbar */}
         <div style={{ background: 'white', borderRadius: 12, padding: 16, marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
           <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -403,6 +443,25 @@ export default function RefillQueue() {
                       </td>
                       <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                          <button
+                            onClick={() => {
+                              setSelectedPatientForTelehealth(refill.patientId);
+                              setShowTelehealth(true);
+                            }}
+                            title="Send telehealth link to patient"
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: 4,
+                              border: '1px solid #cbd5e1',
+                              background: copiedLinkId === refill.patientId ? '#10b981' : 'white',
+                              color: copiedLinkId === refill.patientId ? 'white' : '#0891b2',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {copiedLinkId === refill.patientId ? '✅ Copied!' : '🔗'}
+                          </button>
                           {refill.status === 'pending' && (
                             <>
                               <button
@@ -653,6 +712,133 @@ export default function RefillQueue() {
                 }}
               >
                 {bulkSending ? '⏳ Sending...' : '✅ Send to Pharmacy'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Telehealth Modal */}
+      {showTelehealth && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2000, padding: 24,
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 12, width: '100%', maxWidth: 500,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.35)', overflow: 'hidden',
+          }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', background: 'linear-gradient(135deg, #0891b2 0%, #0e7490 100%)', color: 'white' }}>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>🔗 Share Telehealth Link</div>
+              <div style={{ fontSize: 13, opacity: 0.9, marginTop: 6 }}>Send this link to your patient for video consultation</div>
+            </div>
+
+            <div style={{ padding: '24px' }}>
+              <div style={{ marginBottom: 16, padding: '12px', background: '#f0f9ff', borderRadius: 8, border: '1px solid #bfdbfe' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#0369a1', marginBottom: 8 }}>Telehealth Link:</div>
+                <div style={{
+                  display: 'flex',
+                  gap: 8,
+                  background: 'white',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 6,
+                  padding: '10px 12px',
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  color: '#0f172a',
+                  wordBreak: 'break-all',
+                }}>
+                  <span style={{ flex: 1, color: '#64748b' }}>
+                    {generateTelehealthLink(selectedPatientForTelehealth)}
+                  </span>
+                  <button
+                    onClick={() => copyTelehealthLink(selectedPatientForTelehealth, '')}
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: 4,
+                      border: '1px solid #cbd5e1',
+                      background: copiedLinkId === selectedPatientForTelehealth ? '#10b981' : '#f0f9ff',
+                      color: copiedLinkId === selectedPatientForTelehealth ? 'white' : '#0369a1',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {copiedLinkId === selectedPatientForTelehealth ? '✅ Copied' : '📋 Copy'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16, padding: '12px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #86efac' }}>
+                <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.6 }}>
+                  ✅ <strong>Patient Ready:</strong> You can now share this link with your patient via email, SMS, or chat. They can click the link to join the video consultation directly.
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8 }}>Ways to Send:</div>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <button
+                    onClick={() => {
+                      copyTelehealthLink(selectedPatientForTelehealth, '');
+                      showToast('📧 Link copied! Send via email');
+                    }}
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      background: 'white',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      color: '#0f172a',
+                      textAlign: 'left',
+                    }}
+                  >
+                    📧 Email Patient
+                  </button>
+                  <button
+                    onClick={() => {
+                      copyTelehealthLink(selectedPatientForTelehealth, '');
+                      showToast('💬 Link copied! Send via SMS/message');
+                    }}
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      background: 'white',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      color: '#0f172a',
+                      textAlign: 'left',
+                    }}
+                  >
+                    💬 Text/Message Patient
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button
+                onClick={() => {
+                  setShowTelehealth(false);
+                  setSelectedPatientForTelehealth(null);
+                }}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  background: 'white',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Close
               </button>
             </div>
           </div>

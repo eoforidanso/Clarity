@@ -5,8 +5,8 @@ import PatientPhotoUpload from '../../components/PatientPhotoUpload';
 import { DemoSafe, DemoDisabled } from '../../demo/DemoGuard';
 import { useDemo } from '../../demo/DemoContext';
 
-const GENDERS = ['Male', 'Female', 'Non-binary', 'Transgender Male', 'Transgender Female', 'Other', 'Prefer not to say'];
-const PRONOUNS = ['He/Him', 'She/Her', 'They/Them', 'Other'];
+const GENDERS = ['Male', 'Female'];
+const PRONOUNS = ['He/Him', 'She/Her'];
 const MARITAL = ['Single', 'Married', 'Divorced', 'Widowed', 'Separated', 'Domestic Partner'];
 const RACES = ['White', 'Black or African American', 'Asian', 'American Indian or Alaska Native', 'Native Hawaiian or Other Pacific Islander', 'Two or More Races', 'Unknown', 'Other'];
 const ETHNICITIES = ['Hispanic or Latino', 'Not Hispanic or Latino', 'Unknown'];

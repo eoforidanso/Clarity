@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
 
-const GENDERS = ['Male', 'Female', 'Non-binary', 'Transgender Male', 'Transgender Female', 'Other', 'Prefer not to say'];
-const PRONOUNS = ['He/Him', 'She/Her', 'They/Them', 'Other'];
+const GENDERS = ['Male', 'Female'];
+const PRONOUNS = ['He/Him', 'She/Her'];
 const RACES = ['White', 'Black or African American', 'Asian', 'American Indian or Alaska Native', 'Native Hawaiian or Other Pacific Islander', 'Two or More Races', 'Unknown', 'Other'];
 const ETHNICITIES = ['Hispanic or Latino', 'Not Hispanic or Latino', 'Unknown'];
 const LANGUAGES = ['English', 'Spanish', 'French', 'Mandarin', 'Arabic', 'Portuguese', 'Vietnamese', 'Tagalog', 'Other'];
