@@ -27,7 +27,7 @@ export async function authenticate(req, res, next) {
       // requireElevated reads req.user.elevated — this is intentional
     }
 
-    const user = await db.prepare('SELECT id, username, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, must_change_password, patient_id, location_id FROM users WHERE id = ?').get(decoded.userId);
+    const user = await db.prepare('SELECT id, username, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, must_change_password, patient_id, location_id, is_global FROM users WHERE id = ?').get(decoded.userId);
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
     }
@@ -44,6 +44,7 @@ export async function authenticate(req, res, next) {
     req.user = {
       ...user,
       elevated:    decoded.elevated === true,
+      isGlobal:    user.is_global === 1,     // ⭐ system admin flag
       facility_id: user.location_id || null, // alias used by requireFacility
     };
     req.access = buildAccess(user); // role + location scope for every request
@@ -99,8 +100,10 @@ export function requireElevated(req, res, next) {
 }
 
 /**
- * requireFacility — blocks any authenticated user who has no facility/location
- * assigned and is NOT a global role (admin/front_desk see all facilities).
+ * requireFacility — enforces facility scoping for non-global users
+ *
+ * - Global admins (isGlobal=true) bypass facility scoping entirely
+ * - Local users must have a facility_id assigned
  *
  * Apply after authenticate() on any route that scopes data to a facility.
  *
@@ -109,10 +112,12 @@ export function requireElevated(req, res, next) {
  *   app.use('/api', authenticate, requireFacility)  // global
  */
 export function requireFacility(req, res, next) {
-  const { role, facility_id } = req.user || {};
-  // Global roles are not restricted to a single facility
-  if (['admin', 'front_desk'].includes(role)) return next();
-  // Scoped roles must have a facility assigned
+  const { facility_id, isGlobal } = req.user || {};
+
+  // ⭐ System Admin bypasses facility scoping entirely
+  if (isGlobal) return next();
+
+  // ⭐ Scoped users MUST have a facility assigned
   if (!facility_id) {
     return res.status(403).json({
       error: 'No facility assigned to your account. Contact your administrator.',
