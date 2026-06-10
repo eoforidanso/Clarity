@@ -159,7 +159,7 @@ export default function ChartPage() {
 
   // ── Order group state ────────────────────────────────────
   const [orderGroupName, setOrderGroupName] = useState('');
-  const BLANK_ORDER = { type: 'Lab', priority: 'Routine', notes: '', description: '', labPanel: '', medName: '', medDose: '', medRoute: 'Oral', medFrequency: '', medQuantity: '30', medRefills: '0', medSig: '', medDispenseAsWritten: false, imgModality: 'X-ray', imgBodyPart: '', imgLaterality: 'N/A', imgReason: '', refSpecialty: 'Psychiatry', refProvider: '', refReason: '' };
+  const BLANK_ORDER = { type: 'Lab', priority: 'Routine', notes: '', description: '', labPanel: '', labNetwork: '', labAddress: '', medName: '', medDose: '', medRoute: 'Oral', medFrequency: '', medQuantity: '30', medRefills: '0', medSig: '', medDispenseAsWritten: false, medPharmacy: '', medPharmAddress: '', imgModality: 'X-ray', imgBodyPart: '', imgLaterality: 'N/A', imgReason: '', refSpecialty: 'Psychiatry', refProvider: '', refReason: '' };
   const [orderGroupItems, setOrderGroupItems] = useState([{ ...BLANK_ORDER }]);
   const [orderGroupSaved, setOrderGroupSaved] = useState(false);
   const [showPatientLetter, setShowPatientLetter] = useState(false);
@@ -183,6 +183,11 @@ export default function ChartPage() {
   const [labPriority, setLabPriority] = useState('Routine');
   const [labNotes, setLabNotes] = useState('');
   const [labsSent, setLabsSent] = useState(false);
+  const [quickLabNetwork, setQuickLabNetwork] = useState('');
+  const [quickLabAddress, setQuickLabAddress] = useState('');
+
+  // ── Order Group location dropdowns ──────────────────────
+  const [pharmDropdownIdx, setPharmDropdownIdx] = useState(null);
 
   // ── Sample letter templates ──────────────────────────────
   const PRACTICE_NAME    = 'Advanced Practice Medical Group';
@@ -1192,6 +1197,149 @@ export default function ChartPage() {
           { label: '🔬 Urine Toxicology', items: [{ type: 'Lab', labPanel: 'Urine Drug Screen — 10-panel', priority: 'Routine' }, { type: 'Lab', labPanel: 'Urine Fentanyl Screen', priority: 'Routine', notes: 'Standard UDS may miss fentanyl — order separately' }] },
           { label: '💉 Antipsychotic Monitoring', items: [{ type: 'Lab', labPanel: 'Metabolic Syndrome Panel', priority: 'Routine' }, { type: 'Lab', labPanel: 'Fasting Insulin + HOMA-IR', priority: 'Routine' }, { type: 'Lab', labPanel: 'Prolactin Level', priority: 'Routine' }, { type: 'Lab', labPanel: 'Lipid Panel', priority: 'Routine' }] },
         ];
+        // ── Preferred pharmacy from patient's most recent active med ──────────
+        const preferredPharmacy = (p?.medications || []).find(m => m.status === 'Active' && m.pharmacy)?.pharmacy || '';
+
+        // ── Compact pharmacy chain list ───────────────────────────────────────
+        const US_PHARM_CHAINS = [
+          { name: 'CVS Pharmacy', group: 'Major Retail' },
+          { name: 'Walgreens', group: 'Major Retail' },
+          { name: 'Rite Aid', group: 'Major Retail' },
+          { name: 'Walmart Pharmacy', group: 'Major Retail' },
+          { name: "Sam's Club Pharmacy", group: 'Major Retail' },
+          { name: 'Costco Pharmacy', group: 'Major Retail' },
+          { name: 'Target (CVS) Pharmacy', group: 'Major Retail' },
+          { name: 'Kroger Pharmacy', group: 'Grocery' },
+          { name: 'Publix Pharmacy', group: 'Grocery' },
+          { name: 'H-E-B Pharmacy', group: 'Grocery' },
+          { name: 'Jewel-Osco Pharmacy', group: 'Grocery' },
+          { name: 'Walgreens Specialty Pharmacy', group: 'Specialty' },
+          { name: 'CVS Specialty', group: 'Specialty' },
+          { name: 'Genoa Healthcare (behavioral health)', group: 'Specialty' },
+          { name: 'Accredo (Express Scripts)', group: 'Specialty' },
+          { name: 'CVS Caremark Mail Order', group: 'Mail Order' },
+          { name: 'Express Scripts (Evernorth)', group: 'Mail Order' },
+          { name: 'OptumRx Mail Order', group: 'Mail Order' },
+          { name: 'Amazon Pharmacy', group: 'Mail Order' },
+          { name: 'Hospital Outpatient Pharmacy', group: 'Other' },
+          { name: 'VA Pharmacy', group: 'Other' },
+          { name: 'Independent / Local Pharmacy (specify)', group: 'Other' },
+          { name: 'Compounding Pharmacy (specify)', group: 'Other' },
+        ];
+
+        // ── Lab networks ──────────────────────────────────────────────────────
+        const LAB_NETWORKS = [
+          'Quest Diagnostics', 'LabCorp', 'Hospital Lab (in-house)',
+          'ARUP Laboratories', 'BioReference Laboratories',
+          'Mayo Clinic Laboratories', 'Sonic Healthcare', 'Other (specify)',
+        ];
+
+        // ── Psych med auto-fill defaults ──────────────────────────────────────
+        const PSYCH_MED_DEFAULTS = [
+          { match: 'sertraline',    dose: '50mg',     sig: 'Take 1 tablet by mouth once daily in the morning',              qty: '30', refills: '3' },
+          { match: 'zoloft',       dose: '50mg',     sig: 'Take 1 tablet by mouth once daily in the morning',              qty: '30', refills: '3' },
+          { match: 'fluoxetine',   dose: '20mg',     sig: 'Take 1 capsule by mouth once daily in the morning',             qty: '30', refills: '3' },
+          { match: 'prozac',       dose: '20mg',     sig: 'Take 1 capsule by mouth once daily in the morning',             qty: '30', refills: '3' },
+          { match: 'escitalopram', dose: '10mg',     sig: 'Take 1 tablet by mouth once daily',                             qty: '30', refills: '3' },
+          { match: 'lexapro',      dose: '10mg',     sig: 'Take 1 tablet by mouth once daily',                             qty: '30', refills: '3' },
+          { match: 'citalopram',   dose: '20mg',     sig: 'Take 1 tablet by mouth once daily',                             qty: '30', refills: '3' },
+          { match: 'celexa',       dose: '20mg',     sig: 'Take 1 tablet by mouth once daily',                             qty: '30', refills: '3' },
+          { match: 'paroxetine',   dose: '20mg',     sig: 'Take 1 tablet by mouth once daily in the morning',              qty: '30', refills: '3' },
+          { match: 'paxil',        dose: '20mg',     sig: 'Take 1 tablet by mouth once daily in the morning',              qty: '30', refills: '3' },
+          { match: 'fluvoxamine',  dose: '50mg',     sig: 'Take 1 tablet by mouth at bedtime',                             qty: '30', refills: '3' },
+          { match: 'venlafaxine',  dose: '75mg',     sig: 'Take 1 capsule by mouth once daily with food',                  qty: '30', refills: '3' },
+          { match: 'effexor',      dose: '75mg',     sig: 'Take 1 capsule by mouth once daily with food',                  qty: '30', refills: '3' },
+          { match: 'duloxetine',   dose: '30mg',     sig: 'Take 1 capsule by mouth once daily',                            qty: '30', refills: '3' },
+          { match: 'cymbalta',     dose: '30mg',     sig: 'Take 1 capsule by mouth once daily',                            qty: '30', refills: '3' },
+          { match: 'desvenlafaxine', dose: '50mg',   sig: 'Take 1 tablet by mouth once daily',                             qty: '30', refills: '3' },
+          { match: 'pristiq',      dose: '50mg',     sig: 'Take 1 tablet by mouth once daily',                             qty: '30', refills: '3' },
+          { match: 'bupropion',    dose: '150mg',    sig: 'Take 1 tablet by mouth once daily in the morning',              qty: '30', refills: '3' },
+          { match: 'wellbutrin',   dose: '150mg',    sig: 'Take 1 tablet by mouth once daily in the morning',              qty: '30', refills: '3' },
+          { match: 'mirtazapine',  dose: '15mg',     sig: 'Take 1 tablet by mouth at bedtime',                             qty: '30', refills: '3' },
+          { match: 'remeron',      dose: '15mg',     sig: 'Take 1 tablet by mouth at bedtime',                             qty: '30', refills: '3' },
+          { match: 'trazodone',    dose: '50mg',     sig: 'Take 1 tablet by mouth at bedtime as needed for insomnia',      qty: '30', refills: '3' },
+          { match: 'lithium',      dose: '300mg',    sig: 'Take 1 capsule by mouth three times daily with food',           qty: '90', refills: '3' },
+          { match: 'valproate',    dose: '250mg',    sig: 'Take 1 tablet by mouth twice daily with food',                  qty: '60', refills: '3' },
+          { match: 'depakote',     dose: '500mg',    sig: 'Take 1 tablet by mouth twice daily with food',                  qty: '60', refills: '3' },
+          { match: 'depakene',     dose: '250mg',    sig: 'Take 1 capsule by mouth three times daily with food',           qty: '90', refills: '3' },
+          { match: 'lamotrigine',  dose: '25mg',     sig: 'Take 1 tablet by mouth once daily — titrate per schedule',      qty: '30', refills: '3' },
+          { match: 'lamictal',     dose: '25mg',     sig: 'Take 1 tablet by mouth once daily — titrate per schedule',      qty: '30', refills: '3' },
+          { match: 'carbamazepine', dose: '200mg',   sig: 'Take 1 tablet by mouth twice daily with food',                  qty: '60', refills: '3' },
+          { match: 'tegretol',     dose: '200mg',    sig: 'Take 1 tablet by mouth twice daily with food',                  qty: '60', refills: '3' },
+          { match: 'oxcarbazepine', dose: '300mg',   sig: 'Take 1 tablet by mouth twice daily',                            qty: '60', refills: '3' },
+          { match: 'trileptal',    dose: '300mg',    sig: 'Take 1 tablet by mouth twice daily',                            qty: '60', refills: '3' },
+          { match: 'aripiprazole', dose: '10mg',     sig: 'Take 1 tablet by mouth once daily',                             qty: '30', refills: '3' },
+          { match: 'abilify',      dose: '10mg',     sig: 'Take 1 tablet by mouth once daily',                             qty: '30', refills: '3' },
+          { match: 'olanzapine',   dose: '5mg',      sig: 'Take 1 tablet by mouth at bedtime',                             qty: '30', refills: '3' },
+          { match: 'zyprexa',      dose: '5mg',      sig: 'Take 1 tablet by mouth at bedtime',                             qty: '30', refills: '3' },
+          { match: 'quetiapine',   dose: '50mg',     sig: 'Take 1 tablet by mouth at bedtime',                             qty: '30', refills: '3' },
+          { match: 'seroquel',     dose: '50mg',     sig: 'Take 1 tablet by mouth at bedtime',                             qty: '30', refills: '3' },
+          { match: 'risperidone',  dose: '1mg',      sig: 'Take 1 tablet by mouth twice daily',                            qty: '60', refills: '3' },
+          { match: 'risperdal',    dose: '1mg',      sig: 'Take 1 tablet by mouth twice daily',                            qty: '60', refills: '3' },
+          { match: 'haloperidol',  dose: '2mg',      sig: 'Take 1 tablet by mouth once daily',                             qty: '30', refills: '3' },
+          { match: 'haldol',       dose: '2mg',      sig: 'Take 1 tablet by mouth once daily',                             qty: '30', refills: '3' },
+          { match: 'lurasidone',   dose: '40mg',     sig: 'Take 1 tablet by mouth once daily with food (≥350 cal)',        qty: '30', refills: '3' },
+          { match: 'latuda',       dose: '40mg',     sig: 'Take 1 tablet by mouth once daily with food',                   qty: '30', refills: '3' },
+          { match: 'ziprasidone',  dose: '40mg',     sig: 'Take 1 capsule by mouth twice daily with food',                 qty: '60', refills: '3' },
+          { match: 'geodon',       dose: '40mg',     sig: 'Take 1 capsule by mouth twice daily with food',                 qty: '60', refills: '3' },
+          { match: 'clozapine',    dose: '25mg',     sig: 'Take 1 tablet by mouth twice daily — titrate per protocol',     qty: '60', refills: '0' },
+          { match: 'clozaril',     dose: '25mg',     sig: 'Take 1 tablet by mouth twice daily',                            qty: '60', refills: '0' },
+          { match: 'buspirone',    dose: '10mg',     sig: 'Take 1 tablet by mouth twice daily',                            qty: '60', refills: '3' },
+          { match: 'buspar',       dose: '10mg',     sig: 'Take 1 tablet by mouth twice daily',                            qty: '60', refills: '3' },
+          { match: 'hydroxyzine',  dose: '25mg',     sig: 'Take 1 tablet by mouth every 6 hours as needed for anxiety',    qty: '30', refills: '3' },
+          { match: 'vistaril',     dose: '25mg',     sig: 'Take 1 capsule by mouth every 6 hours as needed',               qty: '30', refills: '3' },
+          { match: 'clonazepam',   dose: '0.5mg',    sig: 'Take 1 tablet by mouth twice daily',                            qty: '60', refills: '0' },
+          { match: 'klonopin',     dose: '0.5mg',    sig: 'Take 1 tablet by mouth twice daily',                            qty: '60', refills: '0' },
+          { match: 'lorazepam',    dose: '0.5mg',    sig: 'Take 1 tablet by mouth as needed — max 3x/day',                 qty: '30', refills: '0' },
+          { match: 'ativan',       dose: '0.5mg',    sig: 'Take 1 tablet by mouth as needed',                              qty: '30', refills: '0' },
+          { match: 'diazepam',     dose: '5mg',      sig: 'Take 1 tablet by mouth as needed — lowest effective dose',      qty: '30', refills: '0' },
+          { match: 'valium',       dose: '5mg',      sig: 'Take 1 tablet by mouth as needed',                              qty: '30', refills: '0' },
+          { match: 'prazosin',     dose: '1mg',      sig: 'Take 1 tablet by mouth at bedtime for nightmares — titrate',    qty: '30', refills: '3' },
+          { match: 'zolpidem',     dose: '5mg',      sig: 'Take 1 tablet by mouth at bedtime as needed for insomnia',      qty: '30', refills: '0' },
+          { match: 'ambien',       dose: '5mg',      sig: 'Take 1 tablet by mouth at bedtime as needed',                   qty: '30', refills: '0' },
+          { match: 'eszopiclone',  dose: '1mg',      sig: 'Take 1 tablet by mouth at bedtime as needed',                   qty: '30', refills: '0' },
+          { match: 'lunesta',      dose: '1mg',      sig: 'Take 1 tablet by mouth at bedtime as needed',                   qty: '30', refills: '0' },
+          { match: 'suvorexant',   dose: '10mg',     sig: 'Take 1 tablet by mouth 30 minutes before bedtime',              qty: '30', refills: '0' },
+          { match: 'belsomra',     dose: '10mg',     sig: 'Take 1 tablet by mouth 30 minutes before bedtime',              qty: '30', refills: '0' },
+          { match: 'adderall',     dose: '10mg',     sig: 'Take 1 tablet by mouth once daily in the morning',              qty: '30', refills: '0' },
+          { match: 'amphetamine',  dose: '10mg',     sig: 'Take 1 tablet by mouth once daily in the morning',              qty: '30', refills: '0' },
+          { match: 'vyvanse',      dose: '20mg',     sig: 'Take 1 capsule by mouth once daily in the morning',             qty: '30', refills: '0' },
+          { match: 'lisdexamfetamine', dose: '20mg', sig: 'Take 1 capsule by mouth once daily in the morning',             qty: '30', refills: '0' },
+          { match: 'methylphenidate', dose: '10mg',  sig: 'Take 1 tablet by mouth twice daily',                            qty: '60', refills: '0' },
+          { match: 'ritalin',      dose: '10mg',     sig: 'Take 1 tablet by mouth twice daily',                            qty: '60', refills: '0' },
+          { match: 'concerta',     dose: '18mg',     sig: 'Take 1 tablet by mouth once daily in the morning',              qty: '30', refills: '0' },
+          { match: 'donepezil',    dose: '5mg',      sig: 'Take 1 tablet by mouth at bedtime',                             qty: '30', refills: '3' },
+          { match: 'aricept',      dose: '5mg',      sig: 'Take 1 tablet by mouth at bedtime',                             qty: '30', refills: '3' },
+          { match: 'memantine',    dose: '5mg',      sig: 'Take 1 tablet by mouth once daily — titrate to 10mg BID',       qty: '30', refills: '3' },
+          { match: 'namenda',      dose: '5mg',      sig: 'Take 1 tablet by mouth once daily',                             qty: '30', refills: '3' },
+          { match: 'naltrexone',   dose: '50mg',     sig: 'Take 1 tablet by mouth once daily',                             qty: '30', refills: '3' },
+          { match: 'buprenorphine', dose: '8mg/2mg', sig: 'Place 1 film under tongue once daily — dissolve completely',    qty: '30', refills: '3' },
+          { match: 'suboxone',     dose: '8mg/2mg',  sig: 'Place 1 film under tongue once daily',                          qty: '30', refills: '3' },
+          { match: 'acamprosate',  dose: '666mg',    sig: 'Take 1 tablet by mouth three times daily with meals',           qty: '90', refills: '3' },
+          { match: 'campral',      dose: '666mg',    sig: 'Take 1 tablet by mouth three times daily with meals',           qty: '90', refills: '3' },
+        ];
+        const getPsychMedDefaults = (name) => {
+          if (!name || name.length < 3) return null;
+          const lower = name.toLowerCase();
+          const sorted = [...PSYCH_MED_DEFAULTS].sort((a, b) => b.match.length - a.match.length);
+          return sorted.find(d => lower.includes(d.match)) || null;
+        };
+        const handleMedNameChange = (idx, name) => {
+          const defaults = getPsychMedDefaults(name);
+          if (defaults) {
+            setOrderGroupItems(prev => prev.map((item, i) => i !== idx ? item : {
+              ...item,
+              medName: name,
+              medDose: item.medDose || defaults.dose,
+              medSig: item.medSig || defaults.sig,
+              medQuantity: (!item.medQuantity || item.medQuantity === '30') ? defaults.qty : item.medQuantity,
+              medRefills: (!item.medRefills || item.medRefills === '0') ? defaults.refills : item.medRefills,
+            }));
+          } else {
+            updateOrderGroupItem(idx, 'medName', name);
+          }
+        };
+
         const validCount = orderGroupItems.filter(i => getOrderDescription(i).trim()).length;
         return (
         <div style={overlayStyle} onClick={closePanel}>
@@ -1277,15 +1425,49 @@ export default function ChartPage() {
                             <input className="form-input" placeholder="Describe the lab…" value={item.description} onChange={e => updateOrderGroupItem(idx, 'description', e.target.value)} style={{ fontSize: 12 }} />
                           )}
                           <input className="form-input" placeholder="Clinical indication / notes" value={item.notes} onChange={e => updateOrderGroupItem(idx, 'notes', e.target.value)} style={{ fontSize: 12 }} />
+                          {/* Lab destination */}
+                          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
+                            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>🏥 Send to Lab</label>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                              <select
+                                className="form-select"
+                                value={item.labNetwork}
+                                onChange={e => updateOrderGroupItem(idx, 'labNetwork', e.target.value)}
+                                style={{ fontSize: 12 }}
+                              >
+                                <option value="">— Select lab network —</option>
+                                {LAB_NETWORKS.map(n => <option key={n} value={n}>{n}</option>)}
+                              </select>
+                              <input
+                                className="form-input"
+                                placeholder="Location / address (optional)"
+                                value={item.labAddress}
+                                onChange={e => updateOrderGroupItem(idx, 'labAddress', e.target.value)}
+                                style={{ fontSize: 11 }}
+                              />
+                            </div>
+                          </div>
                         </div>
                       )}
 
                       {/* ── Medication fields ── */}
                       {item.type === 'Medication' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          <input className="form-input" placeholder="Drug name (e.g. Sertraline, Lithium Carbonate…)" value={item.medName} onChange={e => updateOrderGroupItem(idx, 'medName', e.target.value)} style={{ fontSize: 12, fontWeight: 600 }} />
+                          {/* Drug name with auto-fill */}
+                          <div>
+                            <input
+                              className="form-input"
+                              placeholder="Drug name (e.g. Sertraline, Depakote, Quetiapine…)"
+                              value={item.medName}
+                              onChange={e => handleMedNameChange(idx, e.target.value)}
+                              style={{ fontSize: 12, fontWeight: 600 }}
+                            />
+                            {getPsychMedDefaults(item.medName) && (
+                              <div style={{ fontSize: 10, color: '#16a34a', marginTop: 2 }}>✓ defaults auto-filled — edit any field to override</div>
+                            )}
+                          </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-                            <input className="form-input" placeholder="Dose (e.g. 50mg)" value={item.medDose} onChange={e => updateOrderGroupItem(idx, 'medDose', e.target.value)} style={{ fontSize: 12 }} />
+                            <input className="form-input" placeholder="Dose (e.g. 50mg)" value={item.medDose} onChange={e => updateOrderGroupItem(idx, 'medDose', e.target.value)} style={{ fontSize: 12, background: getPsychMedDefaults(item.medName) && item.medDose ? '#f0fdf4' : undefined }} />
                             <select className="form-select" value={item.medRoute} onChange={e => updateOrderGroupItem(idx, 'medRoute', e.target.value)} style={{ fontSize: 12 }}>
                               {ROUTES.map(r => <option key={r}>{r}</option>)}
                             </select>
@@ -1304,12 +1486,59 @@ export default function ChartPage() {
                               <input className="form-input" placeholder="0" value={item.medRefills} onChange={e => updateOrderGroupItem(idx, 'medRefills', e.target.value)} style={{ fontSize: 12 }} />
                             </div>
                           </div>
-                          <input className="form-input" placeholder="Sig / Patient instructions (e.g. Take 1 tablet by mouth each morning)" value={item.medSig} onChange={e => updateOrderGroupItem(idx, 'medSig', e.target.value)} style={{ fontSize: 12 }} />
+                          <input className="form-input" placeholder="Sig / Patient instructions (e.g. Take 1 tablet by mouth each morning)" value={item.medSig} onChange={e => updateOrderGroupItem(idx, 'medSig', e.target.value)} style={{ fontSize: 12, background: getPsychMedDefaults(item.medName) && item.medSig ? '#f0fdf4' : undefined }} />
                           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
                             <input type="checkbox" checked={item.medDispenseAsWritten} onChange={e => updateOrderGroupItem(idx, 'medDispenseAsWritten', e.target.checked)} />
                             Dispense As Written (DAW) — no generic substitution
                           </label>
-                          <input className="form-input" placeholder="Notes / pharmacy instructions" value={item.notes} onChange={e => updateOrderGroupItem(idx, 'notes', e.target.value)} style={{ fontSize: 12 }} />
+                          <input className="form-input" placeholder="Clinical notes / special instructions" value={item.notes} onChange={e => updateOrderGroupItem(idx, 'notes', e.target.value)} style={{ fontSize: 12 }} />
+                          {/* Pharmacy destination */}
+                          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
+                            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>📍 Send to Pharmacy</label>
+                            {preferredPharmacy && !item.medPharmacy && (
+                              <button
+                                type="button"
+                                onClick={() => updateOrderGroupItem(idx, 'medPharmacy', preferredPharmacy)}
+                                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', marginBottom: 4, background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 5, fontSize: 11, cursor: 'pointer', color: '#166534' }}
+                              >
+                                ↩ Use preferred: <strong>{preferredPharmacy}</strong>
+                              </button>
+                            )}
+                            <div style={{ position: 'relative' }}>
+                              <input
+                                className="form-input"
+                                placeholder="Pharmacy name (e.g. CVS, Walgreens, Genoa, mail order…)"
+                                value={item.medPharmacy}
+                                onChange={e => updateOrderGroupItem(idx, 'medPharmacy', e.target.value)}
+                                onFocus={() => setPharmDropdownIdx(idx)}
+                                onBlur={() => setTimeout(() => setPharmDropdownIdx(null), 150)}
+                                style={{ fontSize: 12 }}
+                              />
+                              {pharmDropdownIdx === idx && (
+                                <div style={{ position: 'absolute', zIndex: 200, left: 0, right: 0, top: '100%', border: '1px solid var(--border)', borderRadius: 6, background: '#fff', maxHeight: 200, overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}>
+                                  {US_PHARM_CHAINS.filter(ph => !item.medPharmacy || ph.name.toLowerCase().includes(item.medPharmacy.toLowerCase()) || ph.group.toLowerCase().includes(item.medPharmacy.toLowerCase())).slice(0, 15).map((ph, pi) => (
+                                    <button key={pi} type="button"
+                                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11.5, borderBottom: '1px solid #f8fafc' }}
+                                      onMouseOver={e => e.currentTarget.style.background = '#f0fdf4'}
+                                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                                      onMouseDown={e => e.preventDefault()}
+                                      onClick={() => { updateOrderGroupItem(idx, 'medPharmacy', ph.name); setPharmDropdownIdx(null); }}
+                                    >
+                                      <span style={{ fontWeight: 600 }}>{ph.name}</span>
+                                      <span style={{ marginLeft: 6, fontSize: 10, color: '#6b7280', background: '#f3f4f6', padding: '1px 5px', borderRadius: 4 }}>{ph.group}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <input
+                              className="form-input"
+                              placeholder="Address / fax (optional — e.g. 123 Main St, Chicago IL 60601 · Fax: 312-555-0100)"
+                              value={item.medPharmAddress}
+                              onChange={e => updateOrderGroupItem(idx, 'medPharmAddress', e.target.value)}
+                              style={{ fontSize: 11, marginTop: 4, color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd' }}
+                            />
+                          </div>
                         </div>
                       )}
 
@@ -1930,8 +2159,8 @@ export default function ChartPage() {
                   <div className="empty-state" style={{ padding: '40px 20px' }}>
                     <span style={{ fontSize: 36 }}>✅</span>
                     <h3>Labs Ordered</h3>
-                    <p>{selectedLabs.length} lab panel{selectedLabs.length !== 1 ? 's' : ''} ordered for {p.firstName} {p.lastName} — {labPriority} priority.</p>
-                    <button className="btn btn-sm btn-secondary" onClick={() => { setLabsSent(false); setSelectedLabs([]); setLabNotes(''); }} style={{ marginTop: 12 }}>Order More Labs</button>
+                    <p>{selectedLabs.length} lab panel{selectedLabs.length !== 1 ? 's' : ''} ordered for {p.firstName} {p.lastName} — {labPriority} priority{quickLabNetwork ? ` · ${quickLabNetwork}` : ''}.</p>
+                    <button className="btn btn-sm btn-secondary" onClick={() => { setLabsSent(false); setSelectedLabs([]); setLabNotes(''); setQuickLabNetwork(''); setQuickLabAddress(''); }} style={{ marginTop: 12 }}>Order More Labs</button>
                   </div>
                 ) : (
                   <>
@@ -1971,12 +2200,33 @@ export default function ChartPage() {
                       <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>NOTES FOR LAB</label>
                       <input className="form-input" placeholder="Fasting required, trough level, specific instructions..." value={labNotes} onChange={e => setLabNotes(e.target.value)} style={{ fontSize: 12 }} />
                     </div>
+                    <div style={{ marginBottom: 14, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>🏥 SEND TO LAB</label>
+                      <select
+                        className="form-select"
+                        value={quickLabNetwork}
+                        onChange={e => setQuickLabNetwork(e.target.value)}
+                        style={{ fontSize: 12, marginBottom: 6 }}
+                      >
+                        <option value="">— Select lab network —</option>
+                        {['Quest Diagnostics', 'LabCorp', 'Hospital Lab (in-house)', 'ARUP Laboratories', 'BioReference Laboratories', 'Mayo Clinic Laboratories', 'Sonic Healthcare', 'Other (specify)'].map(n => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                      <input
+                        className="form-input"
+                        placeholder="Location / address (optional — e.g. 123 Main St, Chicago IL 60601)"
+                        value={quickLabAddress}
+                        onChange={e => setQuickLabAddress(e.target.value)}
+                        style={{ fontSize: 11, color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd' }}
+                      />
+                    </div>
                     <button
                       className="btn btn-primary"
                       onClick={() => {
                         selectedLabs.forEach(labId => {
                           const lab = LAB_PANELS.find(l => l.id === labId);
-                          if (lab) addOrder(patientId, { type: 'Lab', description: lab.label, priority: labPriority, notes: labNotes || lab.indication, status: 'Pending', orderedDate: new Date().toISOString().split('T')[0], orderedBy: `${currentUser.firstName} ${currentUser.lastName}` });
+                          if (lab) addOrder(patientId, { type: 'Lab', description: lab.label, priority: labPriority, notes: [labNotes || lab.indication, quickLabNetwork, quickLabAddress].filter(Boolean).join(' · '), labNetwork: quickLabNetwork, labAddress: quickLabAddress, status: 'Pending', orderedDate: new Date().toISOString().split('T')[0], orderedBy: `${currentUser.firstName} ${currentUser.lastName}` });
                         });
                         setLabsSent(true);
                       }}
