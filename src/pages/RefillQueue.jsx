@@ -44,10 +44,31 @@ export default function RefillQueue() {
   const [eligibilityData, setEligibilityData] = useState(null);
   const [verifyingInsurance, setVerifyingInsurance] = useState(false);
   const [copayAmount, setCopayAmount] = useState(null);
+  const [editPharmacyRefillId, setEditPharmacyRefillId] = useState(null);
+  const [editPharmacyForm, setEditPharmacyForm] = useState({ pharmacy: '', pharmacyAddress: '', pharmacyPhone: '', pharmacyFax: '' });
 
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2000);
+  };
+
+  const openEditPharmacy = (refill) => {
+    setEditPharmacyRefillId(refill.id);
+    setEditPharmacyForm({
+      pharmacy: refill.pharmacy || '',
+      pharmacyAddress: refill.pharmacyAddress || '',
+      pharmacyPhone: refill.pharmacyPhone || '',
+      pharmacyFax: refill.pharmacyFax || '',
+    });
+  };
+
+  const saveEditPharmacy = () => {
+    const updated = refillQueue.map(r =>
+      r.id === editPharmacyRefillId ? { ...r, ...editPharmacyForm } : r
+    );
+    saveRefillQueue(updated);
+    setEditPharmacyRefillId(null);
+    showToast('✅ Pharmacy updated');
   };
 
   const generateTelehealthLink = (patientId) => {
@@ -362,6 +383,8 @@ export default function RefillQueue() {
         .rq-stat-card { transition: transform 0.15s; }
         .rq-stat-card:hover { transform: translateY(-2px); }
         .rq-pharmacy-cell { position: relative; cursor: default; }
+        .rq-pharmacy-edit-btn { display: none; }
+        .rq-pharmacy-cell:hover .rq-pharmacy-edit-btn { display: inline-flex; }
         .rq-pharmacy-popup {
           display: none; position: absolute; bottom: calc(100% + 8px); left: 0;
           background: #1e293b; color: white; border-radius: 10px;
@@ -601,8 +624,21 @@ export default function RefillQueue() {
                       <td className="rq-pharmacy-cell" style={{ padding: '14px 16px', fontSize: 13, color: '#475569' }}>
                         {refill.pharmacy ? (
                           <>
-                            <div style={{ fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <div style={{ fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
                               🏪 {refill.pharmacy}
+                              <button
+                                className="rq-pharmacy-edit-btn rq-action-btn"
+                                onClick={(e) => { e.stopPropagation(); openEditPharmacy(refill); }}
+                                title="Edit pharmacy"
+                                style={{
+                                  alignItems: 'center', gap: 3, padding: '2px 8px',
+                                  borderRadius: 6, border: '1.5px solid #e2e8f0',
+                                  background: '#f8fafc', fontSize: 11, fontWeight: 600,
+                                  color: '#0066cc', cursor: 'pointer',
+                                }}
+                              >
+                                ✏️ Edit
+                              </button>
                             </div>
                             {refill.pharmacyAddress && (
                               <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
@@ -636,7 +672,16 @@ export default function RefillQueue() {
                             )}
                           </>
                         ) : (
-                          <span style={{ color: '#cbd5e1' }}>—</span>
+                          <button
+                            onClick={() => openEditPharmacy(refill)}
+                            style={{
+                              padding: '4px 10px', borderRadius: 6, border: '1.5px dashed #cbd5e1',
+                              background: 'transparent', fontSize: 12, fontWeight: 600,
+                              color: '#0066cc', cursor: 'pointer',
+                            }}
+                          >
+                            + Add pharmacy
+                          </button>
                         )}
                       </td>
 
@@ -927,6 +972,84 @@ export default function RefillQueue() {
                 }}
               >
                 {bulkSending ? '⏳ Sending...' : '✅ Send to Pharmacy'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Pharmacy Modal ──────────────────────────────────────────────── */}
+      {editPharmacyRefillId && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2000, padding: 24, backdropFilter: 'blur(4px)',
+        }}>
+          <div className="card no-hover" style={{
+            borderRadius: 16, width: '100%', maxWidth: 460,
+            boxShadow: '0 24px 64px rgba(0,0,0,0.28)', overflow: 'hidden',
+          }}>
+            {/* Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #0c1e3e 0%, #0066cc 50%, #2563eb 100%)',
+              color: 'white', padding: '20px 24px', position: 'relative', overflow: 'hidden',
+            }}>
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.07)' }} />
+              <div style={{ position: 'relative' }}>
+                <div style={{ fontWeight: 800, fontSize: 17 }}>🏪 Edit Pharmacy</div>
+                <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>
+                  {refillQueue.find(r => r.id === editPharmacyRefillId)?.patientName} ·{' '}
+                  {refillQueue.find(r => r.id === editPharmacyRefillId)?.medicationName}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: '20px 24px' }}>
+              {[
+                { label: 'Pharmacy Name', key: 'pharmacy', placeholder: 'e.g. CVS Pharmacy – Main St', required: true },
+                { label: 'Address', key: 'pharmacyAddress', placeholder: 'e.g. 123 Main St, City, State ZIP' },
+                { label: 'Phone', key: 'pharmacyPhone', placeholder: 'e.g. (610) 555-0100' },
+                { label: 'Fax', key: 'pharmacyFax', placeholder: 'e.g. (610) 555-0101' },
+              ].map(({ label, key, placeholder, required }) => (
+                <div key={key} style={{ marginBottom: 14 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 5, letterSpacing: '0.04em' }}>
+                    {label}{required && <span style={{ color: '#dc2626', marginLeft: 3 }}>*</span>}
+                  </label>
+                  <input
+                    type="text"
+                    value={editPharmacyForm[key]}
+                    onChange={e => setEditPharmacyForm(prev => ({ ...prev, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    style={{
+                      width: '100%', padding: '10px 12px', borderRadius: 8,
+                      border: '1.5px solid #e2e8f0', fontSize: 14, outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                    onFocus={e => e.target.style.borderColor = '#0066cc'}
+                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div style={{ padding: '14px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#fafafa' }}>
+              <button
+                onClick={() => setEditPharmacyRefillId(null)}
+                style={{ padding: '10px 20px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', color: '#374151' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEditPharmacy}
+                disabled={!editPharmacyForm.pharmacy.trim()}
+                style={{
+                  padding: '10px 20px', borderRadius: 8, border: 'none',
+                  background: editPharmacyForm.pharmacy.trim() ? '#0066cc' : '#9ca3af',
+                  color: 'white', fontSize: 13, fontWeight: 700,
+                  cursor: editPharmacyForm.pharmacy.trim() ? 'pointer' : 'not-allowed',
+                }}
+              >
+                Save Pharmacy
               </button>
             </div>
           </div>
