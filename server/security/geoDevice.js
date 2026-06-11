@@ -332,7 +332,7 @@ export async function checkLoginAnomaly(userId, userName, ip, req) {
 
     // 2. Kill ALL active sessions for this user (except session being created — it won't be active yet)
     const { changes: killedSessions } = await db.prepare(
-      `UPDATE sessions SET is_active = 0 WHERE user_id = $1 AND is_active = 1`
+      `UPDATE sessions SET is_active = FALSE WHERE user_id = $1 AND is_active = TRUE`
     ).run(userId);
 
     // 3. Fire CRITICAL anomaly

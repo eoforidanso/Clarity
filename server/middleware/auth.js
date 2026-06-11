@@ -34,7 +34,7 @@ export async function authenticate(req, res, next) {
     // Verify session is still active (revoked on logout)
     if (decoded.sessionId) {
       const session = await db.prepare(
-        'SELECT is_active FROM sessions WHERE id = ? AND user_id = ?'
+        'SELECT is_active FROM sessions WHERE id = $1 AND user_id = $2'
       ).get(decoded.sessionId, decoded.userId);
       if (session && !session.is_active) {
         return res.status(401).json({ error: 'Session has been revoked — please log in again' });
@@ -44,7 +44,7 @@ export async function authenticate(req, res, next) {
     req.user = {
       ...user,
       elevated:    decoded.elevated === true,
-      isGlobal:    user.is_global === 1,     // ⭐ system admin flag
+      isGlobal:    !!(user.is_global),       // ⭐ system admin flag (handles 1 or true)
       facility_id: user.location_id || null, // alias used by requireFacility
     };
     req.access = buildAccess(user); // role + location scope for every request
@@ -57,10 +57,10 @@ export async function authenticate(req, res, next) {
         await db.prepare(`
           UPDATE sessions
           SET last_seen_at = NOW(),
-              is_elevated = ?,
-              elevated_expires_at = ?,
-              location_id = ?
-          WHERE id = ? AND is_active = 1
+              is_elevated = $1,
+              elevated_expires_at = $2,
+              location_id = $3
+          WHERE id = $4 AND is_active = TRUE
         `).run(isElevated, elevatedExpiresAt, user.location_id || null, decoded.sessionId);
       } catch { /* non-blocking */ }
     }

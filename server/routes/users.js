@@ -245,7 +245,7 @@ router.post('/:id/reset-password', authenticate, authorize(...ADMIN_ROLES), asyn
   await db.prepare("UPDATE users SET password_hash = $1, must_change_password = 1, updated_at = NOW() WHERE id = $2").run(hash, id);
 
   // Invalidate all active sessions for this user
-  try { await db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = $1').run(id); } catch (_) { /* sessions table may not exist */ }
+  try { await db.prepare('UPDATE sessions SET is_active = FALSE WHERE user_id = $1').run(id); } catch (_) { /* sessions table may not exist */ }
 
   logAuditEvent({ userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
     userRole: req.user.role,

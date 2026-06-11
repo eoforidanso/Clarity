@@ -67,7 +67,7 @@ router.get('/sessions', async (req, res) => { const rows = await db.prepare(`
       AND ul.id = (SELECT id FROM user_locations WHERE user_id = s.user_id ORDER BY last_seen DESC LIMIT 1)
     LEFT JOIN user_devices ud ON ud.user_id = s.user_id
       AND ud.id = (SELECT id FROM user_devices WHERE user_id = s.user_id ORDER BY last_seen DESC LIMIT 1)
-    WHERE s.is_active = 1
+    WHERE s.is_active = TRUE
     ORDER BY COALESCE(s.last_seen_at, s.created_at) DESC
     LIMIT 100
   `).all();
@@ -95,11 +95,11 @@ router.get('/sessions', async (req, res) => { const rows = await db.prepare(`
 });
 
 // DELETE /api/security/sessions/:id
-router.delete('/sessions/:id', async (req, res) => { await db.prepare(`UPDATE sessions SET is_active = 0 WHERE id = $1`).run(req.params.id);
+router.delete('/sessions/:id', async (req, res) => { await db.prepare(`UPDATE sessions SET is_active = FALSE WHERE id = $1`).run(req.params.id);
   res.status(204).end(); });
 
 // DELETE /api/security/sessions — emergency revoke all
-router.delete('/sessions', requireElevated, async (_req, res) => { const { changes } = await db.prepare(`UPDATE sessions SET is_active = 0 WHERE is_active = 1`).run();
+router.delete('/sessions', requireElevated, async (_req, res) => { const { changes } = await db.prepare(`UPDATE sessions SET is_active = FALSE WHERE is_active = TRUE`).run();
   res.json({ revoked: changes, message: 'All sessions revoked — everyone must re-login' });
 });
 
@@ -140,7 +140,7 @@ router.get('/devices/:userId', async (req, res) => { try {
 router.post('/devices/:id/revoke', async (req, res) => { try {
     await setDeviceTrust(req.params.id, 'revoked');
     const { changes } = await db.prepare(
-      `UPDATE sessions SET is_active = 0 WHERE device_id = $1 AND is_active = 1`
+      `UPDATE sessions SET is_active = FALSE WHERE device_id = $1 AND is_active = TRUE`
     ).run(req.params.id);
     res.json({ ok: true, sessionsRevoked: changes });
   } catch (err) { res.status(500).json({ error: err.message }); }

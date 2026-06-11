@@ -13,7 +13,7 @@
  */
 export function checkAdminAccess(currentUser) {
   const isAdmin = currentUser?.role === 'admin';
-  const isGlobal = currentUser?.is_global === true;
+  const isGlobal = !!(currentUser?.is_global || currentUser?.isGlobal);
   const isLocal = isAdmin && !isGlobal;
   const facilityId = currentUser?.facility_id || currentUser?.locationId;
 
@@ -27,9 +27,10 @@ export function checkAdminAccess(currentUser) {
 
 /**
  * Check if user can access system admin features (requires is_global=true)
+ * Handles both snake_case (is_global) and camelCase (isGlobal), and 1 vs true.
  */
 export function checkSystemAdminAccess(currentUser) {
-  return currentUser?.is_global === true;
+  return !!(currentUser?.is_global || currentUser?.isGlobal);
 }
 
 /**

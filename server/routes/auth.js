@@ -111,7 +111,8 @@ async function issueFullSession(res, req, user) { const ip       = req.realIp ||
       mustChangePassword: !!user.must_change_password,
       patientId: user.patient_id,
       locationId: user.location_id || 'loc1',
-      isGlobal: !!user.is_global,
+      isGlobal:  !!user.is_global,
+      is_global: !!user.is_global,
       signature: signatureDataUrl,   // ← hydrated from provider_signatures at login
     },
   };
@@ -195,6 +196,8 @@ router.get('/me', authenticate, async (req, res) => { res.json({
       mustChangePassword: !!req.user.must_change_password,
       patientId: req.user.patient_id,
       locationId: req.user.location_id || 'loc1',
+      isGlobal:  !!req.user.is_global,
+      is_global: !!req.user.is_global,
     },
   });
 });
@@ -276,7 +279,7 @@ router.post('/refresh', async (req, res) => { const rawRefresh = req.cookies?.eh
 
   // Update session with new token hash
   try { await db.prepare(`
-      UPDATE sessions SET token_hash = $1, expires_at = $2, is_active = 1
+      UPDATE sessions SET token_hash = $1, expires_at = $2, is_active = TRUE
       WHERE id = $3
     `).run(tokenHash2, expiresAt, sessionId); } catch { /* session may not exist — create one */ }
 
@@ -295,7 +298,7 @@ router.post('/logout', authenticate, async (req, res) => { // Clear both cookies
   try { await db.prepare(`UPDATE refresh_tokens SET is_active = FALSE WHERE user_id = $1 AND is_active = TRUE`).run(req.user.id); } catch (e) { /* ok */ }
 
   // Invalidate session
-  try { await db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = $1 AND is_active = 1').run(req.user.id); } catch (e) { /* ok */ }
+  try { await db.prepare('UPDATE sessions SET is_active = FALSE WHERE user_id = $1 AND is_active = TRUE').run(req.user.id); } catch (e) { /* ok */ }
 
   logAuditEvent({ userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
     userRole: req.user.role,
@@ -329,7 +332,7 @@ router.post('/generate-epcs-otp', authenticate, async (req, res) => { // Generat
   await db.prepare('UPDATE epcs_otps SET used = 1 WHERE user_id = ? AND used = 0').run(req.user.id);
 
   // Store new OTP
-  await db.prepare('INSERT INTO epcs_otps (id, user_id, otp_hash, expires_at) VALUES (?, ?, ?)').run(
+  await db.prepare('INSERT INTO epcs_otps (id, user_id, otp_hash, expires_at) VALUES ($1, $2, $3, $4)').run(
     uuidv4(), req.user.id, otpHash, expiresAt
   );
 
@@ -461,7 +464,7 @@ router.post('/reauth', authenticate, async (req, res) => { const userId = req.us
 
   try { // ── Path 1: Password re-entry ────────────────────────────────────────────
     if (password) {
-      const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId);
+      const row = await db.prepare('SELECT password_hash FROM users WHERE id = $1').get(userId);
       if (!row) return res.status(401).json({ error: 'User not found' });
 
       const valid = await bcrypt.compare(password, row.password_hash);
@@ -472,8 +475,8 @@ router.post('/reauth', authenticate, async (req, res) => { const userId = req.us
     }
 
     // ── Path 2: OTP re-entry ─────────────────────────────────────────────────
-    if (otp) { const user = db.prepare(
-        'SELECT email_otp, email_otp_expires, email_otp_attempts FROM users WHERE id = ?'
+    if (otp) { const user = await db.prepare(
+        'SELECT email_otp, email_otp_expires, email_otp_attempts FROM users WHERE id = $1'
       ).get(userId);
 
       if (!user?.email_otp || !user?.email_otp_expires) {
@@ -481,19 +484,19 @@ router.post('/reauth', authenticate, async (req, res) => { const userId = req.us
       }
       if (new Date(user.email_otp_expires) < new Date()) { return res.status(401).json({ error: 'OTP expired' });
       }
-      if ((user.email_otp_attempts || 0) >= 5) { db.prepare("UPDATE users SET email_otp = NULL, email_otp_expires = NULL, email_otp_attempts = 0 WHERE id = ?").run(userId);
+      if ((user.email_otp_attempts || 0) >= 5) { await db.prepare("UPDATE users SET email_otp = NULL, email_otp_expires = NULL, email_otp_attempts = 0 WHERE id = $1").run(userId);
         return res.status(429).json({ error: 'Too many OTP attempts — request a new code' });
       }
 
       const storedBuf  = Buffer.from(String(user.email_otp).padEnd(6, ' '));
       const enteredBuf = Buffer.from(String(otp).padEnd(6, ' '));
 
-      if (storedBuf.length !== enteredBuf.length || !crypto.timingSafeEqual(storedBuf, enteredBuf)) { db.prepare('UPDATE users SET email_otp_attempts = email_otp_attempts + 1 WHERE id = ?').run(userId);
+      if (storedBuf.length !== enteredBuf.length || !crypto.timingSafeEqual(storedBuf, enteredBuf)) { await db.prepare('UPDATE users SET email_otp_attempts = email_otp_attempts + 1 WHERE id = $1').run(userId);
         return res.status(401).json({ error: 'Invalid OTP' });
       }
 
       // Clear OTP after use
-      db.prepare("UPDATE users SET email_otp = NULL, email_otp_expires = NULL, email_otp_attempts = 0 WHERE id = ?").run(userId);
+      await db.prepare("UPDATE users SET email_otp = NULL, email_otp_expires = NULL, email_otp_attempts = 0 WHERE id = $1").run(userId);
     }
 
     // ── Issue elevated token (5 min, single-use flag) ────────────────────────
