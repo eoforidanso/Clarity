@@ -3,12 +3,12 @@ export async function up(db) {
   await db.exec(`
     CREATE TABLE IF NOT EXISTS refills (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      patient_id INTEGER NOT NULL,
-      medication_id INTEGER,
+      patient_id TEXT NOT NULL,
+      medication_id TEXT,
       medication_name VARCHAR(255) NOT NULL,
       dose VARCHAR(100),
       frequency VARCHAR(100),
-      pharmacy_id INTEGER,
+      pharmacy_id TEXT,
       pharmacy_name VARCHAR(255),
       pharmacy_phone VARCHAR(20),
       pharmacy_email VARCHAR(255),
@@ -16,7 +16,7 @@ export async function up(db) {
       priority VARCHAR(20) NOT NULL DEFAULT 'normal',
       days_remaining INTEGER,
       refills_remaining INTEGER,
-      created_by INTEGER,
+      created_by TEXT,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       queued_at TIMESTAMP,
       sent_at TIMESTAMP,
@@ -30,10 +30,10 @@ export async function up(db) {
       FOREIGN KEY (patient_id) REFERENCES patients(id),
       FOREIGN KEY (created_by) REFERENCES users(id)
     );
-    CREATE INDEX idx_refills_patient_id ON refills(patient_id);
-    CREATE INDEX idx_refills_status ON refills(status);
-    CREATE INDEX idx_refills_created_at ON refills(created_at DESC);
-    CREATE INDEX idx_refills_deleted_at ON refills(deleted_at);
+    CREATE INDEX IF NOT EXISTS idx_refills_patient_id ON refills(patient_id);
+    CREATE INDEX IF NOT EXISTS idx_refills_status ON refills(status);
+    CREATE INDEX IF NOT EXISTS idx_refills_created_at ON refills(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_refills_deleted_at ON refills(deleted_at);
   `);
 
   // Refill notifications table - tracks delivery status
@@ -52,16 +52,16 @@ export async function up(db) {
       read_at TIMESTAMP,
       FOREIGN KEY (refill_id) REFERENCES refills(id) ON DELETE CASCADE
     );
-    CREATE INDEX idx_notifications_refill_id ON refill_notifications(refill_id);
-    CREATE INDEX idx_notifications_status ON refill_notifications(status);
-    CREATE INDEX idx_notifications_type ON refill_notifications(type);
+    CREATE INDEX IF NOT EXISTS idx_notifications_refill_id ON refill_notifications(refill_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_status ON refill_notifications(status);
+    CREATE INDEX IF NOT EXISTS idx_notifications_type ON refill_notifications(type);
   `);
 
   // Insurance eligibility cache table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS insurance_eligibility_cache (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      patient_id INTEGER NOT NULL,
+      patient_id TEXT NOT NULL,
       insurance_name VARCHAR(255),
       member_id VARCHAR(100),
       group_number VARCHAR(100),
@@ -75,8 +75,8 @@ export async function up(db) {
       error_details TEXT,
       FOREIGN KEY (patient_id) REFERENCES patients(id)
     );
-    CREATE INDEX idx_eligibility_patient_id ON insurance_eligibility_cache(patient_id);
-    CREATE INDEX idx_eligibility_expires_at ON insurance_eligibility_cache(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_eligibility_patient_id ON insurance_eligibility_cache(patient_id);
+    CREATE INDEX IF NOT EXISTS idx_eligibility_expires_at ON insurance_eligibility_cache(expires_at);
   `);
 }
 
