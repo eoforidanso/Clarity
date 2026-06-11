@@ -3,6 +3,7 @@ import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
 
 const REFILL_STATUSES = [
+  { id: 'all', label: 'All', icon: '📄', color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
   { id: 'pending', label: 'Pending', icon: '⏳', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a' },
   { id: 'queued', label: 'Queued', icon: '📋', color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe' },
   { id: 'sent', label: 'Sent to Pharmacy', icon: '✅', color: '#10b981', bg: '#f0fdf4', border: '#86efac' },
@@ -20,7 +21,7 @@ const REFILL_PRIORITIES = [
 export default function RefillQueue() {
   const { patients, selectedPatient } = usePatient();
   const { currentUser } = useAuth();
-  const [filterStatus, setFilterStatus] = useState('pending');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('daysRemaining'); // daysRemaining, patient, medication
   const [refillQueue, setRefillQueue] = useState([]);
@@ -61,12 +62,122 @@ export default function RefillQueue() {
     });
   };
 
-  // Load refill data from localStorage
+  // Load refill data from localStorage — seed mock data for Emmanuel's patients if empty
   useEffect(() => {
     try {
       const stored = localStorage.getItem('clarity_refill_queue') || '[]';
       const data = JSON.parse(stored);
-      setRefillQueue(data);
+      if (data.length > 0) { setRefillQueue(data); return; }
+
+      const seed = [
+        {
+          id: 'refill-seed-1',
+          patientId: 'pe1',
+          patientName: 'Nadia Osei',
+          medicationId: 'mpe1a',
+          medicationName: 'Escitalopram (Lexapro)',
+          dose: '10mg',
+          frequency: 'Once daily',
+          refillsRemaining: 4,
+          daysRemaining: 5,
+          pharmacy: 'Walgreens – Emmaus Ave',
+          status: 'pending',
+          priority: 'urgent',
+          createdBy: 'Emmanuel Ofori-Danso, NP',
+          createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+          notes: 'Patient called – running very low, needs refill ASAP',
+        },
+        {
+          id: 'refill-seed-2',
+          patientId: 'pe1',
+          patientName: 'Nadia Osei',
+          medicationId: 'mpe1b',
+          medicationName: 'Hydroxyzine',
+          dose: '25mg',
+          frequency: 'Every 6 hours as needed',
+          refillsRemaining: 2,
+          daysRemaining: 14,
+          pharmacy: 'Walgreens – Emmaus Ave',
+          status: 'pending',
+          priority: 'normal',
+          createdBy: 'Emmanuel Ofori-Danso, NP',
+          createdAt: new Date(Date.now() - 1 * 86400000).toISOString(),
+          notes: '',
+        },
+        {
+          id: 'refill-seed-3',
+          patientId: 'pe2',
+          patientName: 'Kofi Mensah',
+          medicationId: 'mpe2a',
+          medicationName: 'Sertraline (Zoloft)',
+          dose: '50mg',
+          frequency: 'Once daily',
+          refillsRemaining: 3,
+          daysRemaining: 3,
+          pharmacy: 'CVS Pharmacy – Emmaus',
+          status: 'pending',
+          priority: 'urgent',
+          createdBy: 'Emmanuel Ofori-Danso, NP',
+          createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+          notes: 'Patient has follow-up 6/25 – ensure 30-day supply',
+        },
+        {
+          id: 'refill-seed-4',
+          patientId: 'pe2',
+          patientName: 'Kofi Mensah',
+          medicationId: 'mpe2b',
+          medicationName: 'Prazosin',
+          dose: '1mg',
+          frequency: 'Once daily at bedtime',
+          refillsRemaining: 5,
+          daysRemaining: 20,
+          pharmacy: 'CVS Pharmacy – Emmaus',
+          status: 'queued',
+          priority: 'normal',
+          createdBy: 'Emmanuel Ofori-Danso, NP',
+          createdAt: new Date(Date.now() - 4 * 86400000).toISOString(),
+          queuedAt: new Date(Date.now() - 1 * 86400000).toISOString(),
+          notes: '',
+        },
+        {
+          id: 'refill-seed-5',
+          patientId: 'pe3',
+          patientName: 'Akua Boateng',
+          medicationId: 'mpe3a',
+          medicationName: 'Lamotrigine',
+          dose: '100mg',
+          frequency: 'Twice daily',
+          refillsRemaining: 2,
+          daysRemaining: 7,
+          pharmacy: 'Rite Aid – Bethlehem Pike',
+          status: 'pending',
+          priority: 'high',
+          createdBy: 'Emmanuel Ofori-Danso, NP',
+          createdAt: new Date(Date.now() - 1 * 86400000).toISOString(),
+          notes: 'Titrating to 150mg next visit – send 100mg for now',
+        },
+        {
+          id: 'refill-seed-6',
+          patientId: 'pe3',
+          patientName: 'Akua Boateng',
+          medicationId: 'mpe3b',
+          medicationName: 'Quetiapine (Seroquel)',
+          dose: '50mg',
+          frequency: 'Once daily at bedtime',
+          refillsRemaining: 1,
+          daysRemaining: 12,
+          pharmacy: 'Rite Aid – Bethlehem Pike',
+          status: 'sent',
+          priority: 'normal',
+          createdBy: 'Emmanuel Ofori-Danso, NP',
+          createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+          sentAt: new Date(Date.now() - 1 * 86400000).toISOString(),
+          notes: 'Sleep aid – last refill before re-evaluation',
+        },
+      ];
+
+      localStorage.setItem('clarity_refill_queue', JSON.stringify(seed));
+      setRefillQueue(seed);
     } catch {
       setRefillQueue([]);
     }
@@ -75,7 +186,7 @@ export default function RefillQueue() {
   // Filter and sort refills
   const filtered = refillQueue
     .filter(r => {
-      if (filterStatus && r.status !== filterStatus) return false;
+      if (filterStatus && filterStatus !== 'all' && r.status !== filterStatus) return false;
       if (!searchTerm) return true;
       const q = searchTerm.toLowerCase();
       return (
