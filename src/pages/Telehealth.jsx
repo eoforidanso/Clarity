@@ -106,13 +106,27 @@ function QuickStartModal({ apt, patient, onStart, onCancel }) {
           providerConfirmed: true, complianceChecklist: checklist,
         }),
       });
+
+      // Guard: if the response is HTML (auth redirect / 404 page) skip JSON parse
+      const ct = res.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) {
+        // Backend unreachable or redirected to login — proceed locally
+        onStart({ timestamp: isoNow(), patientName, patientLocation: 'Illinois', aptId: apt.id, sessionId, consentId: null, recordingConsent });
+        return;
+      }
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save consent');
       onStart({ timestamp: isoNow(), patientName, patientLocation: 'Illinois', aptId: apt.id, sessionId, consentId: data.consentId, recordingConsent });
     } catch (err) {
-      // If backend isn't reachable, proceed anyway — log locally
-      if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-        onStart({ timestamp: isoNow(), patientName, patientLocation: 'Illinois', aptId: apt.id, sessionId: `sess-${apt.id}-${Date.now()}`, consentId: null, recordingConsent });
+      // Network failure or JSON parse error — proceed locally so session is never blocked
+      if (
+        err.message.includes('Failed to fetch') ||
+        err.message.includes('NetworkError') ||
+        err.message.includes('not valid JSON') ||
+        err.message.includes('Unexpected token')
+      ) {
+        onStart({ timestamp: isoNow(), patientName, patientLocation: 'Illinois', aptId: apt.id, sessionId, consentId: null, recordingConsent });
       } else {
         setError(err.message);
       }
@@ -1037,7 +1051,8 @@ function AppointmentCard({ apt, patient, hasConsent, linkSent, patientMeds, pati
 ═══════════════════════════════════════════════════════════════════════ */
 export default function Telehealth() {
   const {
-    patients, appointments, meds, problemList, allergies, vitalSigns, loadPatientClinical,
+    patients, appointments, meds, problemList, allergies, vitalSigns,
+    loadPatientClinical, selectPatient, openChart,
   } = usePatient();
   const { activeSession, startSession } = useTelehealth();
   const [sendModal,       setSendModal]       = useState(null);
@@ -1071,9 +1086,21 @@ export default function Telehealth() {
   const activeCount  = Object.keys(consentRecords).length;
 
   /* ── Session handlers ── */
+  const launchSession = (apt, consentRecord) => {
+    const patientId = apt.patientId;
+    const patient   = patients?.find(p => p.id === patientId);
+    // Select + open the patient in context so chart data is live
+    if (patientId) {
+      selectPatient(patientId);
+      openChart(patientId);
+      loadPatientClinical(patientId);
+    }
+    startSession({ apt, patient, consentRecord });
+  };
+
   const handleStartSession = (apt) => {
     if (consentRecords[apt.id]) {
-      startSession({ apt, patient: patients?.find(p => p.id === apt.patientId), consentRecord: consentRecords[apt.id] });
+      launchSession(apt, consentRecords[apt.id]);
     } else {
       setConsentModal(apt);
     }
@@ -1082,9 +1109,8 @@ export default function Telehealth() {
   const handleConsentComplete = (record) => {
     const apt = consentModal;
     setConsentRecords(p => ({ ...p, [apt.id]: record }));
-    const patient = patients?.find(p => p.id === apt.patientId);
     setConsentModal(null);
-    startSession({ apt, patient, consentRecord: record });
+    launchSession(apt, record);
   };
 
   const handleLinkSent = (aptId, method) => {
