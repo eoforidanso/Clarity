@@ -107,7 +107,7 @@ function Select({ value, onChange, children }) {
 /* ─── Card wrapper ──────────────────────────────────────────────────────── */
 function SectionCard({ title, icon, accent = '#0066cc', children }) {
   return (
-    <div className="card">
+    <div className="card" style={{ borderRadius: 16, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
       <div className="card-header" style={{ borderTop: `3px solid ${accent}` }}>
         <h2 style={{ fontSize: 14, fontWeight: 800, color: '#1a2535', display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
           <span>{icon}</span> {title}
@@ -293,6 +293,7 @@ export default function PatientRegistration() {
 
         {/* ── Step Navigation ──────────────────────────────────────────────── */}
         <div className="card" style={{
+          borderRadius: 16, boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
           padding: '6px 8px', marginBottom: 28,
           display: 'flex', gap: 4, overflowX: 'auto',
         }}>
