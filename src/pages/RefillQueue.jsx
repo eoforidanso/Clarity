@@ -318,7 +318,7 @@ export default function RefillQueue() {
               { label: 'Total',   icon: '💼', value: refillQueue.length, sub: 'all time' },
             ].map(stat => (
               <div key={stat.label} className="rq-stat-card" style={{
-                background: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: '14px 16px',
+                background: 'rgba(255,255,255,0.12)', borderRadius: 16, padding: '14px 16px',
                 backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.18)',
               }}>
                 <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -348,11 +348,7 @@ export default function RefillQueue() {
         )}
 
         {/* ── Toolbar ──────────────────────────────────────────────────────── */}
-        <div style={{
-          background: 'white', borderRadius: 12, padding: '14px 16px',
-          marginBottom: 20, border: '1px solid #e5e7eb',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-        }}>
+        <div className="card" style={{ padding: '14px 16px', marginBottom: 20 }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 220, position: 'relative' }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: '#94a3b8' }}>🔍</span>
@@ -417,11 +413,7 @@ export default function RefillQueue() {
 
         {/* ── Refill List ───────────────────────────────────────────────────── */}
         {filtered.length === 0 ? (
-          <div style={{
-            background: 'white', borderRadius: 12, padding: '56px 40px',
-            textAlign: 'center', border: '1px solid #e5e7eb',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-          }}>
+          <div className="card" style={{ padding: '56px 40px', textAlign: 'center' }}>
             <div style={{ fontSize: 40, marginBottom: 14 }}>🎯</div>
             <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 6, color: '#0f172a' }}>No refills found</div>
             <div style={{ fontSize: 14, color: '#64748b' }}>
@@ -429,10 +421,7 @@ export default function RefillQueue() {
             </div>
           </div>
         ) : (
-          <div style={{
-            background: 'white', borderRadius: 12, overflow: 'hidden',
-            border: '1px solid #e5e7eb', boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-          }}>
+          <div className="card no-hover" style={{ overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e5e7eb' }}>
@@ -670,10 +659,9 @@ export default function RefillQueue() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 2000, padding: 24, backdropFilter: 'blur(4px)',
         }}>
-          <div style={{
-            background: 'white', borderRadius: 12, width: '100%', maxWidth: 520,
+          <div className="card no-hover" style={{
+            width: '100%', maxWidth: 520,
             boxShadow: '0 24px 64px rgba(0,0,0,0.28)', overflow: 'hidden',
-            border: '1px solid #e5e7eb',
           }}>
             {/* Modal header */}
             <div style={{
@@ -813,10 +801,9 @@ export default function RefillQueue() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 2000, padding: 24, backdropFilter: 'blur(4px)',
         }}>
-          <div style={{
-            background: 'white', borderRadius: 12, width: '100%', maxWidth: 480,
+          <div className="card no-hover" style={{
+            width: '100%', maxWidth: 480,
             boxShadow: '0 24px 64px rgba(0,0,0,0.28)', overflow: 'hidden',
-            border: '1px solid #e5e7eb',
           }}>
             <div style={{
               background: 'linear-gradient(135deg, #0c4a6e 0%, #0369a1 50%, #0891b2 100%)',

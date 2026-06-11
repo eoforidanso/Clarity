@@ -107,20 +107,14 @@ function Select({ value, onChange, children }) {
 /* ─── Card wrapper ──────────────────────────────────────────────────────── */
 function SectionCard({ title, icon, accent = '#0066cc', children }) {
   return (
-    <div style={{
-      background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.06)', overflow: 'hidden',
-      marginBottom: 0,
-    }}>
-      {/* Left spine accent */}
-      <div style={{ display: 'flex' }}>
-        <div style={{ width: 4, background: accent, flexShrink: 0, borderRadius: '4px 0 0 4px' }} />
-        <div style={{ flex: 1, padding: '28px 28px 32px 24px' }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: '0 0 24px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>{icon}</span> {title}
-          </h2>
-          {children}
-        </div>
+    <div className="card">
+      <div className="card-header" style={{ borderTop: `3px solid ${accent}` }}>
+        <h2 style={{ fontSize: 14, fontWeight: 800, color: '#1a2535', display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+          <span>{icon}</span> {title}
+        </h2>
+      </div>
+      <div className="card-body" style={{ padding: '24px 20px 28px' }}>
+        {children}
       </div>
     </div>
   );
@@ -298,10 +292,9 @@ export default function PatientRegistration() {
       <div ref={formRef} style={{ maxWidth: 1000, margin: '0 auto', padding: '32px 24px 48px' }}>
 
         {/* ── Step Navigation ──────────────────────────────────────────────── */}
-        <div style={{
-          background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)', padding: '6px 8px',
-          marginBottom: 28, display: 'flex', gap: 4, overflowX: 'auto',
+        <div className="card" style={{
+          padding: '6px 8px', marginBottom: 28,
+          display: 'flex', gap: 4, overflowX: 'auto',
         }}>
           {REGISTRATION_STEPS.map((s, i) => {
             const isActive = currentStep === i;
