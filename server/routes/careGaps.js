@@ -21,8 +21,8 @@ router.get('/', async (req, res) => {
   const isGlobal   = req.access.canSeeAll;
 
   const patients = isGlobal || !facilityId
-    ? await db.prepare("SELECT * FROM patients WHERE is_active = 1").all()
-    : await db.prepare("SELECT * FROM patients WHERE is_active = 1 AND primary_location = $1").all(facilityId);
+    ? await db.prepare("SELECT * FROM patients WHERE is_active = TRUE").all()
+    : await db.prepare("SELECT * FROM patients WHERE is_active = TRUE AND primary_location = $1").all(facilityId);
   const gaps = [];
 
   for (const p of patients) {

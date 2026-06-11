@@ -83,7 +83,7 @@ router.post('/request-access', async (req, res) => { const { email } = req.body;
   // Always respond the same way to prevent email enumeration
   const patient = await db.prepare(
     `SELECT id, first_name, last_name, email, portal_locked_until, portal_otp_attempts
-     FROM patients WHERE LOWER(email) = $1 AND is_active = 1`
+     FROM patients WHERE LOWER(email) = $1 AND is_active = TRUE`
   ).get(normalised);
 
   if (!patient) { // Don't reveal whether email exists
@@ -122,7 +122,7 @@ router.post('/verify-otp', async (req, res) => { const { email, otp } = req.body
   const patient = await db.prepare(
     `SELECT id, first_name, last_name, email, portal_otp, portal_otp_expires,
             portal_otp_attempts, portal_locked_until
-     FROM patients WHERE LOWER(email) = $1 AND is_active = 1`
+     FROM patients WHERE LOWER(email) = $1 AND is_active = TRUE`
   ).get(normalised);
 
   if (!patient) return res.status(401).json({ error: 'Invalid code' });
@@ -177,7 +177,7 @@ router.post('/verify-otp', async (req, res) => { const { email, otp } = req.body
 
 router.get('/me', authenticatePortal, async (req, res) => { const patient = await db.prepare(
     `SELECT id, first_name, last_name, email, dob, gender, phone, cell_phone, address_street, address_city, address_state, address_zip, assigned_provider, photo, portal_last_login
-     FROM patients WHERE id = $1 AND is_active = 1`
+     FROM patients WHERE id = $1 AND is_active = TRUE`
   ).get(req.patientId);
 
   if (!patient) return res.status(404).json({ error: 'Patient not found' });

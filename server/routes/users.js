@@ -292,7 +292,7 @@ router.delete('/:id', authenticate, requireElevated, async (req, res) => { if (r
   if (id === req.user.id) { return res.status(400).json({ error: 'You cannot delete your own account' });
   }
 
-  const user = db.prepare(`SELECT id, username, role FROM users WHERE id = $1 AND role != $2 AND ${ activeScope }`).get(id, 'patient');
+  const user = await db.prepare(`SELECT id, username, role FROM users WHERE id = $1 AND role != $2 AND ${ activeScope }`).get(id, 'patient');
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const actorName = `${ req.user.first_name } ${ req.user.last_name || '' }`.trim();

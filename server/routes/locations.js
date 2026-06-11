@@ -137,12 +137,12 @@ router.delete('/:id', authenticate, requireElevated, async (req, res) => { if (r
   const { id } = req.params;
   const actorName = `${ req.user.first_name } ${ req.user.last_name || '' }`.trim();
 
-  try { const loc = db.prepare(`SELECT id, name FROM locations WHERE id = ? AND ${activeScope }`).get(id);
+  try { const loc = await db.prepare(`SELECT id, name FROM locations WHERE id = $1 AND ${activeScope }`).get(id);
     if (!loc) return res.status(404).json({ error: 'Location not found' });
 
     // Prevent deleting the last active location
-    const activeCount = db.prepare(`SELECT COUNT(*) as c FROM locations WHERE status = 'Active' AND ${ activeScope }`).get();
-    if (activeCount.c <= 1) { return res.status(400).json({ error: 'Cannot delete the last active location' });
+    const activeCount = await db.prepare(`SELECT COUNT(*) as c FROM locations WHERE status = 'Active' AND ${ activeScope }`).get();
+    if (Number(activeCount?.c ?? 0) <= 1) { return res.status(400).json({ error: 'Cannot delete the last active location' });
     }
 
     await ensureLocationHasNoDependencies(id);

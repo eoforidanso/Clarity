@@ -11,10 +11,10 @@ import { logAudit } from '../db/softDelete.js';
  *   - prescriber / nurse / therapist → must be the assigned provider OR share location
  *   - BTG-protected patients → require explicit BTG access grant (checked separately)
  */
-function requirePatientAccess(req, res, next) { const patientId = req.params.id || req.params.patientId;
+async function requirePatientAccess(req, res, next) { const patientId = req.params.id || req.params.patientId;
   if (!patientId) return next();
 
-  const patient = db.prepare('SELECT id, assigned_provider, primary_location, is_btg FROM patients WHERE id = ?').get(patientId);
+  const patient = await db.prepare('SELECT id, assigned_provider, primary_location, is_btg FROM patients WHERE id = $1').get(patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
   const { role, id: userId, location_id } = req.user;

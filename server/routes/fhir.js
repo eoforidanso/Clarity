@@ -86,7 +86,7 @@ router.get('/Patient', authenticate, async (req, res) => {
   } else if (name) {
     patients = await db.prepare(`SELECT * FROM patients WHERE (first_name LIKE ? OR last_name LIKE ?)${facilityClause}`).all(`%${name}%`, `%${name}%`, ...facilityParam);
   } else {
-    patients = await db.prepare(`SELECT * FROM patients WHERE is_active = 1${facilityClause}`).all(...facilityParam);
+    patients = await db.prepare(`SELECT * FROM patients WHERE is_active = TRUE${facilityClause}`).all(...facilityParam);
   }
 
   logAuditEvent({ userId: req.user?.id, userName: `${req.user?.first_name || '' } ${ req.user?.last_name || '' }`.trim(),
