@@ -267,77 +267,120 @@ export default function RefillQueue() {
   const sentTodayCount = refillQueue.filter(r => r.status === 'sent' && r.sentAt?.includes(new Date().toISOString().slice(0, 10))).length;
 
   return (
-    <div className="fade-in" style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white', padding: '32px 24px' }}>
-        <h1 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 8px 0' }}>💊 Prescription Refill Queue</h1>
-        <p style={{ fontSize: 14, opacity: 0.9, margin: '0 0 20px 0' }}>Track, manage, and send refills to pharmacies</p>
+    <div className="fade-in" style={{ minHeight: '100vh', background: '#f8fafc' }}>
+      <style>{`
+        .rq-row:hover { background: #f8fafc !important; }
+        .rq-action-btn { transition: all 0.15s !important; }
+        .rq-action-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .rq-stat-card { transition: transform 0.15s; }
+        .rq-stat-card:hover { transform: translateY(-2px); }
+      `}</style>
 
-        {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 16 }}>
-          <div style={{ background: 'rgba(255,255,255,0.1)', padding: 12, borderRadius: 8 }}>
-            <div style={{ fontSize: 11, opacity: 0.9 }}>⏳ Pending</div>
-            <div style={{ fontSize: 24, fontWeight: 800 }}>{refillQueue.filter(r => r.status === 'pending').length}</div>
-            {urgentCount > 0 && <div style={{ fontSize: 11, color: '#fbbf24' }}>🔴 {urgentCount} urgent (≤7 days)</div>}
+      {/* ── Hero Header ──────────────────────────────────────────────────────── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0c1e3e 0%, #0066cc 50%, #2563eb 100%)',
+        color: 'white', padding: '44px 32px 40px', position: 'relative', overflow: 'hidden',
+        boxShadow: '0 4px 20px rgba(0,102,204,0.35)',
+      }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
+        <div style={{ position: 'relative', maxWidth: 1200, margin: '0 auto' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', opacity: 0.7, marginBottom: 6, textTransform: 'uppercase' }}>
+            Pharmacy Workflow
           </div>
-          <div style={{ background: 'rgba(255,255,255,0.1)', padding: 12, borderRadius: 8 }}>
-            <div style={{ fontSize: 11, opacity: 0.9 }}>📋 Queued</div>
-            <div style={{ fontSize: 24, fontWeight: 800 }}>{queuedCount}</div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
+            <div>
+              <h1 style={{ fontSize: 30, fontWeight: 800, margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+                💊 Prescription Refill Queue
+              </h1>
+              <p style={{ fontSize: 15, opacity: 0.85, margin: 0 }}>Track, manage, and send refills to pharmacies</p>
+            </div>
+            {urgentCount > 0 && (
+              <div style={{
+                background: 'rgba(239,68,68,0.25)', border: '1px solid rgba(239,68,68,0.5)',
+                borderRadius: 10, padding: '10px 18px', backdropFilter: 'blur(8px)',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span style={{ fontSize: 18 }}>🔴</span>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 15 }}>{urgentCount} Urgent</div>
+                  <div style={{ fontSize: 11, opacity: 0.85 }}>≤7 days remaining</div>
+                </div>
+              </div>
+            )}
           </div>
-          <div style={{ background: 'rgba(255,255,255,0.1)', padding: 12, borderRadius: 8 }}>
-            <div style={{ fontSize: 11, opacity: 0.9 }}>✅ Sent Today</div>
-            <div style={{ fontSize: 24, fontWeight: 800 }}>{sentTodayCount}</div>
-          </div>
-          <div style={{ background: 'rgba(255,255,255,0.1)', padding: 12, borderRadius: 8 }}>
-            <div style={{ fontSize: 11, opacity: 0.9 }}>💼 Total</div>
-            <div style={{ fontSize: 24, fontWeight: 800 }}>{refillQueue.length}</div>
+
+          {/* Stat Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginTop: 28 }}>
+            {[
+              { label: 'Pending', icon: '⏳', value: refillQueue.filter(r => r.status === 'pending').length, sub: urgentCount > 0 ? `${urgentCount} urgent` : 'up to date' },
+              { label: 'Queued',  icon: '📋', value: queuedCount,    sub: 'ready to send' },
+              { label: 'Sent Today', icon: '✅', value: sentTodayCount, sub: 'dispatched' },
+              { label: 'Total',   icon: '💼', value: refillQueue.length, sub: 'all time' },
+            ].map(stat => (
+              <div key={stat.label} className="rq-stat-card" style={{
+                background: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: '14px 16px',
+                backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.18)',
+              }}>
+                <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span>{stat.icon}</span> {stat.label}
+                </div>
+                <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1 }}>{stat.value}</div>
+                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>{stat.sub}</div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px' }}>
-        {/* Toast Notification */}
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 24px' }}>
+        {/* Toast */}
         {toast && (
           <div style={{
-            position: 'fixed',
-            bottom: 24,
-            right: 24,
-            background: 'white',
-            padding: '12px 16px',
-            borderRadius: 8,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            fontSize: 13,
-            fontWeight: 700,
-            zIndex: 3000,
-            border: '1px solid #e2e8f0',
+            position: 'fixed', bottom: 24, right: 24,
+            background: '#0f172a', color: 'white',
+            padding: '12px 20px', borderRadius: 10,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+            fontSize: 13, fontWeight: 600, zIndex: 3000,
+            display: 'flex', alignItems: 'center', gap: 8,
           }}>
             {toast}
           </div>
         )}
 
-        {/* Toolbar */}
-        <div style={{ background: 'white', borderRadius: 12, padding: 16, marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-          <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input
-              type="text"
-              placeholder="Search patient, medication, or pharmacy..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ flex: 1, minWidth: 200, padding: '10px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14 }}
-            />
+        {/* ── Toolbar ──────────────────────────────────────────────────────── */}
+        <div style={{
+          background: 'white', borderRadius: 12, padding: '14px 16px',
+          marginBottom: 20, border: '1px solid #e5e7eb',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+        }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 220, position: 'relative' }}>
+              <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: '#94a3b8' }}>🔍</span>
+              <input
+                type="text"
+                placeholder="Search patient, medication, or pharmacy..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{
+                  width: '100%', padding: '10px 12px 10px 34px', borderRadius: 8,
+                  border: '1.5px solid #e2e8f0', fontSize: 14, outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              style={{ padding: '10px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14 }}
+              style={{ padding: '10px 14px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, fontWeight: 600, color: '#374151', background: '#fff' }}
             >
               {REFILL_STATUSES.map(s => (
-                <option key={s.id} value={s.id}>{s.label} ({refillQueue.filter(r => r.status === s.id).length})</option>
+                <option key={s.id} value={s.id}>{s.icon} {s.label} ({refillQueue.filter(r => r.status === s.id).length})</option>
               ))}
             </select>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              style={{ padding: '10px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14 }}
+              style={{ padding: '10px 14px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, fontWeight: 600, color: '#374151', background: '#fff' }}
             >
               <option value="daysRemaining">Sort: Days Remaining</option>
               <option value="patient">Sort: Patient Name</option>
@@ -346,39 +389,25 @@ export default function RefillQueue() {
           </div>
 
           {selectedRefills.size > 0 && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '12px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #86efac' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#166534' }}>
+            <div style={{
+              marginTop: 12, display: 'flex', gap: 10, alignItems: 'center',
+              padding: '10px 14px', background: '#eff6ff', borderRadius: 8, border: '1px solid #bfdbfe',
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>
                 {selectedRefills.size} selected
               </span>
               <button
+                className="rq-action-btn"
                 onClick={handleBulkQueue}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 6,
-                  border: 'none',
-                  background: '#3b82f6',
-                  color: 'white',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
+                style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: '#3b82f6', color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
               >
                 📋 Queue Selected
               </button>
               <button
+                className="rq-action-btn"
                 onClick={() => setShowPharmacyModal(true)}
                 disabled={bulkSending}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 6,
-                  border: 'none',
-                  background: '#10b981',
-                  color: 'white',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: bulkSending ? 'not-allowed' : 'pointer',
-                  opacity: bulkSending ? 0.7 : 1,
-                }}
+                style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: '#0066cc', color: 'white', fontSize: 12, fontWeight: 700, cursor: bulkSending ? 'not-allowed' : 'pointer', opacity: bulkSending ? 0.7 : 1 }}
               >
                 {bulkSending ? '⏳ Sending...' : '✅ Send to Pharmacy'}
               </button>
@@ -386,21 +415,28 @@ export default function RefillQueue() {
           )}
         </div>
 
-        {/* Refill List */}
+        {/* ── Refill List ───────────────────────────────────────────────────── */}
         {filtered.length === 0 ? (
-          <div style={{ background: 'white', borderRadius: 12, padding: 40, textAlign: 'center' }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>🎯</div>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: '#0f172a' }}>No refills found</div>
-            <div style={{ fontSize: 13, color: '#64748b' }}>
-              {searchTerm ? 'Try adjusting your search filters' : 'All caught up! No pending refills to process'}
+          <div style={{
+            background: 'white', borderRadius: 14, padding: '56px 40px',
+            textAlign: 'center', border: '1px solid #e5e7eb',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+          }}>
+            <div style={{ fontSize: 40, marginBottom: 14 }}>🎯</div>
+            <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 6, color: '#0f172a' }}>No refills found</div>
+            <div style={{ fontSize: 14, color: '#64748b' }}>
+              {searchTerm ? 'Try adjusting your search or filter' : 'All caught up! No pending refills to process'}
             </div>
           </div>
         ) : (
-          <div style={{ background: 'white', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+          <div style={{
+            background: 'white', borderRadius: 14, overflow: 'hidden',
+            border: '1px solid #e5e7eb', boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+          }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#64748b' }}>
+                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e5e7eb' }}>
+                  <th style={{ padding: '12px 16px', width: 40 }}>
                     <input
                       type="checkbox"
                       checked={selectedRefills.size === filtered.length && filtered.length > 0}
@@ -408,24 +444,36 @@ export default function RefillQueue() {
                       style={{ cursor: 'pointer' }}
                     />
                   </th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#64748b' }}>Patient</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#64748b' }}>Medication</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#64748b' }}>Days Left</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#64748b' }}>Pharmacy</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#64748b' }}>Priority</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#64748b' }}>Status</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#64748b' }}>Actions</th>
+                  {['Patient', 'Medication', 'Days Left', 'Pharmacy', 'Priority', 'Status', 'Actions'].map(col => (
+                    <th key={col} style={{
+                      padding: '12px 16px', textAlign: col === 'Actions' ? 'center' : 'left',
+                      fontSize: 11, fontWeight: 700, color: '#64748b',
+                      letterSpacing: '0.06em', textTransform: 'uppercase',
+                    }}>{col}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((refill) => {
+                {filtered.map((refill, idx) => {
                   const statusOption = REFILL_STATUSES.find(s => s.id === refill.status);
                   const priorityOption = REFILL_PRIORITIES.find(p => p.id === refill.priority);
                   const isUrgent = refill.daysRemaining <= 7;
 
                   return (
-                    <tr key={refill.id} style={{ borderBottom: '1px solid #e2e8f0', hover: { background: '#f9fafb' } }}>
-                      <td style={{ padding: '12px 16px' }}>
+                    <tr
+                      key={refill.id}
+                      className="rq-row"
+                      style={{
+                        borderBottom: idx < filtered.length - 1 ? '1px solid #f1f5f9' : 'none',
+                        background: 'white',
+                        transition: 'background 0.12s',
+                      }}
+                    >
+                      {/* Urgent left-spine accent via first cell border-left */}
+                      <td style={{
+                        padding: '14px 16px',
+                        borderLeft: isUrgent ? '3px solid #ef4444' : '3px solid transparent',
+                      }}>
                         <input
                           type="checkbox"
                           checked={selectedRefills.has(refill.id)}
@@ -433,40 +481,56 @@ export default function RefillQueue() {
                           style={{ cursor: 'pointer' }}
                         />
                       </td>
-                      <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
-                        {refill.patientName}
+
+                      {/* Patient */}
+                      <td style={{ padding: '14px 16px' }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{refill.patientName}</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>ID: {refill.patientId?.slice(0,8) || '—'}</div>
                       </td>
-                      <td style={{ padding: '12px 16px', fontSize: 13, color: '#475569' }}>
-                        <div style={{ fontWeight: 600 }}>{refill.medicationName}</div>
-                        <div style={{ fontSize: 11, color: '#94a3b8' }}>{refill.dose} · {refill.frequency}</div>
+
+                      {/* Medication */}
+                      <td style={{ padding: '14px 16px' }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{refill.medicationName}</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{refill.dose} · {refill.frequency}</div>
                       </td>
-                      <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: isUrgent ? '#dc2626' : '#64748b' }}>
-                        {isUrgent && <span style={{ marginRight: 4 }}>🔴</span>}
-                        {refill.daysRemaining}d
+
+                      {/* Days Left */}
+                      <td style={{ padding: '14px 16px' }}>
+                        <div style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          background: isUrgent ? '#fef2f2' : '#f0fdf4',
+                          color: isUrgent ? '#dc2626' : '#166534',
+                          borderRadius: 20, padding: '4px 10px',
+                          fontSize: 12, fontWeight: 700,
+                        }}>
+                          {isUrgent ? '🔴' : '🟢'} {refill.daysRemaining}d
+                        </div>
                       </td>
-                      <td style={{ padding: '12px 16px', fontSize: 13, color: '#475569' }}>
-                        {refill.pharmacy || '—'}
+
+                      {/* Pharmacy */}
+                      <td style={{ padding: '14px 16px', fontSize: 13, color: '#475569' }}>
+                        {refill.pharmacy || <span style={{ color: '#cbd5e1' }}>—</span>}
                       </td>
-                      <td style={{ padding: '12px 16px' }}>
+
+                      {/* Priority */}
+                      <td style={{ padding: '14px 16px' }}>
                         <span style={{
-                          display: 'inline-block',
-                          padding: '3px 8px',
-                          borderRadius: 4,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          background: priorityOption?.color ? `${priorityOption.color}20` : '#f3f4f6',
+                          display: 'inline-block', padding: '3px 10px', borderRadius: 20,
+                          fontSize: 11, fontWeight: 700,
+                          background: priorityOption?.color ? `${priorityOption.color}18` : '#f3f4f6',
                           color: priorityOption?.color || '#6b7280',
+                          border: `1px solid ${priorityOption?.color ? `${priorityOption.color}40` : '#e5e7eb'}`,
                         }}>
                           {priorityOption?.label || 'Normal'}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 16px' }}>
+
+                      {/* Status */}
+                      <td style={{ padding: '14px 16px' }}>
                         <span style={{
-                          display: 'inline-block',
-                          padding: '4px 10px',
-                          borderRadius: 6,
-                          fontSize: 11,
-                          fontWeight: 700,
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          padding: '4px 10px', borderRadius: 20,
+                          fontSize: 11, fontWeight: 700,
                           background: statusOption.bg,
                           border: `1px solid ${statusOption.border}`,
                           color: statusOption.color,
@@ -474,115 +538,84 @@ export default function RefillQueue() {
                           {statusOption.icon} {statusOption.label}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+
+                      {/* Actions */}
+                      <td style={{ padding: '14px 16px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
                           <button
-                            onClick={() => {
-                              setSelectedPatientForTelehealth(refill.patientId);
-                              setShowTelehealth(true);
-                            }}
-                            title="Send telehealth link to patient"
+                            className="rq-action-btn"
+                            onClick={() => { setSelectedPatientForTelehealth(refill.patientId); setShowTelehealth(true); }}
+                            title="Send telehealth link"
                             style={{
-                              padding: '4px 8px',
-                              borderRadius: 4,
-                              border: '1px solid #cbd5e1',
-                              background: copiedLinkId === refill.patientId ? '#10b981' : 'white',
+                              padding: '5px 10px', borderRadius: 6,
+                              border: '1.5px solid #e0f2fe',
+                              background: copiedLinkId === refill.patientId ? '#059669' : '#f0f9ff',
                               color: copiedLinkId === refill.patientId ? 'white' : '#0891b2',
-                              fontSize: 11,
-                              fontWeight: 700,
-                              cursor: 'pointer',
+                              fontSize: 12, fontWeight: 700, cursor: 'pointer',
                             }}
                           >
-                            {copiedLinkId === refill.patientId ? '✅ Copied!' : '🔗'}
+                            {copiedLinkId === refill.patientId ? '✅' : '🔗'}
                           </button>
-                          {refill.status === 'pending' && (
-                            <>
-                              <button
-                                onClick={() => handleQueueRefill(refill.id)}
-                                title="Queue this refill"
-                                style={{
-                                  padding: '4px 8px',
-                                  borderRadius: 4,
-                                  border: '1px solid #cbd5e1',
-                                  background: 'white',
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  color: '#3b82f6',
-                                }}
-                              >
-                                📋
-                              </button>
-                              <button
-                                onClick={() => handleOpenPharmacyModal(refill)}
-                                title="Send to pharmacy"
-                                style={{
-                                  padding: '4px 8px',
-                                  borderRadius: 4,
-                                  border: '1px solid #cbd5e1',
-                                  background: 'white',
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  color: '#10b981',
-                                }}
-                              >
-                                ✉️
-                              </button>
-                            </>
-                          )}
-                          {refill.status === 'queued' && (
+
+                          {refill.status === 'pending' && (<>
                             <button
+                              className="rq-action-btn"
+                              onClick={() => handleQueueRefill(refill.id)}
+                              title="Queue this refill"
+                              style={{
+                                padding: '5px 10px', borderRadius: 6,
+                                border: '1.5px solid #dbeafe', background: '#eff6ff',
+                                fontSize: 12, fontWeight: 700, cursor: 'pointer', color: '#2563eb',
+                              }}
+                            >📋</button>
+                            <button
+                              className="rq-action-btn"
                               onClick={() => handleOpenPharmacyModal(refill)}
                               title="Send to pharmacy"
                               style={{
-                                padding: '4px 8px',
-                                borderRadius: 4,
-                                border: '1px solid #cbd5e1',
-                                background: '#3b82f6',
-                                color: 'white',
-                                fontSize: 11,
-                                fontWeight: 700,
-                                cursor: 'pointer',
+                                padding: '5px 10px', borderRadius: 6,
+                                border: '1.5px solid #d1fae5', background: '#f0fdf4',
+                                fontSize: 12, fontWeight: 700, cursor: 'pointer', color: '#059669',
                               }}
-                            >
-                              ✅ Send
-                            </button>
+                            >✉️</button>
+                          </>)}
+
+                          {refill.status === 'queued' && (
+                            <button
+                              className="rq-action-btn"
+                              onClick={() => handleOpenPharmacyModal(refill)}
+                              title="Send to pharmacy"
+                              style={{
+                                padding: '5px 10px', borderRadius: 6, border: 'none',
+                                background: '#0066cc', color: 'white',
+                                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                              }}
+                            >✅ Send</button>
                           )}
+
                           {['sent', 'filled'].includes(refill.status) && (
                             <button
+                              className="rq-action-btn"
                               onClick={() => setShowDetails(showDetails === refill.id ? null : refill.id)}
                               title="View details"
                               style={{
-                                padding: '4px 8px',
-                                borderRadius: 4,
-                                border: '1px solid #cbd5e1',
-                                background: 'white',
-                                fontSize: 11,
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                color: '#64748b',
+                                padding: '5px 10px', borderRadius: 6,
+                                border: '1.5px solid #e2e8f0', background: '#f8fafc',
+                                fontSize: 12, fontWeight: 700, cursor: 'pointer', color: '#64748b',
                               }}
-                            >
-                              👁️
-                            </button>
+                            >👁️</button>
                           )}
+
                           <button
+                            className="rq-action-btn"
                             onClick={() => handleDeleteRefill(refill.id)}
                             title="Delete refill"
                             style={{
-                              padding: '4px 8px',
-                              borderRadius: 4,
-                              border: '1px solid #fecaca',
-                              background: '#fef2f2',
-                              color: '#dc2626',
-                              fontSize: 11,
-                              fontWeight: 700,
-                              cursor: 'pointer',
+                              padding: '5px 10px', borderRadius: 6,
+                              border: '1.5px solid #fecaca', background: '#fef2f2',
+                              color: '#dc2626', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                             }}
-                          >
-                            🗑️
-                          </button>
+                          >🗑️</button>
                         </div>
                       </td>
                     </tr>
@@ -592,78 +625,84 @@ export default function RefillQueue() {
             </table>
 
             {/* Expanded Details */}
-            {showDetails && (
-              <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: 16 }}>
-                {filtered.find(r => r.id === showDetails) && (() => {
-                  const refill = filtered.find(r => r.id === showDetails);
-                  return (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-                      <div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 4 }}>Created</div>
-                        <div style={{ fontSize: 13, color: '#0f172a' }}>{new Date(refill.createdAt).toLocaleDateString()}</div>
+            {showDetails && filtered.find(r => r.id === showDetails) && (() => {
+              const refill = filtered.find(r => r.id === showDetails);
+              return (
+                <div style={{
+                  background: '#f8fafc', borderTop: '2px solid #e5e7eb',
+                  padding: '20px 24px',
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 14 }}>
+                    Refill Details
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+                    {[
+                      { label: 'Created', value: new Date(refill.createdAt).toLocaleDateString() },
+                      refill.queuedAt && { label: 'Queued', value: new Date(refill.queuedAt).toLocaleDateString() },
+                      refill.sentAt && { label: 'Sent', value: new Date(refill.sentAt).toLocaleDateString() },
+                      { label: 'Created By', value: refill.createdBy },
+                    ].filter(Boolean).map(({ label, value }) => (
+                      <div key={label}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 4 }}>{label}</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>{value}</div>
                       </div>
-                      {refill.queuedAt && (
-                        <div>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 4 }}>Queued</div>
-                          <div style={{ fontSize: 13, color: '#0f172a' }}>{new Date(refill.queuedAt).toLocaleDateString()}</div>
+                    ))}
+                    {refill.notes && (
+                      <div style={{ gridColumn: '1/-1' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>Notes</div>
+                        <div style={{ fontSize: 13, color: '#475569', background: 'white', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                          {refill.notes}
                         </div>
-                      )}
-                      {refill.sentAt && (
-                        <div>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 4 }}>Sent</div>
-                          <div style={{ fontSize: 13, color: '#0f172a' }}>{new Date(refill.sentAt).toLocaleDateString()}</div>
-                        </div>
-                      )}
-                      <div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 4 }}>Created By</div>
-                        <div style={{ fontSize: 13, color: '#0f172a' }}>{refill.createdBy}</div>
                       </div>
-                      {refill.notes && (
-                        <div style={{ gridColumn: '1/-1' }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 4 }}>Notes</div>
-                          <div style={{ fontSize: 13, color: '#475569', background: 'white', padding: 8, borderRadius: 6, border: '1px solid #e2e8f0' }}>
-                            {refill.notes}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
 
-      {/* Pharmacy Modal */}
+      {/* ── Pharmacy Modal ───────────────────────────────────────────────────── */}
       {showPharmacyModal && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 2000, padding: 24,
+          zIndex: 2000, padding: 24, backdropFilter: 'blur(4px)',
         }}>
           <div style={{
-            background: 'white', borderRadius: 12, width: '100%', maxWidth: 500,
-            boxShadow: '0 20px 60px rgba(0,0,0,0.35)', overflow: 'hidden',
+            background: 'white', borderRadius: 16, width: '100%', maxWidth: 520,
+            boxShadow: '0 24px 64px rgba(0,0,0,0.28)', overflow: 'hidden',
+            border: '1px solid #e5e7eb',
           }}>
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white' }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>
-                {selectedRefillForAction ? '✉️ Send Refill to Pharmacy' : '✅ Send Refills in Bulk'}
-              </div>
-              {selectedRefillForAction && (
-                <div style={{ fontSize: 13, opacity: 0.9, marginTop: 6 }}>
-                  {selectedRefillForAction.medicationName} ({selectedRefillForAction.dose})
+            {/* Modal header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #0c1e3e 0%, #0066cc 50%, #2563eb 100%)',
+              color: 'white', padding: '22px 28px', position: 'relative', overflow: 'hidden',
+            }}>
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.07)' }} />
+              <div style={{ position: 'relative' }}>
+                <div style={{ fontWeight: 800, fontSize: 18 }}>
+                  {selectedRefillForAction ? '✉️ Send Refill to Pharmacy' : '✅ Bulk Send to Pharmacy'}
                 </div>
-              )}
+                {selectedRefillForAction && (
+                  <div style={{ fontSize: 13, opacity: 0.85, marginTop: 5 }}>
+                    {selectedRefillForAction.medicationName} · {selectedRefillForAction.dose}
+                  </div>
+                )}
+                {!selectedRefillForAction && (
+                  <div style={{ fontSize: 13, opacity: 0.85, marginTop: 5 }}>
+                    {selectedRefills.size} refill{selectedRefills.size > 1 ? 's' : ''} selected
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div style={{ padding: '24px' }}>
-              {/* Insurance Eligibility Check */}
-              <div style={{ marginBottom: 16, padding: 12, background: '#f0fdf4', borderRadius: 8, border: '1px solid #86efac' }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    id="verify-insurance"
+            <div style={{ padding: '24px 28px' }}>
+              {/* Insurance check */}
+              <div style={{ marginBottom: 18, padding: '12px 14px', background: '#f0fdf4', borderRadius: 10, border: '1px solid #bbf7d0' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: pharmForm.verifyInsurance ? 10 : 0 }}>
+                  <input type="checkbox" id="verify-insurance"
                     checked={pharmForm.verifyInsurance}
                     onChange={(e) => setPharmForm(prev => ({ ...prev, verifyInsurance: e.target.checked }))}
                     style={{ cursor: 'pointer' }}
@@ -673,124 +712,91 @@ export default function RefillQueue() {
                   </label>
                 </div>
                 {pharmForm.verifyInsurance && !eligibilityData && (
-                  <button
-                    onClick={handleVerifyInsurance}
-                    disabled={verifyingInsurance}
+                  <button onClick={handleVerifyInsurance} disabled={verifyingInsurance}
                     style={{
-                      padding: '6px 12px',
-                      borderRadius: 6,
-                      border: '1px solid #86efac',
-                      background: 'white',
-                      color: '#166534',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: verifyingInsurance ? 'not-allowed' : 'pointer',
-                      opacity: verifyingInsurance ? 0.6 : 1,
-                    }}
-                  >
+                      padding: '6px 14px', borderRadius: 6, border: '1px solid #86efac',
+                      background: 'white', color: '#166534', fontSize: 12, fontWeight: 700,
+                      cursor: verifyingInsurance ? 'not-allowed' : 'pointer', opacity: verifyingInsurance ? 0.6 : 1,
+                    }}>
                     {verifyingInsurance ? '⏳ Checking...' : '✓ Check Eligibility'}
                   </button>
                 )}
                 {eligibilityData && (
-                  <div style={{ fontSize: 12, color: '#166534', marginTop: 8 }}>
-                    ✓ Eligible • Coverage: {eligibilityData.coverageType} • Copay: ${eligibilityData.copayAmount.toFixed(2)}
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#166534' }}>
+                    ✓ Eligible · Coverage: {eligibilityData.coverageType} · Copay: ${eligibilityData.copayAmount.toFixed(2)}
                   </div>
                 )}
               </div>
 
-              {/* Copay Display */}
+              {/* Copay */}
               {copayAmount && (
-                <div style={{ marginBottom: 16, padding: 12, background: '#fef3c7', borderRadius: 8, border: '1px solid #fcd34d' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#78350f', marginBottom: 4 }}>💰 Patient Copay</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: '#92400e' }}>${copayAmount.toFixed(2)}</div>
-                  <div style={{ fontSize: 11, color: '#b45309', marginTop: 4 }}>This is the estimated patient out-of-pocket cost. Verify with pharmacy/insurance for accuracy.</div>
+                <div style={{ marginBottom: 18, padding: '12px 14px', background: '#fffbeb', borderRadius: 10, border: '1px solid #fcd34d' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#78350f', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>💰 Estimated Copay</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: '#92400e' }}>${copayAmount.toFixed(2)}</div>
+                  <div style={{ fontSize: 11, color: '#b45309', marginTop: 4 }}>Verify final amount with pharmacy.</div>
                 </div>
               )}
 
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: '#475569' }}>Pharmacy *</label>
-                <input
-                  type="text"
-                  value={pharmForm.pharmacy}
-                  onChange={(e) => setPharmForm(prev => ({ ...prev, pharmacy: e.target.value }))}
-                  placeholder="e.g., CVS - Main St"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14 }}
-                />
-              </div>
+              {/* Form fields */}
+              {[
+                {
+                  label: 'Pharmacy', required: true,
+                  input: <input type="text" value={pharmForm.pharmacy}
+                    onChange={(e) => setPharmForm(prev => ({ ...prev, pharmacy: e.target.value }))}
+                    placeholder="e.g., CVS - Main St"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 14, boxSizing: 'border-box', outline: 'none' }}
+                  />,
+                },
+                {
+                  label: 'Refills to Authorize',
+                  input: <input type="number" value={pharmForm.refills} min="0"
+                    onChange={(e) => setPharmForm(prev => ({ ...prev, refills: parseInt(e.target.value) || 0 }))}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 14, boxSizing: 'border-box', outline: 'none' }}
+                  />,
+                },
+                {
+                  label: 'Priority',
+                  input: <select value={pharmForm.priority}
+                    onChange={(e) => setPharmForm(prev => ({ ...prev, priority: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 14, background: '#fff', outline: 'none' }}>
+                    {REFILL_PRIORITIES.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                  </select>,
+                },
+              ].map(({ label, required, input }) => (
+                <div key={label} style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: '#475569', letterSpacing: '0.04em' }}>
+                    {label}{required && <span style={{ color: '#dc2626', marginLeft: 3 }}>*</span>}
+                  </label>
+                  {input}
+                </div>
+              ))}
 
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: '#475569' }}>Refills to Authorize</label>
-                <input
-                  type="number"
-                  value={pharmForm.refills}
-                  onChange={(e) => setPharmForm(prev => ({ ...prev, refills: parseInt(e.target.value) || 0 }))}
-                  min="0"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14 }}
-                />
-              </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: '#475569' }}>Priority</label>
-                <select
-                  value={pharmForm.priority}
-                  onChange={(e) => setPharmForm(prev => ({ ...prev, priority: e.target.value }))}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14 }}
-                >
-                  {REFILL_PRIORITIES.map(p => (
-                    <option key={p.id} value={p.id}>{p.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: '#475569' }}>Notes (Optional)</label>
-                <textarea
-                  value={pharmForm.notes}
+              <div style={{ marginBottom: 4 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: '#475569', letterSpacing: '0.04em' }}>Notes <span style={{ color: '#94a3b8', fontWeight: 500 }}>(optional)</span></label>
+                <textarea value={pharmForm.notes}
                   onChange={(e) => setPharmForm(prev => ({ ...prev, notes: e.target.value }))}
                   placeholder="e.g., Patient has insurance, call if any issues..."
                   rows={3}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
             </div>
 
-            <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+            <div style={{ padding: '16px 28px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#fafafa' }}>
               <button
-                onClick={() => {
-                  setShowPharmacyModal(false);
-                  setSelectedRefillForAction(null);
-                }}
-                style={{
-                  padding: '10px 20px',
-                  borderRadius: 6,
-                  border: '1px solid #cbd5e1',
-                  background: 'white',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
+                onClick={() => { setShowPharmacyModal(false); setSelectedRefillForAction(null); }}
+                style={{ padding: '10px 22px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', color: '#374151' }}
               >
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  if (selectedRefillForAction) {
-                    handleSendRefill(selectedRefillForAction.id);
-                  } else {
-                    handleBulkSend();
-                  }
-                }}
+                onClick={() => selectedRefillForAction ? handleSendRefill(selectedRefillForAction.id) : handleBulkSend()}
                 disabled={bulkSending || !pharmForm.pharmacy}
                 style={{
-                  padding: '10px 20px',
-                  borderRadius: 6,
-                  border: 'none',
-                  background: '#10b981',
-                  color: 'white',
-                  fontSize: 13,
-                  fontWeight: 700,
+                  padding: '10px 22px', borderRadius: 8, border: 'none',
+                  background: !pharmForm.pharmacy || bulkSending ? '#9ca3af' : '#0066cc',
+                  color: 'white', fontSize: 13, fontWeight: 700,
                   cursor: !pharmForm.pharmacy || bulkSending ? 'not-allowed' : 'pointer',
-                  opacity: !pharmForm.pharmacy || bulkSending ? 0.6 : 1,
                 }}
               >
                 {bulkSending ? '⏳ Sending...' : '✅ Send to Pharmacy'}
@@ -800,52 +806,43 @@ export default function RefillQueue() {
         </div>
       )}
 
-      {/* Telehealth Modal */}
+      {/* ── Telehealth Modal ─────────────────────────────────────────────────── */}
       {showTelehealth && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 2000, padding: 24,
+          zIndex: 2000, padding: 24, backdropFilter: 'blur(4px)',
         }}>
           <div style={{
-            background: 'white', borderRadius: 12, width: '100%', maxWidth: 500,
-            boxShadow: '0 20px 60px rgba(0,0,0,0.35)', overflow: 'hidden',
+            background: 'white', borderRadius: 16, width: '100%', maxWidth: 480,
+            boxShadow: '0 24px 64px rgba(0,0,0,0.28)', overflow: 'hidden',
+            border: '1px solid #e5e7eb',
           }}>
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', background: 'linear-gradient(135deg, #0891b2 0%, #0e7490 100%)', color: 'white' }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>🔗 Share Telehealth Link</div>
-              <div style={{ fontSize: 13, opacity: 0.9, marginTop: 6 }}>Send this link to your patient for video consultation</div>
+            <div style={{
+              background: 'linear-gradient(135deg, #0c4a6e 0%, #0369a1 50%, #0891b2 100%)',
+              color: 'white', padding: '22px 28px', position: 'relative', overflow: 'hidden',
+            }}>
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.07)' }} />
+              <div style={{ position: 'relative' }}>
+                <div style={{ fontWeight: 800, fontSize: 18 }}>🔗 Share Telehealth Link</div>
+                <div style={{ fontSize: 13, opacity: 0.85, marginTop: 5 }}>Send to patient for video consultation</div>
+              </div>
             </div>
 
-            <div style={{ padding: '24px' }}>
-              <div style={{ marginBottom: 16, padding: '12px', background: '#f0f9ff', borderRadius: 8, border: '1px solid #bfdbfe' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#0369a1', marginBottom: 8 }}>Telehealth Link:</div>
-                <div style={{
-                  display: 'flex',
-                  gap: 8,
-                  background: 'white',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: 6,
-                  padding: '10px 12px',
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                  color: '#0f172a',
-                  wordBreak: 'break-all',
-                }}>
-                  <span style={{ flex: 1, color: '#64748b' }}>
+            <div style={{ padding: '24px 28px' }}>
+              {/* Link box */}
+              <div style={{ marginBottom: 18, padding: '14px', background: '#f0f9ff', borderRadius: 10, border: '1px solid #bae6fd' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#0369a1', marginBottom: 8, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Telehealth Link</div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'white', border: '1.5px solid #e0f2fe', borderRadius: 8, padding: '10px 12px' }}>
+                  <span style={{ flex: 1, fontSize: 12, fontFamily: 'monospace', color: '#0369a1', wordBreak: 'break-all' }}>
                     {generateTelehealthLink(selectedPatientForTelehealth)}
                   </span>
                   <button
                     onClick={() => copyTelehealthLink(selectedPatientForTelehealth, '')}
                     style={{
-                      padding: '4px 12px',
-                      borderRadius: 4,
-                      border: '1px solid #cbd5e1',
-                      background: copiedLinkId === selectedPatientForTelehealth ? '#10b981' : '#f0f9ff',
-                      color: copiedLinkId === selectedPatientForTelehealth ? 'white' : '#0369a1',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
+                      padding: '5px 12px', borderRadius: 6, border: 'none', whiteSpace: 'nowrap',
+                      background: copiedLinkId === selectedPatientForTelehealth ? '#059669' : '#0369a1',
+                      color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
                     }}
                   >
                     {copiedLinkId === selectedPatientForTelehealth ? '✅ Copied' : '📋 Copy'}
@@ -853,72 +850,39 @@ export default function RefillQueue() {
                 </div>
               </div>
 
-              <div style={{ marginBottom: 16, padding: '12px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #86efac' }}>
-                <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.6 }}>
-                  ✅ <strong>Patient Ready:</strong> You can now share this link with your patient via email, SMS, or chat. They can click the link to join the video consultation directly.
+              {/* Patient ready note */}
+              <div style={{ marginBottom: 18, padding: '12px 14px', background: '#f0fdf4', borderRadius: 10, border: '1px solid #bbf7d0' }}>
+                <div style={{ fontSize: 13, color: '#166534', lineHeight: 1.6 }}>
+                  <strong>✅ Patient Ready</strong> — Share this link via email, SMS, or chat. Patient can click to join directly.
                 </div>
               </div>
 
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8 }}>Ways to Send:</div>
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <button
-                    onClick={() => {
-                      copyTelehealthLink(selectedPatientForTelehealth, '');
-                      showToast('📧 Link copied! Send via email');
-                    }}
+              {/* Send options */}
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Send Via</div>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {[
+                  { icon: '📧', label: 'Email Patient', toast: '📧 Link copied! Send via email' },
+                  { icon: '💬', label: 'Text / Message Patient', toast: '💬 Link copied! Send via SMS' },
+                ].map(({ icon, label, toast: t }) => (
+                  <button key={label}
+                    className="rq-action-btn"
+                    onClick={() => { copyTelehealthLink(selectedPatientForTelehealth, ''); showToast(t); }}
                     style={{
-                      padding: '10px 12px',
-                      borderRadius: 6,
-                      border: '1px solid #cbd5e1',
-                      background: 'white',
-                      fontSize: 13,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      color: '#0f172a',
-                      textAlign: 'left',
+                      padding: '12px 16px', borderRadius: 8, border: '1.5px solid #e2e8f0',
+                      background: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                      color: '#0f172a', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10,
                     }}
                   >
-                    📧 Email Patient
+                    <span style={{ fontSize: 18 }}>{icon}</span> {label}
                   </button>
-                  <button
-                    onClick={() => {
-                      copyTelehealthLink(selectedPatientForTelehealth, '');
-                      showToast('💬 Link copied! Send via SMS/message');
-                    }}
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: 6,
-                      border: '1px solid #cbd5e1',
-                      background: 'white',
-                      fontSize: 13,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      color: '#0f172a',
-                      textAlign: 'left',
-                    }}
-                  >
-                    💬 Text/Message Patient
-                  </button>
-                </div>
+                ))}
               </div>
             </div>
 
-            <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+            <div style={{ padding: '16px 28px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', background: '#fafafa' }}>
               <button
-                onClick={() => {
-                  setShowTelehealth(false);
-                  setSelectedPatientForTelehealth(null);
-                }}
-                style={{
-                  padding: '10px 20px',
-                  borderRadius: 6,
-                  border: '1px solid #cbd5e1',
-                  background: 'white',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
+                onClick={() => { setShowTelehealth(false); setSelectedPatientForTelehealth(null); }}
+                style={{ padding: '10px 22px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', color: '#374151' }}
               >
                 Close
               </button>
