@@ -59,6 +59,7 @@ import dosespotRoutes from './routes/dosespot.js';
 import patientPortalRoutes from './routes/patientPortal.js';
 import providerSignatureRoutes from './routes/providerSignatures.js';
 import refillRoutes from './routes/refills.js';
+import uptimeRoutes from './routes/uptime.js';
 
 const app = express();
 
@@ -166,6 +167,7 @@ app.use((req, _res, next) => {
 // ── Health check — used by CI/CD, uptime monitors, and load balancers ─────────
 // GET /api/health        → lightweight liveness (always fast, no DB query)
 // GET /api/health/full   → deep readiness (DB + migrations + memory)
+// GET /api/uptime        → server uptime and restart statistics
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), env: config.nodeEnv });
 });
@@ -227,6 +229,9 @@ app.use(express.static(path.join(__dirname, '../dist')));
 
 // API Routes
 app.use('/api/auth', authRoutes);
+
+// ── Public routes (no authentication required) ──────────────────────────────────
+app.use('/api/uptime', uptimeRoutes);  // Health monitoring endpoints
 
 // ── Facility gate — all data routes require a logged-in user with a facility ──
 // Auth routes are excluded (they run before the user is authenticated).

@@ -1,0 +1,18 @@
+[2026-06-11T01:00:14.024Z] [ALERT] 🔄 SERVER RESTART DETECTED! Restart count: 5
+{"timestamp":"2026-06-11T01:00:14.025Z","restartCount":5,"newPID":66036,"previousRestarts":0,"totalRestarts":5}
+[2026-06-11T01:00:14.025Z] [ALERT] 🔄 Server Restart Alert
+
+Timestamp: 2026-06-11T01:00:14.025Z
+Restart #5
+New PID: 66036
+Memory: 51MB
+CPU: 0%
+[2026-06-11T01:06:14.136Z] [ALERT] 🔄 SERVER RESTART DETECTED! Restart count: 8
+{"timestamp":"2026-06-11T01:06:14.138Z","restartCount":8,"newPID":68045,"previousRestarts":5,"totalRestarts":8}
+[2026-06-11T01:06:14.138Z] [ALERT] 🔄 Server Restart Alert
+
+Timestamp: 2026-06-11T01:06:14.138Z
+Restart #8
+New PID: 68045
+Memory: 103MB
+CPU: 0%

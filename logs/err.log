@@ -10,3 +10,99 @@
 2026-06-10 19:44:42 -05:00:     at ModuleJob._link (node:internal/modules/esm/module_job:175:49) {
 2026-06-10 19:44:42 -05:00:   code: 'ERR_MODULE_NOT_FOUND'
 2026-06-10 19:44:42 -05:00: }
+2026-06-10 19:59:35 -05:00: Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'resend' imported from /Users/harrietappiah/Desktop/vscode/EHR1-master/server/services/PharmacyEmailService.js
+2026-06-10 19:59:35 -05:00:     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+2026-06-10 19:59:35 -05:00:     at packageResolve (node:internal/modules/esm/resolve:768:81)
+2026-06-10 19:59:35 -05:00:     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+2026-06-10 19:59:35 -05:00:     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+2026-06-10 19:59:35 -05:00:     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+2026-06-10 19:59:35 -05:00:     at #cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+2026-06-10 19:59:35 -05:00:     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+2026-06-10 19:59:35 -05:00:     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+2026-06-10 19:59:35 -05:00:     at ModuleJob._link (node:internal/modules/esm/module_job:175:49) {
+2026-06-10 19:59:35 -05:00:   code: 'ERR_MODULE_NOT_FOUND'
+2026-06-10 19:59:35 -05:00: }
+2026-06-10 19:59:46 -05:00: Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'resend' imported from /Users/harrietappiah/Desktop/vscode/EHR1-master/server/services/PharmacyEmailService.js
+2026-06-10 19:59:46 -05:00:     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+2026-06-10 19:59:46 -05:00:     at packageResolve (node:internal/modules/esm/resolve:768:81)
+2026-06-10 19:59:46 -05:00:     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+2026-06-10 19:59:46 -05:00:     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+2026-06-10 19:59:46 -05:00:     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+2026-06-10 19:59:46 -05:00:     at #cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+2026-06-10 19:59:46 -05:00:     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+2026-06-10 19:59:46 -05:00:     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+2026-06-10 19:59:46 -05:00:     at ModuleJob._link (node:internal/modules/esm/module_job:175:49) {
+2026-06-10 19:59:46 -05:00:   code: 'ERR_MODULE_NOT_FOUND'
+2026-06-10 19:59:46 -05:00: }
+2026-06-10 19:59:57 -05:00: Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'resend' imported from /Users/harrietappiah/Desktop/vscode/EHR1-master/server/services/PharmacyEmailService.js
+2026-06-10 19:59:57 -05:00:     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+2026-06-10 19:59:57 -05:00:     at packageResolve (node:internal/modules/esm/resolve:768:81)
+2026-06-10 19:59:57 -05:00:     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+2026-06-10 19:59:57 -05:00:     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+2026-06-10 19:59:57 -05:00:     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+2026-06-10 19:59:57 -05:00:     at #cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+2026-06-10 19:59:57 -05:00:     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+2026-06-10 19:59:57 -05:00:     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+2026-06-10 19:59:57 -05:00:     at ModuleJob._link (node:internal/modules/esm/module_job:175:49) {
+2026-06-10 19:59:57 -05:00:   code: 'ERR_MODULE_NOT_FOUND'
+2026-06-10 19:59:57 -05:00: }
+2026-06-10 20:00:01 -05:00: Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'resend' imported from /Users/harrietappiah/Desktop/vscode/EHR1-master/server/services/PharmacyEmailService.js
+2026-06-10 20:00:01 -05:00:     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+2026-06-10 20:00:01 -05:00:     at packageResolve (node:internal/modules/esm/resolve:768:81)
+2026-06-10 20:00:01 -05:00:     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+2026-06-10 20:00:01 -05:00:     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+2026-06-10 20:00:01 -05:00:     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+2026-06-10 20:00:01 -05:00:     at #cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+2026-06-10 20:00:01 -05:00:     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+2026-06-10 20:00:01 -05:00:     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+2026-06-10 20:00:01 -05:00:     at ModuleJob._link (node:internal/modules/esm/module_job:175:49) {
+2026-06-10 20:00:01 -05:00:   code: 'ERR_MODULE_NOT_FOUND'
+2026-06-10 20:00:01 -05:00: }
+2026-06-10 20:00:09 -05:00: Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'resend' imported from /Users/harrietappiah/Desktop/vscode/EHR1-master/server/services/PharmacyEmailService.js
+2026-06-10 20:00:09 -05:00:     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+2026-06-10 20:00:09 -05:00:     at packageResolve (node:internal/modules/esm/resolve:768:81)
+2026-06-10 20:00:09 -05:00:     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+2026-06-10 20:00:09 -05:00:     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+2026-06-10 20:00:09 -05:00:     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+2026-06-10 20:00:09 -05:00:     at #cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+2026-06-10 20:00:09 -05:00:     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+2026-06-10 20:00:09 -05:00:     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+2026-06-10 20:00:09 -05:00:     at ModuleJob._link (node:internal/modules/esm/module_job:175:49) {
+2026-06-10 20:00:09 -05:00:   code: 'ERR_MODULE_NOT_FOUND'
+2026-06-10 20:00:09 -05:00: }
+2026-06-10 20:05:23 -05:00: Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'resend' imported from /Users/harrietappiah/Desktop/vscode/EHR1-master/server/services/PharmacyEmailService.js
+2026-06-10 20:05:23 -05:00:     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+2026-06-10 20:05:23 -05:00:     at packageResolve (node:internal/modules/esm/resolve:768:81)
+2026-06-10 20:05:23 -05:00:     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+2026-06-10 20:05:23 -05:00:     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+2026-06-10 20:05:23 -05:00:     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+2026-06-10 20:05:23 -05:00:     at #cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+2026-06-10 20:05:23 -05:00:     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+2026-06-10 20:05:23 -05:00:     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+2026-06-10 20:05:23 -05:00:     at ModuleJob._link (node:internal/modules/esm/module_job:175:49) {
+2026-06-10 20:05:23 -05:00:   code: 'ERR_MODULE_NOT_FOUND'
+2026-06-10 20:05:23 -05:00: }
+2026-06-10 20:05:27 -05:00: Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'resend' imported from /Users/harrietappiah/Desktop/vscode/EHR1-master/server/services/PharmacyEmailService.js
+2026-06-10 20:05:27 -05:00:     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+2026-06-10 20:05:27 -05:00:     at packageResolve (node:internal/modules/esm/resolve:768:81)
+2026-06-10 20:05:27 -05:00:     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+2026-06-10 20:05:27 -05:00:     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+2026-06-10 20:05:27 -05:00:     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+2026-06-10 20:05:27 -05:00:     at #cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+2026-06-10 20:05:27 -05:00:     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+2026-06-10 20:05:27 -05:00:     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+2026-06-10 20:05:27 -05:00:     at ModuleJob._link (node:internal/modules/esm/module_job:175:49) {
+2026-06-10 20:05:27 -05:00:   code: 'ERR_MODULE_NOT_FOUND'
+2026-06-10 20:05:27 -05:00: }
+2026-06-10 20:06:12 -05:00: Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'resend' imported from /Users/harrietappiah/Desktop/vscode/EHR1-master/server/services/PharmacyEmailService.js
+2026-06-10 20:06:12 -05:00:     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+2026-06-10 20:06:12 -05:00:     at packageResolve (node:internal/modules/esm/resolve:768:81)
+2026-06-10 20:06:12 -05:00:     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+2026-06-10 20:06:12 -05:00:     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+2026-06-10 20:06:12 -05:00:     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+2026-06-10 20:06:12 -05:00:     at #cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+2026-06-10 20:06:12 -05:00:     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+2026-06-10 20:06:12 -05:00:     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+2026-06-10 20:06:12 -05:00:     at ModuleJob._link (node:internal/modules/esm/module_job:175:49) {
+2026-06-10 20:06:12 -05:00:   code: 'ERR_MODULE_NOT_FOUND'
+2026-06-10 20:06:12 -05:00: }
