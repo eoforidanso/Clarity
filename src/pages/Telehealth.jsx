@@ -27,12 +27,105 @@ const CPT_CODES = [
 ];
 
 const QUICK_NOTE_TEMPLATES = [
-  { label: 'Stable / Routine',       text: 'Patient seen via telehealth. Reports medication is working as expected with no significant side effects. Mood and affect stable. No SI/HI. Plan to continue current regimen.' },
-  { label: 'Medication Adjustment',  text: 'Patient seen via telehealth. Reports [symptom]. After discussion of risks, benefits, and alternatives, plan to [change]. Patient verbalized understanding. Follow up in [timeframe].' },
-  { label: 'Crisis Assessment',      text: 'Patient seen via STAT telehealth. Patient reported [presenting concern]. Safety assessment completed: SI [present/absent], HI [present/absent], plan [present/absent]. Protective factors [list]. Safety plan reviewed/updated. [Next steps].' },
-  { label: 'Therapy Progress',       text: 'Patient seen via telehealth for individual therapy. Continued work on [treatment focus]. Patient demonstrates [progress/challenges]. Session techniques: [CBT/DBT/CPT/other]. Assigned homework: [task].' },
-  { label: 'Initial Evaluation',     text: 'Patient seen via telehealth for initial psychiatric evaluation. Chief complaint: [CC]. History of present illness: [HPI]. Mental status exam: Alert, oriented x3, affect [appropriate/blunted/labile], thought process [linear/tangential], thought content [no SI/HI]. Diagnostic impression: [DSM-5 diagnosis]. Plan: [plan].' },
+  // ── Routine & Follow-Up ──────────────────────────────────────────────────
+  {
+    label: 'Stable / Routine Follow-Up',
+    text: `Patient seen via telehealth for routine psychiatric follow-up. Patient reports medication is effective with no significant side effects. Mood is stable, sleep is adequate, appetite is intact. No new stressors reported. Denies SI/HI/AVH. MSE: Alert, oriented x3, cooperative, affect appropriate, thought process linear, insight and judgment intact.\n\nPlan: Continue current medication regimen. Follow up in [4–8 weeks]. Patient instructed to contact office PRN for any acute concerns.`,
+  },
+  {
+    label: 'Medication Adjustment',
+    text: `Patient seen via telehealth. Patient reports [symptom/concern, e.g., partial response, side effects, relapse of symptoms]. Current medication(s) reviewed. After thorough discussion of risks, benefits, alternatives, and patient preferences:\n\nChange: [Increase/Decrease/Switch/Add] [medication] from [dose] to [new dose].\nReason: [clinical rationale].\nSide effects discussed: [list key side effects].\nPatient verbalized understanding and agreement with plan.\n\nMonitoring: [labs if applicable, e.g., CBC, CMP, lithium level]. Follow up in [2–4 weeks] to assess response and tolerability.`,
+  },
+  {
+    label: 'New Side Effect Reported',
+    text: `Patient seen via telehealth. Patient reports new onset [side effect] since starting/increasing [medication]. Onset: [date/timeframe]. Severity: [mild/moderate/severe]. Functional impact: [none/mild/significant].\n\nAssessment: Side effect likely [related/possibly related/unrelated] to [medication].\nPlan: [Continue with monitoring / Dose reduction / Discontinue and switch]. Patient educated on [management strategies]. Instructed to go to ER if [serious symptoms, e.g., rash, chest pain, severe akathisia]. Follow up in [timeframe].`,
+  },
+  {
+    label: 'Refill Only / Brief Check-In',
+    text: `Patient seen via telehealth for brief medication check-in and refill. Patient reports medications are working well with no significant side effects. No changes in mental status since last visit. Denies SI/HI. MSE grossly intact.\n\nPlan: Refill [medication(s)] as previously prescribed. No medication changes at this time. Next follow-up in [timeframe]. Patient reminded to contact office with any concerns before next appointment.`,
+  },
+  {
+    label: 'Follow-Up After Hospitalization',
+    text: `Patient seen via telehealth for post-hospitalization follow-up. Patient was discharged from [facility] on [date] following [psychiatric hospitalization / medical admission]. Discharge diagnosis: [diagnosis]. Discharge medications: [list].\n\nCurrent status: Patient reports [mood, sleep, appetite, level of functioning]. Transition to outpatient care discussed. Medication reconciliation completed — [no changes / adjustments made]. Coping plan reviewed. Outpatient supports: [therapist, case manager, IOP, PHP].\n\nSafety: Denies SI/HI. Safety plan reviewed and updated. Crisis line number provided (988). Follow up in [1 week].`,
+  },
+
+  // ── Crisis & Safety ───────────────────────────────────────────────────────
+  {
+    label: 'Crisis Assessment / Safety Planning',
+    text: `Patient seen via STAT telehealth for crisis evaluation. Patient reported [presenting concern, e.g., worsening depression, suicidal ideation, self-harm].\n\nSafety Assessment:\n- SI: [Present / Absent] — Ideation: [passive/active], Plan: [none/present], Intent: [none/present], Means: [none/access described]\n- HI: [Present / Absent]\n- Self-harm: [Present / Absent — describe]\n- Recent substance use: [Yes/No — describe]\n- Protective factors: [reasons for living, social supports, future orientation]\n\nMSE: [Alert, oriented, affect [dysphoric/anxious/flat], thought process [linear/disorganized]]\n\nSafety Plan Updated:\n1. Warning signs: [list]\n2. Internal coping strategies: [list]\n3. Social contacts for distraction: [names]\n4. Crisis contacts: [names/numbers]\n5. Professional crisis resources: 988 Lifeline, local ER [name]\n6. Means restriction: [discussed, firearms/medications secured]\n\nDisposition: [Outpatient with safety plan / Voluntary hospitalization recommended / Involuntary hold initiated — 5150/5250]. [Next steps and rationale].`,
+  },
+  {
+    label: 'Passive SI — No Acute Risk',
+    text: `Patient seen via telehealth. Patient endorsed passive suicidal ideation ("I wish I were dead / wouldn't mind not waking up") without active plan, intent, or means. No prior attempts. Protective factors present: [family, children, religious beliefs, future goals].\n\nMSE: Affect [dysphoric/anxious], thought process linear, no psychosis, judgment intact.\n\nAssessment: Low acute risk for self-harm at this time based on C-SSRS. No voluntary or involuntary hospitalization indicated at present.\n\nPlan: Safety plan reviewed and updated. Crisis line number provided (988). [Medication adjustment if applicable]. Increase visit frequency to [weekly]. Patient instructed to go to ER or call 911 if ideation escalates. Collateral contact made with [family member/support person] with patient consent. Follow up [date].`,
+  },
+  {
+    label: 'Domestic Violence / Safety Concern',
+    text: `Patient seen via telehealth. Patient disclosed [current/recent history of] domestic violence/intimate partner violence. Safety assessed: Patient currently [safe / not safe] at home. Immediate danger: [Yes/No].\n\nMandatory reporting obligations reviewed per state law. [Report filed / Not required at this time — rationale].\n\nResources provided:\n- National DV Hotline: 1-800-799-7233\n- Local shelter: [name/number]\n- Safety planning completed: [exits, documents, children, safe contacts]\n\nPlan: Continued support. Referral to [social work/case management/DV advocate]. Follow up in [timeframe] or sooner if needed.`,
+  },
+
+  // ── Evaluations ───────────────────────────────────────────────────────────
+  {
+    label: 'Initial Psychiatric Evaluation',
+    text: `Patient seen via telehealth for initial psychiatric evaluation.\n\nCC: [Chief complaint in patient's words]\n\nHPI: [Age]-year-old [gender] presenting with [duration] history of [presenting symptoms]. [Onset, course, severity, functional impact, prior treatment]. [Relevant psychosocial context].\n\nPast Psychiatric History: [Prior diagnoses, hospitalizations, outpatient treatment, medications tried]\nPast Medical History: [Active medical conditions]\nMedications: [Current medications including non-psychiatric]\nAllergies: [Drug allergies/reactions]\nSubstance Use: [Tobacco, alcohol, cannabis, other — frequency/amount]\nFamily History: [Psychiatric illness in first-degree relatives]\nSocial History: [Living situation, relationship status, employment, education, trauma history]\n\nMSE: Alert, oriented x3, cooperative. Appearance [appropriate/disheveled]. Speech [normal rate/volume]. Mood "[patient-reported]." Affect [appropriate/blunted/labile/restricted]. Thought process [linear/tangential/circumstantial]. Thought content [no SI/HI/AVH/delusions] or [describe]. Cognition grossly intact. Insight [intact/limited/absent]. Judgment [intact/impaired].\n\nDiagnostic Impression:\n1. [Primary DSM-5 diagnosis with ICD-10 code]\n2. [Secondary diagnosis if applicable]\n\nPlan:\n1. Start [medication, dose, instructions]\n2. Labs ordered: [CBC, CMP, TSH, other]\n3. Referral to [therapy, case management, other]\n4. Return in [timeframe] for follow-up.\n5. Crisis plan discussed. 988 Lifeline provided.`,
+  },
+  {
+    label: 'ADHD Evaluation',
+    text: `Patient seen via telehealth for ADHD evaluation. Patient reports [inattention / hyperactivity / impulsivity] symptoms since [childhood/adulthood]. Functional impairment in [work/school/relationships/daily tasks].\n\nSymptoms reviewed: [list core ADHD symptoms endorsed — concentration, organization, forgetfulness, fidgeting, impulsivity, etc.]\nRating scales administered: [Conners / Adult ADHD Self-Report Scale / Vanderbilt]\nDifferential considered: [Anxiety, depression, sleep disorder, substance use, mania]\nPrior stimulant/non-stimulant trials: [list if any]\n\nMSE: Alert, cooperative. [Distractible / Difficulty sustaining attention noted in session]. No psychosis, no SI/HI.\n\nDiagnostic Impression: [ADHD, Combined/Inattentive/Hyperactive-Impulsive presentation] vs. [rule out differentials]\n\nPlan:\n1. [Start/trial stimulant/non-stimulant — medication, dose]\n2. PDMP check completed.\n3. DEA Schedule II: No refills authorized per DEA regulations. New Rx required each month.\n4. Counseling/coaching referral provided.\n5. Follow up in [4 weeks].`,
+  },
+
+  // ── Condition-Specific ────────────────────────────────────────────────────
+  {
+    label: 'Depression Follow-Up',
+    text: `Patient seen via telehealth for depression follow-up. Patient reports [improved/unchanged/worsened] mood since last visit. PHQ-9 score today: [score] ([severity]). Sleep: [improved/poor — hours per night]. Appetite: [intact/decreased/increased]. Energy: [adequate/low]. Concentration: [intact/impaired]. Anhedonia: [present/absent].\n\nDenies SI/HI. No psychotic features.\n\nMSE: Affect [euthymic/dysphoric/reactive]. Thought process linear. Judgment intact.\n\nAssessment: [MDD, Persistent Depressive Disorder, Adjustment Disorder with Depressed Mood] — [in remission / partial remission / active episode — mild/moderate/severe].\n\nPlan: [Continue / Adjust medication]. [Therapy referral / ongoing]. Sleep hygiene reinforced. Activity scheduling discussed. Follow up in [timeframe].`,
+  },
+  {
+    label: 'Anxiety / Panic Follow-Up',
+    text: `Patient seen via telehealth for anxiety follow-up. GAD-7 score today: [score] ([severity]). Patient reports [frequency] of anxiety episodes/panic attacks since last visit. Triggers: [identified/none identified]. Avoidance behaviors: [present/absent]. Sleep: [adequate/disrupted]. Functional impact: [work/social/daily activities].\n\nDenies SI/HI.\n\nMSE: Appears [anxious/calm]. Affect [anxious/appropriate]. Thought process [ruminative/linear].\n\nAssessment: [GAD / Panic Disorder / Social Anxiety / Agoraphobia / PTSD / Adjustment Disorder with Anxiety] — [improving/stable/worsening].\n\nPlan: [Continue / Adjust medication]. CBT/exposure techniques discussed. Breathing and grounding techniques reviewed. Avoid caffeine and alcohol reinforced. Follow up in [timeframe].`,
+  },
+  {
+    label: 'Bipolar Disorder Follow-Up',
+    text: `Patient seen via telehealth for bipolar disorder follow-up. Patient reports [stable mood / depressive symptoms / hypomanic symptoms / manic symptoms] since last visit. Sleep: [regular/disrupted — hours/night]. Energy: [normal/elevated/low]. Racing thoughts: [yes/no]. Impulsivity: [increased/baseline]. Risk-taking behavior: [yes/no]. Irritability: [present/absent].\n\nMDQ/mood chart reviewed: [findings]. PDMP checked: [clear/findings].\n\nDenies SI/HI. No acute safety concerns.\n\nMSE: Speech [normal rate/pressured]. Psychomotor [normal/agitated]. Mood "[patient-reported]." Affect [appropriate/expansive/dysphoric]. Thought process [linear/tangential/flight of ideas].\n\nAssessment: Bipolar [I/II/cyclothymia] — currently [euthymic/depressed/hypomanic/manic].\n\nPlan: [Continue/adjust mood stabilizer/antipsychotic]. Labs: [lithium level/VPA level/CMP/TSH as applicable]. Sleep regulation emphasized. Trigger avoidance reviewed. Follow up in [timeframe].`,
+  },
+  {
+    label: 'PTSD / Trauma Follow-Up',
+    text: `Patient seen via telehealth for PTSD follow-up. PCL-5 score today: [score]. Patient reports [frequency/severity] of intrusive symptoms (flashbacks, nightmares), avoidance behaviors, hyperarousal, and negative cognitions since last visit. Recent triggers: [identified/none]. Sleep: [adequate/disrupted — nightmares present/absent].\n\nDenies SI/HI.\n\nTherapy progress: [CPT/EMDR/PE/other] — patient reports [engagement and response]. Coping skills used: [grounding, relaxation, other].\n\nMSE: Affect [appropriate/restricted/hypervigilant]. Thought process linear. No dissociative symptoms noted.\n\nPlan: [Continue / Adjust medication for nightmares/hyperarousal — prazosin, SSRIs, etc.]. Continue trauma-focused therapy. Safety planning reviewed. Follow up in [timeframe].`,
+  },
+  {
+    label: 'Psychosis / Schizophrenia Follow-Up',
+    text: `Patient seen via telehealth for psychosis follow-up. Patient reports [stable/worsening/improving] symptoms. Positive symptoms: Hallucinations [auditory/visual/absent — describe]. Delusions [present/absent — describe]. Disorganized thinking [present/absent]. Negative symptoms: Flat affect [present/absent], avolition [present/absent], alogia [present/absent].\n\nMedication adherence: [100% / partial — reason]. Last antipsychotic injection (if applicable): [date, medication, dose]. AIMS score: [score — abnormal movements noted/not noted].\n\nDenies SI/HI. No acute agitation.\n\nMSE: Thought process [linear/disorganized/tangential]. Thought content [no delusions / delusions present — encapsulated/active]. Perceptual disturbances [none/AVH described]. Insight [intact/limited/absent].\n\nPlan: [Continue/adjust antipsychotic]. Labs: [prolactin/metabolic panel/lipids]. Case management/ACT team coordination. Housing and social support reviewed. Follow up in [timeframe].`,
+  },
+  {
+    label: 'Substance Use / SUD Follow-Up',
+    text: `Patient seen via telehealth for substance use disorder follow-up. Substance(s): [alcohol/opioids/stimulants/cannabis/other]. Current use: [abstinent since [date] / reduced — [frequency/amount] / unchanged / increased].\n\nMAT (if applicable): [Buprenorphine dose/Naltrexone/Vivitrol — adherence, side effects]. PDMP reviewed: [findings, compliant/concerns]. UDS results: [negative / positive for (list)].\n\nCravings: [none/mild/moderate/severe]. Triggers identified: [list]. Recovery supports: [AA/NA/SMART, sponsor, sober support network]. Functional status: [employment, housing, relationships — stable/improving/declining].\n\nDenies SI/HI.\n\nPlan: [Continue/adjust MAT]. [Counseling referral/ongoing]. Relapse prevention strategies reviewed. [Naloxone prescribed/on hand — discussed overdose reversal]. Follow up in [timeframe].`,
+  },
+  {
+    label: 'Insomnia / Sleep Disorder Follow-Up',
+    text: `Patient seen via telehealth for insomnia follow-up. Patient reports [sleep onset latency: X minutes], [total sleep time: X hours], [number of awakenings: X/night], [early morning awakening: yes/no]. Daytime impairment: [fatigue, concentration, mood, performance]. ISI score: [score].\n\nSleep hygiene: [reviewed — adherent/non-adherent]. CBT-I progress: [if applicable]. Contributing factors: [anxiety, pain, substance use, sleep apnea, medication side effects — rule out/address].\n\nCurrent sleep aids: [list medications, dose, frequency]. Concerns: [dependence, tolerance, appropriateness].\n\nPlan: [Continue/adjust/taper sleep medication]. CBT-I techniques reinforced (stimulus control, sleep restriction, relaxation). Sleep diary encouraged. [Referral to sleep medicine if apnea suspected]. Follow up in [timeframe].`,
+  },
+
+  // ── Special Situations ────────────────────────────────────────────────────
+  {
+    label: 'No Show / Late Cancel',
+    text: `Patient did not appear for scheduled telehealth appointment at [time]. Attempted contact via [phone/secure message] — [no answer/voicemail left/message sent]. Patient [has/has not] notified office of reason for absence.\n\nChart reviewed: No immediate safety concerns identified based on last visit [date]. [If high-risk: follow-up attempt made via [method]. Emergency contact [name] notified per patient authorization. Crisis line information (988) left in message.]\n\nPlan: Reschedule appointment. No-show policy communicated. If patient fails to reschedule within [timeframe], [care coordination/discharge planning] to be initiated.`,
+  },
+  {
+    label: 'Collateral Contact / Family Session',
+    text: `Patient seen via telehealth with collateral contact [name, relationship] present [with patient consent / patient not present — emergency circumstances]. Purpose: [care coordination / safety assessment / family psychoeducation].\n\nInformation obtained from collateral: [summary of collateral report — mood, behavior, safety, medication adherence, functional status].\n\nPatient response (if present): [agrees/disagrees with collateral report].\n\nPlan: [Care coordination with family]. Psychoeducation provided: [diagnosis, medication, crisis resources, 988, when to call 911]. Collateral agreement to [monitor, contact office if concerns]. Follow up with patient [date].`,
+  },
+  {
+    label: 'Telehealth Technical Difficulties',
+    text: `Telehealth session with patient [name] was [partially/fully] impacted by technical difficulties. Issue encountered: [audio/video failure, patient unable to connect, platform error].\n\nAttempts made to resolve: [switched to phone call / rescheduled / patient reconnected after X minutes].\n\nSession completed via: [video / audio-only telephone]. Audio-only visit compliant with [state/federal telehealth regulations in effect]. Patient consented to audio-only visit.\n\nClinical documentation: [complete as normal — or: Limited assessment due to audio-only. Recommend in-person or video visit for next encounter to complete full MSE].`,
+  },
+  {
+    label: 'Discharge / Transfer of Care',
+    text: `Patient seen via telehealth for final visit / transfer of care. Reason for discharge/transfer: [patient request / moved out of area / level of care change / non-compliance / treatment goals met].\n\nSummary of treatment: [Duration of care, diagnoses treated, medications prescribed, therapy provided, functional outcomes].\n\nDischarge medications: [list]. Prescriptions provided: [30-day supply / bridge supply]. Instructions: [taper if applicable].\n\nReferrals made: [Receiving provider name/agency, PCP notified]. Records released to: [provider/facility] with patient consent dated [date].\n\nSafety plan reviewed. Crisis resources provided: 988, local ER [name]. Patient verbalized understanding and agreement with discharge plan. Patient encouraged to establish care with new provider within [timeframe].`,
+  },
+  {
+    label: 'Informed Consent — New Medication',
+    text: `Patient seen via telehealth. New medication [name, dose, frequency] discussed at length. Informed consent obtained:\n\n✓ Indication: [diagnosis/clinical rationale]\n✓ Expected benefits: [symptom improvement timeline]\n✓ Common side effects reviewed: [list]\n✓ Serious/rare side effects reviewed: [list — e.g., serotonin syndrome, tardive dyskinesia, metabolic effects]\n✓ Alternatives discussed: [other medication options, therapy, watchful waiting]\n✓ Consequences of no treatment discussed\n✓ Patient's questions answered\n✓ Pregnancy/breastfeeding considerations discussed (if applicable)\n✓ Drug-drug interactions reviewed\n\nPatient verbalized understanding and consented to proceed with medication. Prescription sent to [pharmacy]. Follow up in [timeframe] to assess initial response.`,
+  },
 ];
+
 
 const PROVIDER_REMINDERS = [
   'Verify patient identity: two identifiers (name + DOB or MRN) before session.',
@@ -691,7 +784,21 @@ function ActiveSession({ apt, patient, patients, consentRecord, patientMeds, pat
                 <select value={noteTemplate} onChange={e => { if (e.target.value) applyTemplate(QUICK_NOTE_TEMPLATES.find(t => t.label === e.target.value)); }}
                   style={{ width:'100%', padding:'6px 8px', border:'1px solid #e2e8f0', borderRadius:7, fontSize:12 }}>
                   <option value="">— Insert template —</option>
-                  {QUICK_NOTE_TEMPLATES.map(t => <option key={t.label} value={t.label}>{t.label}</option>)}
+                  <optgroup label="── Routine & Follow-Up ──">
+                    {['Stable / Routine Follow-Up','Medication Adjustment','New Side Effect Reported','Refill Only / Brief Check-In','Follow-Up After Hospitalization'].map(l => <option key={l} value={l}>{l}</option>)}
+                  </optgroup>
+                  <optgroup label="── Crisis & Safety ──">
+                    {['Crisis Assessment / Safety Planning','Passive SI — No Acute Risk','Domestic Violence / Safety Concern'].map(l => <option key={l} value={l}>{l}</option>)}
+                  </optgroup>
+                  <optgroup label="── Evaluations ──">
+                    {['Initial Psychiatric Evaluation','ADHD Evaluation'].map(l => <option key={l} value={l}>{l}</option>)}
+                  </optgroup>
+                  <optgroup label="── Condition-Specific ──">
+                    {['Depression Follow-Up','Anxiety / Panic Follow-Up','Bipolar Disorder Follow-Up','PTSD / Trauma Follow-Up','Psychosis / Schizophrenia Follow-Up','Substance Use / SUD Follow-Up','Insomnia / Sleep Disorder Follow-Up'].map(l => <option key={l} value={l}>{l}</option>)}
+                  </optgroup>
+                  <optgroup label="── Special Situations ──">
+                    {['No Show / Late Cancel','Collateral Contact / Family Session','Telehealth Technical Difficulties','Discharge / Transfer of Care','Informed Consent — New Medication'].map(l => <option key={l} value={l}>{l}</option>)}
+                  </optgroup>
                 </select>
               </div>
               <textarea
