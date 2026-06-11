@@ -418,7 +418,7 @@ export default function RefillQueue() {
         {/* ── Refill List ───────────────────────────────────────────────────── */}
         {filtered.length === 0 ? (
           <div style={{
-            background: 'white', borderRadius: 14, padding: '56px 40px',
+            background: 'white', borderRadius: 12, padding: '56px 40px',
             textAlign: 'center', border: '1px solid #e5e7eb',
             boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
           }}>
@@ -430,7 +430,7 @@ export default function RefillQueue() {
           </div>
         ) : (
           <div style={{
-            background: 'white', borderRadius: 14, overflow: 'hidden',
+            background: 'white', borderRadius: 12, overflow: 'hidden',
             border: '1px solid #e5e7eb', boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
           }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -671,7 +671,7 @@ export default function RefillQueue() {
           zIndex: 2000, padding: 24, backdropFilter: 'blur(4px)',
         }}>
           <div style={{
-            background: 'white', borderRadius: 16, width: '100%', maxWidth: 520,
+            background: 'white', borderRadius: 12, width: '100%', maxWidth: 520,
             boxShadow: '0 24px 64px rgba(0,0,0,0.28)', overflow: 'hidden',
             border: '1px solid #e5e7eb',
           }}>
@@ -814,7 +814,7 @@ export default function RefillQueue() {
           zIndex: 2000, padding: 24, backdropFilter: 'blur(4px)',
         }}>
           <div style={{
-            background: 'white', borderRadius: 16, width: '100%', maxWidth: 480,
+            background: 'white', borderRadius: 12, width: '100%', maxWidth: 480,
             boxShadow: '0 24px 64px rgba(0,0,0,0.28)', overflow: 'hidden',
             border: '1px solid #e5e7eb',
           }}>

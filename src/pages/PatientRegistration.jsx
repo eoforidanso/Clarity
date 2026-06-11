@@ -108,7 +108,7 @@ function Select({ value, onChange, children }) {
 function SectionCard({ title, icon, accent = '#0066cc', children }) {
   return (
     <div style={{
-      background: '#fff', borderRadius: 14, border: '1px solid #e5e7eb',
+      background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb',
       boxShadow: '0 4px 12px rgba(0,0,0,0.06)', overflow: 'hidden',
       marginBottom: 0,
     }}>
