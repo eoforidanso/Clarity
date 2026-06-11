@@ -39,7 +39,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => { const b = req.body;
   const id = b.id || uuidv4();
   await db.prepare('INSERT INTO inbox_messages (id, type, from_name, to_user, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
-    id, b.type, b.from, b.to, b.patient || null, b.patientName || '', b.subject || '', b.body || '', b.date || new Date().toISOString().split('T')[0], b.time || new Date().toTimeString().slice(0, 5), b.read ? 1 : 0, b.priority || 'Normal', b.status || 'Unread', b.urgent ? 1 : 0
+    id, b.type, b.from, b.to, b.patient || null, b.patientName || '', b.subject || '', b.body || '', b.date || new Date().toISOString().split('T')[0], b.time || new Date().toTimeString().slice(0, 5), !!b.read, b.priority || 'Normal', b.status || 'Unread', !!b.urgent
   );
   const row = await db.prepare('SELECT * FROM inbox_messages WHERE id = ?').get(id);
   res.status(201).json(formatMsg(row)); });
@@ -50,7 +50,7 @@ router.put('/:id', async (req, res) => { const existing = await db.prepare('SELE
 
   const b = req.body;
   await db.prepare(`UPDATE inbox_messages SET read=?, status=?, priority=?, updated_at=NOW() WHERE id=?`).run(
-    b.read !== undefined ? (b.read ? 1 : 0) : existing.read,
+    b.read !== undefined ? !!b.read : existing.read,
     b.status ?? existing.status,
     b.priority ?? existing.priority,
     req.params.id
@@ -63,7 +63,7 @@ router.put('/:id', async (req, res) => { const existing = await db.prepare('SELE
 router.put('/:id/status', async (req, res) => { const { status } = req.body;
   if (!status) return res.status(400).json({ error: 'Status is required' });
 
-  await db.prepare(`UPDATE inbox_messages SET status=?, read=1, updated_at=NOW() WHERE id=?`).run(status, req.params.id);
+  await db.prepare(`UPDATE inbox_messages SET status=?, read=TRUE, updated_at=NOW() WHERE id=?`).run(status, req.params.id);
   const row = await db.prepare('SELECT * FROM inbox_messages WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Message not found' });
   res.json(formatMsg(row));

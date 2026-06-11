@@ -143,8 +143,8 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => { 
     (npi || '').trim(),
     (deaNumber || '').trim(),
     email.trim().toLowerCase(),
-    twoFactorEnabled ? 1 : 0,
-    mustChangePassword === false ? 0 : 1,
+    !!twoFactorEnabled,
+    mustChangePassword === false ? false : true,
     locationId || null
   );
 
@@ -203,7 +203,7 @@ router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => 
     npi?.trim() ?? null,
     deaNumber?.trim() ?? null,
     email ? email.trim().toLowerCase() : null,
-    twoFactorEnabled != null ? (twoFactorEnabled ? 1 : 0) : null,
+    twoFactorEnabled != null ? !!twoFactorEnabled : null,
     locationId ?? null,
     id
   );
@@ -242,7 +242,7 @@ router.post('/:id/reset-password', authenticate, authorize(...ADMIN_ROLES), asyn
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const hash = bcrypt.hashSync(newPassword, SALT_ROUNDS);
-  await db.prepare("UPDATE users SET password_hash = $1, must_change_password = 1, updated_at = NOW() WHERE id = $2").run(hash, id);
+  await db.prepare("UPDATE users SET password_hash = $1, must_change_password = TRUE, updated_at = NOW() WHERE id = $2").run(hash, id);
 
   // Invalidate all active sessions for this user
   try { await db.prepare('UPDATE sessions SET is_active = FALSE WHERE user_id = $1').run(id); } catch (_) { /* sessions table may not exist */ }
@@ -267,7 +267,7 @@ router.post('/:id/unlock', authenticate, requireElevated, authorize(...ADMIN_ROL
   const user = await db.prepare('SELECT id FROM users WHERE id = $1 AND role != $2').get(id, 'patient');
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  await db.prepare("UPDATE users SET must_change_password = 0, updated_at = NOW() WHERE id = $1").run(id);
+  await db.prepare("UPDATE users SET must_change_password = FALSE, updated_at = NOW() WHERE id = $1").run(id);
 
   logAuditEvent({ userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
     userRole: req.user.role,

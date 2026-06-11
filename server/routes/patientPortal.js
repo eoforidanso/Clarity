@@ -201,14 +201,14 @@ router.get('/appointments', authenticatePortal, async (req, res) => { const rows
 
 // ── 6. Medications ────────────────────────────────────────────────────────────
 router.get('/medications', authenticatePortal, async (req, res) => { const rows = await db.prepare(`
-    SELECT id, drug_name, dosage, frequency, prescriber_name, start_date, status, refills_remaining, pharmacy
+    SELECT id, name, dose, frequency, prescriber, start_date, status, refills_left, pharmacy
     FROM medications
     WHERE patient_id = $1 AND status = 'Active'
-    ORDER BY drug_name
+    ORDER BY name
   `).all(req.patientId);
 
   res.json(rows.map(r => ({
-    id:               r.id, name:             r.drug_name, dosage:           r.dosage, frequency:        r.frequency, prescriber:       r.prescriber_name || '—', startDate:        r.start_date, status:           r.status, refillsRemaining: r.refills_remaining ?? null, pharmacy:         r.pharmacy || '—',  })));
+    id:               r.id, name:             r.name, dosage:           r.dose, frequency:        r.frequency, prescriber:       r.prescriber || '—', startDate:        r.start_date, status:           r.status, refillsRemaining: r.refills_left ?? null, pharmacy:         r.pharmacy || '—',  })));
 });
 
 // ── 4. Logout ─────────────────────────────────────────────────────────────────

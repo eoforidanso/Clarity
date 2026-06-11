@@ -221,11 +221,11 @@ router.post('/change-password', authenticate, async (req, res) => { const { curr
 
   const newHash = bcrypt.hashSync(newPassword, 12);
   const result = await db.prepare(
-    'UPDATE users SET password_hash = $1, must_change_password = 0, updated_at = NOW() WHERE id = $2 RETURNING must_change_password'
+    'UPDATE users SET password_hash = $1, must_change_password = FALSE, updated_at = NOW() WHERE id = $2 RETURNING must_change_password'
   ).get(newHash, req.user.id);
 
   // Verify the flag actually flipped — if RETURNING shows it's still 1, something went wrong
-  if (result?.must_change_password !== 0) { console.error(`[change-password] RETURNING showed must_change_password != 0 for user ${req.user.id }`);
+  if (result?.must_change_password) { console.error(`[change-password] RETURNING showed must_change_password still set for user ${req.user.id }`);
     return res.status(500).json({ error: 'Password updated but session flag could not be cleared. Contact your administrator.' });
   }
 
@@ -329,7 +329,7 @@ router.post('/generate-epcs-otp', authenticate, async (req, res) => { // Generat
   const expiresAt = new Date(Date.now() + 30000).toISOString(); // 30 seconds
 
   // Invalidate previous OTPs
-  await db.prepare('UPDATE epcs_otps SET used = 1 WHERE user_id = ? AND used = 0').run(req.user.id);
+  await db.prepare('UPDATE epcs_otps SET used = TRUE WHERE user_id = ? AND used = FALSE').run(req.user.id);
 
   // Store new OTP
   await db.prepare('INSERT INTO epcs_otps (id, user_id, otp_hash, expires_at) VALUES ($1, $2, $3, $4)').run(
@@ -348,18 +348,18 @@ router.post('/verify-epcs-otp', authenticate, async (req, res) => { const { otp 
   if (!otp) return res.status(400).json({ error: 'OTP is required' });
 
   const otpRecord = await db.prepare(
-    'SELECT * FROM epcs_otps WHERE user_id = ? AND used = 0 ORDER BY created_at DESC LIMIT 1'
+    'SELECT * FROM epcs_otps WHERE user_id = ? AND used = FALSE ORDER BY created_at DESC LIMIT 1'
   ).get(req.user.id);
 
   if (!otpRecord) { return res.json({ valid: false, error: 'No active OTP found' });
   }
 
-  if (new Date(otpRecord.expires_at) < new Date()) { await db.prepare('UPDATE epcs_otps SET used = 1 WHERE id = ?').run(otpRecord.id);
+  if (new Date(otpRecord.expires_at) < new Date()) { await db.prepare('UPDATE epcs_otps SET used = TRUE WHERE id = ?').run(otpRecord.id);
     return res.json({ valid: false, error: 'OTP has expired' });
   }
 
   const valid = bcrypt.compareSync(otp, otpRecord.otp_hash);
-  if (valid) { await db.prepare('UPDATE epcs_otps SET used = 1 WHERE id = ?').run(otpRecord.id); }
+  if (valid) { await db.prepare('UPDATE epcs_otps SET used = TRUE WHERE id = ?').run(otpRecord.id); }
 
   res.json({ valid });
 });
@@ -419,7 +419,7 @@ router.post('/2fa/verify', async (req, res) => { const { tempToken, code } = req
 });
 
 // POST /api/auth/2fa/enable — enable email 2FA for the authenticated user
-router.post('/2fa/enable', authenticate, async (req, res) => { await db.prepare("UPDATE users SET two_factor_enabled = 1, updated_at = NOW() WHERE id = ?")
+router.post('/2fa/enable', authenticate, async (req, res) => { await db.prepare("UPDATE users SET two_factor_enabled = TRUE, updated_at = NOW() WHERE id = ?")
     .run(req.user.id);
   logAuditEvent({
     userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
@@ -433,7 +433,7 @@ router.post('/2fa/enable', authenticate, async (req, res) => { await db.prepare(
 });
 
 // POST /api/auth/2fa/disable — disable email 2FA for the authenticated user
-router.post('/2fa/disable', authenticate, requireElevated, async (req, res) => { await db.prepare("UPDATE users SET two_factor_enabled = 0, email_otp = NULL, email_otp_expires = NULL, updated_at = NOW() WHERE id = ?")
+router.post('/2fa/disable', authenticate, requireElevated, async (req, res) => { await db.prepare("UPDATE users SET two_factor_enabled = FALSE, email_otp = NULL, email_otp_expires = NULL, updated_at = NOW() WHERE id = ?")
     .run(req.user.id);
   logAuditEvent({
     userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),

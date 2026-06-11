@@ -561,13 +561,12 @@ router.post('/telehealth/session-billing', authenticate, auditMiddleware('TELEHE
       INSERT INTO telehealth_billing (
         session_id, patient_id, provider_id, session_duration, session_type,
         platform_used, base_amount, technology_fee, total_amount,
-        billing_status, documentation_notes, created_at, facility_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        billing_status, documentation_notes, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       session_id, patient_id, provider_id, session_duration, session_type,
       platform_used, baseAmount, technology_fee || 0, totalAmount,
-      'pending', documentation_notes, new Date().toISOString(),
-      req.user.facility_id || null
+      'pending', documentation_notes, new Date().toISOString()
     );
     
     // Auto-generate claim if configured
@@ -581,14 +580,12 @@ router.post('/telehealth/session-billing', authenticate, auditMiddleware('TELEHE
       await db.prepare(`
         INSERT INTO claims (
           claim_number, patient_id, provider_id, encounter_id,
-          service_type, amount, status, submission_date, created_at,
-          claim_type, facility_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          service_date, cpt_codes, diagnoses, total_charges, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?)
       `).run(
         claimNumber, patient_id, provider_id, session_id,
-        session_type, totalAmount, 'draft',
-        new Date().toISOString(), new Date().toISOString(),
-        'telehealth', req.user.facility_id || null
+        new Date().toISOString().split('T')[0],
+        '[]', '[]', totalAmount, 'draft', new Date().toISOString()
       );
     }
     
@@ -605,10 +602,9 @@ router.get('/telehealth/billing-history/:patientId', authenticate, async (req, r
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
     
-    const thFacilityId = req.user.facility_id;
-    const thIsGlobal   = req.access.canSeeAll;
-    const thFClause    = (!thIsGlobal && thFacilityId) ? ' AND tb.facility_id = ?' : '';
-    const thFParam     = (!thIsGlobal && thFacilityId) ? [thFacilityId] : [];
+    // telehealth_billing has no facility_id column — scope only by patient_id
+    const thFClause = '';
+    const thFParam  = [];
 
     const telehealthBilling = await db.prepare(`
       SELECT tb.*, p.first_name, p.last_name,
@@ -644,14 +640,9 @@ router.get('/patient-portal/statements/:patientId', authenticate, async (req, re
     const { status, page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
     
-    const psFacilityId = req.user.facility_id;
-    const psIsGlobal   = req.access.canSeeAll;
-
-    let whereClause = 'WHERE ps.patient_id = ?';
+    // patient_statements has no facility_id or status column — scope only by patient_id
+    const whereClause = 'WHERE ps.patient_id = ?';
     const params = [patientId];
-
-    if (!psIsGlobal && psFacilityId) { whereClause += ' AND ps.facility_id = ?'; params.push(psFacilityId); }
-    if (status) { whereClause += ' AND ps.status = ?'; params.push(status); }
     
     const statements = await db.prepare(`
       SELECT 
@@ -716,62 +707,49 @@ router.get('/patient-portal/payment-history/:patientId', authenticate, async (re
 router.post('/patient-portal/payment', authenticate, auditMiddleware('PATIENT_PAYMENT', 'Patient Portal'), async (req, res) => { try {
     const { patient_id, statement_id, amount, payment_method, card_last_four, transaction_id } = req.body;
     
-    // Validate payment — verify statement belongs to this facility
-    const ppFacilityId = req.user.facility_id;
-    const ppIsGlobal   = req.access.canSeeAll;
-    const ppFClause    = (!ppIsGlobal && ppFacilityId) ? ' AND facility_id = ?' : '';
-    const ppFParam     = (!ppIsGlobal && ppFacilityId) ? [ppFacilityId] : [];
-
+    // Validate payment — patient_statements has no facility_id column
     const statement = await db.prepare(`
-      SELECT * FROM patient_statements WHERE id = ? AND patient_id = ?${ppFClause}
-    `).get(statement_id, patient_id, ...ppFParam);
-    
+      SELECT * FROM patient_statements WHERE id = ? AND patient_id = ?
+    `).get(statement_id, patient_id);
+
     if (!statement) { return res.status(404).json({ error: 'Statement not found' });
     }
-    
-    if (amount > statement.amount_due) { return res.status(400).json({ 
+
+    if (amount > statement.current_balance) { return res.status(400).json({
         error: 'Payment amount exceeds balance due' });
     }
-    
-    // Record payment
+
+    // Get a claim_id to satisfy payments.claim_id NOT NULL constraint
+    const statementItem = await db.prepare(
+      `SELECT claim_id FROM patient_statement_items WHERE statement_id = $1 LIMIT 1`
+    ).get(statement.id);
+    if (!statementItem?.claim_id) {
+      return res.status(400).json({ error: 'No claim associated with this statement' });
+    }
+
+    // Record payment using actual payments table columns
     const portalPayment = await db.prepare(`
       INSERT INTO payments (
-        patient_id,
-        amount,
-        payment_type,
-        payment_method,
-        payment_date,
-        transaction_id,
-        card_last_four,
-        status,
-        created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        claim_id, payment_type, payment_method,
+        amount, reference_number, payment_date, recorded_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
-      patient_id,
-      amount,
+      statementItem.claim_id,
       'patient',
       payment_method,
-      new Date().toISOString(),
-      transaction_id,
-      card_last_four,
-      'completed',
-      new Date().toISOString()
+      amount,
+      transaction_id || null,
+      new Date().toISOString().split('T')[0],
+      req.user.id
     );
-    
+
     // Update statement balance
-    const newAmountDue = statement.amount_due - amount;
+    const newAmountDue = statement.current_balance - amount;
     const newStatus = newAmountDue <= 0 ? 'paid' : 'partial';
-    
-    const upsFacilityClause = (!req.access.canSeeAll && req.user.facility_id)
-      ? ' AND facility_id = ?' : '';
-    const upsFacilityParam  = (!req.access.canSeeAll && req.user.facility_id)
-      ? [req.user.facility_id] : [];
 
     await db.prepare(`
-      UPDATE patient_statements
-      SET current_balance = ?
-      WHERE id = ?${upsFacilityClause}
-    `).run(newAmountDue, statement_id, ...upsFacilityParam);
+      UPDATE patient_statements SET current_balance = ? WHERE id = ?
+    `).run(newAmountDue, statement_id);
     
     res.json({ success: true, payment_id: portalPayment.lastInsertRowid, remaining_balance: newAmountDue, status: newStatus });
     
@@ -805,7 +783,7 @@ router.post('/patient-portal/generate-statement/:patientId', authenticate, audit
     }
     
     // Calculate total amount due
-    const totalAmountDue = unpaidClaims.reduce((total, claim) => { return total + (claim.amount - (claim.paid_amount || 0)); }, 0);
+    const totalAmountDue = unpaidClaims.reduce((total, claim) => { return total + (claim.total_charges - (claim.paid_amount || 0)); }, 0);
     
     // Create patient statement
     const statement = await db.prepare(`
@@ -823,13 +801,13 @@ router.post('/patient-portal/generate-statement/:patientId', authenticate, audit
     );
 
     // Add statement items
-    for (const claim of unpaidClaims) { const amountDue = claim.amount - (claim.paid_amount || 0);
+    for (const claim of unpaidClaims) { const amountDue = claim.total_charges - (claim.paid_amount || 0);
       await db.prepare(`
         INSERT INTO patient_statement_items (
           statement_id, claim_id, service_date, description, amount, created_at
         ) VALUES (?, ?, ?, ?, ?, ?)
       `).run(
-        statement.lastInsertRowid, claim.id, claim.service_date, `${claim.service_type } - ${ claim.claim_number }`,
+        statement.lastInsertRowid, claim.id, claim.service_date, `Claim ${ claim.claim_number }`,
         amountDue,
         new Date().toISOString()
       );

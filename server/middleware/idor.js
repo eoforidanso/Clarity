@@ -13,11 +13,11 @@
 import db from '../db/database.js';
 import { logAudit } from '../db/softDelete.js';
 
-export function requirePatientAccess(req, res, next) {
+export async function requirePatientAccess(req, res, next) {
   const patientId = req.params.patientId || req.params.id;
   if (!patientId) return next();
 
-  const patient = db
+  const patient = await db
     .prepare('SELECT id, assigned_provider, primary_location FROM patients WHERE id = ?')
     .get(patientId);
 
