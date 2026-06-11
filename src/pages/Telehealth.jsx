@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTelehealth } from '../contexts/TelehealthContext';
@@ -31,7 +32,7 @@ const QUICK_NOTE_TEMPLATES = [
 /* ─── Provider compliance reminders (reference only — not a gate) ────── */
 const PROVIDER_ATTESTATION_ITEMS = [
   'I have verified this patient\'s identity using two approved identifiers (name + DOB or MRN).',
-  'I have confirmed the patient is physically located in Illinois at the time of this encounter.',
+  'I have confirmed the patient is located in Illinois at the time of this encounter.',
   'I have confirmed the patient is in a private and safe location.',
   'I have confirmed the patient has read and understands the Telehealth Consent.',
   'I have confirmed no recording will occur without separate consent.',
@@ -43,7 +44,7 @@ function QuickStartModal({ apt, patient, onStart, onCancel }) {
   const { user } = useAuth();
   const API = import.meta.env.VITE_API_URL || '/api';
 
-  const [patientLocation, setPatientLocation]       = useState('');
+  const [patientInIllinois, setPatientInIllinois]   = useState(false);
   const [recordingConsent, setRecordingConsent]     = useState(''); // 'granted'|'denied'|'not_asked'
   const [consentMethod, setConsentMethod]           = useState('verbal');
   const [saving, setSaving]                         = useState(false);
@@ -59,7 +60,7 @@ function QuickStartModal({ apt, patient, onStart, onCancel }) {
   const toggleCheck = (key) => setChecklist(p => ({ ...p, [key]: !p[key] }));
 
   const allChecked    = Object.values(checklist).every(Boolean);
-  const canStart      = allChecked && recordingConsent !== '' && patientLocation.trim() !== '';
+  const canStart      = allChecked && recordingConsent !== '' && patientInIllinois;
 
   const handleStart = async () => {
     if (!canStart) return;
@@ -77,7 +78,7 @@ function QuickStartModal({ apt, patient, onStart, onCancel }) {
           appointmentId:         apt.id,
           patientId:             patient?.id || apt.patientId,
           patientName,
-          patientLocation:       patientLocation.trim(),
+          patientLocation:       'Illinois',
           recordingConsent,
           recordingConsentMethod: consentMethod,
           providerConfirmed:     true,
@@ -89,7 +90,7 @@ function QuickStartModal({ apt, patient, onStart, onCancel }) {
       onStart({
         timestamp:      isoNow(),
         patientName,
-        patientLocation: patientLocation.trim(),
+        patientLocation: 'Illinois',
         aptId:           apt.id,
         sessionId,
         consentId:       data.consentId,
@@ -103,7 +104,7 @@ function QuickStartModal({ apt, patient, onStart, onCancel }) {
   };
 
   const checkItems = [
-    { key: 'locationConfirmed',  label: 'Confirmed patient\'s current physical location' },
+    { key: 'locationConfirmed',  label: 'Confirmed patient is located in Illinois' },
     { key: 'consentExplained',   label: 'Explained telehealth consent and patient rights' },
     { key: 'privacyReminded',    label: 'Reminded patient of privacy and HIPAA rights' },
     { key: 'emergencyProtocol',  label: 'Reviewed emergency protocol and local services' },
@@ -135,22 +136,33 @@ function QuickStartModal({ apt, patient, onStart, onCancel }) {
             </div>
           )}
 
-          {/* Location */}
+          {/* Location — state confirmation only */}
           <div style={{ marginBottom: 20 }}>
             <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>
-              Patient's Current Physical Location <span style={{ color: '#ef4444' }}>*</span>
-              <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 4 }}>(required for safety &amp; emergencies)</span>
+              Patient State Confirmation <span style={{ color: '#ef4444' }}>*</span>
             </label>
-            <input
-              type="text"
-              placeholder="e.g., 123 Main St, Chicago, IL"
-              value={patientLocation}
-              onChange={e => setPatientLocation(e.target.value)}
-              autoFocus
-              style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
-              onFocus={e => e.target.style.borderColor = '#3b82f6'}
-              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-            />
+            <label style={{
+              display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px',
+              borderRadius: 8, border: `1.5px solid ${patientInIllinois ? '#86efac' : '#e5e7eb'}`,
+              background: patientInIllinois ? '#f0fdf4' : '#fff',
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}>
+              <input
+                type="checkbox"
+                checked={patientInIllinois}
+                onChange={e => setPatientInIllinois(e.target.checked)}
+                style={{ marginTop: 2, width: 16, height: 16, accentColor: '#16a34a', cursor: 'pointer' }}
+              />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: patientInIllinois ? '#15803d' : '#374151' }}>
+                  Patient is currently located in Illinois
+                </div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                  Required under the Illinois Telehealth Act (410 ILCS 151). Specific address is not collected.
+                </div>
+              </div>
+              {patientInIllinois && <span style={{ marginLeft: 'auto', fontSize: 14 }}>✅</span>}
+            </label>
           </div>
 
           {/* Recording consent */}
@@ -233,7 +245,7 @@ function QuickStartModal({ apt, patient, onStart, onCancel }) {
           {!canStart && (
             <div style={{ marginTop: 14, padding: '8px 12px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, fontSize: 11, color: '#92400e' }}>
               ⚠️ Complete all required fields to start the session:{' '}
-              {!patientLocation.trim() && '• Patient location '}
+              {!patientInIllinois && '• Confirm patient is in Illinois '}
               {!recordingConsent && '• Recording consent '}
               {!allChecked && '• Compliance checklist'}
             </div>
@@ -368,6 +380,14 @@ function SendLinkModal({ apt, patients, onClose, onSent }) {
   const link = getVideoLink(apt);
   const [method, setMethod] = useState('sms');
   const [copied, setCopied] = useState(false);
+  const [sent, setSent]     = useState(false);
+
+  const phone = contact?.cellPhone || contact?.phone || '';
+  const email = contact?.email || '';
+
+  const smsText      = `Clarity Health: Your telehealth appointment is at ${apt.time}. Join here: ${link}`;
+  const emailSubject = `Your Clarity Telehealth Visit Link – ${apt.time}`;
+  const emailBody    = `Dear ${apt.patientName},\n\nYour telehealth appointment is scheduled for ${apt.time} on ${apt.date || 'today'}.\n\nJoin your visit here:\n${link}\n\nBefore your visit:\n• Find a private, quiet location\n• Test your camera and microphone\n• Have your medication list available\n• Call our office if you have trouble connecting\n\nClarity Health`;
 
   const handleCopy = () => {
     navigator.clipboard?.writeText(link).catch(() => {});
@@ -375,65 +395,126 @@ function SendLinkModal({ apt, patients, onClose, onSent }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const smsText = `Clarity Health: Your telehealth appointment is at ${apt.time}. Join here: ${link}`;
-  const emailSubject = `Your Clarity Telehealth Visit Link – ${apt.time}`;
-  const emailBody = `Dear ${apt.patientName},\n\nYour telehealth appointment is scheduled for ${apt.time} on ${apt.date || 'today'}.\n\nJoin your visit at:\n${link}\n\nBefore your visit:\n• Find a private, quiet location\n• Test your camera and microphone\n• Have your medication list available\n• Call our office if you have trouble connecting\n\nClarity Health`;
+  const handleSend = () => {
+    if (method === 'sms') {
+      const smsPhone = phone.replace(/\D/g, '');
+      window.open(`sms:${smsPhone}${smsPhone ? '?' : ''}body=${encodeURIComponent(smsText)}`, '_self');
+    } else {
+      window.open(
+        `mailto:${email}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`,
+        '_blank'
+      );
+    }
+    setSent(true);
+    onSent(apt.id, method);
+  };
+
+  const missingContact = method === 'sms' ? !phone : !email;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520, boxShadow: '0 20px 50px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+
+        {/* Header */}
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontWeight: 800, fontSize: 15 }}>📤 Send Telehealth Link</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#9ca3af' }}>✕</button>
         </div>
-        <div style={{ padding: '18px 20px', display: 'grid', gap: 14 }}>
-          <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0', fontSize: 13 }}>
-            <div style={{ fontWeight: 700, marginBottom: 3 }}>{apt.patientName}</div>
-            <div style={{ color: '#64748b', fontSize: 12 }}>🕐 {apt.time}{apt.date ? ` · ${apt.date}` : ''}{apt.reason ? ` · ${apt.reason}` : ''}</div>
+
+        {/* Sent confirmation */}
+        {sent ? (
+          <div style={{ padding: '32px 24px', textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>{method === 'sms' ? '📱' : '✉️'}</div>
+            <div style={{ fontWeight: 800, fontSize: 16, color: '#15803d', marginBottom: 6 }}>
+              {method === 'sms' ? 'Text message opened!' : 'Email client opened!'}
+            </div>
+            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>
+              {method === 'sms'
+                ? `Send the pre-filled message to ${phone || 'patient'} to deliver the link.`
+                : `Send the pre-filled email to ${email || 'patient'} to deliver the link.`}
+            </div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>
+              This send has been logged on the appointment.
+            </div>
+            <button onClick={onClose} style={{ marginTop: 20, padding: '9px 24px', borderRadius: 8, background: '#4f46e5', color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              Done
+            </button>
           </div>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 5 }}>Secure Video Link</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input readOnly value={link} style={{ flex: 1, padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 12, color: '#4f46e5' }} />
-              <button onClick={handleCopy} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: copied ? '#059669' : '#4f46e5', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                {copied ? '✅ Copied' : '📋 Copy'}
+        ) : (
+          <>
+            <div style={{ padding: '18px 20px', display: 'grid', gap: 14 }}>
+
+              {/* Patient + appt info */}
+              <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0', fontSize: 13 }}>
+                <div style={{ fontWeight: 700, marginBottom: 3 }}>{apt.patientName}</div>
+                <div style={{ color: '#64748b', fontSize: 12 }}>🕐 {apt.time}{apt.date ? ` · ${apt.date}` : ''}{apt.reason ? ` · ${apt.reason}` : ''}</div>
+              </div>
+
+              {/* Video link + copy */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 5 }}>Secure Video Link</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input readOnly value={link} style={{ flex: 1, padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 12, color: '#4f46e5' }} />
+                  <button onClick={handleCopy} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: copied ? '#059669' : '#4f46e5', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    {copied ? '✅ Copied' : '📋 Copy'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Method toggle */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Send via</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[{ k: 'sms', label: '📱 Text (SMS)' }, { k: 'email', label: '✉️ Email' }].map(m => (
+                    <button key={m.k} onClick={() => setMethod(m.k)}
+                      style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: `2px solid ${method === m.k ? '#4f46e5' : '#e2e8f0'}`, background: method === m.k ? '#eef2ff' : '#fff', color: method === m.k ? '#4338ca' : '#64748b', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Contact info */}
+              <div style={{
+                background: missingContact ? '#fff7ed' : '#f0fdf4',
+                border: `1px solid ${missingContact ? '#fed7aa' : '#bbf7d0'}`,
+                borderRadius: 8, padding: '10px 14px', fontSize: 12,
+              }}>
+                {method === 'sms'
+                  ? <span>📱 {phone ? <strong>{phone}</strong> : <span style={{ color: '#c2410c' }}>No phone number on file — patient chart must be updated first</span>}</span>
+                  : <span>✉️ {email ? <strong>{email}</strong> : <span style={{ color: '#c2410c' }}>No email address on file — patient chart must be updated first</span>}</span>
+                }
+              </div>
+
+              {/* Message preview */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 5 }}>Message Preview</div>
+                {method === 'sms'
+                  ? <div style={{ background: '#1a1a2e', color: '#e2e8f0', borderRadius: 8, padding: '10px 14px', fontSize: 11, fontFamily: 'monospace', lineHeight: 1.65 }}>{smsText}</div>
+                  : <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px', fontSize: 11, lineHeight: 1.65 }}>
+                      <div style={{ fontWeight: 700, marginBottom: 4, color: '#374151' }}>Subject: {emailSubject}</div>
+                      <div style={{ whiteSpace: 'pre-line', color: '#64748b' }}>{emailBody}</div>
+                    </div>
+                }
+              </div>
+
+              <div style={{ fontSize: 11, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 6 }}>
+                ℹ️ Clicking Send opens your {method === 'sms' ? 'default SMS app' : 'default email client'} with the message pre-filled.
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '14px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: 8, background: '#f8fafc' }}>
+              <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', fontSize: 13, cursor: 'pointer', color: '#374151' }}>Cancel</button>
+              <button
+                onClick={handleSend}
+                disabled={missingContact}
+                style={{ padding: '8px 18px', borderRadius: 8, background: missingContact ? '#e5e7eb' : '#4f46e5', color: missingContact ? '#9ca3af' : '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: missingContact ? 'not-allowed' : 'pointer' }}>
+                {method === 'sms' ? '📱 Send Text' : '✉️ Send Email'}
               </button>
             </div>
-          </div>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Send via</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {[{ k: 'sms', label: '📱 Text (SMS)' }, { k: 'email', label: '✉️ Email' }].map(m => (
-                <button key={m.k} onClick={() => setMethod(m.k)}
-                  style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: `2px solid ${method === m.k ? '#4f46e5' : '#e2e8f0'}`, background: method === m.k ? '#eef2ff' : '#fff', color: method === m.k ? '#4338ca' : '#64748b', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {contact && (
-            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', fontSize: 12 }}>
-              {method === 'sms'
-                ? <span>📱 <strong>{contact.cellPhone || contact.phone || 'No phone on file'}</strong></span>
-                : <span>✉️ <strong>{contact.email || 'No email on file'}</strong></span>}
-            </div>
-          )}
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 5 }}>Preview</div>
-            {method === 'sms'
-              ? <div style={{ background: '#1a1a2e', color: '#e2e8f0', borderRadius: 8, padding: '10px 14px', fontSize: 11, fontFamily: 'monospace', lineHeight: 1.65 }}>{smsText}</div>
-              : <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px', fontSize: 11, lineHeight: 1.65 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 4, color: '#374151' }}>Subject: {emailSubject}</div>
-                  <div style={{ whiteSpace: 'pre-line', color: '#64748b' }}>{emailBody}</div>
-                </div>}
-          </div>
-        </div>
-        <div style={{ padding: '14px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: 8, background: '#f8fafc' }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', fontSize: 13, cursor: 'pointer', color: '#374151' }}>Cancel</button>
-          <button onClick={() => onSent(apt.id, method)} style={{ padding: '8px 18px', borderRadius: 8, background: '#4f46e5', color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-            {method === 'sms' ? '📱 Send Text' : '✉️ Send Email'}
-          </button>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -467,7 +548,26 @@ function ActiveSession({ apt, patient, consentRecord }) {
   const [connectionQuality]                 = useState(CONNECTION_QUALITY[0]);
   const [showPostSession, setShowPostSession] = useState(false);
   const [patientMicMuted, setPatientMicMuted] = useState(false);
+  const [isPiP, setIsPiP]                     = useState(false);
   const chatEndRef = useRef(null);
+  const navigate   = useNavigate();
+
+  const enterPiP = async () => {
+    const vid = localVideoRef.current;
+    if (!vid) return;
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+        setIsPiP(false);
+      } else {
+        await vid.requestPictureInPicture();
+        setIsPiP(true);
+        vid.addEventListener('leavepictureinpicture', () => setIsPiP(false), { once: true });
+      }
+    } catch {
+      // browser may not support PiP — fall back silently
+    }
+  };
 
   // Secondary: re-attach when the stream first becomes ready (element already mounted)
   useEffect(() => {
@@ -571,8 +671,8 @@ function ActiveSession({ apt, patient, consentRecord }) {
             </button>
           </div>
 
-          {/* Provider PiP */}
-          <div style={{ position: 'absolute', top: 26, right: 26, width: 160, height: 110, background: '#1e293b', borderRadius: 10, overflow: 'hidden', border: '2px solid #3b82f6', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          {/* Provider self-view + PiP toggle */}
+          <div style={{ position: 'absolute', top: 26, right: 26, width: 160, height: 110, background: '#1e293b', borderRadius: 10, overflow: 'hidden', border: `2px solid ${isPiP ? '#f59e0b' : '#3b82f6'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
             {/* live video */}
             {!camError && !isVideoOff && (
               <video ref={setVideoRef} autoPlay playsInline muted
@@ -591,10 +691,19 @@ function ActiveSession({ apt, patient, consentRecord }) {
             <div style={{ position: 'absolute', bottom: 5, left: 6, fontSize: 9, color: '#cbd5e1', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '1px 6px' }}>
               You {isMuted ? '🔇' : '🎤'}
             </div>
+            {/* PiP toggle button */}
+            {!camError && !isVideoOff && (
+              <button
+                onClick={enterPiP}
+                title={isPiP ? 'Exit Picture-in-Picture' : 'Pop out video (Picture-in-Picture)'}
+                style={{ position: 'absolute', top: 5, right: 5, background: isPiP ? '#f59e0b' : 'rgba(0,0,0,0.55)', border: 'none', borderRadius: 5, padding: '3px 6px', cursor: 'pointer', fontSize: 11, color: '#fff', fontWeight: 700, lineHeight: 1 }}>
+                {isPiP ? '✕ PiP' : '⊡'}
+              </button>
+            )}
           </div>
 
           {/* Controls */}
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', padding: '10px 0', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', padding: '10px 0', flexShrink: 0, flexWrap: 'wrap' }}>
             {[
               { icon: isMuted ? '🔇' : '🎤', label: isMuted ? 'Unmute' : 'Mute', active: isMuted, onClick: toggleMute },
               { icon: isVideoOff ? '📵' : '📹', label: isVideoOff ? 'Cam On' : 'Cam Off', active: isVideoOff, onClick: toggleCamera },
@@ -608,6 +717,16 @@ function ActiveSession({ apt, patient, consentRecord }) {
                 <span style={{ fontSize: 9, fontWeight: 600, opacity: 0.8 }}>{ctrl.label}</span>
               </button>
             ))}
+            {/* View Chart in PiP */}
+            {apt?.patientId && (
+              <button
+                onClick={() => navigate(`/chart/${apt.patientId}`)}
+                title="Open patient chart — video floats as Picture-in-Picture"
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: 'rgba(99,102,241,0.3)', border: '1px solid #6366f1', borderRadius: 10, padding: '8px 16px', cursor: 'pointer', color: '#a5b4fc', fontSize: 18, minWidth: 60, transition: 'background 0.15s' }}>
+                <span>📋</span>
+                <span style={{ fontSize: 9, fontWeight: 600, opacity: 0.9 }}>View Chart</span>
+              </button>
+            )}
           </div>
         </div>
 
