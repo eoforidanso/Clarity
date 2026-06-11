@@ -27,7 +27,7 @@ router.post('/prescribe', requireElevated, async (req, res) => { const b = req.b
 
   // Create the medication
   await db.prepare(`INSERT INTO medications (id, patient_id, name, dose, route, frequency, start_date, prescriber, status, refills_left, is_controlled, schedule, pharmacy, last_filled, sig) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    medId, b.patientId, b.name, b.dose, b.route || 'Oral', b.frequency, new Date().toISOString().split('T')[0], userName, 'Active', b.refills || 0, !!b.isControlled, b.schedule || null, b.pharmacy || '', new Date().toISOString().split('T')[0], b.sig || ''
+    medId, b.patientId, b.name, b.dose, b.route || 'Oral', b.frequency, new Date().toISOString().split('T')[0], userName, 'Active', b.refills || 0, b.isControlled ? 1 : 0, b.schedule || null, b.pharmacy || '', new Date().toISOString().split('T')[0], b.sig || ''
   );
 
   // Create rx history entry

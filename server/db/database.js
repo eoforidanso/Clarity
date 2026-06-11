@@ -1059,14 +1059,14 @@ export async function initializeDatabase() {
   // Ensure Harriet (system admin) exists with the correct role
   await pool.query(`
     INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, epcs_pin_hash, two_factor_enabled, must_change_password, location_id)
-    VALUES ('u5', 'harriet', '$2a$10$Qq3HXdNpQ2.V5P.IqR8adesFPK9JYYkTBUHCu2gIsMVV6vHJ8Xy8i', 'Harriet', 'Appiah', 'admin', '', '', '', '', 'harriet@clarity.health', NULL, false, false, 'loc1')
+    VALUES ('u5', 'harriet', '$2a$10$Qq3HXdNpQ2.V5P.IqR8adesFPK9JYYkTBUHCu2gIsMVV6vHJ8Xy8i', 'Harriet', 'Appiah', 'admin', '', '', '', '', 'harriet@clarity.health', NULL, 0, 0, 'loc1')
     ON CONFLICT DO NOTHING;
   `);
 
   // Ensure Emmanuel (APMG prescriber) exists
   await pool.query(`
     INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, epcs_pin_hash, two_factor_enabled, must_change_password, location_id)
-    VALUES ('u9', 'dr.emmanuel', '$2a$10$Qq3HXdNpQ2.V5P.IqR8adesFPK9JYYkTBUHCu2gIsMVV6vHJ8Xy8i', 'Emmanuel', 'Oforidanso', 'prescriber', 'NP', 'Psychiatric Mental Health', '1376299933', 'MO7223857', 'emmanuel@clarity.health', NULL, false, false, 'loc-apmg')
+    VALUES ('u9', 'dr.emmanuel', '$2a$10$Qq3HXdNpQ2.V5P.IqR8adesFPK9JYYkTBUHCu2gIsMVV6vHJ8Xy8i', 'Emmanuel', 'Oforidanso', 'prescriber', 'NP', 'Psychiatric Mental Health', '1376299933', 'MO7223857', 'emmanuel@clarity.health', NULL, 0, 0, 'loc-apmg')
     ON CONFLICT DO NOTHING;
   `);
 

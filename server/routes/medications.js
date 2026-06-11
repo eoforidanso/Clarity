@@ -24,7 +24,7 @@ router.get('/:patientId/medications', async (req, res) => { const rows = await d
 router.post('/:patientId/medications', async (req, res) => { const b = req.body;
   const id = b.id || uuidv4();
   await db.prepare(`INSERT INTO medications (id, patient_id, name, dose, route, frequency, start_date, prescriber, status, refills_left, is_controlled, schedule, pharmacy, last_filled, sig) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`).run(
-    id, req.params.patientId, b.name, b.dose || '', b.route || 'Oral', b.frequency || '', b.startDate || '', b.prescriber || '', b.status || 'Active', b.refillsLeft || 0, !!b.isControlled, b.schedule || null, b.pharmacy || '', b.lastFilled || '', b.sig || ''
+    id, req.params.patientId, b.name, b.dose || '', b.route || 'Oral', b.frequency || '', b.startDate || '', b.prescriber || '', b.status || 'Active', b.refillsLeft || 0, b.isControlled ? 1 : 0, b.schedule || null, b.pharmacy || '', b.lastFilled || '', b.sig || ''
   );
 
   // Add initial rx history entry

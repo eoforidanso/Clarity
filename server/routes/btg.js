@@ -22,7 +22,7 @@ router.post('/request-access', requireElevated, async (req, res) => { const { pa
   // Log the access
   const logId = uuidv4();
   await db.prepare('INSERT INTO btg_audit_log (id, patient_id, patient_name, accessed_by, accessed_by_name, reason, approved) VALUES (?,?,?,?,?,?,?)').run(
-    logId, patientId, patientName, req.user.id, userName, reason, true
+    logId, patientId, patientName, req.user.id, userName, reason, 1
   );
 
   // Grant temporary access (expires after 4 hours)

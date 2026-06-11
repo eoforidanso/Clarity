@@ -102,7 +102,7 @@ router.post('/', authorize('prescriber', 'nurse', 'front_desk'), async (req, res
   const mrn = `MRN-${String(count + 1).padStart(5, '0') }-${ uuidv4().replace(/-/g, '').slice(0, 4).toUpperCase() }`;
 
   await db.prepare(`INSERT INTO patients (id, mrn, first_name, last_name, dob, gender, pronouns, ssn, race, ethnicity, language, marital_status, phone, cell_phone, email, address_street, address_city, address_state, address_zip, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, insurance_primary_name, insurance_primary_member_id, insurance_primary_group_number, insurance_primary_copay, pcp, assigned_provider, is_btg, flags) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    id, mrn, b.firstName, b.lastName, b.dob, b.gender, b.pronouns || '', b.ssn || '', b.race || '', b.ethnicity || '', b.language || 'English', b.maritalStatus || '', b.phone || '', b.cellPhone || '', b.email || '', b.address?.street || '', b.address?.city || '', b.address?.state || '', b.address?.zip || '', b.emergencyContact?.name || '', b.emergencyContact?.relationship || '', b.emergencyContact?.phone || '', b.insurance?.primary?.name || '', b.insurance?.primary?.memberId || '', b.insurance?.primary?.groupNumber || '', b.insurance?.primary?.copay || 0, b.pcp || '', b.assignedProvider || '', !!b.isBTG, JSON.stringify(b.flags || [])
+    id, mrn, b.firstName, b.lastName, b.dob, b.gender, b.pronouns || '', b.ssn || '', b.race || '', b.ethnicity || '', b.language || 'English', b.maritalStatus || '', b.phone || '', b.cellPhone || '', b.email || '', b.address?.street || '', b.address?.city || '', b.address?.state || '', b.address?.zip || '', b.emergencyContact?.name || '', b.emergencyContact?.relationship || '', b.emergencyContact?.phone || '', b.insurance?.primary?.name || '', b.insurance?.primary?.memberId || '', b.insurance?.primary?.groupNumber || '', b.insurance?.primary?.copay || 0, b.pcp || '', b.assignedProvider || '', b.isBTG ? 1 : 0, JSON.stringify(b.flags || [])
   );
 
   const row = await db.prepare('SELECT * FROM patients WHERE id = ?').get(id);
@@ -162,7 +162,7 @@ router.put('/:id', authorize('prescriber', 'nurse', 'front_desk'), requirePatien
     b.insurance?.secondary?.copay ?? existing.insurance_secondary_copay,
     b.pcp ?? existing.pcp,
     b.assignedProvider ?? existing.assigned_provider,
-    b.isBTG !== undefined ? !!b.isBTG : existing.is_btg,
+    b.isBTG !== undefined ? (b.isBTG ? 1 : 0) : existing.is_btg,
     b.flags ? JSON.stringify(b.flags) : existing.flags,
     req.params.id
   );
