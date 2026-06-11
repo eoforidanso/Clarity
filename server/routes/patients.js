@@ -58,7 +58,7 @@ function formatPatient(row, opts = {}) { return {
     isActive: !!row.is_active,
     lastVisit: row.last_visit,
     nextAppointment: row.next_appointment,
-    flags: JSON.parse(row.flags || '[]'),
+    flags: (() => { try { const v = row.flags || '[]'; return JSON.parse(v); } catch { return []; } })(),
     locationId: row.primary_location || null,
     stickyNote: row.sticky_note || '',
   };
@@ -75,7 +75,7 @@ router.get('/', async (req, res) => { const { search, active, limit: limitParam,
   const params = [...locParams];
 
   if (active !== undefined) { query += ' AND is_active = ?';
-    params.push(active === 'true' ? 1 : 0); }
+    params.push(active === 'true' ? true : false); }
   if (search) { query += ' AND (first_name LIKE ? OR last_name LIKE ? OR mrn LIKE ? OR email LIKE ?)';
     const s = `%${search }%`;
     params.push(s, s, s, s);
@@ -97,7 +97,8 @@ router.get('/:id', requirePatientAccess, async (req, res) => { const row = await
 // POST /api/patients
 router.post('/', authorize('prescriber', 'nurse', 'front_desk'), async (req, res) => { const b = req.body;
   const id = uuidv4();
-  const count = await db.prepare('SELECT COUNT(*) as cnt FROM patients').get().cnt;
+  const countRow = await db.prepare('SELECT COUNT(*) as cnt FROM patients').get();
+  const count = Number(countRow?.cnt ?? 0);
   const mrn = `MRN-${String(count + 1).padStart(5, '0') }-${ uuidv4().replace(/-/g, '').slice(0, 4).toUpperCase() }`;
 
   await db.prepare(`INSERT INTO patients (id, mrn, first_name, last_name, dob, gender, pronouns, ssn, race, ethnicity, language, marital_status, phone, cell_phone, email, address_street, address_city, address_state, address_zip, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, insurance_primary_name, insurance_primary_member_id, insurance_primary_group_number, insurance_primary_copay, pcp, assigned_provider, is_btg, flags) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(

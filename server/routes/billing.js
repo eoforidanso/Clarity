@@ -371,17 +371,18 @@ router.get('/dashboard', authenticate, async (req, res) => { try {
       GROUP BY status
     `).all(dateFromStr, dateToStr, ...fParam);
 
-    // Top procedures
+    // Top procedures (cpt_codes is JSONB — use JSONB operators, no cast needed)
     const topProcedures = await db.prepare(`
       SELECT
-        json_extract(cpt_codes, '$[0].code') as cpt_code,
-        json_extract(cpt_codes, '$[0].description') as description,
+        (cpt_codes->0)->>'code' as cpt_code,
+        (cpt_codes->0)->>'description' as description,
         COUNT(*) as count,
         SUM(total_charges) as total_charges
       FROM claims
       WHERE service_date BETWEEN ? AND ?
-        AND json_valid(cpt_codes) = 1${fClause}
-      GROUP BY json_extract(cpt_codes, '$[0].code')
+        AND cpt_codes IS NOT NULL
+        AND jsonb_typeof(cpt_codes) = 'array'${fClause}
+      GROUP BY (cpt_codes->0)->>'code', (cpt_codes->0)->>'description'
       ORDER BY count DESC
       LIMIT 10
     `).all(dateFromStr, dateToStr, ...fParam);
@@ -437,7 +438,7 @@ router.get('/denials', authenticate, async (req, res) => { try {
         dm.*,
         c.claim_number,
         c.patient_id,
-        c.amount as claim_amount,
+        c.total_charges as claim_amount,
         p.first_name,
         p.last_name
       FROM denial_management dm
@@ -666,7 +667,7 @@ router.get('/patient-portal/statements/:patientId', authenticate, async (req, re
     `).all(...params, limit, offset);
     
     const psTotalRow = await db.prepare(`
-      SELECT COUNT(*) as count FROM patient_statements ${ whereClause }
+      SELECT COUNT(*) as count FROM patient_statements ps ${ whereClause }
     `).get(...params);
     const total = psTotalRow?.count ?? 0;
     
@@ -685,26 +686,21 @@ router.get('/patient-portal/payment-history/:patientId', authenticate, async (re
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
     
-    const phFacilityId = req.user.facility_id;
-    const phIsGlobal   = req.access.canSeeAll;
-    const phFClause    = (!phIsGlobal && phFacilityId) ? ' AND c.facility_id = ?' : '';
-    const phFParam     = (!phIsGlobal && phFacilityId) ? [phFacilityId] : [];
-
     const payments = await db.prepare(`
-      SELECT p.*, c.claim_number, c.service_type
+      SELECT p.*, c.claim_number, c.service_date as service_type
       FROM payments p
-      LEFT JOIN claims c ON p.claim_id = c.id
-      WHERE p.patient_id = ?${phFClause}
+      JOIN claims c ON p.claim_id = c.id
+      WHERE c.patient_id = ?
       ORDER BY p.payment_date DESC
       LIMIT ? OFFSET ?
-    `).all(patientId, ...phFParam, limit, offset);
+    `).all(patientId, limit, offset);
 
     const phTotalRow = await db.prepare(`
       SELECT COUNT(*) as count
       FROM payments p
-      LEFT JOIN claims c ON p.claim_id = c.id
-      WHERE p.patient_id = ?${phFClause}
-    `).get(patientId, ...phFParam);
+      JOIN claims c ON p.claim_id = c.id
+      WHERE c.patient_id = ?
+    `).get(patientId);
     const total = phTotalRow?.count ?? 0;
     
     res.json({ success: true, payments, pagination: {
@@ -802,7 +798,7 @@ router.post('/patient-portal/generate-statement/:patientId', authenticate, audit
       WHERE c.patient_id = ?${stmtFClause}
         AND c.status NOT IN ('draft', 'cancelled')
       GROUP BY c.id
-      HAVING c.amount > COALESCE(SUM(p.amount), 0)
+      HAVING c.total_charges > COALESCE(SUM(p.amount), 0)
     `).all(patientId, ...stmtFParam);
     
     if (unpaidClaims.length === 0) { return res.status(400).json({ error: 'No outstanding balance found' });
