@@ -1,0 +1,29 @@
+[2026-06-11T00:53:44.431Z] [INFO] ✨ Health Monitor Started
+[2026-06-11T00:53:44.433Z] [INFO] Check interval: 5 minutes
+[2026-06-11T00:53:44.434Z] [INFO] Memory threshold: 900MB
+[2026-06-11T00:53:44.434Z] [INFO] CPU threshold: 80%
+[2026-06-11T00:53:44.434Z] [INFO] ---
+[2026-06-11T00:53:44.434Z] [INFO] ============================================================
+[2026-06-11T00:53:44.434Z] [INFO] 🔍 Health Check Started
+[2026-06-11T00:53:44.617Z] [INFO] ✅ API Health Check PASSED
+[2026-06-11T00:53:44.617Z] [INFO] ✅ Process Running (PID monitoring)
+[2026-06-11T00:53:44.617Z] [INFO] 📊 Memory: 24MB (OK)
+[2026-06-11T00:53:44.617Z] [INFO] 📊 CPU: 0% (OK)
+[2026-06-11T00:53:44.617Z] [INFO] ⏱️ Uptime: 0h 9m (Restarts: 0)
+[2026-06-11T00:53:44.617Z] [INFO] Health Check Complete
+
+[2026-06-11T00:55:00.029Z] [INFO] Monitor shutting down...
+[2026-06-11T00:55:00.233Z] [INFO] ✨ Health Monitor Started
+[2026-06-11T00:55:00.234Z] [INFO] Check interval: 5 minutes
+[2026-06-11T00:55:00.234Z] [INFO] Memory threshold: 900MB
+[2026-06-11T00:55:00.234Z] [INFO] CPU threshold: 80%
+[2026-06-11T00:55:00.234Z] [INFO] ---
+[2026-06-11T00:55:00.234Z] [INFO] ============================================================
+[2026-06-11T00:55:00.234Z] [INFO] 🔍 Health Check Started
+[2026-06-11T00:55:00.425Z] [INFO] ✅ API Health Check PASSED
+[2026-06-11T00:55:00.425Z] [INFO] ✅ Process Running (PID monitoring)
+[2026-06-11T00:55:00.425Z] [INFO] 📊 Memory: 26MB (OK)
+[2026-06-11T00:55:00.425Z] [INFO] 📊 CPU: 0% (OK)
+[2026-06-11T00:55:00.425Z] [INFO] ⏱️ Uptime: 0h 10m (Restarts: 0)
+[2026-06-11T00:55:00.426Z] [INFO] Health Check Complete
+

@@ -1,0 +1,21 @@
+{
+  "monitoring": {
+    "enabled": true,
+    "check_interval": 5000,
+    "max_memory_restart": "1G",
+    "max_restarts": 10,
+    "min_uptime": "10s"
+  },
+  "logging": {
+    "log_file": "./logs/combined.log",
+    "error_file": "./logs/error.log",
+    "out_file": "./logs/output.log",
+    "timestamp": true,
+    "merge_logs": true
+  },
+  "alerts": {
+    "memory_threshold": 900,
+    "cpu_threshold": 80,
+    "check_interval": 30000
+  }
+}

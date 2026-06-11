@@ -1,35 +1,29 @@
-/**
- * PM2 Ecosystem Config — Clarity EHR
- * Ensures NODE_OPTIONS persists across restarts and reboots.
- */
 module.exports = {
   apps: [
     {
-      name: 'ehr-api',
-      script: 'server/index.js',
-      cwd: '/var/www/ehr',
-      node_args: '--max-old-space-size=512',
+      name: 'clarity-api',
+      script: './server/index.js',
       instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: '480M',   // PM2 restarts if heap exceeds 480MB
+      exec_mode: 'fork',
       env: {
+        NODE_ENV: 'development',
+        PORT: 5001
+      },
+      env_production: {
         NODE_ENV: 'production',
+        PORT: 5001
       },
-    },
-    {
-      name: 'ehr-api-staging',
-      script: 'server/index.js',
-      cwd: '/var/www/ehr',
-      node_args: '--max-old-space-size=256',
-      instances: 1,
+      error_file: './logs/err.log',
+      out_file: './logs/out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
+      max_memory_restart: '1G',
+      watch: ['server'],
+      ignore_watch: ['node_modules', 'logs', 'dist'],
       autorestart: true,
-      watch: false,
-      max_memory_restart: '240M',
-      env: {
-        NODE_ENV: 'staging',
-        PORT: '5002',
-      },
-    },
-  ],
+      max_restarts: 10,
+      min_uptime: '10s',
+      kill_timeout: 5000
+    }
+  ]
 };
