@@ -280,6 +280,7 @@ export default function RefillQueue() {
       <div style={{
         background: 'linear-gradient(135deg, #0c1e3e 0%, #0066cc 50%, #2563eb 100%)',
         color: 'white', padding: '44px 32px 40px', position: 'relative', overflow: 'hidden',
+        borderRadius: 16,
         boxShadow: '0 4px 20px rgba(0,102,204,0.35)',
       }}>
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.06)', pointerEvents: 'none' }} />

@@ -255,6 +255,7 @@ export default function PatientRegistration() {
       <div style={{
         background: 'linear-gradient(135deg, #0c1e3e 0%, #0066cc 50%, #2563eb 100%)',
         color: 'white', padding: '44px 32px 40px', position: 'relative', overflow: 'hidden',
+        borderRadius: 16, margin: '0 0 0 0',
         boxShadow: '0 4px 20px rgba(0,102,204,0.3)',
       }}>
         {/* glass overlay */}
