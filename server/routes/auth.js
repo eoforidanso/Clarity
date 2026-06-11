@@ -111,6 +111,7 @@ async function issueFullSession(res, req, user) { const ip       = req.realIp ||
       mustChangePassword: !!user.must_change_password,
       patientId: user.patient_id,
       locationId: user.location_id || 'loc1',
+      isGlobal: !!user.is_global,
       signature: signatureDataUrl,   // ← hydrated from provider_signatures at login
     },
   };
@@ -130,7 +131,7 @@ router.post('/login', async (req, res) => { const { username, password } = req.b
   if (password.length < 1 || password.length > 200) { return res.status(400).json({ error: 'Invalid password' });
   }
 
-  const user = await db.prepare('SELECT id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, totp_secret, must_change_password, patient_id, location_id FROM users WHERE username = ?').get(sanitizedUsername);
+  const user = await db.prepare('SELECT id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, totp_secret, must_change_password, patient_id, location_id, is_global FROM users WHERE username = ?').get(sanitizedUsername);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) { // Log failed login attempt
     logAuditEvent({
       action: 'LOGIN_FAILED', resourceType: 'auth', details: { username: sanitizedUsername, reason: 'Invalid credentials' },

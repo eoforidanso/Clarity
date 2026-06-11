@@ -166,7 +166,7 @@ export function SiteProvider({ children }) {
     const base = ROLE_SITE_ACCESS[role];
 
     // ⭐ Admins with is_global=false are scoped to their facility
-    if (role === 'admin' && currentUser?.is_global === false) {
+    if (role === 'admin' && currentUser?.isGlobal === false && currentUser?.is_global === false) {
       const userLocId = currentUser?.facility_id || 'loc1';
       return [userLocId];
     }

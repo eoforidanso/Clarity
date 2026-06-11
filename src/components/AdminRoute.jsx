@@ -13,8 +13,8 @@ export default function AdminRoute({ children }) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
 
-  // Only global admins can access (is_global = true)
-  if (!currentUser || !currentUser.is_global) {
+  // Only global admins can access (isGlobal = true)
+  if (!currentUser || (!currentUser.isGlobal && !currentUser.is_global)) {
     return <Navigate to="/dashboard" replace />;
   }
 
