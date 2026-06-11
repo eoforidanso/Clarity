@@ -124,26 +124,30 @@ export async function deliverAlert(severity, title, body, context = {}) {
 }
 
 // ── Check thresholds against audit_logs ───────────────────────────────────────
-function checkThresholds() {
+async function checkThresholds() {
   for (const rule of THRESHOLD_RULES) {
-    const windowStart = new Date(Date.now() - rule.windowMin * 60 * 1000).toISOString();
-    const row = db.prepare(
-      `SELECT COUNT(*) as cnt, STRING_AGG(DISTINCT actor_id, ',') as actor_ids,
-              STRING_AGG(DISTINCT ip, ',') as ips
-       FROM audit_logs
-       WHERE action = $1 AND created_at >= $2::timestamptz`
-    ).get(rule.action, windowStart);
+    try {
+      const windowStart = new Date(Date.now() - rule.windowMin * 60 * 1000).toISOString();
+      const row = await db.prepare(
+        `SELECT COUNT(*) as cnt, STRING_AGG(DISTINCT actor_id, ',') as actor_ids,
+                STRING_AGG(DISTINCT ip, ',') as ips
+         FROM audit_logs
+         WHERE action = $1 AND created_at >= $2::timestamptz`
+      ).get(rule.action, windowStart);
 
-    if ((row?.cnt || 0) >= rule.threshold) {
-      const key = `${rule.action}:${rule.severity}:${Math.floor(Date.now() / DEDUP_MS)}`;
-      if (shouldAlert(key)) {
-        deliverAlert(
-          rule.severity,
-          `${rule.action} threshold exceeded`,
-          `${row.cnt} occurrences in the last ${rule.windowMin} minutes.`,
-          { action: rule.action, count: row.cnt, ips: row.ips, windowMinutes: rule.windowMin }
-        );
+      if ((row?.cnt || 0) >= rule.threshold) {
+        const key = `${rule.action}:${rule.severity}:${Math.floor(Date.now() / DEDUP_MS)}`;
+        if (shouldAlert(key)) {
+          deliverAlert(
+            rule.severity,
+            `${rule.action} threshold exceeded`,
+            `${row.cnt} occurrences in the last ${rule.windowMin} minutes.`,
+            { action: rule.action, count: row.cnt, ips: row.ips, windowMinutes: rule.windowMin }
+          );
+        }
       }
+    } catch (err) {
+      console.error('[security-monitor] threshold check error:', err.message);
     }
   }
 }
@@ -162,6 +166,8 @@ export function alertOnAction(action, context = {}) {
 // ── Start monitoring loop ─────────────────────────────────────────────────────
 export function startSecurityMonitor(intervalMs = 60_000) {
   console.info('[security-monitor] started — checking every', intervalMs / 1000, 'seconds');
-  setInterval(checkThresholds, intervalMs);
-  checkThresholds(); // run immediately on startup
+  setInterval(() => {
+    checkThresholds().catch(e => console.error('[security-monitor] interval error:', e.message));
+  }, intervalMs);
+  checkThresholds().catch(e => console.error('[security-monitor] startup error:', e.message));
 }

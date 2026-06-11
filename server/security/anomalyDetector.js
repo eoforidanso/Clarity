@@ -23,8 +23,10 @@ import { alertOnAction } from './alerting.js';
 import { handleAutoResponse } from './autoResponse.js';
 
 // ── Schema ─────────────────────────────────────────────────────────────────────
-export function createAnomalyTable() {
-  db.exec(`
+export async function createAnomalyTable() {
+  // Split into separate exec calls — PostgreSQL pool.query doesn't always
+  // handle multi-statement strings reliably.
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS anomalies (
       id          TEXT PRIMARY KEY,
       rule_id     TEXT NOT NULL,
@@ -38,32 +40,32 @@ export function createAnomalyTable() {
       window_min  INTEGER DEFAULT 0,
       raw_events  TEXT DEFAULT '[]',
       status      TEXT DEFAULT 'open',
-      detected_at TEXT DEFAULT (NOW()),
-      resolved_at TEXT
-    );
-    CREATE INDEX IF NOT EXISTS idx_anomalies_rule     ON anomalies(rule_id);
-    CREATE INDEX IF NOT EXISTS idx_anomalies_status   ON anomalies(status);
-    CREATE INDEX IF NOT EXISTS idx_anomalies_detected ON anomalies(detected_at);
+      detected_at TIMESTAMPTZ DEFAULT NOW(),
+      resolved_at TIMESTAMPTZ
+    )
   `);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_anomalies_rule     ON anomalies(rule_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_anomalies_status   ON anomalies(status)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_anomalies_detected ON anomalies(detected_at)`);
 }
 
 // ── Dedup: don't re-create same anomaly within cooldown ───────────────────────
-function alreadyOpen(ruleId, actorId, ip, cooldownMin = 30) {
-  const row = db.prepare(`
+async function alreadyOpen(ruleId, actorId, ip, cooldownMin = 30) {
+  const row = await db.prepare(`
     SELECT id FROM anomalies
     WHERE rule_id = $1
       AND (actor_id = $2 OR ip = $3)
       AND status = 'open'
-      AND detected_at::timestamptz >= NOW() - make_interval(mins => $4::int)
+      AND detected_at >= NOW() - make_interval(mins => $4::int)
   `).get(ruleId, actorId || '', ip || '', cooldownMin);
   return !!row;
 }
 
-export function insertAnomaly({ ruleId, severity, title, description, actorId, actorName, ip, eventCount, windowMin, rawEvents }) {
-  if (alreadyOpen(ruleId, actorId, ip)) return null;
+export async function insertAnomaly({ ruleId, severity, title, description, actorId, actorName, ip, eventCount, windowMin, rawEvents }) {
+  if (await alreadyOpen(ruleId, actorId, ip)) return null;
 
   const id = uuidv4();
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO anomalies
       (id, rule_id, severity, title, description, actor_id, actor_name, ip, event_count, window_min, raw_events)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -102,18 +104,18 @@ export function insertAnomaly({ ruleId, severity, title, description, actorId, a
 // ── Rule definitions ──────────────────────────────────────────────────────────
 
 // R01: Same IP ≥5 IDOR attempts in 10 min
-function detectIpScanning() {
-  const rows = db.prepare(`
+async function detectIpScanning() {
+  const rows = await db.prepare(`
     SELECT ip, COUNT(*) as cnt, STRING_AGG(actor_id, ',') as actors, STRING_AGG(target_id, ',') as patients
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
-      AND created_at::timestamptz >= NOW() - INTERVAL '10 minutes'
+      AND created_at >= NOW() - INTERVAL '10 minutes'
       AND ip != ''
     GROUP BY ip HAVING COUNT(*) >= 5
   `).all();
 
   for (const r of rows) {
-    insertAnomaly({
+    await insertAnomaly({
       ruleId: 'R01_IP_SCANNING', severity: 'HIGH',
       title:  `IP Scanning: ${r.ip}`,
       description: `IP ${r.ip} triggered ${r.cnt} IDOR_BLOCKED events in 10 minutes — possible patient record enumeration.`,
@@ -124,18 +126,18 @@ function detectIpScanning() {
 }
 
 // R02: Same user accessing ≥4 distinct patients in 10 min
-function detectBulkAccess() {
-  const rows = db.prepare(`
+async function detectBulkAccess() {
+  const rows = await db.prepare(`
     SELECT actor_id, actor_name, COUNT(DISTINCT target_id) as patients,
            COUNT(*) as cnt, MAX(ip) as ip
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
-      AND created_at::timestamptz >= NOW() - INTERVAL '10 minutes'
+      AND created_at >= NOW() - INTERVAL '10 minutes'
     GROUP BY actor_id, actor_name HAVING COUNT(DISTINCT target_id) >= 4
   `).all();
 
   for (const r of rows) {
-    insertAnomaly({
+    await insertAnomaly({
       ruleId: 'R02_BULK_ACCESS', severity: 'HIGH',
       title:  `Bulk Patient Access: ${r.actor_name || r.actor_id}`,
       description: `User attempted to access ${r.patients} distinct patients in 10 minutes — possible data harvesting.`,
@@ -146,18 +148,18 @@ function detectBulkAccess() {
 }
 
 // R03: Brute force — ≥10 LOGIN_FAILED from same IP in 15 min
-function detectBruteForce() {
-  const rows = db.prepare(`
+async function detectBruteForce() {
+  const rows = await db.prepare(`
     SELECT ip, COUNT(*) as cnt, STRING_AGG(DISTINCT actor_name, ',') as accounts
     FROM audit_logs
     WHERE action = 'LOGIN_FAILED'
-      AND created_at::timestamptz >= NOW() - INTERVAL '15 minutes'
+      AND created_at >= NOW() - INTERVAL '15 minutes'
       AND ip != ''
     GROUP BY ip HAVING COUNT(*) >= 10
   `).all();
 
   for (const r of rows) {
-    insertAnomaly({
+    await insertAnomaly({
       ruleId: 'R03_BRUTE_FORCE', severity: 'CRITICAL',
       title:  `Brute Force: ${r.ip}`,
       description: `${r.cnt} failed login attempts from ${r.ip} in 15 minutes. Accounts targeted: ${r.accounts || 'unknown'}.`,
@@ -167,17 +169,17 @@ function detectBruteForce() {
 }
 
 // R04: Same user blocked accessing same patient ≥3 times in 30 min
-function detectRepeatedTargeting() {
-  const rows = db.prepare(`
+async function detectRepeatedTargeting() {
+  const rows = await db.prepare(`
     SELECT actor_id, actor_name, target_id, COUNT(*) as cnt, MAX(ip) as ip
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
-      AND created_at::timestamptz >= NOW() - INTERVAL '30 minutes'
+      AND created_at >= NOW() - INTERVAL '30 minutes'
     GROUP BY actor_id, actor_name, target_id HAVING COUNT(*) >= 3
   `).all();
 
   for (const r of rows) {
-    insertAnomaly({
+    await insertAnomaly({
       ruleId: 'R04_REPEATED_TARGET', severity: 'HIGH',
       title:  `Repeated Targeting: ${r.actor_name || r.actor_id}`,
       description: `User attempted ${r.cnt} times to access the same patient (${r.target_id?.slice(0,8)}) in 30 minutes.`,
@@ -188,20 +190,20 @@ function detectRepeatedTargeting() {
 }
 
 // R05: IDOR attempt outside business hours (before 7am or after 9pm UTC)
-function detectOffHours() {
+async function detectOffHours() {
   const hour = new Date().getUTCHours();
   if (hour >= 7 && hour < 21) return; // business hours — skip
 
-  const rows = db.prepare(`
+  const rows = await db.prepare(`
     SELECT actor_id, actor_name, COUNT(*) as cnt, MAX(ip) as ip
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED'
-      AND created_at::timestamptz >= NOW() - INTERVAL '5 minutes'
+      AND created_at >= NOW() - INTERVAL '5 minutes'
     GROUP BY actor_id, actor_name HAVING COUNT(*) >= 1
   `).all();
 
   for (const r of rows) {
-    insertAnomaly({
+    await insertAnomaly({
       ruleId: 'R05_OFF_HOURS', severity: 'MEDIUM',
       title:  `Off-Hours Access Attempt: ${r.actor_name || r.actor_id}`,
       description: `IDOR attempt at ${hour}:00 UTC (outside 07:00–21:00 window). Could indicate compromised credentials.`,
@@ -212,18 +214,18 @@ function detectOffHours() {
 }
 
 // R06: Reauth hammering — ≥5 REAUTH_FAILED from same IP in 15 min
-function detectReauthHammering() {
-  const rows = db.prepare(`
+async function detectReauthHammering() {
+  const rows = await db.prepare(`
     SELECT ip, COUNT(*) as cnt, STRING_AGG(DISTINCT actor_id, ',') as actors
     FROM audit_logs
     WHERE action = 'REAUTH_FAILED'
-      AND created_at::timestamptz >= NOW() - INTERVAL '15 minutes'
+      AND created_at >= NOW() - INTERVAL '15 minutes'
       AND ip != ''
     GROUP BY ip HAVING COUNT(*) >= 5
   `).all();
 
   for (const r of rows) {
-    insertAnomaly({
+    await insertAnomaly({
       ruleId: 'R06_REAUTH_HAMMER', severity: 'HIGH',
       title:  `Re-Auth Hammering: ${r.ip}`,
       description: `${r.cnt} failed re-authentication attempts from ${r.ip} in 15 minutes — possible elevated privilege attack.`,
@@ -233,17 +235,17 @@ function detectReauthHammering() {
 }
 
 // R07: Privilege probe — ≥3 IDOR_BLOCKED_USER by same actor in 10 min
-function detectPrivilegeProbe() {
-  const rows = db.prepare(`
+async function detectPrivilegeProbe() {
+  const rows = await db.prepare(`
     SELECT actor_id, actor_name, COUNT(*) as cnt, MAX(ip) as ip
     FROM audit_logs
     WHERE action = 'IDOR_BLOCKED_USER'
-      AND created_at::timestamptz >= NOW() - INTERVAL '10 minutes'
+      AND created_at >= NOW() - INTERVAL '10 minutes'
     GROUP BY actor_id, actor_name HAVING COUNT(*) >= 3
   `).all();
 
   for (const r of rows) {
-    insertAnomaly({
+    await insertAnomaly({
       ruleId: 'R07_PRIVILEGE_PROBE', severity: 'HIGH',
       title:  `Privilege Probe: ${r.actor_name || r.actor_id}`,
       description: `${r.cnt} attempts to access other user accounts in 10 minutes — possible privilege escalation probe.`,
@@ -254,18 +256,18 @@ function detectPrivilegeProbe() {
 }
 
 // R08: Session reuse — same actor from ≥3 distinct IPs in 30 min
-function detectSessionReuse() {
-  const rows = db.prepare(`
+async function detectSessionReuse() {
+  const rows = await db.prepare(`
     SELECT actor_id, actor_name, COUNT(DISTINCT ip) as ip_count, STRING_AGG(DISTINCT ip, ',') as ips
     FROM audit_logs
     WHERE action IN ('IDOR_BLOCKED', 'REAUTH_FAILED', 'LOGIN_FAILED')
-      AND created_at::timestamptz >= NOW() - INTERVAL '30 minutes'
+      AND created_at >= NOW() - INTERVAL '30 minutes'
       AND ip != ''
     GROUP BY actor_id, actor_name HAVING COUNT(DISTINCT ip) >= 3
   `).all();
 
   for (const r of rows) {
-    insertAnomaly({
+    await insertAnomaly({
       ruleId: 'R08_SESSION_REUSE', severity: 'MEDIUM',
       title:  `Multiple IPs: ${r.actor_name || r.actor_id}`,
       description: `Same user triggered events from ${r.ip_count} distinct IPs in 30 minutes (${r.ips}) — possible stolen session or proxy chain.`,
@@ -276,19 +278,19 @@ function detectSessionReuse() {
 }
 
 // ── Main runner ───────────────────────────────────────────────────────────────
-export function runAnomalyDetection() {
-  createAnomalyTable();
+export async function runAnomalyDetection() {
+  await createAnomalyTable();
   const start = Date.now();
 
   try {
-    detectIpScanning();
-    detectBulkAccess();
-    detectBruteForce();
-    detectRepeatedTargeting();
-    detectOffHours();
-    detectReauthHammering();
-    detectPrivilegeProbe();
-    detectSessionReuse();
+    await detectIpScanning();
+    await detectBulkAccess();
+    await detectBruteForce();
+    await detectRepeatedTargeting();
+    await detectOffHours();
+    await detectReauthHammering();
+    await detectPrivilegeProbe();
+    await detectSessionReuse();
     // R09/R10 are triggered at login time by geoDevice.js — not re-checked here
   } catch (err) {
     console.error('[anomaly-detector] error:', err.message);
@@ -300,8 +302,14 @@ export function runAnomalyDetection() {
 
 // ── Scheduled job (every 5 minutes) ──────────────────────────────────────────
 export function startAnomalyScheduler(intervalMs = 5 * 60_000) {
-  createAnomalyTable();
-  console.info('[anomaly-detector] started — running every', intervalMs / 60000, 'minutes');
-  runAnomalyDetection(); // run immediately
-  return setInterval(runAnomalyDetection, intervalMs);
+  createAnomalyTable()
+    .then(() => {
+      console.info('[anomaly-detector] started — running every', intervalMs / 60000, 'minutes');
+      runAnomalyDetection().catch(e => console.error('[anomaly-detector] initial run error:', e.message));
+    })
+    .catch(e => console.error('[anomaly-detector] table init error:', e.message));
+
+  return setInterval(() => {
+    runAnomalyDetection().catch(e => console.error('[anomaly-detector] interval error:', e.message));
+  }, intervalMs);
 }

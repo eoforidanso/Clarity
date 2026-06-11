@@ -15,8 +15,10 @@ export function applyMigrations() {
 
 // ── Audit log ─────────────────────────────────────────────────────────────────
 export async function logAudit({ actorId, actorName = '', action, targetId = null, targetType = '', details = {}, ip = '' }) {
+  // Insert directly into the underlying audit_log table using real column names
+  // to avoid any view-mapping issues (audit_logs view aliases user_id→actor_id etc.)
   await db.prepare(`
-    INSERT INTO audit_logs (id, actor_id, actor_name, action, target_id, target_type, details, ip)
+    INSERT INTO audit_log (id, user_id, user_name, action, patient_id, resource_type, details, ip_address)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
   `).run(uuidv4(), actorId, actorName, action, targetId, targetType, JSON.stringify(details), ip);
 

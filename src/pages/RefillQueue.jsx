@@ -46,6 +46,9 @@ export default function RefillQueue() {
   const [copayAmount, setCopayAmount] = useState(null);
   const [editPharmacyRefillId, setEditPharmacyRefillId] = useState(null);
   const [editPharmacyForm, setEditPharmacyForm] = useState({ pharmacy: '', pharmacyAddress: '', pharmacyPhone: '', pharmacyFax: '' });
+  const [pharmSuggestions, setPharmSuggestions] = useState([]);
+  const [pharmSearchLoading, setPharmSearchLoading] = useState(false);
+  const [showPharmDropdown, setShowPharmDropdown] = useState(false);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -61,6 +64,41 @@ export default function RefillQueue() {
       pharmacyFax: refill.pharmacyFax || '',
     });
   };
+
+  const searchIllinoisPharmacies = async (query) => {
+    if (!query || query.trim().length < 2) { setPharmSuggestions([]); setShowPharmDropdown(false); return; }
+    setPharmSearchLoading(true);
+    try {
+      const res = await fetch(
+        `https://npiregistry.cms.hhs.gov/api/?version=2.1&enumeration_type=NPI-2&taxonomy_description=pharmacy&state=IL&organization_name=${encodeURIComponent(query.trim())}&limit=12`
+      );
+      const data = await res.json();
+      const results = (data.results || []).map(r => {
+        const loc = (r.addresses || []).find(a => a.address_purpose === 'LOCATION') || (r.addresses || [])[0] || {};
+        const rawPhone = loc.telephone_number || '';
+        const rawFax = loc.fax_number || '';
+        const fmt = n => n.replace(/\D/g, '').replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
+        return {
+          name: (r.basic?.organization_name || '').replace(/\b\w/g, c => c.toUpperCase()),
+          address: [loc.address_1, loc.address_2, loc.city, loc.state, loc.postal_code ? loc.postal_code.slice(0,5) : ''].filter(Boolean).join(', '),
+          phone: rawPhone ? fmt(rawPhone) : '',
+          fax: rawFax ? fmt(rawFax) : '',
+        };
+      }).filter(r => r.name);
+      setPharmSuggestions(results);
+      setShowPharmDropdown(results.length > 0);
+    } catch {
+      setPharmSuggestions([]);
+      setShowPharmDropdown(false);
+    }
+    setPharmSearchLoading(false);
+  };
+
+  useEffect(() => {
+    const t = setTimeout(() => searchIllinoisPharmacies(editPharmacyForm.pharmacy), 350);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editPharmacyForm.pharmacy]);
 
   const saveEditPharmacy = () => {
     const updated = refillQueue.map(r =>
@@ -383,8 +421,7 @@ export default function RefillQueue() {
         .rq-stat-card { transition: transform 0.15s; }
         .rq-stat-card:hover { transform: translateY(-2px); }
         .rq-pharmacy-cell { position: relative; cursor: default; }
-        .rq-pharmacy-edit-btn { display: none; }
-        .rq-pharmacy-cell:hover .rq-pharmacy-edit-btn { display: inline-flex; }
+        .rq-pharmacy-edit-btn { display: inline-flex; }
         .rq-pharmacy-popup {
           display: none; position: absolute; bottom: calc(100% + 8px); left: 0;
           background: #1e293b; color: white; border-radius: 10px;
@@ -641,8 +678,8 @@ export default function RefillQueue() {
                               </button>
                             </div>
                             {refill.pharmacyAddress && (
-                              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                                {refill.pharmacyAddress}
+                              <div style={{ fontSize: 11, color: '#475569', marginTop: 3, display: 'flex', alignItems: 'flex-start', gap: 3 }}>
+                                <span>📍</span><span>{refill.pharmacyAddress}</span>
                               </div>
                             )}
                             {(refill.pharmacyPhone || refill.pharmacyFax) && (
@@ -1005,15 +1042,96 @@ export default function RefillQueue() {
             </div>
 
             <div style={{ padding: '20px 24px' }}>
+
+              {/* ── Pharmacy Name with IL autocomplete ── */}
+              <div style={{ marginBottom: 14, position: 'relative' }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 5, letterSpacing: '0.04em' }}>
+                  Pharmacy Name <span style={{ color: '#dc2626', marginLeft: 3 }}>*</span>
+                  <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 6, textTransform: 'none', letterSpacing: 0 }}>— type to search Illinois pharmacies</span>
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    value={editPharmacyForm.pharmacy}
+                    onChange={e => {
+                      setEditPharmacyForm(prev => ({ ...prev, pharmacy: e.target.value }));
+                      setShowPharmDropdown(true);
+                    }}
+                    placeholder="e.g. Walgreens, CVS, Rite Aid…"
+                    autoComplete="off"
+                    style={{
+                      width: '100%', padding: '10px 36px 10px 12px', borderRadius: 8,
+                      border: '1.5px solid #e2e8f0', fontSize: 14, outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                    onFocus={e => {
+                      e.target.style.borderColor = '#0066cc';
+                      if (pharmSuggestions.length > 0) setShowPharmDropdown(true);
+                    }}
+                    onBlur={e => {
+                      e.target.style.borderColor = '#e2e8f0';
+                      setTimeout(() => setShowPharmDropdown(false), 180);
+                    }}
+                  />
+                  {pharmSearchLoading && (
+                    <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#94a3b8' }}>
+                      🔍
+                    </span>
+                  )}
+                </div>
+
+                {/* Suggestions dropdown */}
+                {showPharmDropdown && pharmSuggestions.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0,
+                    background: 'white', border: '1.5px solid #dbeafe',
+                    borderRadius: 10, boxShadow: '0 8px 28px rgba(0,102,204,0.15)',
+                    zIndex: 9999, maxHeight: 220, overflowY: 'auto',
+                  }}>
+                    <div style={{ padding: '6px 12px 4px', fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.08em', textTransform: 'uppercase', borderBottom: '1px solid #f1f5f9' }}>
+                      Illinois Pharmacies
+                    </div>
+                    {pharmSuggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onMouseDown={() => {
+                          setEditPharmacyForm({
+                            pharmacy: s.name,
+                            pharmacyAddress: s.address,
+                            pharmacyPhone: s.phone,
+                            pharmacyFax: s.fax,
+                          });
+                          setShowPharmDropdown(false);
+                          setPharmSuggestions([]);
+                        }}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left',
+                          padding: '9px 12px', border: 'none', background: 'transparent',
+                          borderBottom: i < pharmSuggestions.length - 1 ? '1px solid #f8fafc' : 'none',
+                          cursor: 'pointer', transition: 'background 0.1s',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <div style={{ fontWeight: 600, fontSize: 13, color: '#0f172a' }}>🏪 {s.name}</div>
+                        {s.address && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>📍 {s.address}</div>}
+                        {s.phone && <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>📞 {s.phone}</div>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Remaining fields ── */}
               {[
-                { label: 'Pharmacy Name', key: 'pharmacy', placeholder: 'e.g. CVS Pharmacy – Main St', required: true },
-                { label: 'Address', key: 'pharmacyAddress', placeholder: 'e.g. 123 Main St, City, State ZIP' },
-                { label: 'Phone', key: 'pharmacyPhone', placeholder: 'e.g. (610) 555-0100' },
-                { label: 'Fax', key: 'pharmacyFax', placeholder: 'e.g. (610) 555-0101' },
-              ].map(({ label, key, placeholder, required }) => (
+                { label: 'Address', key: 'pharmacyAddress', placeholder: 'e.g. 123 Main St, Chicago, IL 60601' },
+                { label: 'Phone', key: 'pharmacyPhone', placeholder: 'e.g. (312) 555-0100' },
+                { label: 'Fax', key: 'pharmacyFax', placeholder: 'e.g. (312) 555-0101' },
+              ].map(({ label, key, placeholder }) => (
                 <div key={key} style={{ marginBottom: 14 }}>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 5, letterSpacing: '0.04em' }}>
-                    {label}{required && <span style={{ color: '#dc2626', marginLeft: 3 }}>*</span>}
+                    {label}
                   </label>
                   <input
                     type="text"

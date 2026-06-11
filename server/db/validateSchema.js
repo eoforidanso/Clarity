@@ -12,7 +12,7 @@ const REQUIRED_COLUMNS = [
   ['users',      'is_locked',         'integer'],
   ['users',      'locked_reason',     'text'],
   ['users',      'location_id',       'text'],
-  ['sessions',   'is_active',         'integer'],
+  ['sessions',   'is_active',         'boolean'],
   ['sessions',   'reauth_required',   'integer'],
   ['sessions',   'revoke_reason',     'text'],
   ['audit_logs', 'facility_id',       'text'],
