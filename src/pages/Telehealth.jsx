@@ -574,8 +574,10 @@ function PostSessionModal({ apt, patient, sessionDuration, sessionNote, onClose 
 ═══════════════════════════════════════════════════════════════════════ */
 function ActiveSession({ apt, patient, patients, consentRecord, patientMeds, patientProblems, patientAllergies, patientVitals }) {
   const {
-    isMuted, isVideoOff, isRecording, camError, sessionTimer,
+    isMuted, isVideoOff, isRecording, camError, audioOnly, sessionTimer,
     localStreamRef, streamReady, toggleMute, toggleCamera, toggleRecording, endSession,
+    retryCam, videoDevices, audioDevices, selectedVideoId, selectedAudioId,
+    switchVideoDevice, switchAudioDevice,
   } = useTelehealth();
   const navigate = useNavigate();
 
@@ -601,12 +603,17 @@ function ActiveSession({ apt, patient, patients, consentRecord, patientMeds, pat
   /* ── Attach stream to video element ── */
   const setVideoRef = useCallback((el) => {
     localVideoRef.current = el;
-    if (el && localStreamRef.current) el.srcObject = localStreamRef.current;
+    if (el && localStreamRef.current) {
+      el.srcObject = localStreamRef.current;
+      el.play().catch(() => {}); // autoplay policy — attempt play
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-attach whenever stream becomes ready (initial + retry)
   useEffect(() => {
     if (localVideoRef.current && localStreamRef.current) {
       localVideoRef.current.srcObject = localStreamRef.current;
+      localVideoRef.current.play().catch(() => {});
     }
   }, [streamReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -678,11 +685,48 @@ function ActiveSession({ apt, patient, patients, consentRecord, patientMeds, pat
         </button>
       </div>
 
-      {/* Camera error banner */}
+      {/* Camera error / audio-only banner */}
       {camError && (
-        <div style={{ background:'#fef2f2', borderBottom:'1px solid #fecaca', padding:'8px 16px', display:'flex', alignItems:'center', gap:10, fontSize:12, color:'#b91c1c', flexShrink:0 }}>
-          ⚠️ <strong>{camError === 'denied' ? 'Camera/mic access denied.' : 'No camera/mic detected.'}</strong>
-          {camError === 'denied' ? ' Check browser permissions (address bar) and refresh.' : ' Ensure device is connected and not used by another app, then refresh.'}
+        <div style={{ background: camError === 'audio-only' ? '#fffbeb' : '#fef2f2', borderBottom: `1px solid ${camError === 'audio-only' ? '#fcd34d' : '#fecaca'}`, padding:'8px 16px', display:'flex', alignItems:'center', gap:10, fontSize:12, color: camError === 'audio-only' ? '#92400e' : '#b91c1c', flexShrink:0, flexWrap:'wrap' }}>
+          <span>{camError === 'audio-only' ? '🎤' : '⚠️'}</span>
+          <span>
+            {camError === 'denied' && <><strong>Camera/mic access denied.</strong> Click the camera icon in your browser's address bar and allow access.</>}
+            {camError === 'unavailable' && <><strong>Camera/mic not detected.</strong> Check that your device is connected, not in use by another app, and try again.</>}
+            {camError === 'insecure' && <><strong>Secure connection required.</strong> Camera access requires HTTPS. Contact your administrator.</>}
+            {camError === 'audio-only' && <><strong>Audio-only mode.</strong> Camera unavailable — continuing with microphone only.</>}
+          </span>
+          {(camError === 'denied' || camError === 'unavailable') && (
+            <button onClick={retryCam} style={{ marginLeft:'auto', background:'#dc2626', color:'#fff', border:'none', borderRadius:5, padding:'4px 10px', fontSize:11, cursor:'pointer', fontWeight:600 }}>
+              🔄 Retry Camera
+            </button>
+          )}
+          {camError === 'denied' && (
+            <a href="https://support.google.com/chrome/answer/2693767" target="_blank" rel="noopener noreferrer" style={{ color:'#b91c1c', fontSize:11 }}>How to fix →</a>
+          )}
+        </div>
+      )}
+
+      {/* Device selector (shown when multiple cameras/mics available) */}
+      {streamReady && (videoDevices.length > 1 || audioDevices.length > 1) && (
+        <div style={{ background:'#1e293b', borderBottom:'1px solid #334155', padding:'6px 16px', display:'flex', alignItems:'center', gap:12, fontSize:11, flexShrink:0 }}>
+          {videoDevices.length > 1 && (
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ color:'#94a3b8' }}>📷</span>
+              <select value={selectedVideoId} onChange={e => switchVideoDevice(e.target.value)}
+                style={{ background:'#0f172a', color:'#e2e8f0', border:'1px solid #334155', borderRadius:4, padding:'2px 6px', fontSize:11 }}>
+                {videoDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Camera ${d.deviceId.slice(0,6)}`}</option>)}
+              </select>
+            </div>
+          )}
+          {audioDevices.length > 1 && (
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ color:'#94a3b8' }}>🎤</span>
+              <select value={selectedAudioId} onChange={e => switchAudioDevice(e.target.value)}
+                style={{ background:'#0f172a', color:'#e2e8f0', border:'1px solid #334155', borderRadius:4, padding:'2px 6px', fontSize:11 }}>
+                {audioDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0,6)}`}</option>)}
+              </select>
+            </div>
+          )}
         </div>
       )}
 
