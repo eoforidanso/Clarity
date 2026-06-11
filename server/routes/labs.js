@@ -34,25 +34,26 @@ router.get('/:patientId/labs/:labId', async (req, res) => { const row = await db
 router.post('/:patientId/labs', async (req, res) => { const b = req.body;
   const id = b.id || uuidv4();
 
-  await db.prepare('INSERT INTO lab_results (id, patient_id, order_date, result_date, ordered_by, status) VALUES (?, ?, ?)').run(
+  await db.prepare('INSERT INTO lab_results (id, patient_id, order_date, result_date, ordered_by, status) VALUES ($1,$2,$3,$4,$5,$6)').run(
     id, req.params.patientId, b.orderDate, b.resultDate || null, b.orderedBy || '', b.status || 'Pending'
   );
 
   if (b.tests) {
-    const insertTest = await db.prepare('INSERT INTO lab_result_tests (id, lab_result_id, name) VALUES (?, ?)');
-    const insertComp = await db.prepare('INSERT INTO lab_result_components (id, test_id, component, value, unit, range, flag) VALUES (?, ?)');
     for (const test of b.tests) {
       const testId = uuidv4();
-      insertTest.run(testId, id, test.name);
+      await db.prepare('INSERT INTO lab_result_tests (id, lab_result_id, name) VALUES ($1,$2,$3)').run(testId, id, test.name);
       if (test.results) {
         for (const r of test.results) {
-          insertComp.run(uuidv4(), testId, r.component, r.value || '', r.unit || '', r.range || '', r.flag || ''); }
+          await db.prepare('INSERT INTO lab_result_components (id, test_id, component, value, unit, range, flag) VALUES ($1,$2,$3,$4,$5,$6,$7)').run(
+            uuidv4(), testId, r.component, r.value || '', r.unit || '', r.range || '', r.flag || ''
+          );
+        }
       }
     }
   }
 
-  const row = await db.prepare('SELECT * FROM lab_results WHERE id = ?').get(id);
-  res.status(201).json(formatLabResult(row));
+  const row = await db.prepare('SELECT * FROM lab_results WHERE id = $1').get(id);
+  res.status(201).json(await formatLabResult(row));
 });
 
 export default router;

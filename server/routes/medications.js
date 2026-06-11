@@ -23,14 +23,14 @@ router.get('/:patientId/medications', async (req, res) => { const rows = await d
 // POST /api/patients/:patientId/medications
 router.post('/:patientId/medications', async (req, res) => { const b = req.body;
   const id = b.id || uuidv4();
-  await db.prepare(`INSERT INTO medications (id, patient_id, name, dose, route, frequency, start_date, prescriber, status, refills_left, is_controlled, schedule, pharmacy, last_filled, sig) VALUES (?, ?, ?)`).run(
+  await db.prepare(`INSERT INTO medications (id, patient_id, name, dose, route, frequency, start_date, prescriber, status, refills_left, is_controlled, schedule, pharmacy, last_filled, sig) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`).run(
     id, req.params.patientId, b.name, b.dose || '', b.route || 'Oral', b.frequency || '', b.startDate || '', b.prescriber || '', b.status || 'Active', b.refillsLeft || 0, b.isControlled ? 1 : 0, b.schedule || null, b.pharmacy || '', b.lastFilled || '', b.sig || ''
   );
 
   // Add initial rx history entry
   if (b.rxHistory && b.rxHistory.length) {
     for (const rx of b.rxHistory) {
-      await db.prepare('INSERT INTO medication_rx_history (id, medication_id, date, prescribed_by, qty, refill_number, type, note) VALUES (?, ?)').run(
+      await db.prepare('INSERT INTO medication_rx_history (id, medication_id, date, prescribed_by, pharmacy, qty, refill_number, type, note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)').run(
         uuidv4(), id, rx.date, rx.prescribedBy || '', rx.pharmacy || '', rx.qty || 0, rx.refillNumber || 0, rx.type || 'New Prescription', rx.note || ''
       ); }
   }
@@ -60,7 +60,7 @@ router.delete('/:patientId/medications/:medId', async (req, res) => { await db.p
 // POST /api/patients/:patientId/medications/:medId/rx-history
 router.post('/:patientId/medications/:medId/rx-history', async (req, res) => { const b = req.body;
   const id = uuidv4();
-  await db.prepare('INSERT INTO medication_rx_history (id, medication_id, date, prescribed_by, pharmacy, qty, refill_number, type, note) VALUES (?, ?, ?)').run(
+  await db.prepare('INSERT INTO medication_rx_history (id, medication_id, date, prescribed_by, pharmacy, qty, refill_number, type, note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)').run(
     id, req.params.medId, b.date, b.prescribedBy || '', b.pharmacy || '', b.qty || 0, b.refillNumber || 0, b.type || 'Refill', b.note || ''
   );
   res.status(201).json({ id, ...b });

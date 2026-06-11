@@ -38,7 +38,7 @@ router.get('/', async (req, res) => {
 // POST /api/inbox
 router.post('/', async (req, res) => { const b = req.body;
   const id = b.id || uuidv4();
-  await db.prepare('INSERT INTO inbox_messages (id, type, from_name, to_user, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent) VALUES (?, ?, ?)').run(
+  await db.prepare('INSERT INTO inbox_messages (id, type, from_name, to_user, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
     id, b.type, b.from, b.to, b.patient || null, b.patientName || '', b.subject || '', b.body || '', b.date || new Date().toISOString().split('T')[0], b.time || new Date().toTimeString().slice(0, 5), b.read ? 1 : 0, b.priority || 'Normal', b.status || 'Unread', b.urgent ? 1 : 0
   );
   const row = await db.prepare('SELECT * FROM inbox_messages WHERE id = ?').get(id);

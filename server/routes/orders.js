@@ -15,7 +15,7 @@ router.get('/:patientId/orders', async (req, res) => { const rows = await db.pre
 // POST /api/patients/:patientId/orders
 router.post('/:patientId/orders', async (req, res) => { const b = req.body;
   const id = b.id || uuidv4();
-  await db.prepare('INSERT INTO orders (id, patient_id, type, description, status, ordered_date, ordered_by, priority, notes, lab_facility) VALUES (?, ?, ?)').run(
+  await db.prepare('INSERT INTO orders (id, patient_id, type, description, status, ordered_date, ordered_by, priority, notes, lab_facility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
     id, req.params.patientId, b.type, b.description, b.status || 'Pending', b.orderedDate || new Date().toISOString().split('T')[0], b.orderedBy || '', b.priority || 'Routine', b.notes || '', b.labFacility || null
   );
   res.status(201).json({ id, ...b });

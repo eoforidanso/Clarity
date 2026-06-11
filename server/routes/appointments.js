@@ -37,7 +37,7 @@ router.get('/', async (req, res) => {
 // POST /api/appointments
 router.post('/', async (req, res) => { const b = req.body;
   const id = b.id || uuidv4();
-  await db.prepare('INSERT INTO appointments (id, patient_id, patient_name, provider, provider_name, date, time, duration, type, status, reason, visit_type, room, location_id) VALUES (?, ?, ?)').run(
+  await db.prepare('INSERT INTO appointments (id, patient_id, patient_name, provider, provider_name, date, time, duration, type, status, reason, visit_type, room, location_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)').run(
     id, b.patientId || null, b.patientName || '', b.provider || '', b.providerName || '', b.date, b.time, b.duration || 30, b.type || 'Office Visit', b.status || 'Scheduled', b.reason || '', b.visitType || 'In-Person', b.room || '', b.locationId || 'loc1'
   );
   const row = await db.prepare('SELECT * FROM appointments WHERE id = ?').get(id);
@@ -76,7 +76,7 @@ router.get('/blocked-days/list', async (req, res) => { const { provider } = req.
 // POST /api/appointments/blocked-days
 router.post('/blocked-days', async (req, res) => { const b = req.body;
   const id = uuidv4();
-  await db.prepare('INSERT INTO blocked_days (id, provider, date, block_type, reason) VALUES (?, ?, ?)').run(
+  await db.prepare('INSERT INTO blocked_days (id, provider, date, block_type, reason) VALUES ($1,$2,$3,$4,$5)').run(
     id, b.provider, b.date, b.blockType || 'full', b.reason || ''
   );
   res.status(201).json({ id, ...b });
