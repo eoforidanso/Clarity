@@ -138,8 +138,8 @@ export async function initializeDatabase() {
       dea_number TEXT DEFAULT '',
       email TEXT NOT NULL,
       epcs_pin_hash TEXT,
-      two_factor_enabled INTEGER DEFAULT 0,
-      must_change_password INTEGER DEFAULT 0,
+      two_factor_enabled BOOLEAN DEFAULT FALSE,
+      must_change_password BOOLEAN DEFAULT FALSE,
       patient_id TEXT,
       location_id TEXT DEFAULT 'loc1',
       created_at TEXT DEFAULT NOW(),
@@ -1027,7 +1027,7 @@ export async function initializeDatabase() {
 
   // Safe column additions (idempotent — ignored if column already exists)
   const columnMigrations = [
-    `ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password INTEGER DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT DEFAULT NULL`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_otp TEXT DEFAULT NULL`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_otp_expires TEXT DEFAULT NULL`,
@@ -1059,14 +1059,14 @@ export async function initializeDatabase() {
   // Ensure Harriet (system admin) exists with the correct role
   await pool.query(`
     INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, epcs_pin_hash, two_factor_enabled, must_change_password, location_id)
-    VALUES ('u5', 'harriet', '$2a$10$Qq3HXdNpQ2.V5P.IqR8adesFPK9JYYkTBUHCu2gIsMVV6vHJ8Xy8i', 'Harriet', 'Appiah', 'admin', '', '', '', '', 'harriet@clarity.health', NULL, 1, 0, 'loc1')
+    VALUES ('u5', 'harriet', '$2a$10$Qq3HXdNpQ2.V5P.IqR8adesFPK9JYYkTBUHCu2gIsMVV6vHJ8Xy8i', 'Harriet', 'Appiah', 'admin', '', '', '', '', 'harriet@clarity.health', NULL, false, false, 'loc1')
     ON CONFLICT DO NOTHING;
   `);
 
   // Ensure Emmanuel (APMG prescriber) exists
   await pool.query(`
     INSERT INTO users (id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, epcs_pin_hash, two_factor_enabled, must_change_password, location_id)
-    VALUES ('u9', 'dr.emmanuel', '$2a$10$Qq3HXdNpQ2.V5P.IqR8adesFPK9JYYkTBUHCu2gIsMVV6vHJ8Xy8i', 'Emmanuel', 'Oforidanso', 'prescriber', 'NP', 'Psychiatric Mental Health', '1376299933', 'MO7223857', 'emmanuel@clarity.health', NULL, 1, 0, 'loc-apmg')
+    VALUES ('u9', 'dr.emmanuel', '$2a$10$Qq3HXdNpQ2.V5P.IqR8adesFPK9JYYkTBUHCu2gIsMVV6vHJ8Xy8i', 'Emmanuel', 'Oforidanso', 'prescriber', 'NP', 'Psychiatric Mental Health', '1376299933', 'MO7223857', 'emmanuel@clarity.health', NULL, false, false, 'loc-apmg')
     ON CONFLICT DO NOTHING;
   `);
 

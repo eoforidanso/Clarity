@@ -20,9 +20,13 @@ export async function up(db) {
       );
       console.log(`  ✓ ${table}.${col} added`);
     } catch (err) {
-      // Column already exists — safe to skip
-      if (/already exists/i.test(err.message) || /duplicate column/i.test(err.message)) {
-        console.log(`  ⏭  ${table}.${col} already exists, skipping`);
+      // Column already exists or table doesn't exist yet — safe to skip
+      if (
+        /already exists/i.test(err.message) ||
+        /duplicate column/i.test(err.message) ||
+        /does not exist/i.test(err.message)
+      ) {
+        console.log(`  ⏭  ${table}.${col} — skipping (${err.message.split('\n')[0]})`);
       } else {
         throw err;
       }
@@ -37,7 +41,15 @@ export async function up(db) {
   ];
 
   for (const sql of indexes) {
-    await db.exec(sql);
+    try {
+      await db.exec(sql);
+    } catch (err) {
+      if (/does not exist/i.test(err.message)) {
+        console.log(`  ⏭  index skipped — table missing`);
+      } else {
+        throw err;
+      }
+    }
   }
 }
 

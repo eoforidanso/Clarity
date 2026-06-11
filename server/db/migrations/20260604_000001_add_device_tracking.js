@@ -7,10 +7,11 @@
  */
 
 export async function up(db) {
-  // sessions.device_id FK (added during device tracking work)
+  // sessions.device_id (added during device tracking work)
+  // Note: user_devices table not yet defined; storing as plain INTEGER for now
   await db.prepare(`
     ALTER TABLE sessions
-    ADD COLUMN IF NOT EXISTS device_id INTEGER REFERENCES user_devices(id) ON DELETE SET NULL
+    ADD COLUMN IF NOT EXISTS device_id INTEGER
   `).run();
 
   await db.prepare(
