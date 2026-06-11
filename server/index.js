@@ -63,17 +63,18 @@ import uptimeRoutes from './routes/uptime.js';
 
 const app = express();
 
-// Trust only our nginx proxy (127.0.0.1) — NOT arbitrary X-Forwarded-For headers.
-// This prevents IP spoofing in audit logs: attacker sends X-Forwarded-For: 1.2.3.4
-// to fake their origin IP. By trusting only 127.0.0.1 (nginx), req.ip always reflects
-// the real socket IP that nginx received, which nginx already resolved from CF-Connecting-IP.
+// Requests arrive via Cloudflare Tunnel (127.0.0.1) or direct localhost.
+// Trust the loopback proxy so Express sees the forwarded headers.
 app.set('trust proxy', '127.0.0.1');
 
-// Extract verified real IP from nginx-set X-Real-IP header (populated from CF-Connecting-IP by nginx).
-// X-Forwarded-For is NOT used — it's user-controllable.
+// Extract real client IP from CF-Connecting-IP (set by Cloudflare edge, not spoofable).
+// Falls back to X-Real-IP (legacy nginx setups) then req.ip (direct connections).
 app.use((req, _res, next) => {
-  const realIp = req.headers['x-real-ip'];
-  req.realIp = realIp || req.ip; // fallback to socket IP
+  const realIp =
+    req.headers['cf-connecting-ip'] ||   // Cloudflare tunnel: real visitor IP
+    req.headers['x-real-ip'] ||           // Legacy nginx proxy
+    req.ip;                               // Direct connection
+  req.realIp = realIp;
   next();
 });
 
@@ -120,27 +121,29 @@ app.use(cors({
 }));
 
 // Rate limiting — general
-// General API rate limit
+// General API rate limit — keyed on real visitor IP
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.realIp || req.ip,
   message: { error: 'Too many requests — please slow down.' },
 });
 app.use('/api/', limiter);
 
 // Auth endpoints — strict brute-force protection
-// 5 failed attempts per IP per 15 min → locked out
+// 5 failed attempts per real IP per 15 min → locked out
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
+  keyGenerator: (req) => req.realIp || req.ip,
   message: { error: 'Too many failed attempts. Try again in 15 minutes.' },
   handler: (req, res, _next, options) => {
-    console.warn(`[rate-limit] auth blocked: ${req.ip} on ${req.path}`);
+    console.warn(`[rate-limit] auth blocked: ${req.realIp || req.ip} on ${req.path}`);
     res.status(429).json(options.message);
   },
 });
