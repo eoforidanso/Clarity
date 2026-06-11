@@ -72,68 +72,52 @@ export default function RefillQueue() {
       const seed = [
         {
           id: 'refill-seed-1',
-          patientId: 'pe1',
-          patientName: 'Nadia Osei',
-          medicationId: 'mpe1a',
-          medicationName: 'Escitalopram (Lexapro)',
-          dose: '10mg',
-          frequency: 'Once daily',
-          refillsRemaining: 4,
-          daysRemaining: 5,
+          patientId: 'pe1', patientName: 'Nadia Osei',
+          medicationId: 'mpe1a', medicationName: 'Escitalopram (Lexapro)',
+          dose: '10mg', frequency: 'Once daily', refillsRemaining: 4, daysRemaining: 5,
           pharmacy: 'Walgreens – Emmaus Ave',
-          status: 'pending',
-          priority: 'urgent',
+          pharmacyAddress: '601 Emmaus Ave, Emmaus, PA 18049',
+          pharmacyPhone: '(610) 965-5600', pharmacyFax: '(610) 965-5601',
+          status: 'pending', priority: 'urgent',
           createdBy: 'Emmanuel Ofori-Danso, NP',
           createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
           notes: 'Patient called – running very low, needs refill ASAP',
         },
         {
           id: 'refill-seed-2',
-          patientId: 'pe1',
-          patientName: 'Nadia Osei',
-          medicationId: 'mpe1b',
-          medicationName: 'Hydroxyzine',
-          dose: '25mg',
-          frequency: 'Every 6 hours as needed',
-          refillsRemaining: 2,
-          daysRemaining: 14,
+          patientId: 'pe1', patientName: 'Nadia Osei',
+          medicationId: 'mpe1b', medicationName: 'Hydroxyzine',
+          dose: '25mg', frequency: 'Every 6 hours as needed', refillsRemaining: 2, daysRemaining: 14,
           pharmacy: 'Walgreens – Emmaus Ave',
-          status: 'pending',
-          priority: 'normal',
+          pharmacyAddress: '601 Emmaus Ave, Emmaus, PA 18049',
+          pharmacyPhone: '(610) 965-5600', pharmacyFax: '(610) 965-5601',
+          status: 'pending', priority: 'normal',
           createdBy: 'Emmanuel Ofori-Danso, NP',
           createdAt: new Date(Date.now() - 1 * 86400000).toISOString(),
           notes: '',
         },
         {
           id: 'refill-seed-3',
-          patientId: 'pe2',
-          patientName: 'Kofi Mensah',
-          medicationId: 'mpe2a',
-          medicationName: 'Sertraline (Zoloft)',
-          dose: '50mg',
-          frequency: 'Once daily',
-          refillsRemaining: 3,
-          daysRemaining: 3,
+          patientId: 'pe2', patientName: 'Kofi Mensah',
+          medicationId: 'mpe2a', medicationName: 'Sertraline (Zoloft)',
+          dose: '50mg', frequency: 'Once daily', refillsRemaining: 3, daysRemaining: 3,
           pharmacy: 'CVS Pharmacy – Emmaus',
-          status: 'pending',
-          priority: 'urgent',
+          pharmacyAddress: '234 Main St, Emmaus, PA 18049',
+          pharmacyPhone: '(610) 967-2100', pharmacyFax: '(610) 967-2101',
+          status: 'pending', priority: 'urgent',
           createdBy: 'Emmanuel Ofori-Danso, NP',
           createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
           notes: 'Patient has follow-up 6/25 – ensure 30-day supply',
         },
         {
           id: 'refill-seed-4',
-          patientId: 'pe2',
-          patientName: 'Kofi Mensah',
-          medicationId: 'mpe2b',
-          medicationName: 'Prazosin',
-          dose: '1mg',
-          frequency: 'Once daily at bedtime',
-          refillsRemaining: 5,
-          daysRemaining: 20,
+          patientId: 'pe2', patientName: 'Kofi Mensah',
+          medicationId: 'mpe2b', medicationName: 'Prazosin',
+          dose: '1mg', frequency: 'Once daily at bedtime', refillsRemaining: 5, daysRemaining: 20,
           pharmacy: 'CVS Pharmacy – Emmaus',
-          status: 'queued',
-          priority: 'normal',
+          pharmacyAddress: '234 Main St, Emmaus, PA 18049',
+          pharmacyPhone: '(610) 967-2100', pharmacyFax: '(610) 967-2101',
+          status: 'queued', priority: 'normal',
           createdBy: 'Emmanuel Ofori-Danso, NP',
           createdAt: new Date(Date.now() - 4 * 86400000).toISOString(),
           queuedAt: new Date(Date.now() - 1 * 86400000).toISOString(),
@@ -141,34 +125,26 @@ export default function RefillQueue() {
         },
         {
           id: 'refill-seed-5',
-          patientId: 'pe3',
-          patientName: 'Akua Boateng',
-          medicationId: 'mpe3a',
-          medicationName: 'Lamotrigine',
-          dose: '100mg',
-          frequency: 'Twice daily',
-          refillsRemaining: 2,
-          daysRemaining: 7,
+          patientId: 'pe3', patientName: 'Akua Boateng',
+          medicationId: 'mpe3a', medicationName: 'Lamotrigine',
+          dose: '100mg', frequency: 'Twice daily', refillsRemaining: 2, daysRemaining: 7,
           pharmacy: 'Rite Aid – Bethlehem Pike',
-          status: 'pending',
-          priority: 'high',
+          pharmacyAddress: '1515 Bethlehem Pike, Flourtown, PA 19031',
+          pharmacyPhone: '(215) 233-0800', pharmacyFax: '(215) 233-0801',
+          status: 'pending', priority: 'high',
           createdBy: 'Emmanuel Ofori-Danso, NP',
           createdAt: new Date(Date.now() - 1 * 86400000).toISOString(),
           notes: 'Titrating to 150mg next visit – send 100mg for now',
         },
         {
           id: 'refill-seed-6',
-          patientId: 'pe3',
-          patientName: 'Akua Boateng',
-          medicationId: 'mpe3b',
-          medicationName: 'Quetiapine (Seroquel)',
-          dose: '50mg',
-          frequency: 'Once daily at bedtime',
-          refillsRemaining: 1,
-          daysRemaining: 12,
+          patientId: 'pe3', patientName: 'Akua Boateng',
+          medicationId: 'mpe3b', medicationName: 'Quetiapine (Seroquel)',
+          dose: '50mg', frequency: 'Once daily at bedtime', refillsRemaining: 1, daysRemaining: 12,
           pharmacy: 'Rite Aid – Bethlehem Pike',
-          status: 'sent',
-          priority: 'normal',
+          pharmacyAddress: '1515 Bethlehem Pike, Flourtown, PA 19031',
+          pharmacyPhone: '(215) 233-0800', pharmacyFax: '(215) 233-0801',
+          status: 'sent', priority: 'normal',
           createdBy: 'Emmanuel Ofori-Danso, NP',
           createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
           sentAt: new Date(Date.now() - 1 * 86400000).toISOString(),
@@ -385,6 +361,19 @@ export default function RefillQueue() {
         .rq-action-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
         .rq-stat-card { transition: transform 0.15s; }
         .rq-stat-card:hover { transform: translateY(-2px); }
+        .rq-pharmacy-cell { position: relative; cursor: default; }
+        .rq-pharmacy-popup {
+          display: none; position: absolute; bottom: calc(100% + 8px); left: 0;
+          background: #1e293b; color: white; border-radius: 10px;
+          padding: 12px 14px; min-width: 220px; z-index: 100;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+          pointer-events: none;
+        }
+        .rq-pharmacy-popup::after {
+          content: ''; position: absolute; top: 100%; left: 16px;
+          border: 6px solid transparent; border-top-color: #1e293b;
+        }
+        .rq-pharmacy-cell:hover .rq-pharmacy-popup { display: block; }
       `}</style>
 
       {/* ── Hero Header ──────────────────────────────────────────────────────── */}
@@ -609,8 +598,46 @@ export default function RefillQueue() {
                       </td>
 
                       {/* Pharmacy */}
-                      <td style={{ padding: '14px 16px', fontSize: 13, color: '#475569' }}>
-                        {refill.pharmacy || <span style={{ color: '#cbd5e1' }}>—</span>}
+                      <td className="rq-pharmacy-cell" style={{ padding: '14px 16px', fontSize: 13, color: '#475569' }}>
+                        {refill.pharmacy ? (
+                          <>
+                            <div style={{ fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 5 }}>
+                              🏪 {refill.pharmacy}
+                            </div>
+                            {refill.pharmacyAddress && (
+                              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                {refill.pharmacyAddress}
+                              </div>
+                            )}
+                            {(refill.pharmacyPhone || refill.pharmacyFax) && (
+                              <div className="rq-pharmacy-popup">
+                                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.12)', paddingBottom: 6 }}>
+                                  🏪 {refill.pharmacy}
+                                </div>
+                                {refill.pharmacyAddress && (
+                                  <div style={{ fontSize: 11, marginBottom: 5, display: 'flex', gap: 6 }}>
+                                    <span style={{ opacity: 0.6, flexShrink: 0 }}>📍</span>
+                                    <span>{refill.pharmacyAddress}</span>
+                                  </div>
+                                )}
+                                {refill.pharmacyPhone && (
+                                  <div style={{ fontSize: 11, marginBottom: 4, display: 'flex', gap: 6 }}>
+                                    <span style={{ opacity: 0.6, flexShrink: 0 }}>📞</span>
+                                    <span>{refill.pharmacyPhone}</span>
+                                  </div>
+                                )}
+                                {refill.pharmacyFax && (
+                                  <div style={{ fontSize: 11, display: 'flex', gap: 6 }}>
+                                    <span style={{ opacity: 0.6, flexShrink: 0 }}>📠</span>
+                                    <span>{refill.pharmacyFax}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span style={{ color: '#cbd5e1' }}>—</span>
+                        )}
                       </td>
 
                       {/* Priority */}
