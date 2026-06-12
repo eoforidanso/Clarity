@@ -890,7 +890,7 @@ function ActiveSession({ apt, patient, patients, consentRecord, patientMeds, pat
                   <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
                     {activeAllergies.map((a, i) => (
                       <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', background:'#fff5f5', border:'1px solid #fecaca', borderRadius:6, padding:'5px 9px' }}>
-                        <span style={{ fontSize:12, fontWeight:600, color:'#991b1b' }}>{a.allergen || a.name || a}</span>
+                        <span style={{ fontSize:12, fontWeight:600, color:'#991b1b' }}>{a.allergen || a.name || ''}</span>
                         <span style={{ fontSize:10, color:'#ef4444' }}>{a.reaction || a.severity || ''}</span>
                       </div>
                     ))}
@@ -909,7 +909,7 @@ function ActiveSession({ apt, patient, patients, consentRecord, patientMeds, pat
                     {activeProblems.map((p, i) => (
                       <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:6, padding:'6px 9px' }}>
                         <div>
-                          <div style={{ fontSize:12, fontWeight:600, color:'#1e293b' }}>{p.diagnosis || p.name || p.problem || p}</div>
+                          <div style={{ fontSize:12, fontWeight:600, color:'#1e293b' }}>{p.name || (p.code ? `${p.code} — ${p.description || ''}` : p.description || p.problem || '')}</div>
                           {p.icdCode && <div style={{ fontSize:10, color:'#94a3b8' }}>{p.icdCode}</div>}
                         </div>
                         {p.onset && <span style={{ fontSize:10, color:'#94a3b8', flexShrink:0, marginLeft:4 }}>{p.onset}</span>}
@@ -929,7 +929,7 @@ function ActiveSession({ apt, patient, patients, consentRecord, patientMeds, pat
                   <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
                     {activeMeds.map((m, i) => (
                       <div key={i} style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:6, padding:'6px 9px' }}>
-                        <div style={{ fontSize:12, fontWeight:600, color:'#15803d' }}>{m.name || m.medication || m}</div>
+                        <div style={{ fontSize:12, fontWeight:600, color:'#15803d' }}>{m.name || m.medication || ''}</div>
                         {(m.dose || m.sig || m.frequency) && (
                           <div style={{ fontSize:10, color:'#64748b', marginTop:1 }}>{[m.dose, m.frequency || m.sig].filter(Boolean).join(' · ')}</div>
                         )}
@@ -1077,7 +1077,7 @@ function AppointmentCard({ apt, patient, hasConsent, linkSent, patientMeds, pati
               <div style={{ display:'flex', gap:5, marginTop:5, flexWrap:'wrap' }}>
                 {activeProbs.map((p, i) => (
                   <span key={i} style={{ fontSize:10, padding:'1px 7px', borderRadius:99, background:'#e0e7ff', color:'#3730a3', fontWeight:600 }}>
-                    {p.diagnosis || p.name || p}
+                    {p.name || (p.code ? `${p.code} — ${p.description || ''}` : p.description || '')}
                   </span>
                 ))}
                 {activeMeds.length > 0 && (
@@ -1154,7 +1154,7 @@ function AppointmentCard({ apt, patient, hasConsent, linkSent, patientMeds, pati
               <div style={{ fontSize:11, fontWeight:700, color:'#166534', marginBottom:6 }}>💊 Active Medications</div>
               {activeMeds.map((m, i) => (
                 <div key={i} style={{ fontSize:11, padding:'2px 0', color:'#15803d' }}>
-                  <span style={{ fontWeight:600 }}>{m.name || m.medication || m}</span>
+                  <span style={{ fontWeight:600 }}>{m.name || m.medication || ''}</span>
                   {m.dose && <span style={{ color:'#64748b' }}> · {m.dose}</span>}
                 </div>
               ))}
@@ -1167,7 +1167,7 @@ function AppointmentCard({ apt, patient, hasConsent, linkSent, patientMeds, pati
               <div style={{ fontSize:11, fontWeight:700, color:'#3730a3', marginBottom:6 }}>🏥 Diagnoses</div>
               {(patientProblems || []).filter(p => p.status === 'Active' || !p.status).map((p, i) => (
                 <div key={i} style={{ fontSize:11, padding:'2px 0', color:'#4338ca' }}>
-                  <span style={{ fontWeight:600 }}>{p.diagnosis || p.name || p}</span>
+                  <span style={{ fontWeight:600 }}>{p.name || (p.code ? `${p.code} — ${p.description || ''}` : p.description || '')}</span>
                   {p.icdCode && <span style={{ color:'#818cf8' }}> {p.icdCode}</span>}
                 </div>
               ))}
