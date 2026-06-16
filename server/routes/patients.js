@@ -2,7 +2,10 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate, authorize } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
+import { CreatePatientSchema } from '../schemas/patientSchema.js';
 import { logAudit } from '../db/softDelete.js';
+import { logPhiRead } from '../middleware/phiAudit.js';
 
 /**
  * IDOR guard — verifies the requesting user has access to this patient.
@@ -87,22 +90,51 @@ router.get('/', async (req, res) => { const { search, active, limit: limitParam,
   res.json(rows.map(row => formatPatient(row)));
 });
 
+// GET /api/patients/next-mrn — generate the next available MRN (preview, not reserved)
+// Must be before /:id so Express doesn't treat "next-mrn" as a patient UUID.
+router.get('/next-mrn', async (_req, res) => {
+  const { cnt } = await db.prepare('SELECT COUNT(*) AS cnt FROM patients').get();
+  const mrn = `MRN-${String(Number(cnt) + 1).padStart(5, '0')}`;
+  res.json({ mrn });
+});
+
+// GET /api/patients/zip/:zip — city/state lookup via zippopotam.us (free, no key)
+// Must be before /:id for the same reason.
+router.get('/zip/:zip', async (req, res) => {
+  const zip = req.params.zip?.replace(/\D/g, '').slice(0, 5);
+  if (!zip || zip.length < 5) return res.status(400).json({ error: 'Invalid ZIP' });
+  try {
+    const r = await fetch(`https://api.zippopotam.us/us/${zip}`, { signal: AbortSignal.timeout(3000) });
+    if (!r.ok) return res.status(404).json({ error: 'ZIP not found' });
+    const data = await r.json();
+    const place = data.places?.[0];
+    res.json({ zip, city: place?.['place name'] || '', state: place?.['state abbreviation'] || '' });
+  } catch {
+    res.status(503).json({ error: 'ZIP lookup unavailable' });
+  }
+});
+
 // GET /api/patients/:id — IDOR protected
-router.get('/:id', requirePatientAccess, async (req, res) => { const row = await db.prepare('SELECT * FROM patients WHERE id = ?').get(req.params.id);
+router.get('/:id', requirePatientAccess, async (req, res) => {
+  const row = await db.prepare('SELECT * FROM patients WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Patient not found' });
+  logPhiRead(req, req.params.id, 'patient');
   const fullSsn = ['prescriber', 'billing'].includes(req.user?.role);
   res.json(formatPatient(row, { fullSsn }));
 });
 
 // POST /api/patients
-router.post('/', authorize('prescriber', 'nurse', 'front_desk'), async (req, res) => { const b = req.body;
+router.post('/', authorize('prescriber', 'nurse', 'front_desk', 'admin'), validate(CreatePatientSchema), async (req, res) => { const b = req.body;
   const id = uuidv4();
   const countRow = await db.prepare('SELECT COUNT(*) as cnt FROM patients').get();
   const count = Number(countRow?.cnt ?? 0);
   const mrn = `MRN-${String(count + 1).padStart(5, '0') }-${ uuidv4().replace(/-/g, '').slice(0, 4).toUpperCase() }`;
 
-  await db.prepare(`INSERT INTO patients (id, mrn, first_name, last_name, dob, gender, pronouns, ssn, race, ethnicity, language, marital_status, phone, cell_phone, email, address_street, address_city, address_state, address_zip, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, insurance_primary_name, insurance_primary_member_id, insurance_primary_group_number, insurance_primary_copay, pcp, assigned_provider, is_btg, flags) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    id, mrn, b.firstName, b.lastName, b.dob, b.gender, b.pronouns || '', b.ssn || '', b.race || '', b.ethnicity || '', b.language || 'English', b.maritalStatus || '', b.phone || '', b.cellPhone || '', b.email || '', b.address?.street || '', b.address?.city || '', b.address?.state || '', b.address?.zip || '', b.emergencyContact?.name || '', b.emergencyContact?.relationship || '', b.emergencyContact?.phone || '', b.insurance?.primary?.name || '', b.insurance?.primary?.memberId || '', b.insurance?.primary?.groupNumber || '', b.insurance?.primary?.copay || 0, b.pcp || '', b.assignedProvider || '', b.isBTG ? 1 : 0, JSON.stringify(b.flags || [])
+  // Scope new patients to the creating user's facility unless a specific location is provided
+  const primaryLocation = b.locationId || req.user.facility_id || null;
+
+  await db.prepare(`INSERT INTO patients (id, mrn, first_name, last_name, dob, gender, pronouns, ssn, race, ethnicity, language, marital_status, phone, cell_phone, email, address_street, address_city, address_state, address_zip, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, insurance_primary_name, insurance_primary_member_id, insurance_primary_group_number, insurance_primary_copay, pcp, assigned_provider, is_btg, flags, primary_location) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    id, mrn, b.firstName, b.lastName, b.dob, b.gender, b.pronouns || '', b.ssn || '', b.race || '', b.ethnicity || '', b.language || 'English', b.maritalStatus || '', b.phone || '', b.cellPhone || '', b.email || '', b.address?.street || '', b.address?.city || '', b.address?.state || '', b.address?.zip || '', b.emergencyContact?.name || '', b.emergencyContact?.relationship || '', b.emergencyContact?.phone || '', b.insurance?.primary?.name || '', b.insurance?.primary?.memberId || '', b.insurance?.primary?.groupNumber || '', b.insurance?.primary?.copay || 0, b.pcp || '', b.assignedProvider || '', b.isBTG ? 1 : 0, JSON.stringify(b.flags || []), primaryLocation
   );
 
   const row = await db.prepare('SELECT * FROM patients WHERE id = ?').get(id);
@@ -169,24 +201,6 @@ router.put('/:id', authorize('prescriber', 'nurse', 'front_desk'), requirePatien
 
   const row = await db.prepare('SELECT * FROM patients WHERE id = $1').get(req.params.id);
   res.json(formatPatient(row));
-});
-
-// GET /api/patients/next-mrn — generate the next available MRN (preview, not reserved)
-router.get('/next-mrn', authenticate, async (_req, res) => { const { cnt } = await db.prepare('SELECT COUNT(*) AS cnt FROM patients').get();
-  const mrn = `MRN-${ String(Number(cnt) + 1).padStart(5, '0') }`;
-  res.json({ mrn });
-});
-
-// GET /api/patients/zip/:zip — city/state lookup via zippopotam.us (free, no key)
-router.get('/zip/:zip', authenticate, async (req, res) => { const zip = req.params.zip?.replace(/\D/g, '').slice(0, 5);
-  if (!zip || zip.length < 5) return res.status(400).json({ error: 'Invalid ZIP' });
-  try { const r = await fetch(`https://api.zippopotam.us/us/${zip }`, { signal: AbortSignal.timeout(3000),  });
-    if (!r.ok) return res.status(404).json({ error: 'ZIP not found' });
-    const data = await r.json();
-    const place = data.places?.[0];
-    res.json({ zip, city:  place?.['place name']  || '', state: place?.['state abbreviation'] || '',  });
-  } catch { res.status(503).json({ error: 'ZIP lookup unavailable' });
-  }
 });
 
 // PATCH /api/patients/:id/photo — save or remove patient photo URL

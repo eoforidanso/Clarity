@@ -20,6 +20,7 @@ import { Router } from 'express';
 import db from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
+import { routeError } from '../utils/routeError.js';
 
 const router = Router();
 router.use(authenticate);
@@ -55,7 +56,7 @@ router.get('/me', async (req, res) => {
       updatedAt:        row.updated_at,
     });
   } catch (err) {
-    console.error('[provider-signatures] GET /me error:', err.message);
+    routeError(req, '[provider-signatures] GET /me', err);
     res.status(500).json({ error: 'Failed to fetch signature' });
   }
 });
@@ -96,7 +97,7 @@ router.put('/me', async (req, res) => {
 
     res.json({ ok: true, message: 'Signature saved successfully' });
   } catch (err) {
-    console.error('[provider-signatures] PUT /me error:', err.message);
+    routeError(req, '[provider-signatures] PUT /me', err);
     res.status(500).json({ error: 'Failed to save signature' });
   }
 });
@@ -127,7 +128,7 @@ router.delete('/me', async (req, res) => {
 
     res.json({ ok: true, message: 'Signature removed' });
   } catch (err) {
-    console.error('[provider-signatures] DELETE /me error:', err.message);
+    routeError(req, '[provider-signatures] DELETE /me', err);
     res.status(500).json({ error: 'Failed to delete signature' });
   }
 });

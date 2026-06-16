@@ -4,6 +4,7 @@ import { RefillService } from '../services/RefillService.js';
 import { PharmacyEmailService } from '../services/PharmacyEmailService.js';
 import { SMSService } from '../services/SMSService.js';
 import { InsuranceEligibilityService } from '../services/InsuranceEligibilityService.js';
+import { routeError } from '../utils/routeError.js';
 
 const router = express.Router();
 
@@ -30,7 +31,7 @@ router.post('/', async (req, res) => {
 
     res.json({ refillId, status: 'pending' });
   } catch (error) {
-    console.error('[Refills] Create error:', error);
+    routeError(req, '[Refills] Create error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -44,7 +45,7 @@ router.get('/status/:status', async (req, res) => {
     const refills = await RefillService.getRefillsByStatus(status, limit, offset);
     res.json(refills);
   } catch (error) {
-    console.error('[Refills] Get status error:', error);
+    routeError(req, '[Refills] Get status error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -60,7 +61,7 @@ router.get('/:id', async (req, res) => {
 
     res.json(refill);
   } catch (error) {
-    console.error('[Refills] Get error:', error);
+    routeError(req, '[Refills] Get error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -71,7 +72,7 @@ router.get('/patient/:patientId', async (req, res) => {
     const refills = await RefillService.getPatientRefills(req.params.patientId);
     res.json(refills);
   } catch (error) {
-    console.error('[Refills] Get patient error:', error);
+    routeError(req, '[Refills] Get patient error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -89,7 +90,7 @@ router.patch('/:id/status', async (req, res) => {
     await RefillService.updateStatus(id, status, metadata);
     res.json({ success: true, status });
   } catch (error) {
-    console.error('[Refills] Update status error:', error);
+    routeError(req, '[Refills] Update status error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -120,7 +121,7 @@ router.post('/:id/verify-insurance', async (req, res) => {
       cached: eligibility.cached,
     });
   } catch (error) {
-    console.error('[Refills] Verify insurance error:', error);
+    routeError(req, '[Refills] Verify insurance error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -167,7 +168,7 @@ router.post('/:id/send-to-pharmacy', async (req, res) => {
           pharmacyName,
         });
       } catch (smsError) {
-        console.warn('[Refills] SMS failed, continuing:', smsError.message);
+        routeError(req, '[Refills] SMS failed, continuing', smsError);
         // Don't fail the whole request if SMS fails
       }
     }
@@ -184,7 +185,7 @@ router.post('/:id/send-to-pharmacy', async (req, res) => {
       sms: smsResult,
     });
   } catch (error) {
-    console.error('[Refills] Send to pharmacy error:', error);
+    routeError(req, '[Refills] Send to pharmacy error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -200,7 +201,7 @@ router.get('/:id/notifications', async (req, res) => {
 
     res.json(refill.notifications || []);
   } catch (error) {
-    console.error('[Refills] Get notifications error:', error);
+    routeError(req, '[Refills] Get notifications error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -211,7 +212,7 @@ router.get('/:id/audit-trail', async (req, res) => {
     const trail = await RefillService.getAuditTrail(req.params.id);
     res.json(trail);
   } catch (error) {
-    console.error('[Refills] Get audit trail error:', error);
+    routeError(req, '[Refills] Get audit trail error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -241,7 +242,7 @@ router.post('/:id/resend-notification', async (req, res) => {
 
     res.json({ success: true, result });
   } catch (error) {
-    console.error('[Refills] Resend notification error:', error);
+    routeError(req, '[Refills] Resend notification error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -252,7 +253,7 @@ router.get('/admin/stats', async (req, res) => {
     const stats = await RefillService.getStats();
     res.json(stats);
   } catch (error) {
-    console.error('[Refills] Get stats error:', error);
+    routeError(req, '[Refills] Get stats error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -263,7 +264,7 @@ router.delete('/:id', async (req, res) => {
     await RefillService.deleteRefill(req.params.id);
     res.json({ success: true });
   } catch (error) {
-    console.error('[Refills] Delete error:', error);
+    routeError(req, '[Refills] Delete error:', error);
     res.status(500).json({ error: error.message });
   }
 });

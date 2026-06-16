@@ -27,6 +27,7 @@ const SEVERITY = {
   REAUTH_FAILED:             { level: 'HIGH',     color: '#f97316', bg: '#fff7ed', icon: '🔐' },
   REAUTH_SUCCESS:            { level: 'INFO',     color: '#0891b2', bg: '#f0f9ff', icon: '🔓' },
   LOGIN_FAILED:              { level: 'MEDIUM',   color: '#f59e0b', bg: '#fffbeb', icon: '⚠️' },
+  LOGIN_SUCCESS:             { level: 'INFO',     color: '#16a34a', bg: '#f0fdf4', icon: '✅' },
   JWT_TAMPER_ATTEMPT:        { level: 'CRITICAL', color: '#dc2626', bg: '#fef2f2', icon: '🚨' },
   PRIVILEGE_ESCALATION:      { level: 'CRITICAL', color: '#dc2626', bg: '#fef2f2', icon: '🚨' },
   USER_DELETED:              { level: 'CRITICAL', color: '#dc2626', bg: '#fef2f2', icon: '🗑️' },
@@ -72,8 +73,10 @@ export default function SecurityConsole() {
   const [anomalies, setAnomalies] = useState([]);
   const [sessions,  setSessions]  = useState([]);
   const [devices,   setDevices]   = useState([]); // flat list across all users
+  const [allUsers,  setAllUsers]  = useState([]);
+  const [userSearch, setUserSearch] = useState('');
   const [filter,    setFilter]    = useState('ALL');
-  const [activeTab, setActiveTab] = useState('events');
+  const [activeTab, setActiveTab] = useState('users');
   const [loading,   setLoading]   = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
   const [deviceAction, setDeviceAction] = useState(null); // { id, action } for optimistic UI
@@ -81,15 +84,17 @@ export default function SecurityConsole() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [evRes, sumRes, anomRes, sessRes] = await Promise.all([
-        fetch(`${API}/security/events?limit=100`,  { credentials: 'include' }),
+      const [evRes, sumRes, anomRes, sessRes, usersRes] = await Promise.all([
+        fetch(`${API}/security/events?limit=200`,  { credentials: 'include' }),
         fetch(`${API}/security/summary`,            { credentials: 'include' }),
         fetch(`${API}/security/anomalies?limit=50`, { credentials: 'include' }),
         fetch(`${API}/security/sessions`,           { credentials: 'include' }),
+        fetch(`${API}/users`,                       { credentials: 'include' }),
       ]);
-      if (evRes.ok)   setEvents(await evRes.json());
-      if (sumRes.ok)  setSummary(await sumRes.json());
-      if (anomRes.ok) setAnomalies(await anomRes.json());
+      if (evRes.ok)    setEvents(await evRes.json());
+      if (sumRes.ok)   setSummary(await sumRes.json());
+      if (anomRes.ok)  setAnomalies(await anomRes.json());
+      if (usersRes.ok) setAllUsers(await usersRes.json());
       if (sessRes.ok) {
         const sess = await sessRes.json();
         setSessions(sess);
@@ -210,7 +215,9 @@ export default function SecurityConsole() {
       {/* Tab bar */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: '#f8fafc', borderRadius: 10, padding: 4, border: '1px solid var(--border)', width: 'fit-content' }}>
         {[
-          { key: 'events',    label: 'Security Events', count: events.length },
+          { key: 'users',     label: 'All Users',        count: allUsers.length },
+          { key: 'events',    label: 'Security Events',  count: events.length },
+          { key: 'timeline',  label: 'Timeline',         count: events.length },
           { key: 'anomalies', label: 'Anomalies',        count: openAnomalies,   alert: critAnomalies > 0 },
           { key: 'sessions',  label: 'Active Sessions',  count: sessions.length, alert: sessions.some(s => s.isElevated) },
           { key: 'devices',   label: 'Devices',          count: devices.length,  alert: devices.some(d => d.trust_state === 'suspicious' || d.trust_state === 'new') },
@@ -233,8 +240,220 @@ export default function SecurityConsole() {
         ))}
       </div>
 
-      {/* Two-column layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20, alignItems: 'start' }}>
+      {/* Two-column layout — users/timeline tabs go full width */}
+      <div style={{ display: 'grid', gridTemplateColumns: (activeTab === 'users' || activeTab === 'timeline') ? '1fr' : '1fr 300px', gap: 20, alignItems: 'start' }}>
+
+        {/* ── Users panel ─────────────────────────────────────────────── */}
+        {activeTab === 'users' && (() => {
+          const ROLE_COLORS = {
+            admin: '#7c3aed', prescriber: '#0891b2', nurse: '#16a34a',
+            therapist: '#ea580c', front_desk: '#d97706', biller: '#6366f1',
+          };
+          const ROLE_LABELS = {
+            admin: 'Admin', prescriber: 'Prescriber', nurse: 'Nurse',
+            therapist: 'Therapist', front_desk: 'Front Desk', biller: 'Biller',
+          };
+
+          // Index sessions by userId for O(1) lookup
+          const sessionByUserId = sessions.reduce((acc, s) => {
+            if (s.userId) acc[s.userId] = s;
+            return acc;
+          }, {});
+
+          // Count login failures per user name (from security events)
+          const failuresByName = events.reduce((acc, ev) => {
+            if (ev.action === 'LOGIN_FAILED' && ev.actorName) {
+              acc[ev.actorName] = (acc[ev.actorName] || 0) + 1;
+            }
+            return acc;
+          }, {});
+
+          // Most recent successful session per userId (lastSeenAt)
+          const lastSeenByUserId = sessions.reduce((acc, s) => {
+            if (s.userId && s.lastSeenAt) {
+              if (!acc[s.userId] || s.lastSeenAt > acc[s.userId]) acc[s.userId] = s.lastSeenAt;
+            }
+            return acc;
+          }, {});
+
+          const q = userSearch.toLowerCase();
+          const filteredUsers = allUsers.filter(u => {
+            if (!q) return true;
+            return [u.firstName, u.lastName, u.username, u.email, u.role]
+              .filter(Boolean).some(v => v.toLowerCase().includes(q));
+          });
+
+          const onlineCount = allUsers.filter(u => sessionByUserId[u.id]).length;
+          const neverLoggedIn = allUsers.filter(u => !sessionByUserId[u.id] && !lastSeenByUserId[u.id]).length;
+
+          return (
+            <div style={{ background: 'var(--bg-white)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', gridColumn: '1 / -1' }}>
+              {/* Header */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', flex: 1 }}>
+                  👥 All Users — Login Activity
+                  <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 8 }}>
+                    {allUsers.length} users · {onlineCount} online now · {neverLoggedIn} never logged in
+                  </span>
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#9ca3af', pointerEvents: 'none' }}>🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Search users…"
+                    value={userSearch}
+                    onChange={e => setUserSearch(e.target.value)}
+                    style={{ padding: '6px 10px 6px 28px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12, outline: 'none', width: 200 }}
+                  />
+                </div>
+              </div>
+
+              {/* Stats strip */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 0, borderBottom: '1px solid var(--border)' }}>
+                {[
+                  { label: 'Total Users',    val: allUsers.length,  color: '#6366f1', bg: '#eef2ff' },
+                  { label: 'Online Now',     val: onlineCount,       color: '#16a34a', bg: '#f0fdf4' },
+                  { label: 'Never Logged In',val: neverLoggedIn,     color: '#f59e0b', bg: '#fffbeb' },
+                  { label: 'Login Failures', val: events.filter(e => e.action === 'LOGIN_FAILED').length, color: '#f97316', bg: '#fff7ed' },
+                ].map(s => (
+                  <div key={s.label} style={{ padding: '10px 16px', background: s.bg, borderRight: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 20, fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.val}</div>
+                      <div style={{ fontSize: 10, color: s.color, fontWeight: 600, marginTop: 2, opacity: 0.8 }}>{s.label}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* User table */}
+              {filteredUsers.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+                  {allUsers.length === 0 ? (
+                    <>
+                      <div style={{ fontSize: 32, marginBottom: 8 }}>👥</div>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>No user data</div>
+                      <div style={{ fontSize: 12, marginTop: 4 }}>Unable to load users from the server</div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>No users match "{userSearch}"</div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* Column headers */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.2fr 1fr 1fr 120px', padding: '7px 16px', background: '#f8fafc', borderBottom: '1px solid var(--border)', fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <span>User</span>
+                    <span>Role</span>
+                    <span>Last Login</span>
+                    <span>Status</span>
+                    <span>Login Failures</span>
+                    <span style={{ textAlign: 'right' }}>Actions</span>
+                  </div>
+
+                  <div style={{ maxHeight: 520, overflowY: 'auto' }}>
+                    {filteredUsers.map((u, i) => {
+                      const roleColor = ROLE_COLORS[u.role] || '#6366f1';
+                      const initials  = `${u.firstName?.[0] || ''}${u.lastName?.[0] || ''}`.toUpperCase() || '?';
+                      const hue       = initials.charCodeAt(0) * 7 % 360;
+                      const session   = sessionByUserId[u.id];
+                      const isOnline  = !!session;
+                      const lastSeen  = lastSeenByUserId[u.id] || session?.lastSeenAt || u.lastLoginAt || null;
+                      const fullName  = `${u.firstName || ''} ${u.lastName || ''}`.trim();
+                      const failures  = failuresByName[fullName] || failuresByName[u.username] || 0;
+                      const isLocked  = u.isLocked || u.locked || false;
+
+                      return (
+                        <div key={u.id} style={{
+                          display: 'grid', gridTemplateColumns: '2fr 1fr 1.2fr 1fr 1fr 120px',
+                          padding: '11px 16px', alignItems: 'center',
+                          borderBottom: i < filteredUsers.length - 1 ? '1px solid var(--border-light)' : 'none',
+                          background: isLocked ? '#fff8f8' : isOnline ? '#f0fdf4' : 'transparent',
+                          transition: 'background 0.1s',
+                        }}>
+                          {/* User */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                            <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, color: '#fff', background: `hsl(${hue},55%,42%)`, position: 'relative' }}>
+                              {initials}
+                              {/* Online dot */}
+                              <span style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: '50%', background: isOnline ? '#22c55e' : '#d1d5db', border: '2px solid #fff' }} />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {fullName || u.username}
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                @{u.username}{u.email ? ` · ${u.email}` : ''}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Role */}
+                          <div>
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: roleColor + '18', color: roleColor }}>
+                              {ROLE_LABELS[u.role] || u.role}
+                            </span>
+                          </div>
+
+                          {/* Last login */}
+                          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                            {isOnline
+                              ? <span style={{ color: '#16a34a', fontWeight: 700 }}>🟢 Online now</span>
+                              : lastSeen
+                                ? <span title={new Date(lastSeen).toLocaleString()}>{timeSince(lastSeen)}</span>
+                                : <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Never logged in</span>
+                            }
+                            {isOnline && session?.ip && (
+                              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: 1 }}>{session.ip}</div>
+                            )}
+                          </div>
+
+                          {/* Status */}
+                          <div>
+                            {isLocked
+                              ? <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#fef2f2', color: '#dc2626' }}>🔒 Locked</span>
+                              : isOnline
+                                ? <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#f0fdf4', color: '#16a34a' }}>Active</span>
+                                : <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 4, background: '#f8fafc', color: '#64748b' }}>Inactive</span>
+                            }
+                            {session?.isElevated && (
+                              <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#fef3c7', color: '#b45309' }}>⚡ Elevated</span>
+                            )}
+                          </div>
+
+                          {/* Login failures */}
+                          <div>
+                            {failures > 0
+                              ? <span style={{ fontSize: 12, fontWeight: 700, color: failures >= 3 ? '#dc2626' : '#f59e0b' }}>
+                                  {failures >= 3 ? '⚠️ ' : ''}{failures} failure{failures !== 1 ? 's' : ''}
+                                </span>
+                              : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>
+                            }
+                          </div>
+
+                          {/* Actions */}
+                          <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                            {isOnline && session && (
+                              <button
+                                onClick={() => revokeSession(session.id)}
+                                title="Revoke session"
+                                style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fef2f2', color: '#dc2626', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+                              >
+                                Revoke
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Anomalies feed */}
         {activeTab === 'anomalies' && (
@@ -471,6 +690,129 @@ export default function SecurityConsole() {
                   ))}
                 </div>
               )}
+            </div>
+          );
+        })()}
+
+        {/* ── Timeline view ───────────────────────────────────────────── */}
+        {activeTab === 'timeline' && (() => {
+          const todayStart     = new Date(); todayStart.setHours(0,0,0,0);
+          const yesterdayStart = new Date(todayStart.getTime() - 86400000);
+
+          const dayLabel = (iso) => {
+            const d  = new Date(iso);
+            const ds = new Date(d); ds.setHours(0,0,0,0);
+            const dateStr = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+            if (ds.getTime() === todayStart.getTime())     return `Today · ${dateStr}`;
+            if (ds.getTime() === yesterdayStart.getTime()) return `Yesterday · ${dateStr}`;
+            return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+          };
+
+          // Group events by calendar day (newest-first order preserved)
+          const groups = [];
+          const seen   = {};
+          for (const ev of events) {
+            const label = dayLabel(ev.createdAt);
+            if (!seen[label]) { seen[label] = true; groups.push({ label, events: [] }); }
+            groups[groups.findIndex(g => g.label === label)].events.push(ev);
+          }
+
+          const SEV_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4 };
+
+          return (
+            <div style={{ background: 'var(--bg-white)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', gridColumn: '1 / -1' }}>
+              <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)' }}>
+                  📅 Security Event Timeline
+                  <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 8 }}>
+                    {events.length} events · newest first
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[['CRITICAL','#dc2626'],['HIGH','#f97316'],['MEDIUM','#f59e0b'],['INFO','#64748b']].map(([lvl, col]) => (
+                    <span key={lvl} style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: col + '15', color: col, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: col, display: 'inline-block' }} />
+                      {lvl}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ maxHeight: 640, overflowY: 'auto', padding: '20px 24px 28px' }}>
+                {events.length === 0 ? (
+                  <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <div style={{ fontSize: 36, marginBottom: 10 }}>📅</div>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>No security events yet</div>
+                    <div style={{ fontSize: 12, marginTop: 4 }}>Events appear here as they are detected</div>
+                  </div>
+                ) : groups.map((group, gi) => (
+                  <div key={group.label} style={{ marginBottom: 32 }}>
+                    {/* Day divider */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+                      <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+                      <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', whiteSpace: 'nowrap', letterSpacing: '0.3px' }}>
+                        {group.label}
+                      </span>
+                      <span style={{ fontSize: 10, color: '#94a3b8' }}>{group.events.length} event{group.events.length !== 1 ? 's' : ''}</span>
+                      <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+                    </div>
+
+                    {/* Events on a timeline rail */}
+                    <div style={{ position: 'relative', paddingLeft: 36 }}>
+                      {/* Vertical rail */}
+                      <div style={{ position: 'absolute', left: 12, top: 8, bottom: 8, width: 2, background: 'linear-gradient(to bottom, #e2e8f0, #f1f5f9)', borderRadius: 2 }} />
+
+                      {group.events.map((ev, ei) => {
+                        const sev  = SEVERITY[ev.action] || { level: 'INFO', color: '#64748b', bg: '#f8fafc', icon: '•' };
+                        const time = new Date(ev.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+                        return (
+                          <div key={ev.id} style={{ display: 'flex', gap: 14, marginBottom: ei < group.events.length - 1 ? 10 : 0, position: 'relative' }}>
+                            {/* Dot on rail */}
+                            <div style={{
+                              position: 'absolute', left: -28, top: 10,
+                              width: 14, height: 14, borderRadius: '50%',
+                              background: sev.color, border: '2px solid white',
+                              boxShadow: `0 0 0 2px ${sev.color}35`,
+                              flexShrink: 0, zIndex: 1,
+                            }} />
+
+                            {/* Timestamp */}
+                            <div style={{ width: 80, flexShrink: 0, fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace', paddingTop: 9, lineHeight: 1.3, textAlign: 'right' }}>
+                              {time}
+                            </div>
+
+                            {/* Event card */}
+                            <div style={{
+                              flex: 1, background: sev.bg, border: `1px solid ${sev.color}25`,
+                              borderRadius: 8, padding: '8px 12px',
+                              borderLeft: `3px solid ${sev.color}`,
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
+                                <span style={{ fontSize: 13 }}>{sev.icon}</span>
+                                <span style={{ fontSize: 12, fontWeight: 800, color: sev.color }}>
+                                  {ev.action.replace(/_/g, ' ')}
+                                </span>
+                                <span style={{ fontSize: 9, fontWeight: 800, padding: '1px 5px', borderRadius: 4, background: sev.color + '15', color: sev.color, border: `1px solid ${sev.color}30` }}>
+                                  {sev.level}
+                                </span>
+                                <span style={{ marginLeft: 'auto', fontSize: 10, color: '#94a3b8' }}>{timeSince(ev.createdAt)}</span>
+                              </div>
+                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                                <span style={{ fontWeight: 600 }}>{ev.actorName || ev.actorId || 'System'}</span>
+                                {ev.targetType && <span style={{ opacity: 0.65 }}> → {ev.targetType}{ev.targetId ? ` ${ev.targetId.slice(0,8)}` : ''}</span>}
+                                {ev.ip && <span style={{ marginLeft: 8, fontFamily: 'monospace', fontSize: 10, opacity: 0.6 }}>{ev.ip}</span>}
+                              </div>
+                              {ev.details?.path && (
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, fontFamily: 'monospace', opacity: 0.7 }}>{ev.details.path}</div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           );
         })()}

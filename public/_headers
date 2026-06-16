@@ -1,0 +1,18 @@
+/*
+  # Prevent clickjacking
+  X-Frame-Options: DENY
+  # Block MIME-type sniffing
+  X-Content-Type-Options: nosniff
+  # Minimal referrer leakage
+  Referrer-Policy: strict-origin-when-cross-origin
+  # Restrict browser features — camera/mic allowed for telehealth (self only)
+  Permissions-Policy: camera=(self), microphone=(self), display-capture=(self), geolocation=(), payment=(), usb=(), serial=()
+  # HSTS — force HTTPS for 1 year (Cloudflare Pages is always HTTPS anyway)
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  # Content Security Policy
+  # - API calls go to /api (same-origin Cloudflare Pages Function proxy)
+  # - LiveKit: wss:// WebSocket for telehealth video
+  # - Sentry: error reporting
+  # - 'unsafe-inline' on style-src: required for React inline styles
+  # - 'unsafe-inline' on script-src: Vite may emit small inline bootstrap scripts
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' wss://clarity-ehr-41bwwgzg.livekit.cloud https://*.livekit.cloud https://*.livekit.io https://sentry.io https://*.sentry.io; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests

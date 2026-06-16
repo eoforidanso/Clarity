@@ -2,6 +2,9 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
+import { CreateAppointmentSchema, UpdateAppointmentSchema } from '../schemas/appointmentSchema.js';
+import { routeError } from '../utils/routeError.js';
 
 const router = Router();
 router.use(authenticate);
@@ -35,56 +38,102 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/appointments
-router.post('/', async (req, res) => { const b = req.body;
-  const id = b.id || uuidv4();
-  await db.prepare('INSERT INTO appointments (id, patient_id, patient_name, provider, provider_name, date, time, duration, type, status, reason, visit_type, room, location_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)').run(
-    id, b.patientId || null, b.patientName || '', b.provider || '', b.providerName || '', b.date, b.time, b.duration || 30, b.type || 'Office Visit', b.status || 'Scheduled', b.reason || '', b.visitType || 'In-Person', b.room || '', b.locationId || 'loc1'
-  );
-  const row = await db.prepare('SELECT * FROM appointments WHERE id = ?').get(id);
-  res.status(201).json(formatAppt(row)); });
+router.post('/', validate(CreateAppointmentSchema), async (req, res) => {
+  try {
+    const b = req.body;
+    const id = uuidv4();
+    const locationId = b.locationId || req.user.facility_id || null;
+    await db.prepare('INSERT INTO appointments (id, patient_id, patient_name, provider, provider_name, date, time, duration, type, status, reason, visit_type, room, location_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)').run(
+      id, b.patientId || null, b.patientName || '', b.provider || '', b.providerName || '', b.date, b.time, b.duration || 30, b.type || 'Office Visit', b.status || 'Scheduled', b.reason || '', b.visitType || 'In-Person', b.room || '', locationId
+    );
+    const row = await db.prepare('SELECT * FROM appointments WHERE id = ?').get(id);
+    res.status(201).json(formatAppt(row));
+  } catch (err) {
+    routeError(req, '[appointments] POST /', err);
+    res.status(500).json({ error: 'Failed to create appointment' });
+  }
+});
 
 // PUT /api/appointments/:id
-router.put('/:id', async (req, res) => { const existing = await db.prepare('SELECT * FROM appointments WHERE id = ?').get(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'Appointment not found' });
+router.put('/:id', validate(UpdateAppointmentSchema), async (req, res) => {
+  try {
+    const existing = await db.prepare('SELECT * FROM appointments WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Appointment not found' });
 
-  const b = req.body;
-  await db.prepare(`UPDATE appointments SET patient_id=?, patient_name=?, provider=?, provider_name=?, date=?, time=?, duration=?, type=?, status=?, reason=?, visit_type=?, room=?, location_id=?, updated_at=NOW() WHERE id=?`).run(
-    b.patientId ?? existing.patient_id, b.patientName ?? existing.patient_name, b.provider ?? existing.provider, b.providerName ?? existing.provider_name, b.date ?? existing.date, b.time ?? existing.time, b.duration ?? existing.duration, b.type ?? existing.type, b.status ?? existing.status, b.reason ?? existing.reason, b.visitType ?? existing.visit_type, b.room ?? existing.room, b.locationId ?? existing.location_id ?? 'loc1', req.params.id
-  );
+    const b = req.body;
+    await db.prepare(`UPDATE appointments SET patient_id=?, patient_name=?, provider=?, provider_name=?, date=?, time=?, duration=?, type=?, status=?, reason=?, visit_type=?, room=?, location_id=?, updated_at=NOW() WHERE id=?`).run(
+      b.patientId ?? existing.patient_id, b.patientName ?? existing.patient_name, b.provider ?? existing.provider, b.providerName ?? existing.provider_name, b.date ?? existing.date, b.time ?? existing.time, b.duration ?? existing.duration, b.type ?? existing.type, b.status ?? existing.status, b.reason ?? existing.reason, b.visitType ?? existing.visit_type, b.room ?? existing.room, b.locationId ?? existing.location_id, req.params.id
+    );
 
-  const row = await db.prepare('SELECT * FROM appointments WHERE id = ?').get(req.params.id);
-  res.json(formatAppt(row));
+    const row = await db.prepare('SELECT * FROM appointments WHERE id = ?').get(req.params.id);
+    res.json(formatAppt(row));
+  } catch (err) {
+    routeError(req, '[appointments] PUT /:id', err);
+    res.status(500).json({ error: 'Failed to update appointment' });
+  }
 });
 
 // DELETE /api/appointments/:id
-router.delete('/:id', async (req, res) => { await db.prepare('DELETE FROM appointments WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
+router.delete('/:id', async (req, res) => {
+  try {
+    const existing = await db.prepare('SELECT * FROM appointments WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Appointment not found' });
+
+    const { role, facility_id, isGlobal } = req.user;
+    const canDelete = isGlobal || ['admin', 'front_desk'].includes(role) ||
+      (!facility_id || existing.location_id === facility_id);
+    if (!canDelete) return res.status(403).json({ error: 'Not authorized to delete this appointment' });
+
+    await db.prepare('DELETE FROM appointments WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    routeError(req, '[appointments] DELETE /:id', err);
+    res.status(500).json({ error: 'Failed to delete appointment' });
+  }
 });
 
 // ─── BLOCKED DAYS ─────────────────────────────────────────────
 
 // GET /api/appointments/blocked-days
-router.get('/blocked-days/list', async (req, res) => { const { provider } = req.query;
-  let query = 'SELECT * FROM blocked_days';
-  const params = [];
-  if (provider) { query += ' WHERE provider = ?'; params.push(provider); }
-  query += ' ORDER BY date ASC';
-  const rows = await db.prepare(query).all(...params);
-  res.json(rows.map(r => ({ id: r.id, provider: r.provider, date: r.date, blockType: r.block_type, reason: r.reason })));
+router.get('/blocked-days/list', async (req, res) => {
+  try {
+    const { provider } = req.query;
+    let query = 'SELECT * FROM blocked_days';
+    const params = [];
+    if (provider) { query += ' WHERE provider = ?'; params.push(provider); }
+    query += ' ORDER BY date ASC';
+    const rows = await db.prepare(query).all(...params);
+    res.json(rows.map(r => ({ id: r.id, provider: r.provider, date: r.date, blockType: r.block_type, reason: r.reason })));
+  } catch (err) {
+    routeError(req, '[appointments] GET /blocked-days/list', err);
+    res.status(500).json({ error: 'Failed to load blocked days' });
+  }
 });
 
 // POST /api/appointments/blocked-days
-router.post('/blocked-days', async (req, res) => { const b = req.body;
-  const id = uuidv4();
-  await db.prepare('INSERT INTO blocked_days (id, provider, date, block_type, reason) VALUES ($1,$2,$3,$4,$5)').run(
-    id, b.provider, b.date, b.blockType || 'full', b.reason || ''
-  );
-  res.status(201).json({ id, ...b });
+router.post('/blocked-days', async (req, res) => {
+  try {
+    const b = req.body;
+    const id = uuidv4();
+    await db.prepare('INSERT INTO blocked_days (id, provider, date, block_type, reason) VALUES ($1,$2,$3,$4,$5)').run(
+      id, b.provider, b.date, b.blockType || 'full', b.reason || ''
+    );
+    res.status(201).json({ id, ...b });
+  } catch (err) {
+    routeError(req, '[appointments] POST /blocked-days', err);
+    res.status(500).json({ error: 'Failed to block day' });
+  }
 });
 
 // DELETE /api/appointments/blocked-days/:id
-router.delete('/blocked-days/:id', async (req, res) => { await db.prepare('DELETE FROM blocked_days WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
+router.delete('/blocked-days/:id', async (req, res) => {
+  try {
+    await db.prepare('DELETE FROM blocked_days WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    routeError(req, '[appointments] DELETE /blocked-days/:id', err);
+    res.status(500).json({ error: 'Failed to delete blocked day' });
+  }
 });
 
 // ── Telehealth Recording Consent ─────────────────────────────────────────────
@@ -139,6 +188,103 @@ router.get('/telehealth-consent/:sessionId', authenticate, async (req, res) => {
   `).get(req.params.sessionId);
   if (!row) return res.status(404).json({ error: 'No consent record found' });
   res.json({ id: row.id, sessionId: row.session_id, patientName: row.patient_name, patientLocation: row.patient_location, recordingConsent: row.recording_consent, recordingConsentMethod: row.recording_consent_method, providerConfirmed: row.provider_confirmed, complianceChecklist: row.compliance_checklist, consentedAt: row.consented_at,  });
+});
+
+// ── Telehealth Session Participants ──────────────────────────────────────────
+
+// POST /api/appointments/telehealth-session/join
+router.post('/telehealth-session/join', async (req, res) => {
+  const { appointmentId, mode } = req.body;
+  if (!appointmentId) return res.status(400).json({ error: 'appointmentId required' });
+
+  // Deactivate any prior active entry for this user + appointment
+  await db.prepare(`
+    UPDATE telehealth_session_participants
+    SET is_active = 0, left_at = NOW()
+    WHERE appointment_id = $1 AND user_id = $2 AND is_active = 1
+  `).run(appointmentId, req.user.id);
+
+  const id = uuidv4();
+  const userName = `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() || req.user.email;
+  await db.prepare(`
+    INSERT INTO telehealth_session_participants
+      (id, appointment_id, user_id, user_name, user_role, join_mode, is_active)
+    VALUES ($1,$2,$3,$4,$5,$6,1)
+  `).run(id, appointmentId, req.user.id, userName, req.user.role, mode || 'provider');
+
+  res.status(201).json({ ok: true, participantId: id });
+});
+
+// POST /api/appointments/telehealth-session/leave
+router.post('/telehealth-session/leave', async (req, res) => {
+  const { appointmentId } = req.body;
+  if (!appointmentId) return res.status(400).json({ error: 'appointmentId required' });
+
+  await db.prepare(`
+    UPDATE telehealth_session_participants
+    SET is_active = 0, left_at = NOW()
+    WHERE appointment_id = $1 AND user_id = $2 AND is_active = 1
+  `).run(appointmentId, req.user.id);
+
+  res.json({ ok: true });
+});
+
+// POST /api/appointments/telehealth-session/checkin
+router.post('/telehealth-session/checkin', async (req, res) => {
+  const { appointmentId, checkinData } = req.body;
+  if (!appointmentId || !checkinData) {
+    return res.status(400).json({ error: 'appointmentId and checkinData required' });
+  }
+
+  const userName = `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() || req.user.email;
+  const dataJson = JSON.stringify({ ...checkinData, completedBy: userName, completedAt: new Date().toISOString() });
+
+  const existing = await db.prepare(`
+    SELECT id FROM telehealth_session_participants
+    WHERE appointment_id = $1 AND user_id = $2 AND is_active = 1
+  `).get(appointmentId, req.user.id);
+
+  if (existing) {
+    await db.prepare(`
+      UPDATE telehealth_session_participants
+      SET checkin_data = $1, join_mode = 'checkin'
+      WHERE id = $2
+    `).run(dataJson, existing.id);
+  } else {
+    const id = uuidv4();
+    await db.prepare(`
+      INSERT INTO telehealth_session_participants
+        (id, appointment_id, user_id, user_name, user_role, join_mode, checkin_data, is_active)
+      VALUES ($1,$2,$3,$4,$5,'checkin',$6,1)
+    `).run(id, appointmentId, req.user.id, userName, req.user.role, dataJson);
+  }
+
+  // Advance appointment status to Checked In
+  await db.prepare(`UPDATE appointments SET status = 'Checked In' WHERE id = $1`).run(appointmentId);
+
+  res.json({ ok: true });
+});
+
+// GET /api/appointments/telehealth-session/:aptId/participants
+router.get('/telehealth-session/:aptId/participants', async (req, res) => {
+  const rows = await db.prepare(`
+    SELECT id, user_id, user_name, user_role, join_mode, joined_at, left_at, checkin_data, is_active
+    FROM telehealth_session_participants
+    WHERE appointment_id = $1
+    ORDER BY joined_at ASC
+  `).all(req.params.aptId);
+
+  res.json(rows.map(r => ({
+    id: r.id,
+    userId: r.user_id,
+    userName: r.user_name,
+    userRole: r.user_role,
+    joinMode: r.join_mode,
+    joinedAt: r.joined_at,
+    leftAt: r.left_at,
+    checkinData: r.checkin_data ? JSON.parse(r.checkin_data) : null,
+    isActive: !!r.is_active,
+  })));
 });
 
 export default router;

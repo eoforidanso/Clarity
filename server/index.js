@@ -10,6 +10,9 @@ import { initializeDatabase, db } from './db/database.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
 import { authenticate, requireFacility } from './middleware/auth.js';
+import { validateSecrets } from './security/secrets.js';
+import { initializeEncryption } from './security/piiEncryption.js';
+import { getCsrfToken, validateCsrfToken } from './middleware/csrf.js';
 
 // ── Startup env validation ────────────────────────────────────────────────────
 const REQUIRED_IN_PROD = ['JWT_SECRET', 'ALLOWED_ORIGINS'];
@@ -58,10 +61,34 @@ import adminRoutes from './routes/admin.js';
 import dosespotRoutes from './routes/dosespot.js';
 import patientPortalRoutes from './routes/patientPortal.js';
 import providerSignatureRoutes from './routes/providerSignatures.js';
+import phiExportRoutes from './routes/phiExport.js';
 import refillRoutes from './routes/refills.js';
 import uptimeRoutes from './routes/uptime.js';
+import treatmentPlanRoutes from './routes/treatmentPlans.js';
+import goalRoutes from './routes/goals.js';
+import secureNoteRoutes from './routes/secureNotes.js';
+import telehealthTokenRoutes from './routes/telehealthToken.js';
 
 const app = express();
+
+// ── HTTPS/TLS enforcement ────────────────────────────────────────────────────
+// In production, redirect HTTP to HTTPS and add HSTS headers
+if (config.nodeEnv === 'production') {
+  app.use((req, res, next) => {
+    // Cloudflare always connects to backend via HTTPS; CF-Visitor header confirms it
+    const cfProto = req.headers['cf-visitor'] ? JSON.parse(req.headers['cf-visitor']).scheme : null;
+    const isSecure = req.protocol === 'https' || cfProto === 'https';
+
+    if (!isSecure) {
+      const url = `https://${req.get('host')}${req.originalUrl}`;
+      return res.redirect(301, url);
+    }
+
+    // HSTS: Strict-Transport-Security (1 year, include subdomains)
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+    next();
+  });
+}
 
 // Requests arrive via Cloudflare Tunnel (127.0.0.1) or direct localhost.
 // Trust the loopback proxy so Express sees the forwarded headers.
@@ -82,21 +109,27 @@ app.use((req, _res, next) => {
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'"],
-      fontSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      frameSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'"],
+      defaultSrc:              ["'self'"],
+      scriptSrc:               ["'self'"],
+      styleSrc:                ["'self'", "'unsafe-inline'"],
+      imgSrc:                  ["'self'", 'data:'],
+      connectSrc:              ["'self'"],
+      fontSrc:                 ["'self'"],
+      objectSrc:               ["'none'"],
+      frameSrc:                ["'none'"],
+      mediaSrc:                ["'none'"],
+      workerSrc:               ["'none'"],
+      baseUri:                 ["'self'"],
+      formAction:              ["'self'"],
+      frameAncestors:          ["'none'"],
+      upgradeInsecureRequests: [],
     },
   },
-  crossOriginEmbedderPolicy: false, // allow API use from frontend dev server
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow cross-origin reads (app.clarity-ehr.com → api.clarity-ehr.com)
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
   crossOriginOpenerPolicy: false,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  permittedCrossDomainPolicies: { permittedPolicies: 'none' },
 }));
 app.use(cors({
   origin: (incomingOrigin, callback) => {
@@ -224,14 +257,18 @@ app.get('/api/health/full', async (_req, res) => {
   });
 });
 
-// Serve static frontend files
+// Frontend is served via Cloudflare Pages (app.clarity-ehr.com)
+// Static file serving disabled on API server
 import { fileURLToPath } from 'url';
 import path from 'path';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-app.use(express.static(path.join(__dirname, '../dist')));
 
 // API Routes
 app.use('/api/auth', authRoutes);
+
+// ── CSRF Token Endpoint ──────────────────────────────────────────────────────
+// Clients call this before state-changing requests to get a fresh CSRF token
+app.get('/api/csrf-token', authenticate, getCsrfToken);
 
 // ── Public routes (no authentication required) ──────────────────────────────────
 app.use('/api/uptime', uptimeRoutes);  // Health monitoring endpoints
@@ -239,24 +276,24 @@ app.use('/api/uptime', uptimeRoutes);  // Health monitoring endpoints
 // ── Facility gate — all data routes require a logged-in user with a facility ──
 // Auth routes are excluded (they run before the user is authenticated).
 // Global roles (admin/front_desk) bypass the facility check.
-app.use('/api/patients',      authenticate, requireFacility);
-app.use('/api/appointments',  authenticate, requireFacility);
-app.use('/api/inbox',         authenticate, requireFacility);
-app.use('/api/messaging',     authenticate, requireFacility);
-app.use('/api/btg',           authenticate, requireFacility);
-app.use('/api/eprescribe',    authenticate, requireFacility);
-app.use('/api/smart-phrases', authenticate, requireFacility);
-app.use('/api/analytics',     authenticate, requireFacility);
-app.use('/api/care-gaps',     authenticate, requireFacility);
-app.use('/api/documents',     authenticate, requireFacility);
-app.use('/api/fhir',          authenticate, requireFacility);
-app.use('/api/billing',       authenticate, requireFacility);
-app.use('/api/users',         authenticate, requireFacility);
-app.use('/api/locations',     authenticate, requireFacility);
-app.use('/api/dosespot',      authenticate, requireFacility);
-app.use('/api/refills',       authenticate, requireFacility);
+app.use('/api/patients',      authenticate, validateCsrfToken, requireFacility);
+app.use('/api/appointments',  authenticate, validateCsrfToken, requireFacility);
+app.use('/api/inbox',         authenticate, validateCsrfToken, requireFacility);
+app.use('/api/messaging',     authenticate, validateCsrfToken, requireFacility);
+app.use('/api/btg',           authenticate, validateCsrfToken, requireFacility);
+app.use('/api/eprescribe',    authenticate, validateCsrfToken, requireFacility);
+app.use('/api/smart-phrases', authenticate, validateCsrfToken, requireFacility);
+app.use('/api/analytics',     authenticate, validateCsrfToken, requireFacility);
+app.use('/api/care-gaps',     authenticate, validateCsrfToken, requireFacility);
+app.use('/api/documents',     authenticate, validateCsrfToken, requireFacility);
+app.use('/api/fhir',          authenticate, validateCsrfToken, requireFacility);
+app.use('/api/billing',       authenticate, validateCsrfToken, requireFacility);
+app.use('/api/users',         authenticate, validateCsrfToken, requireFacility);
+app.use('/api/locations',     authenticate, validateCsrfToken, requireFacility);
+app.use('/api/dosespot',      authenticate, validateCsrfToken, requireFacility);
+app.use('/api/refills',       authenticate, validateCsrfToken, requireFacility);
 
-// Routes with their own authenticate calls (keep as-is, gate still fires first)
+// Routes with their own authenticate calls (gate + CSRF check already in place above)
 app.use('/api/patients', patientRoutes);
 app.use('/api/patients', clinicalRoutes);   // /api/patients/:patientId/allergies, etc.
 app.use('/api/patients', medicationRoutes); // /api/patients/:patientId/medications
@@ -272,22 +309,34 @@ app.use('/api/smart-phrases', smartPhraseRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/care-gaps', careGapRoutes);
 app.use('/api/external', externalApiRoutes);
-app.use('/api/audit-log', auditLogRoutes);
-app.use('/api/security',  securityRoutes);
+
+// Security routes (admin-only, also require CSRF)
+app.use('/api/audit-log', authenticate, validateCsrfToken, auditLogRoutes);
+app.use('/api/security',  authenticate, validateCsrfToken, securityRoutes);
+
+// Data routes
 app.use('/api/documents', documentRoutes);
 app.use('/api/fhir', fhirRoutes);
 app.use('/api/billing', billingRoutes);
-app.use('/api/admin', adminRoutes);
+
+// Admin routes (require authentication and CSRF)
+app.use('/api/admin', authenticate, validateCsrfToken, adminRoutes);
+
 app.use('/api/users', userRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/dosespot', dosespotRoutes);
 app.use('/api/patient-portal', patientPortalRoutes);
 app.use('/api/provider-signatures', providerSignatureRoutes);
+app.use('/api/phi-export',          authenticate, validateCsrfToken, phiExportRoutes);
 app.use('/api/refills', refillRoutes);
+app.use('/api/treatment-plans',    authenticate, validateCsrfToken, requireFacility, treatmentPlanRoutes);
+app.use('/api/goals',              authenticate, validateCsrfToken, requireFacility, goalRoutes);
+app.use('/api/secure-notes',       authenticate, validateCsrfToken, requireFacility, secureNoteRoutes);
+app.use('/api/telehealth',         authenticate, validateCsrfToken, telehealthTokenRoutes);
 
-// SPA fallback — serve index.html for all non-API routes
-app.get('*', (_req, res) => {
-  res.sendFile(path.join(__dirname, '../dist/index.html'));
+// 404 handler for unknown API routes
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
 });
 
 // Error handling
@@ -295,6 +344,11 @@ app.use(errorHandler);
 
 // Initialize DB and start
 async function start() {
+  // ── Secrets & encryption validation ──
+  // Must happen before database init and before server starts
+  validateSecrets();
+  initializeEncryption();
+
   await initializeDatabase();
 
   // Run pending DB migrations before anything else starts (lazy import avoids circular init)
