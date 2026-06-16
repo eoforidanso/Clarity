@@ -888,6 +888,9 @@ hr { border: none; height: 1px; background: linear-gradient(90deg, transparent 0
   position: sticky; top: 0; z-index: 50; flex-shrink: 0;
   box-shadow: var(--shadow-separator);
 }
+.header-secondary-actions { display: flex; align-items: center; gap: 4px; }
+.header-settings-btn { /* visible by default */ }
+.header-mobile-home { display: none; }
 
 /* ── Location Capsule ── */
 .location-capsule {
@@ -3699,8 +3702,13 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px;
   padding: 28px; max-width: 420px; width: 90%; position: relative;
   box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: modalIn 0.25s ease both;
+  max-height: 90vh; overflow-y: auto;
 }
 .login-modal-wide { max-width: 640px; max-height: 85vh; overflow-y: auto; }
+@media (max-width: 480px) {
+  .login-modal { width: 95%; padding: 20px; border-radius: 14px; }
+  .login-modal-wide { max-height: 92vh; }
+}
 .login-modal h2 { font-size: 18px; font-weight: 800; color: #f1f5f9; margin-bottom: 16px; }
 .login-modal-close {
   position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.06);
@@ -3736,21 +3744,59 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 
 /* ── Responsive ── */
 @media (max-width: 780px) {
-  .login-card { flex-direction: column; min-height: unset; }
-  .login-brand-panel { width: 100%; padding: 28px 24px 24px; }
+  .login-main { padding: 12px 12px 32px; }
+  .login-topnav { padding: 10px 16px; }
+  .login-topnav-badges { display: none; }
+
+  .login-card {
+    flex-direction: column;
+    min-height: unset;
+    margin-top: 0;
+    margin-bottom: 24px;
+    border-radius: 16px;
+  }
+  .login-brand-panel {
+    width: 100%;
+    padding: 24px 22px 20px;
+    border-radius: 16px 16px 0 0;
+    /* Remove the top-right blue glow — on full-width mobile it bleeds to the edge */
+    background:
+      radial-gradient(ellipse at 50% 110%, rgba(139,92,246,0.28) 0%, transparent 55%),
+      radial-gradient(ellipse at 10% 50%,  rgba(14,116,144,0.18) 0%, transparent 45%),
+      linear-gradient(150deg, #0a1020 0%, #0f1729 25%, #152340 55%, #1a3560 100%);
+  }
+  .login-brand-inner { gap: 16px; }
   .login-brand-illustration { display: none; }
   .product-frame { display: none; }
-  .login-brand-tagline h2 { font-size: 24px; }
-  .login-form-panel { padding-top: 32px; padding-bottom: 32px; padding-left: 28px; padding-right: 28px; }
-  .login-form-inner { max-width: 100%; }
-  /* Hide nav badges when layout stacks — brand panel shows compliance pills */
-  .login-topnav-badges { display: none; }
+  .login-brand-tagline h2 { font-size: 22px; }
+  .login-brand-tagline p { font-size: 12px; }
+  .login-brand-designed-tagline { font-size: 14px !important; margin: 2px 0 4px !important; }
+
+  .login-form-panel {
+    min-height: unset;
+    padding: 28px 22px 24px;
+    border-left: none;
+    border-top: 1px solid rgba(0,0,0,0.06);
+    border-radius: 0 0 16px 16px;
+  }
+  .login-form-inner { max-width: 100%; margin: 0; }
+  .lf-footer { margin-bottom: 24px; }
+  .lf-support-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .lf-patient-cta { flex-wrap: wrap; }
 }
+
 @media (max-width: 480px) {
-  .login-main { padding: 16px; }
-  .login-brand-panel { padding: 22px 18px; }
-  .login-form-panel { padding: 28px 20px 28px; }
-  .login-form-title { font-size: 26px; }
+  .login-main { padding: 8px 8px 20px; }
+  .login-card { border-radius: 12px; }
+  .login-brand-panel { padding: 18px 16px 16px; border-radius: 12px 12px 0 0; }
+  .login-brand-tagline h2 { font-size: 18px; }
+  .login-form-panel { padding: 20px 16px; border-radius: 0 0 12px 12px; }
+  .login-form-inner { padding: 20px 16px 16px; }
+  .login-form-title { font-size: 24px; }
+  .lf-cert-pills { gap: 3px; }
+  .lf-cert-pill { font-size: 9.5px; padding: 2px 7px; }
+  .lf-footer { margin-bottom: 16px; }
+  .login-footer { padding: 10px 16px; flex-wrap: wrap; }
 }
 
 /* ── Hero gradient separator ── */
@@ -4361,6 +4407,7 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 
 @media (max-width: 1100px) {
   .header-clock { display: none; }
+  .header-clock-divider { display: none; }
   .header-user-text { display: none; }
   .header-search { max-width: 260px; }
 }
@@ -4368,8 +4415,11 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 @media (max-width: 768px) {
   .sidebar { display: none; }
   :root { --sidebar-width: 0px; }
-  .header { padding: 0 12px; }
-  .header-search { min-width: 120px; }
+  .header { padding: 0 12px; gap: 8px; }
+  .header-location-text { display: none; }
+  .header-secondary-actions { display: none; }
+  .header-settings-btn { display: none; }
+  .header-search { min-width: 0; max-width: 100%; flex: 1; }
   .search-kbd { display: none; }
   .stat-card { padding: 10px; }
   .stat-card h3 { font-size: 16px; }
@@ -4377,10 +4427,13 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   .ai-panel { width: calc(100vw - 48px); right: 16px; bottom: 80px; }
   .notification-panel { width: calc(100vw - 32px); right: 16px; }
   .tour-tooltip { max-width: calc(100vw - 48px); }
+  /* Location capsule shows only the status dot on mobile */
+  .location-capsule { padding: 6px 8px; }
+  .header-mobile-home { display: flex; }
 }
 
 @media (max-width: 480px) {
-  .header-actions > *:not(.notif-bell-btn):not(:last-child) { display: none; }
+  .header { padding: 0 10px; gap: 6px; }
   .page-header { flex-direction: column; gap: 8px; }
   .stagger { grid-template-columns: repeat(2, 1fr) !important; }
 }
@@ -6278,3 +6331,15 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
 .rx-btn { border-radius: 999px; padding: 6px 14px; font-size: 13px; border: 1px solid transparent; cursor: pointer; }
 .rx-btn--ghost { background: #ffffff; border-color: #e2e8f0; color: #0f172a; }
 .rx-btn--primary { background: #dc2626; color: #ffffff; }
+
+/* ── Skeleton shimmer ──────────────────────────────────── */
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Confirm modal animation ───────────────────────────── */
+@keyframes slideUp {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
