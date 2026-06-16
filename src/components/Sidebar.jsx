@@ -51,8 +51,12 @@ export default function Sidebar() {
   const isNurse = currentUser?.role === 'nurse';
   const isFrontDesk = currentUser?.role === 'front_desk';
   const isAdmin = currentUser?.role === 'admin';
+  const isBiller = currentUser?.role === 'biller';
   const isAdminOrFrontDesk = isFrontDesk || isAdmin;
   const isTherapist = currentUser?.role === 'therapist';
+
+  const isClinical = ['prescriber', 'nurse', 'therapist'].includes(currentUser?.role);
+  const isNonClinical = ['admin', 'front_desk', 'biller'].includes(currentUser?.role);
   // Capability matrix (matches ChartPage ROLE_CAPABILITIES)
   const NON_PRESCRIBING = ['therapist', 'front_desk', 'biller', 'patient'];
   const canPrescribe = currentUser?.prescriptive_authority !== false &&
@@ -401,7 +405,7 @@ export default function Sidebar() {
             className="sidebar-sign-out"
             title="Sign Out"
           >
-            🚪
+            🚪 <span className="sidebar-sign-out-text">Sign Out</span>
           </button>
         </div>
       </div>

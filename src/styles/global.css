@@ -871,8 +871,10 @@ hr { border: none; height: 1px; background: linear-gradient(90deg, transparent 0
   width: 30px; height: 30px; border-radius: var(--radius);
   display: flex; align-items: center; justify-content: center;
   color: #64748b; font-size: 13px; flex-shrink: 0; transition: all var(--t);
+  background: none; border: none; cursor: pointer;
 }
 .sidebar-sign-out:hover { background: rgba(239,68,68,0.12); color: #f87171; }
+.sidebar-sign-out-text { display: none; }
 
 /* ══════════════════════════════════════════════════════════════
    HEADER
@@ -4430,6 +4432,40 @@ table:not(.data-table) tbody tr:hover td { background: #f8fafc; }
   /* Location capsule shows only the status dot on mobile */
   .location-capsule { padding: 6px 8px; }
   .header-mobile-home { display: flex; }
+
+  /* ── Mobile sidebar: restore full user section (off-canvas is 280px wide) ── */
+  .mobile-open .sidebar-user-details,
+  .mobile-open .sidebar-user-name,
+  .mobile-open .sidebar-user-role { display: block !important; }
+  .mobile-open .sidebar-user-card { justify-content: flex-start !important; }
+  .mobile-open .sidebar-user {
+    position: sticky;
+    bottom: 0;
+    padding: 10px 12px 14px;
+    background: rgba(0,0,0,0.25);
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .mobile-open .sidebar-sign-out {
+    display: flex !important;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #f87171;
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.2) !important;
+    margin-top: 8px;
+    height: auto;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .mobile-open .sidebar-sign-out:hover,
+  .mobile-open .sidebar-sign-out:active { background: rgba(239,68,68,0.2); }
+  .mobile-open .sidebar-sign-out-text { display: inline !important; }
 }
 
 @media (max-width: 480px) {
