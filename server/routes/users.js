@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate, requireElevated, authorize } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
+import { CreateUserSchema, UpdateUserSchema } from '../schemas/userSchema.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
 import { softDeleteUser, logAudit, activeScope } from '../db/softDelete.js';
 
@@ -64,22 +66,41 @@ const VALID_ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist', 'biller',
 // ── GET /api/users/directory ───────────────────────────────────────────
 // Returns basic name/role info for staff.
 // Admins see all staff. Non-admins see only staff at their own location.
-router.get('/directory', authenticate, async (req, res) => { const isAdmin = req.user.role === 'admin';
+router.get('/directory', authenticate, async (req, res) => {
+  const isAdmin        = req.user.role === 'admin' || req.access?.canSeeAll;
   const userLocationId = req.user.location_id;
 
-  const rows = isAdmin || !userLocationId
-    ? await db.prepare(
-        `SELECT id, first_name, last_name, role, credentials, specialty
-         FROM users WHERE role != 'patient' AND ${activeScope }
-         ORDER BY last_name ASC, first_name ASC`
-      ).all()
-    : await db.prepare(
-        `SELECT id, first_name, last_name, role, credentials, specialty
-         FROM users WHERE role != 'patient' AND location_id = $1 AND ${ activeScope }
-         ORDER BY last_name ASC, first_name ASC`
-      ).all(userLocationId);
+  let rows;
+  if (isAdmin) {
+    // Admins see all staff (scoped by canSeeAll / facility in accessControl)
+    rows = await db.prepare(
+      `SELECT id, first_name, last_name, role, credentials, specialty
+       FROM users WHERE role != 'patient' AND ${activeScope}
+       ORDER BY last_name ASC, first_name ASC`
+    ).all();
+  } else if (userLocationId) {
+    // Clinical/operations staff: only see colleagues at their own location
+    rows = await db.prepare(
+      `SELECT id, first_name, last_name, role, credentials, specialty
+       FROM users WHERE role != 'patient' AND location_id = $1 AND ${activeScope}
+       ORDER BY last_name ASC, first_name ASC`
+    ).all(userLocationId);
+  } else {
+    // No location assigned: return only the caller themselves
+    rows = await db.prepare(
+      `SELECT id, first_name, last_name, role, credentials, specialty
+       FROM users WHERE id = $1 AND ${activeScope}`
+    ).all(req.user.id);
+  }
 
-  res.json(rows.map(u => ({ id: u.id, firstName: u.first_name || '', lastName: u.last_name || '', role: u.role, credentials: u.credentials || '', specialty: u.specialty || '',  })));
+  res.json(rows.map(u => ({
+    id:          u.id,
+    firstName:   u.first_name  || '',
+    lastName:    u.last_name   || '',
+    role:        u.role,
+    credentials: u.credentials || '',
+    specialty:   u.specialty   || '',
+  })));
 });
 
 // ── GET /api/users ─────────────────────────────────────────────────────
@@ -102,7 +123,7 @@ router.get('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => {
 
 // ── POST /api/users ─────────────────────────────────────────────────────
 // Create a new staff user. Admin/front_desk only.
-router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => { const { username, password, firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled, mustChangePassword, locationId } = req.body;
+router.post('/', authenticate, authorize(...ADMIN_ROLES), validate(CreateUserSchema), async (req, res) => { const { username, password, firstName, lastName, role, credentials, specialty, npi, deaNumber, email, twoFactorEnabled, mustChangePassword, locationId } = req.body;
 
   // Validate required fields
   const cleanUsername = sanitizeUsername(username);

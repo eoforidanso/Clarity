@@ -7,6 +7,8 @@ import config from '../config.js';
 import db from '../db/database.js';
 import { authenticate, requireElevated } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
+import { needsMfa, isSensitiveRoute, SENSITIVE_ROUTES } from '../security/authRules.js';
+import { rateLimitLoginByIp, rateLimitLoginByUsername, trackLoginFailure, checkAccountLockout, lockAccount } from '../security/rateLimiter.js';
 // Send OTP email via Resend HTTP API (port 443 — works on DigitalOcean)
 async function sendOtpEmail(to, otp) { const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -66,7 +68,16 @@ async function issueFullSession(res, req, user) { const ip       = req.realIp ||
   } catch (err) { console.warn('[geoDevice]', err.message); }
 
   const sessionId = uuidv4();
-  const token = jwt.sign({ userId: user.id, role: user.role, sessionId }, config.jwtSecret, { algorithm: 'HS256', expiresIn: config.jwtExpiresIn }); // 8h
+  const now = Math.floor(Date.now() / 1000);
+  const token = jwt.sign({
+    sub: user.id,
+    role: user.role,
+    session_id: sessionId,
+    device_id: dbDeviceId,
+    clinic_id: user.location_id || 'default',
+    iat: now,
+    exp: now + (8 * 60 * 60)
+  }, config.jwtSecret, { algorithm: 'HS256' });
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
   try { await db.prepare(
@@ -119,7 +130,7 @@ async function issueFullSession(res, req, user) { const ip       = req.realIp ||
 }
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => { const { username, password } = req.body;
+router.post('/login', rateLimitLoginByIp, async (req, res) => { const { username, password } = req.body;
   if (!username || !password) { return res.status(400).json({ error: 'Username and password are required' });
   }
 
@@ -127,58 +138,156 @@ router.post('/login', async (req, res) => { const { username, password } = req.b
   if (typeof username !== 'string' || typeof password !== 'string') { return res.status(400).json({ error: 'Invalid input' });
   }
   const sanitizedUsername = username.replace(/[\x00-\x1F\x7F]/g, '').trim();
-  if (sanitizedUsername.length < 1 || sanitizedUsername.length > 100) { return res.status(400).json({ error: 'Invalid username' });
+  if (sanitizedUsername.length < 1 || sanitizedUsername.length > 100) {
+    return res.status(400).json({ error: 'Invalid username' });
   }
-  if (password.length < 1 || password.length > 200) { return res.status(400).json({ error: 'Invalid password' });
+  if (password.length < 1 || password.length > 200) {
+    return res.status(400).json({ error: 'Invalid password' });
   }
 
-  const user = await db.prepare('SELECT id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, totp_secret, must_change_password, patient_id, location_id, is_global FROM users WHERE username = ?').get(sanitizedUsername);
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) { // Log failed login attempt
+  const user = await db.prepare('SELECT id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, totp_secret, must_change_password, patient_id, location_id, is_global, is_locked, locked_reason FROM users WHERE username = ?').get(sanitizedUsername);
+
+  // ── Account lockout check ───────────────────────────────────────────────────
+  if (user?.is_locked) {
     logAuditEvent({
-      action: 'LOGIN_FAILED', resourceType: 'auth', details: { username: sanitizedUsername, reason: 'Invalid credentials' },
+      userId: user.id,
+      userName: `${user.first_name} ${user.last_name}`.trim(),
+      userRole: user.role,
+      action: 'LOGIN_REJECTED_LOCKED',
+      resourceType: 'auth',
+      details: { reason: user.locked_reason || 'account locked' },
       ipAddress: req.ip || '',
       userAgent: req.get('User-Agent') || '',
     });
+    return res.status(403).json({
+      error: 'Account is locked. Please contact your administrator.',
+      locked: true,
+      reason: user.locked_reason
+    });
+  }
+
+  // ── Credential check ────────────────────────────────────────────────────────
+  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    // Log failed login attempt
+    await trackLoginFailure(db, user?.id || null, sanitizedUsername, req.ip || '', 'invalid_credentials');
+
+    logAuditEvent({
+      userId: user?.id || null,
+      userName: user ? `${user.first_name} ${user.last_name}`.trim() : sanitizedUsername,
+      userRole: user?.role || 'unknown',
+      action: 'LOGIN_FAILED',
+      resourceType: 'auth',
+      details: { username: sanitizedUsername, reason: 'Invalid credentials' },
+      ipAddress: req.ip || '',
+      userAgent: req.get('User-Agent') || '',
+    });
+
+    // Check if should lock account after multiple failures
+    if (user) {
+      const lockoutCheck = await checkAccountLockout(db, sanitizedUsername);
+      if (lockoutCheck.shouldLock) {
+        await lockAccount(db, user.id, lockoutCheck.reason);
+        return res.status(403).json({
+          error: 'Account locked due to multiple failed login attempts. Please contact your administrator.',
+          locked: true
+        });
+      }
+    }
+
     return res.status(401).json({ error: 'Invalid username or password' });
   }
 
-  // ── 2FA Gate ──────────────────────────────────────────────────────────────
-  if (user.two_factor_enabled) { if (!user.email) {
+  // ── Username-based rate limit (after credential check to prevent enumeration) ──
+  await rateLimitLoginByUsername(req, res, () => {});
+  if (res.headersSent) return; // Rate limit middleware already sent response
+
+  // ── Check initial risk (geo/device anomalies) ──────────────────────────────
+  const ip = req.realIp || req.ip || '';
+  const ua = req.get('User-Agent') || '';
+  let initialRiskScore = 0;
+  let dbDeviceId = null;
+
+  try {
+    const { checkLoginAnomaly } = await import('../security/geoDevice.js');
+    req.user = { id: user.id, role: user.role }; // temp for geoDevice check
+    const geoResult = await checkLoginAnomaly(user.id, `${user.first_name} ${user.last_name}`, ip, req);
+    dbDeviceId = geoResult?.dbDeviceId ?? null;
+    initialRiskScore = geoResult?.riskScore ?? 0; // geo-shift, new location, etc.
+  } catch (err) {
+    console.warn('[geoDevice]', err.message);
+  }
+
+  // ── Create provisional session ──────────────────────────────────────────────
+  const sessionId = uuidv4();
+  const sessionExpiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+  try {
+    await db.prepare(`
+      INSERT INTO sessions (id, user_id, ip_address, user_agent, created_at, expires_at, device_id, risk_score, revoked_at)
+      VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, NULL)
+    `).run(sessionId, user.id, ip, ua, sessionExpiresAt, dbDeviceId, initialRiskScore);
+  } catch (e) {
+    console.warn('[sessions]', e.message);
+  }
+
+  // ── Check if MFA is required based on risk or user config ────────────────
+  const provisionalSession = { risk_score: initialRiskScore, mfa_level: 0 };
+  const mfaRequired = needsMfa(provisionalSession, user);
+
+  if (mfaRequired) {
+    // ── MFA Gate: pending session, require verification before full token ────
+    if (!user.email) {
       return res.status(500).json({ error: 'No email address on file for this account. Contact your administrator.' });
     }
 
     // Generate cryptographically secure 6-digit OTP
     const otp = String(crypto.randomInt(100000, 1000000));
-    const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     await db.prepare(
       "UPDATE users SET email_otp = ?, email_otp_expires = ?, email_otp_attempts = 0, updated_at = NOW() WHERE id = ?"
-    ).run(otp, expires, user.id);
+    ).run(otp, otpExpires, user.id);
 
     const masked = user.email.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '*'.repeat(Math.max(1, b.length)) + c);
 
-    // Always log OTP to server console so admin can retrieve it from server logs if email fails
-    console.log(`[2FA] OTP for ${ user.username } (${ masked }): ${ otp }`);
+    // Always log OTP to server console
+    console.log(`[2FA] OTP for ${user.username} (${masked}): ${otp}`);
 
-    // Send email (non-blocking — don't fail login if email has a transient error)
-    if (process.env.RESEND_API_KEY) { sendOtpEmail(user.email, otp).catch((err) => {
-        console.error('[2FA] Failed to send OTP email:', err.message); });
-    } else { console.warn('[2FA] RESEND_API_KEY not set — email not sent'); }
+    // Send email (non-blocking)
+    if (process.env.RESEND_API_KEY) {
+      sendOtpEmail(user.email, otp).catch((err) => {
+        console.error('[2FA] Failed to send OTP email:', err.message);
+      });
+    } else {
+      console.warn('[2FA] RESEND_API_KEY not set — email not sent');
+    }
 
     const tempToken = jwt.sign(
-      { userId: user.id, type: '2fa_pending' },
-      config.jwtSecret, { algorithm: 'HS256', expiresIn: '10m' }
+      { sub: user.id, session_id: sessionId, type: 'mfa_pending', iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + (10 * 60) },
+      config.jwtSecret,
+      { algorithm: 'HS256' }
     );
 
-    // In non-production environments expose the code in the response so the UI can display it.
-    // This covers dev servers (NODE_ENV=development) and demo environments where email
-    // delivery may not be reliable. In production (NODE_ENV=production) the code is NEVER
-    // returned in the response — only delivered by email.
     const exposeCode = config.nodeEnv !== 'production';
-    return res.json({ requiresTwoFactor: true, tempToken, emailHint: masked, ...(exposeCode ? { mockCode: otp } : {}),
+    logAuditEvent({
+      userId: user.id,
+      userName: `${user.first_name} ${user.last_name}`.trim(),
+      userRole: user.role,
+      action: 'MFA_REQUIRED',
+      resourceType: 'auth',
+      details: { risk_score: initialRiskScore, reason: mfaRequired ? 'risk_or_config' : 'unknown' },
+      ipAddress: ip,
+      userAgent: ua,
+      sessionId
+    });
+
+    return res.json({
+      requiresMfa: true,
+      tempToken,
+      emailHint: masked,
+      ...(exposeCode ? { mockCode: otp } : {})
     });
   }
 
-  // No 2FA configured — issue full session immediately
+  // ── No MFA required — issue full session immediately ─────────────────────
   res.json(await issueFullSession(res, req, user));
 });
 
@@ -294,11 +403,28 @@ router.post('/logout', authenticate, async (req, res) => { // Clear both cookies
     httpOnly: true, secure: true, sameSite: 'none', domain: '.clarity-ehr.com', path: '/',  });
   res.clearCookie('ehr_refresh', { httpOnly: true, secure: true, sameSite: 'none', domain: '.clarity-ehr.com', path: '/',  });
 
-  // Revoke refresh tokens for this user
-  try { await db.prepare(`UPDATE refresh_tokens SET is_active = FALSE WHERE user_id = $1 AND is_active = TRUE`).run(req.user.id); } catch (e) { /* ok */ }
+  // Revoke all refresh tokens for this session
+  const sessionId = req.user.session_id; // from middleware req.user
+  try {
+    if (sessionId) {
+      await db.prepare(`
+        UPDATE refresh_tokens
+        SET revoked_at = NOW()
+        WHERE session_id = $1 AND revoked_at IS NULL
+      `).run(sessionId);
+    }
+  } catch (e) { /* non-blocking */ }
 
-  // Invalidate session
-  try { await db.prepare('UPDATE sessions SET is_active = FALSE WHERE user_id = $1 AND is_active = TRUE').run(req.user.id); } catch (e) { /* ok */ }
+  // Revoke the session itself
+  try {
+    if (sessionId) {
+      await db.prepare(`
+        UPDATE sessions
+        SET revoked_at = NOW(), revoke_reason = 'user_logout'
+        WHERE id = $1 AND revoked_at IS NULL
+      `).run(sessionId);
+    }
+  } catch (e) { /* non-blocking */ }
 
   logAuditEvent({ userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
     userRole: req.user.role,
@@ -364,22 +490,32 @@ router.post('/verify-epcs-otp', authenticate, async (req, res) => { const { otp 
   res.json({ valid });
 });
 
-// POST /api/auth/2fa/verify — validate email OTP and issue full session
-router.post('/2fa/verify', async (req, res) => { const { tempToken, code } = req.body;
-  if (!tempToken || !code) { return res.status(400).json({ error: 'tempToken and code are required' });
+// POST /api/auth/mfa/verify — validate email OTP and upgrade pending session to full session
+router.post('/mfa/verify', async (req, res) => {
+  const { tempToken, code } = req.body;
+  if (!tempToken || !code) {
+    return res.status(400).json({ error: 'tempToken and code are required' });
   }
 
   let payload;
-  try { payload = jwt.verify(tempToken, config.jwtSecret, { algorithms: ['HS256'] });
-  } catch { return res.status(401).json({ error: 'Session expired. Please log in again.' });
+  try {
+    payload = jwt.verify(tempToken, config.jwtSecret, { algorithms: ['HS256'] });
+  } catch (err) {
+    return res.status(401).json({ error: 'Session expired. Please log in again.' });
   }
 
-  if (payload.type !== '2fa_pending') { return res.status(401).json({ error: 'Invalid token type' });
+  // Verify token type and required claims
+  if (payload.type !== 'mfa_pending') {
+    return res.status(401).json({ error: 'Invalid token type' });
+  }
+  if (!payload.sub || !payload.session_id) {
+    return res.status(401).json({ error: 'Invalid token structure' });
   }
 
-  const user = await db.prepare(
-    'SELECT id, username, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, email_otp, email_otp_expires, email_otp_attempts, must_change_password, patient_id FROM users WHERE id = ?'
-  ).get(payload.userId);
+  const user = await db.prepare(`
+    SELECT id, username, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, email_otp, email_otp_expires, email_otp_attempts, must_change_password, patient_id, location_id, is_global
+    FROM users WHERE id = ?
+  `).get(payload.sub);
 
   if (!user) { return res.status(401).json({ error: 'User not found' });
   }
@@ -415,11 +551,101 @@ router.post('/2fa/verify', async (req, res) => { const { tempToken, code } = req
   // Clear OTP after successful use
   await db.prepare("UPDATE users SET email_otp = NULL, email_otp_expires = NULL, email_otp_attempts = 0 WHERE id = ?").run(user.id);
 
-  res.json(await issueFullSession(res, req, user));
+  // MFA verified — upgrade pending session to full session
+  const sessionId = payload.session_id;
+  const now = Math.floor(Date.now() / 1000);
+  const accessToken = jwt.sign({
+    sub: user.id,
+    role: user.role,
+    session_id: sessionId,
+    device_id: payload.device_id || null,
+    clinic_id: user.location_id || 'default',
+    iat: now,
+    exp: now + (8 * 60 * 60)
+  }, config.jwtSecret, { algorithm: 'HS256' });
+
+  // Issue new refresh token
+  const refreshTokenId = uuidv4();
+  const rawRefreshToken = crypto.randomBytes(48).toString('hex');
+  const refreshTokenHash = crypto.createHash('sha256').update(rawRefreshToken).digest('hex');
+  const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  try {
+    await db.prepare(`
+      INSERT INTO refresh_tokens (id, user_id, session_id, device_id, token_hash, expires_at, ip_address, user_agent)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `).run(refreshTokenId, user.id, sessionId, payload.device_id || null, refreshTokenHash, refreshExpiresAt, req.ip || '', req.get('User-Agent') || '');
+  } catch (e) {
+    console.warn('[refresh_tokens]', e.message);
+  }
+
+  // Set cookies
+  res.cookie('ehr_token', accessToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    domain: '.clarity-ehr.com',
+    maxAge: 8 * 60 * 60 * 1000,
+    path: '/'
+  });
+
+  res.cookie('ehr_refresh', rawRefreshToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    domain: '.clarity-ehr.com',
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    path: '/'
+  });
+
+  // Fetch provider signature
+  let signatureDataUrl = null;
+  try {
+    const sigRow = await db.prepare(
+      `SELECT signature_data_url FROM provider_signatures WHERE provider_id = $1`
+    ).get(user.id);
+    signatureDataUrl = sigRow?.signature_data_url ?? null;
+  } catch { /* table may not exist yet */ }
+
+  logAuditEvent({
+    userId: user.id,
+    userName: `${user.first_name} ${user.last_name || ''}`.trim(),
+    userRole: user.role,
+    action: 'MFA_VERIFIED',
+    resourceType: 'auth',
+    details: { sessionId },
+    ipAddress: req.ip || '',
+    userAgent: req.get('User-Agent') || '',
+    sessionId
+  });
+
+  return res.json({
+    mustChangePassword: !!user.must_change_password,
+    user: {
+      id: user.id,
+      username: user.username,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      name: `${user.first_name} ${user.last_name || ''}`.trim(),
+      role: user.role,
+      credentials: user.credentials,
+      specialty: user.specialty,
+      npi: user.npi,
+      deaNumber: user.dea_number,
+      email: user.email,
+      twoFactorEnabled: !!user.two_factor_enabled,
+      mustChangePassword: !!user.must_change_password,
+      patientId: user.patient_id,
+      locationId: user.location_id || 'loc1',
+      isGlobal: !!user.is_global,
+      is_global: !!user.is_global,
+      signature: signatureDataUrl
+    }
+  });
 });
 
 // POST /api/auth/2fa/enable — enable email 2FA for the authenticated user
-router.post('/2fa/enable', authenticate, async (req, res) => { await db.prepare("UPDATE users SET two_factor_enabled = 1, updated_at = NOW() WHERE id = ?")
+router.post('/2fa/enable', authenticate, async (req, res) => { await db.prepare("UPDATE users SET two_factor_enabled = true, updated_at = NOW() WHERE id = ?")
     .run(req.user.id);
   logAuditEvent({
     userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
@@ -433,7 +659,7 @@ router.post('/2fa/enable', authenticate, async (req, res) => { await db.prepare(
 });
 
 // POST /api/auth/2fa/disable — disable email 2FA for the authenticated user
-router.post('/2fa/disable', authenticate, requireElevated, async (req, res) => { await db.prepare("UPDATE users SET two_factor_enabled = 0, email_otp = NULL, email_otp_expires = NULL, updated_at = NOW() WHERE id = ?")
+router.post('/2fa/disable', authenticate, requireElevated, async (req, res) => { await db.prepare("UPDATE users SET two_factor_enabled = false, email_otp = NULL, email_otp_expires = NULL, updated_at = NOW() WHERE id = ?")
     .run(req.user.id);
   logAuditEvent({
     userId: req.user.id, userName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
@@ -508,6 +734,13 @@ router.post('/reauth', authenticate, async (req, res) => { const userId = req.us
       config.jwtSecret, { algorithm: 'HS256', expiresIn: ELEVATED_TTL_SECS }
     );
 
+    // Reset risk score after successful re-authentication
+    try {
+      await db.prepare(`
+        UPDATE sessions SET risk_score = 0 WHERE user_id = $1 AND revoked_at IS NULL
+      `).run(userId);
+    } catch { /* non-blocking */ }
+
     logAuditEvent({ userId, action: 'REAUTH_SUCCESS', resourceType: 'auth', details: `Elevated session granted via ${otp ? 'OTP' : 'password' } — expires ${ expiresAt }`,
       ip: req.ip,
     });
@@ -515,6 +748,97 @@ router.post('/reauth', authenticate, async (req, res) => { const userId = req.us
     return res.json({ elevatedToken, expiresAt, expiresInSeconds: ELEVATED_TTL_SECS });
   } catch (err) { console.error('[reauth]', err);
     return res.status(500).json({ error: 'Re-authentication failed' });
+  }
+});
+
+// GET /api/auth/session-risk — check current session risk score
+router.get('/session-risk', authenticate, async (req, res) => {
+  const sessionId = req.user.session_id;
+  if (!sessionId) {
+    return res.status(400).json({ error: 'No active session' });
+  }
+
+  try {
+    const session = await db.prepare(`
+      SELECT risk_score, mfa_level FROM sessions
+      WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+    `).get(sessionId, req.user.id);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const RISK_THRESHOLD = 30;
+    const isHighRisk = session.risk_score > RISK_THRESHOLD;
+
+    res.json({
+      risk_score: session.risk_score,
+      risk_level: isHighRisk ? 'elevated' : 'normal',
+      requires_elevation: isHighRisk,
+      mfa_level: session.mfa_level
+    });
+  } catch (err) {
+    console.error('[session-risk]', err);
+    return res.status(500).json({ error: 'Failed to check session risk' });
+  }
+});
+
+// POST /api/auth/refresh — issue new access token from valid refresh token
+// Implements token rotation: old refresh token is revoked, new one issued
+router.post('/refresh', async (req, res) => {
+  const oldToken = req.cookies?.ehr_refresh;
+  if (!oldToken) {
+    return res.status(401).json({ error: 'No refresh token provided' });
+  }
+
+  try {
+    // Hash and look up old token
+    const oldHash = crypto.createHash('sha256').update(oldToken).digest('hex');
+    const oldTokenRec = await db.prepare(`
+      SELECT id, user_id, session_id, device_id, created_at FROM refresh_tokens
+      WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > NOW()
+    `).get(oldHash);
+
+    if (!oldTokenRec) {
+      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    }
+
+    // Fetch user
+    const user = await db.prepare(`
+      SELECT id, username, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, must_change_password, patient_id, location_id, is_global
+      FROM users WHERE id = $1
+    `).get(oldTokenRec.user_id);
+
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    // Issue new access + refresh tokens (both tied to same session)
+    req.user = { id: user.id, role: user.role };
+    await issueFullSession(res, req, user);
+
+    // Revoke old refresh token (rotation)
+    try {
+      await db.prepare(`
+        UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = $1
+      `).run(oldTokenRec.id);
+    } catch { /* non-blocking */ }
+
+    logAuditEvent({
+      userId: user.id,
+      userName: `${user.first_name } ${user.last_name || ''}`.trim(),
+      userRole: user.role,
+      action: 'TOKEN_REFRESH',
+      resourceType: 'auth',
+      details: { session_id: oldTokenRec.session_id },
+      ipAddress: req.ip || '',
+      userAgent: req.get('User-Agent') || '',
+    });
+
+    return res.json({ message: 'Token refreshed successfully' });
+  } catch (err) {
+    console.error('[refresh]', err.message);
+    return res.status(500).json({ error: 'Token refresh failed' });
   }
 });
 
