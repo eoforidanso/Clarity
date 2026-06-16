@@ -299,7 +299,7 @@ const qaBtn = (accent) => ({
   border:`1px solid ${accent||"#e2e8f0"}`, background:"transparent", color: accent||"var(--text-secondary)",
 });
 
-function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, onUpdateStatus, onReschedule, isCurrent, patientPhoto, patientObj, allAppointments }) {
+function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, onUpdateStatus, onReschedule, isCurrent, patientPhoto, patientObj, allAppointments, isMobile }) {
   const c = getTypeColor(apt);
   const ss = getStatusStyle(apt.status);
   const initials = apt.patientName?.split(" ").map(n => n[0]).join("").slice(0,2) || "?";
@@ -361,7 +361,7 @@ function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggl
         </div>
 
         {/* Row 2: avatar + patient info + provider + primary CTA */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", gap: 10, flexWrap: isMobile ? "wrap" : "nowrap" }}>
           {/* Patient avatar */}
           <div style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, overflow: "hidden", boxShadow: isCurrent ? "0 0 0 3px rgba(99,102,241,0.3)" : "none" }}>
             {patientPhoto
@@ -369,7 +369,8 @@ function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggl
               : <div style={{ width: "100%", height: "100%", background: `linear-gradient(135deg,${c.border},${c.dot})`, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14 }}>{initials}</div>
             }
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Patient info — takes full first line on mobile */}
+          <div style={{ flex: 1, minWidth: isMobile ? "calc(100% - 54px)" : 0 }}>
             <div className="patient-row" style={{ fontWeight: 800, fontSize: 14, color: "var(--text-primary)", marginBottom: 1 }}>
               <PatientHoverCard patient={patientObj} appointments={allAppointments || []}>
                 {apt.patientName}
@@ -377,15 +378,28 @@ function AptCard({ apt, todayKey, onOpenChart, onCheckIn, onGoToSession, onToggl
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{apt.reason || "No reason listed"}</div>
           </div>
-          {/* Provider chip */}
-          <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#f8fafc", border: `1px solid ${pc}25`, borderRadius: 8, padding: "4px 8px", flexShrink: 0 }}>
-            <div style={{ width: 22, height: 22, borderRadius: "50%", background: pc, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 800 }}>
-              {apt.providerName?.split(" ").map(n => n[0]).join("").slice(0,2) || "?"}
+          {/* Provider chip + CTA — second line on mobile, indented to align under patient name */}
+          {isMobile ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", paddingLeft: 50 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#f8fafc", border: `1px solid ${pc}25`, borderRadius: 8, padding: "4px 8px" }}>
+                <div style={{ width: 22, height: 22, borderRadius: "50%", background: pc, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 800 }}>
+                  {apt.providerName?.split(" ").map(n => n[0]).join("").slice(0,2) || "?"}
+                </div>
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: pc, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{apt.providerName}</span>
+              </div>
+              <div style={{ marginLeft: "auto" }} onClick={e => e.stopPropagation()}>{primaryCTA}</div>
             </div>
-            <span style={{ fontSize: 10.5, fontWeight: 600, color: pc, maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{apt.providerName}</span>
-          </div>
-          {/* Primary CTA */}
-          <div onClick={e => e.stopPropagation()}>{primaryCTA}</div>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#f8fafc", border: `1px solid ${pc}25`, borderRadius: 8, padding: "4px 8px", flexShrink: 0 }}>
+                <div style={{ width: 22, height: 22, borderRadius: "50%", background: pc, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 800 }}>
+                  {apt.providerName?.split(" ").map(n => n[0]).join("").slice(0,2) || "?"}
+                </div>
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: pc, maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{apt.providerName}</span>
+              </div>
+              <div onClick={e => e.stopPropagation()}>{primaryCTA}</div>
+            </>
+          )}
         </div>
 
         {/* Insurance & Flags row */}
@@ -482,7 +496,7 @@ const getSlotStatus = (count, capacity = DEFAULT_CAPACITY) => {
   return "";
 };
 
-function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, onUpdateStatus, onReschedule }) {
+function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, onUpdateStatus, onReschedule, isMobile }) {
   const now = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
 
@@ -577,6 +591,7 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
                     patientPhoto={patients?.find(p => p.id === apt.patientId)?.photo}
                     patientObj={patients?.find(p => p.id === apt.patientId)}
                     allAppointments={allAppointments}
+                    isMobile={isMobile}
                     onOpenChart={onOpenChart} onCheckIn={onCheckIn}
                     onGoToSession={onGoToSession} onToggleVisitType={onToggleVisitType}
                     onUpdateStatus={onUpdateStatus} onReschedule={onReschedule} />
@@ -597,18 +612,18 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
 /* ══════════════════════════════════════════════
    SCHEDULE MODAL
 ══════════════════════════════════════════════ */
-function ScheduleModal({ show, onClose, initialDate, initialVisitType, patients, onSave, defaultProvider }) {
-  const defaultProviderId = defaultProvider || PROVIDERS[0]?.id || "";
+function ScheduleModal({ show, onClose, initialDate, initialVisitType, patients, onSave, defaultProvider, providers = PROVIDERS }) {
+  const defaultProviderId = defaultProvider || providers[0]?.id || "";
   const EMPTY = { isNewPatient:false, patientId:"", newPatientName:"", provider:defaultProviderId,
     date:"", time:"09:00", duration:30, type:"Follow-Up", visitType:"In-Person", reason:"", room:"" };
   const [form, setForm] = useState(EMPTY);
   const [saved, setSaved] = useState(false);
-  useEffect(() => { if (show) { setForm({ ...EMPTY, provider:defaultProvider||PROVIDERS[0]?.id||"", date:initialDate||"", ...(initialVisitType ? { visitType:initialVisitType, type:initialVisitType==="Telehealth"?"Telehealth":"Follow-Up", room:initialVisitType==="Telehealth"?"Virtual":"" } : {}) }); setSaved(false); } }, [show, initialDate, initialVisitType, defaultProvider]);
+  useEffect(() => { if (show) { setForm({ ...EMPTY, provider:defaultProvider||providers[0]?.id||"", date:initialDate||"", ...(initialVisitType ? { visitType:initialVisitType, type:initialVisitType==="Telehealth"?"Telehealth":"Follow-Up", room:initialVisitType==="Telehealth"?"Virtual":"" } : {}) }); setSaved(false); } }, [show, initialDate, initialVisitType, defaultProvider]);
   const upd = (k, v) => setForm(f => ({ ...f, [k]:v }));
   const canSubmit = form.date && form.time && form.provider && (form.isNewPatient ? form.newPatientName.trim() : form.patientId);
   const handleSubmit = () => {
     if (!canSubmit) return;
-    const prov = PROVIDERS.find(p => p.id===form.provider);
+    const prov = providers.find(p => p.id===form.provider);
     const pat = form.isNewPatient ? null : (patients||[]).find(p => p.id===form.patientId);
     const patientName = form.isNewPatient ? `New Patient - ${form.newPatientName.trim()}` : pat ? `${pat.firstName} ${pat.lastName}` : "";
     onSave({ patientId: form.isNewPatient?null:form.patientId||null, patientName,
@@ -658,7 +673,7 @@ function ScheduleModal({ show, onClose, initialDate, initialVisitType, patients,
           <div>
             <LBL c="Provider" />
             <select className="form-input" value={form.provider} onChange={e=>upd("provider",e.target.value)}>
-              {PROVIDERS.map(p=><option key={p.id} value={p.id}>{p.firstName} {p.lastName}{p.credentials?" — "+p.credentials:""}</option>)}
+              {providers.map(p=><option key={p.id} value={p.id}>{p.firstName} {p.lastName}{p.credentials?" — "+p.credentials:""}</option>)}
             </select>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
@@ -713,7 +728,7 @@ function ScheduleModal({ show, onClose, initialDate, initialVisitType, patients,
 /* ══════════════════════════════════════════════
    FRONT DESK – WAITING ROOM ROW
 ══════════════════════════════════════════════ */
-function WaitingRow({ apt, onCheckIn, onNoShow, onCancel, onGoToSession, onCheckout, onReschedule, onToggleVisitType, todayKey, patients }) {
+function WaitingRow({ apt, onCheckIn, onNoShow, onCancel, onGoToSession, onCheckout, onReschedule, onToggleVisitType, todayKey, patients, isMobile }) {
   const ss = getStatusStyle(apt.status);
   const c = getTypeColor(apt);
   const pc = provColor(apt.provider);
@@ -738,109 +753,110 @@ function WaitingRow({ apt, onCheckIn, onNoShow, onCancel, onGoToSession, onCheck
       onMouseEnter={e=>e.currentTarget.style.boxShadow="var(--shadow-md)"}
       onMouseLeave={e=>e.currentTarget.style.boxShadow="var(--shadow-sm)"}>
       <div style={{ width:5, background:c.border, flexShrink:0, alignSelf:"stretch" }} />
-      <div style={{ flex:1, padding:"11px 14px", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-        {/* time */}
-        <div style={{ minWidth:58, textAlign:"center" }}>
-          <div style={{ fontSize:13, fontWeight:800, color:c.text }}>{fmtTime12(apt.time)}</div>
-          <div style={{ fontSize:9, color:"var(--text-muted)", fontWeight:600 }}>{apt.duration||30}m</div>
-        </div>
-        {/* patient */}
-        <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, minWidth:140 }}>
-          <div style={{ width:34, height:34, borderRadius:"50%", flexShrink:0, overflow:"hidden" }}>
-            {pat?.photo
-              ? <img src={pat.photo} alt={apt.patientName} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
-              : <div style={{ width:"100%", height:"100%", background:`linear-gradient(135deg,${c.border},${c.dot})`, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:12 }}>
-                  {apt.patientName?.split(" ").map(n=>n[0]).join("").slice(0,2)||"?"}
-                </div>
-            }
+      <div style={{ flex:1, padding:"11px 14px", display:"flex", flexDirection:"column", gap: isMobile ? 8 : 0 }}>
+        {/* Row 1: time + patient + status (always) */}
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          {/* time */}
+          <div style={{ minWidth:50, textAlign:"center", flexShrink:0 }}>
+            <div style={{ fontSize:13, fontWeight:800, color:c.text }}>{fmtTime12(apt.time)}</div>
+            <div style={{ fontSize:9, color:"var(--text-muted)", fontWeight:600 }}>{apt.duration||30}m</div>
           </div>
-          <div>
-            <div style={{ fontWeight:700, fontSize:13, color:"var(--text-primary)" }}>{apt.patientName}</div>
-            <div style={{ fontSize:10, color:"var(--text-muted)" }}>
-              {pat?.mrn ? pat.mrn+" · " : ""}{apt.type||"Visit"}{apt.room?" · "+apt.room:""}
+          {/* patient */}
+          <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, minWidth:0 }}>
+            <div style={{ width:34, height:34, borderRadius:"50%", flexShrink:0, overflow:"hidden" }}>
+              {pat?.photo
+                ? <img src={pat.photo} alt={apt.patientName} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                : <div style={{ width:"100%", height:"100%", background:`linear-gradient(135deg,${c.border},${c.dot})`, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:12 }}>
+                    {apt.patientName?.split(" ").map(n=>n[0]).join("").slice(0,2)||"?"}
+                  </div>
+              }
+            </div>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontWeight:700, fontSize:13, color:"var(--text-primary)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{apt.patientName}</div>
+              <div style={{ fontSize:10, color:"var(--text-muted)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                {pat?.mrn ? pat.mrn+" · " : ""}{apt.type||"Visit"}{apt.room?" · "+apt.room:""}
+              </div>
             </div>
           </div>
+          {/* status badge — always visible on row 1 */}
+          <div style={{ flexShrink:0 }}><Pill label={apt.status} /></div>
         </div>
-        {/* provider */}
-        <div style={{ display:"flex", alignItems:"center", gap:5, background:"#f8fafc",
-          border:`1px solid ${pc}30`, borderRadius:7, padding:"4px 8px", flexShrink:0 }}>
-          <div style={{ width:20, height:20, borderRadius:"50%", background:pc, color:"#fff",
-            display:"flex", alignItems:"center", justifyContent:"center", fontSize:8, fontWeight:800 }}>
-            {apt.providerName?.split(" ").map(n=>n[0]).join("").slice(0,2)||"?"}
-          </div>
-          <span style={{ fontSize:10.5, fontWeight:600, color:pc, maxWidth:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-            {apt.providerName}
-          </span>
-        </div>
-        {/* insurance / copay */}
-        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", minWidth:70, flexShrink:0 }}>
-          <div style={{ fontSize:9, color:"var(--text-muted)", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px" }}>Copay</div>
-          <div style={{ fontSize:13, fontWeight:800, color: copay===0?"#166534":"#1e40af" }}>
-            {copay===undefined||copay===null ? "—" : copay===0 ? "None" : `$${copay}`}
-          </div>
-          {pat?.insurance?.primary?.name && (
-            <div style={{ fontSize:9, color:"var(--text-muted)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:80 }}>
-              {pat.insurance.primary.name}
+        {/* Row 2: provider + copay + wait + actions */}
+        <div style={{ display:"flex", alignItems:"center", gap: isMobile ? 6 : 12, flexWrap:"wrap",
+          paddingLeft: isMobile ? 60 : 0, marginTop: isMobile ? 0 : 8 }}>
+          {/* provider */}
+          <div style={{ display:"flex", alignItems:"center", gap:5, background:"#f8fafc",
+            border:`1px solid ${pc}30`, borderRadius:7, padding:"4px 8px", flexShrink:0 }}>
+            <div style={{ width:20, height:20, borderRadius:"50%", background:pc, color:"#fff",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:8, fontWeight:800 }}>
+              {apt.providerName?.split(" ").map(n=>n[0]).join("").slice(0,2)||"?"}
             </div>
-          )}
-          {/* Eligibility check */}
-          <button onClick={checkEligibility} disabled={eligState === 'checking'}
-            style={{ marginTop:4, padding:"2px 8px", borderRadius:6, fontSize:9, fontWeight:700, border:"none", cursor: eligState==='checking'?'default':'pointer',
-              background: eligState==='eligible'?"#dcfce7": eligState==='ineligible'?"#fee2e2": eligState==='unknown'?"#fef3c7":"#eff6ff",
-              color: eligState==='eligible'?"#166534": eligState==='ineligible'?"#991b1b": eligState==='unknown'?"#92400e":"#1d4ed8" }}>
-            {eligState==='checking' ? '⏳' : eligState==='eligible' ? '✅ Elig.' : eligState==='ineligible' ? '❌ Inelig.' : eligState==='unknown' ? '⚠️ Verify' : '🔍 Eligibility'}
-          </button>
-        </div>
-        {/* wait time */}
-        {waitMins !== null && (
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", minWidth:50, flexShrink:0 }}>
-            <div style={{ fontSize:9, color:"var(--text-muted)", fontWeight:600, textTransform:"uppercase" }}>Wait</div>
-            <div style={{ fontSize:13, fontWeight:800, color: waitMins>20?"#dc2626":waitMins>10?"#d97706":"#166534" }}>{waitMins}m</div>
+            <span style={{ fontSize:10.5, fontWeight:600, color:pc, maxWidth:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+              {apt.providerName}
+            </span>
           </div>
-        )}
-        {/* status badge */}
-        <div style={{ flexShrink:0 }}><Pill label={apt.status} /></div>
-        {/* actions */}
-        <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginLeft:"auto" }} onClick={e=>e.stopPropagation()}>
-          {(apt.status==="Scheduled"||apt.status==="Confirmed") && apt.date===todayKey && (
-            <button onClick={() => onCheckIn(apt)}
-              style={{ padding:"5px 12px", borderRadius:7, fontSize:11, fontWeight:700, border:"none",
-                background:"#22c55e", color:"#fff", cursor:"pointer" }}>✓ Check In</button>
-          )}
-          {(apt.status==="Checked In") && (
-            <button onClick={() => onGoToSession(apt)}
-              style={{ padding:"5px 12px", borderRadius:7, fontSize:11, fontWeight:700, border:"none",
-                background:"#4f46e5", color:"#fff", cursor:"pointer" }}>🩺 Start Visit</button>
-          )}
-          {apt.status==="In Progress" && (
-            <button onClick={() => onCheckout(apt)}
-              style={{ padding:"5px 12px", borderRadius:7, fontSize:11, fontWeight:700, border:"none",
-                background:"#0891b2", color:"#fff", cursor:"pointer" }}>✔ Checkout</button>
-          )}
-          {(apt.status==="Scheduled"||apt.status==="Confirmed"||apt.status==="Checked In") && (
-            <>
-              <button onClick={() => onNoShow(apt)}
-                style={{ padding:"5px 10px", borderRadius:7, fontSize:11, fontWeight:700,
-                  border:"1px solid #f59e0b", background:"#fef3c7", color:"#92400e", cursor:"pointer" }}>No Show</button>
-              <button onClick={() => onCancel(apt)}
-                style={{ padding:"5px 10px", borderRadius:7, fontSize:11, fontWeight:700,
-                  border:"1px solid #fca5a5", background:"#fee2e2", color:"#991b1b", cursor:"pointer" }}>Cancel</button>
-            </>
-          )}
-          {(apt.status==="No Show"||apt.status==="Cancelled") && (
-            <button onClick={() => onReschedule(apt)}
-              style={{ padding:"5px 12px", borderRadius:7, fontSize:11, fontWeight:700,
-                border:"1px solid #4f46e5", background:"#ede9fe", color:"#4f46e5", cursor:"pointer" }}>Reschedule</button>
-          )}
-          {apt.status!=="Completed" && apt.status!=="Cancelled" && apt.status!=="No Show" && (
-            <button onClick={() => onToggleVisitType(apt)}
-              style={{ padding:"5px 10px", borderRadius:7, fontSize:10, fontWeight:700, cursor:"pointer",
-                border:`1px solid ${apt.visitType==="Telehealth"?"#3b82f6":"#8b5cf6"}`,
-                background:apt.visitType==="Telehealth"?"#eff6ff":"#f5f3ff",
-                color:apt.visitType==="Telehealth"?"#1d4ed8":"#6d28d9" }}>
-              {apt.visitType==="Telehealth" ? "🏥 In-Person" : "📹 Telehealth"}
+          {/* insurance / copay */}
+          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", flexShrink:0 }}>
+            <div style={{ fontSize:9, color:"var(--text-muted)", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px" }}>Copay</div>
+            <div style={{ fontSize:12, fontWeight:800, color: copay===0?"#166534":"#1e40af" }}>
+              {copay===undefined||copay===null ? "—" : copay===0 ? "None" : `$${copay}`}
+            </div>
+            <button onClick={checkEligibility} disabled={eligState === 'checking'}
+              style={{ marginTop:2, padding:"2px 6px", borderRadius:6, fontSize:9, fontWeight:700, border:"none", cursor: eligState==='checking'?'default':'pointer',
+                background: eligState==='eligible'?"#dcfce7": eligState==='ineligible'?"#fee2e2": eligState==='unknown'?"#fef3c7":"#eff6ff",
+                color: eligState==='eligible'?"#166534": eligState==='ineligible'?"#991b1b": eligState==='unknown'?"#92400e":"#1d4ed8" }}>
+              {eligState==='checking' ? '⏳' : eligState==='eligible' ? '✅' : eligState==='ineligible' ? '❌' : eligState==='unknown' ? '⚠️' : '🔍'}
             </button>
+          </div>
+          {/* wait time */}
+          {waitMins !== null && (
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", flexShrink:0 }}>
+              <div style={{ fontSize:9, color:"var(--text-muted)", fontWeight:600, textTransform:"uppercase" }}>Wait</div>
+              <div style={{ fontSize:12, fontWeight:800, color: waitMins>20?"#dc2626":waitMins>10?"#d97706":"#166534" }}>{waitMins}m</div>
+            </div>
           )}
+          {/* actions */}
+          <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginLeft:"auto" }} onClick={e=>e.stopPropagation()}>
+            {(apt.status==="Scheduled"||apt.status==="Confirmed") && apt.date===todayKey && (
+              <button onClick={() => onCheckIn(apt)}
+                style={{ padding:"5px 10px", borderRadius:7, fontSize:11, fontWeight:700, border:"none",
+                  background:"#22c55e", color:"#fff", cursor:"pointer" }}>✓ Check In</button>
+            )}
+            {(apt.status==="Checked In") && (
+              <button onClick={() => onGoToSession(apt)}
+                style={{ padding:"5px 10px", borderRadius:7, fontSize:11, fontWeight:700, border:"none",
+                  background:"#4f46e5", color:"#fff", cursor:"pointer" }}>🩺 Start Visit</button>
+            )}
+            {apt.status==="In Progress" && (
+              <button onClick={() => onCheckout(apt)}
+                style={{ padding:"5px 10px", borderRadius:7, fontSize:11, fontWeight:700, border:"none",
+                  background:"#0891b2", color:"#fff", cursor:"pointer" }}>✔ Checkout</button>
+            )}
+            {(apt.status==="Scheduled"||apt.status==="Confirmed"||apt.status==="Checked In") && (
+              <>
+                <button onClick={() => onNoShow(apt)}
+                  style={{ padding:"5px 8px", borderRadius:7, fontSize:11, fontWeight:700,
+                    border:"1px solid #f59e0b", background:"#fef3c7", color:"#92400e", cursor:"pointer" }}>No Show</button>
+                <button onClick={() => onCancel(apt)}
+                  style={{ padding:"5px 8px", borderRadius:7, fontSize:11, fontWeight:700,
+                    border:"1px solid #fca5a5", background:"#fee2e2", color:"#991b1b", cursor:"pointer" }}>Cancel</button>
+              </>
+            )}
+            {(apt.status==="No Show"||apt.status==="Cancelled") && (
+              <button onClick={() => onReschedule(apt)}
+                style={{ padding:"5px 10px", borderRadius:7, fontSize:11, fontWeight:700,
+                  border:"1px solid #4f46e5", background:"#ede9fe", color:"#4f46e5", cursor:"pointer" }}>Reschedule</button>
+            )}
+            {apt.status!=="Completed" && apt.status!=="Cancelled" && apt.status!=="No Show" && (
+              <button onClick={() => onToggleVisitType(apt)}
+                style={{ padding:"5px 8px", borderRadius:7, fontSize:10, fontWeight:700, cursor:"pointer",
+                  border:`1px solid ${apt.visitType==="Telehealth"?"#3b82f6":"#8b5cf6"}`,
+                  background:apt.visitType==="Telehealth"?"#eff6ff":"#f5f3ff",
+                  color:apt.visitType==="Telehealth"?"#1d4ed8":"#6d28d9" }}>
+                {apt.visitType==="Telehealth" ? "🏥" : "📹"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -997,8 +1013,8 @@ function RescheduleModal({ apt, show, onClose, onConfirm }) {
 /* ══════════════════════════════════════════════
    WALK-IN MODAL
 ══════════════════════════════════════════════ */
-function WalkInModal({ show, onClose, patients, onSave }) {
-  const EMPTY = { isNewPatient:false, patientId:"", newPatientName:"", provider:PROVIDERS[0]?.id||"",
+function WalkInModal({ show, onClose, patients, onSave, providers = PROVIDERS }) {
+  const EMPTY = { isNewPatient:false, patientId:"", newPatientName:"", provider:providers[0]?.id||"",
     type:"Urgent", reason:"", room:"", insurance:"", copay:"" };
   const [form, setForm] = useState(EMPTY);
   const [done, setDone] = useState(false);
@@ -1046,7 +1062,7 @@ function WalkInModal({ show, onClose, patients, onSave }) {
             <div>
               <LBL c="Provider" />
               <select className="form-input" value={form.provider} onChange={e=>upd("provider",e.target.value)}>
-                {PROVIDERS.map(p=><option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+                {providers.map(p=><option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
               </select>
             </div>
             <div>
@@ -1078,7 +1094,7 @@ function WalkInModal({ show, onClose, patients, onSave }) {
             <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
             <button disabled={!canSubmit||done} onClick={() => {
               if (!canSubmit) return;
-              const prov = PROVIDERS.find(p=>p.id===form.provider);
+              const prov = providers.find(p=>p.id===form.provider);
               const pat = form.isNewPatient ? null : (patients||[]).find(p=>p.id===form.patientId);
               const now = new Date();
               const hh = String(now.getHours()).padStart(2,"0");
@@ -1104,7 +1120,7 @@ function WalkInModal({ show, onClose, patients, onSave }) {
 /* ══════════════════════════════════════════════
    FRONT DESK TAB COMPONENT
 ══════════════════════════════════════════════ */
-function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, addAppointment, selectPatient, navigate }) {
+function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, addAppointment, selectPatient, navigate, isMobile }) {
   const [fdFilter, setFdFilter] = useState("All");
   const [showWalkIn, setShowWalkIn] = useState(false);
   const [checkoutApt, setCheckoutApt] = useState(null);
@@ -1322,7 +1338,8 @@ function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, a
             <WaitingRow key={apt.id} apt={apt} patients={patients} todayKey={todayKey}
               onCheckIn={handleCheckIn} onNoShow={handleNoShow} onCancel={handleCancel}
               onGoToSession={handleGoToSession} onCheckout={handleCheckout}
-              onReschedule={handleReschedule} onToggleVisitType={handleToggleVisitType} />
+              onReschedule={handleReschedule} onToggleVisitType={handleToggleVisitType}
+              isMobile={isMobile} />
           ))
         )}
       </div>
@@ -1386,7 +1403,7 @@ function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, a
       </div>
 
       {/* modals */}
-      <WalkInModal show={showWalkIn} onClose={() => setShowWalkIn(false)} patients={patients} onSave={handleWalkInSave} />
+      <WalkInModal show={showWalkIn} onClose={() => setShowWalkIn(false)} patients={patients} onSave={handleWalkInSave} providers={siteProviders} />
       <CheckoutModal show={!!checkoutApt} apt={checkoutApt} patients={patients} onClose={() => setCheckoutApt(null)} onConfirm={handleCheckoutConfirm} />
       <RescheduleModal show={!!rescheduleApt} apt={rescheduleApt} onClose={() => setRescheduleApt(null)} onConfirm={handleRescheduleConfirm} />
     </div>
@@ -2286,6 +2303,10 @@ export default function Schedule() {
     if (!isAdmin && userLocationId) {
       return PROVIDERS.filter(p => p.locationId === userLocationId || p.id === currentUser?.id);
     }
+    // Non-admin with no location assigned: only themselves
+    if (!isAdmin) {
+      return PROVIDERS.filter(p => p.id === currentUser?.id);
+    }
 
     // Admin with no site filter → all providers
     if (!isFiltered) return PROVIDERS;
@@ -2808,6 +2829,7 @@ export default function Schedule() {
                         isToday={activeDate === todayKey}
                         patients={patients}
                         allAppointments={allAppts}
+                        isMobile={isMobile}
                         onOpenChart={handleOpenChart}
                         onCheckIn={handleCheckIn}
                         onGoToSession={handleGoToSession}
@@ -2896,6 +2918,7 @@ export default function Schedule() {
           addAppointment={addAppointment}
           selectPatient={selectPatient}
           navigate={navigate}
+          isMobile={isMobile}
         />
       )}
 
@@ -2935,6 +2958,7 @@ export default function Schedule() {
         initialVisitType={modalVisitType}
         patients={patients}
         defaultProvider={isProvider ? currentUser?.id : undefined}
+        providers={siteProviders}
         onSave={apt => { addAppointment(apt); setShowModal(false); setModalVisitType('In-Person'); }}
       />
     </div>
