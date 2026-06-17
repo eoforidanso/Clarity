@@ -143,7 +143,8 @@ export async function initializeDatabase() {
       patient_id TEXT,
       location_id TEXT DEFAULT 'loc1',
       created_at TEXT DEFAULT NOW(),
-      updated_at TEXT DEFAULT NOW()
+      updated_at TEXT DEFAULT NOW(),
+      deleted_at TIMESTAMPTZ
     );
 
     -- Patients table
@@ -1012,7 +1013,8 @@ export async function initializeDatabase() {
       telehealth INTEGER NOT NULL DEFAULT 1,
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TEXT DEFAULT NOW(),
-      updated_at TEXT DEFAULT NOW()
+      updated_at TEXT DEFAULT NOW(),
+      deleted_at TIMESTAMPTZ
     );
 
     -- Seed default locations if none exist

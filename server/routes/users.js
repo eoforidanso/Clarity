@@ -304,22 +304,29 @@ router.post('/:id/unlock', authenticate, requireElevated, authorize(...ADMIN_ROL
 });
 
 // ── DELETE /api/users/:id (soft delete) ────────────────────────────────
-router.delete('/:id', authenticate, requireElevated, async (req, res) => { if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Forbidden' });
+router.delete('/:id', authenticate, requireElevated, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const { id } = req.params;
+
+    if (id === req.user.id) {
+      return res.status(400).json({ error: 'You cannot delete your own account' });
+    }
+
+    const user = await db.prepare(`SELECT id, username, role FROM users WHERE id = $1 AND role != $2 AND ${ activeScope }`).get(id, 'patient');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const actorName = `${ req.user.first_name } ${ req.user.last_name || '' }`.trim();
+    await softDeleteUser(id, req.user.id, actorName, req.ip);
+
+    res.status(204).end();
+  } catch (err) {
+    console.error('[DELETE /users/:id]', err.message);
+    res.status(500).json({ error: 'Failed to delete user' });
   }
-
-  const { id } = req.params;
-
-  if (id === req.user.id) { return res.status(400).json({ error: 'You cannot delete your own account' });
-  }
-
-  const user = await db.prepare(`SELECT id, username, role FROM users WHERE id = $1 AND role != $2 AND ${ activeScope }`).get(id, 'patient');
-  if (!user) return res.status(404).json({ error: 'User not found' });
-
-  const actorName = `${ req.user.first_name } ${ req.user.last_name || '' }`.trim();
-  softDeleteUser(id, req.user.id, actorName, req.ip);
-
-  res.status(204).end();
 });
 
 export default router;
