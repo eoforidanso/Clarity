@@ -32,8 +32,8 @@ export class InsuranceEligibilityService {
       throw new Error('Patient not found');
     }
 
-    // Mock eligibility response - replace with real API in Phase 2C
-    const mockResult = this._getMockEligibility(patient);
+    // Build eligibility from patient's actual insurance fields on file
+    const result = this._eligibilityFromPatientRecord(patient);
 
     // Cache result for 24 hours
     await db.prepare(`
@@ -44,18 +44,18 @@ export class InsuranceEligibilityService {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW() + INTERVAL '24 hours')
     `).run(
       patientId,
-      mockResult.insuranceName,
-      mockResult.memberId,
-      mockResult.groupNumber,
-      mockResult.eligible,
-      mockResult.coverageType,
-      mockResult.copayAmount,
-      mockResult.deductible,
-      mockResult.outOfPocket
+      result.insuranceName,
+      result.memberId,
+      result.groupNumber,
+      result.eligible,
+      result.coverageType,
+      result.copayAmount,
+      result.deductible,
+      result.outOfPocket
     );
 
     return {
-      ...mockResult,
+      ...result,
       cached: false,
     };
   }
@@ -99,53 +99,93 @@ export class InsuranceEligibilityService {
 
   // Real API integration templates for Phase 2C+
 
-  // Change Healthcare API
+  // Change Healthcare API — requires CHANGE_HEALTHCARE_CLIENT_ID + CHANGE_HEALTHCARE_CLIENT_SECRET
   static async checkViaChangeHealthcare(memberId, groupNumber, patientDOB) {
-    // TODO: Implement Change Healthcare API
-    // const response = await fetch('https://api.changehealthcare.com/eligibility', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Authorization': `Bearer ${process.env.CHANGE_HEALTHCARE_API_KEY}`,
-    //     'Content-Type': 'application/json',
-    //   },
-    //   body: JSON.stringify({
-    //     memberId,
-    //     groupNumber,
-    //     patientDOB,
-    //   }),
-    // });
-    // return response.json();
+    const clientId = process.env.CHANGE_HEALTHCARE_CLIENT_ID;
+    const clientSecret = process.env.CHANGE_HEALTHCARE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      throw new Error('Change Healthcare credentials not configured (CHANGE_HEALTHCARE_CLIENT_ID, CHANGE_HEALTHCARE_CLIENT_SECRET)');
+    }
+    // OAuth2 token exchange
+    const tokenRes = await fetch('https://sandbox.apigee.changehealthcare.com/apip/auth/v2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret }).toString(),
+    });
+    if (!tokenRes.ok) throw new Error(`Change Healthcare auth failed: ${tokenRes.status}`);
+    const { access_token } = await tokenRes.json();
+
+    const eligRes = await fetch('https://sandbox.apigee.changehealthcare.com/medicalnetwork/eligibility/v3/', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memberId, groupNumber, dateOfBirth: patientDOB }),
+    });
+    if (!eligRes.ok) throw new Error(`Change Healthcare eligibility check failed: ${eligRes.status}`);
+    return eligRes.json();
   }
 
-  // Optum API
+  // Optum API — requires OPTUM_CLIENT_ID + OPTUM_CLIENT_SECRET
   static async checkViaOptum(memberId, groupNumber) {
-    // TODO: Implement Optum API
+    const clientId = process.env.OPTUM_CLIENT_ID;
+    const clientSecret = process.env.OPTUM_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      throw new Error('Optum credentials not configured (OPTUM_CLIENT_ID, OPTUM_CLIENT_SECRET)');
+    }
+    const tokenRes = await fetch('https://api.optum.com/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret }).toString(),
+    });
+    if (!tokenRes.ok) throw new Error(`Optum auth failed: ${tokenRes.status}`);
+    const { access_token } = await tokenRes.json();
+
+    const eligRes = await fetch('https://api.optum.com/v1/eligibility', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memberId, groupNumber }),
+    });
+    if (!eligRes.ok) throw new Error(`Optum eligibility check failed: ${eligRes.status}`);
+    return eligRes.json();
   }
 
-  // eviCore API (for specialty pharmacy)
+  // eviCore API (specialty pharmacy prior auth) — requires EVICORE_USERNAME + EVICORE_PASSWORD
   static async checkViaEviCore(memberId, medicationCode) {
-    // TODO: Implement eviCore API
+    const username = process.env.EVICORE_USERNAME;
+    const password = process.env.EVICORE_PASSWORD;
+    if (!username || !password) {
+      throw new Error('eviCore credentials not configured (EVICORE_USERNAME, EVICORE_PASSWORD)');
+    }
+    const auth = Buffer.from(`${username}:${password}`).toString('base64');
+    const res = await fetch('https://api.evicore.com/v1/authorization/check', {
+      method: 'POST',
+      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memberId, serviceCode: medicationCode }),
+    });
+    if (!res.ok) throw new Error(`eviCore authorization check failed: ${res.status}`);
+    return res.json();
   }
 
-  // Mock eligibility data generator
-  static _getMockEligibility(patient) {
-    // Generate consistent mock data based on patient ID
-    const mockCopayOptions = [0, 10, 15, 20, 25, 30, 40, 50];
-    const copayIndex = (patient.id % mockCopayOptions.length);
-    const copay = mockCopayOptions[copayIndex];
+  // Build eligibility response from real patient insurance fields stored in the DB
+  static _eligibilityFromPatientRecord(patient) {
+    const name    = patient.insurance_primary_name || patient.insurance_name || '';
+    const member  = patient.insurance_primary_member_id || patient.member_id || '';
+    const group   = patient.insurance_primary_group_number || patient.group_number || '';
+    const copay   = patient.insurance_primary_copay != null ? parseFloat(patient.insurance_primary_copay) : null;
+    const hasIns  = Boolean(name);
 
     return {
-      insuranceName: 'Blue Cross Blue Shield',
-      memberId: `BCB${String(patient.id).padStart(8, '0')}`,
-      groupNumber: `GRP${String(patient.id % 100000).padStart(5, '0')}`,
-      eligible: true,
-      coverageType: 'pharmacy',
-      copayAmount: copay,
-      deductible: 500,
-      deductibleMet: Math.random() * 500,
-      outOfPocket: 2000,
+      insuranceName:  name  || 'No insurance on file',
+      memberId:       member,
+      groupNumber:    group,
+      eligible:       hasIns,
+      coverageType:   'medical',
+      copayAmount:    copay ?? 0,
+      deductible:     null,
+      deductibleMet:  null,
+      outOfPocket:    null,
       requiresPreauth: false,
-      priorAuthDays: 0,
+      priorAuthDays:  0,
+      source:         'patient_record',
     };
   }
 

@@ -94,13 +94,25 @@ export class RefillService {
       };
     }
 
-    // Mock eligibility check - Phase 2C will integrate real APIs
-    const mockEligibility = {
-      eligible: true,
-      copay: 30.00,
-      coverageType: 'pharmacy',
-      deductible: 500,
-      deductibleMet: 250,
+    // Pull eligibility from patient's actual insurance fields on file
+    const patient = await db.prepare(
+      `SELECT insurance_primary_name, insurance_primary_member_id,
+              insurance_primary_group_number, insurance_primary_copay
+       FROM patients WHERE id = ?`
+    ).get(refill.patient_id);
+
+    const insuranceName = patient?.insurance_primary_name || '';
+    const copay = patient?.insurance_primary_copay != null
+      ? parseFloat(patient.insurance_primary_copay) : 0;
+    const eligible = Boolean(insuranceName);
+
+    const eligibility = {
+      eligible,
+      copay,
+      coverageType: 'medical',
+      deductible: null,
+      deductibleMet: null,
+      source: 'patient_record',
     };
 
     // Cache result for 24 hours
@@ -111,20 +123,20 @@ export class RefillService {
       ) VALUES (?, ?, ?, ?, ?, ?, NOW() + INTERVAL '24 hours')
     `).run(
       refill.patient_id,
-      'Mock Insurance',
-      mockEligibility.eligible,
-      mockEligibility.coverageType,
-      mockEligibility.copay,
-      mockEligibility.deductible
+      insuranceName || 'No insurance on file',
+      eligible,
+      eligibility.coverageType,
+      copay,
+      null
     );
 
     // Update refill with copay
     await db.prepare(`
       UPDATE refills SET copay_amount = ?, insurance_verified_at = NOW()
       WHERE id = ?
-    `).run(mockEligibility.copay, refillId);
+    `).run(copay, refillId);
 
-    return mockEligibility;
+    return eligibility;
   }
 
   // Track notification for a refill
