@@ -1,23 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { educationResources as educationResourcesApi } from '../services/api';
 
 const CATEGORIES = ['Depression', 'Anxiety', 'PTSD', 'ADHD', 'Substance Use', 'Bipolar', 'Psychosis', 'Sleep', 'Grief & Loss', 'Medication', 'Wellness', 'Crisis & Safety', 'Caregiver Support', 'Child & Adolescent'];
 const FORMATS = ['PDF', 'Video', 'Infographic', 'Worksheet', 'Web Link'];
 const LANGUAGES = ['English', 'Spanish', 'Mandarin', 'Vietnamese', 'Korean', 'Arabic'];
 
-const MOCK_RESOURCES = [
-  { id: 'ed1', title: 'Understanding Your PHQ-9 Score', category: 'Depression', format: 'PDF', language: 'English', pages: 2, readTime: '3 min', description: 'Patient-friendly explanation of PHQ-9 depression screening scores, what they mean, and when to seek help.', lastUpdated: '2026-03-01', downloads: 142, tags: ['screening', 'PHQ-9', 'self-help'] },
-  { id: 'ed2', title: 'Coping with Anxiety — Grounding Techniques', category: 'Anxiety', format: 'PDF', language: 'English', pages: 4, readTime: '5 min', description: 'Step-by-step guide to 5-4-3-2-1 grounding, box breathing, progressive muscle relaxation, and cognitive defusion.', lastUpdated: '2026-02-15', downloads: 287, tags: ['coping', 'self-help', 'CBT'] },
-  { id: 'ed3', title: 'What is EMDR Therapy?', category: 'PTSD', format: 'Infographic', language: 'English', pages: 1, readTime: '2 min', description: 'Visual overview of Eye Movement Desensitization and Reprocessing therapy — what to expect in sessions.', lastUpdated: '2026-01-20', downloads: 95, tags: ['therapy', 'trauma'] },
-  { id: 'ed4', title: 'ADHD Medication Guide for Adults', category: 'ADHD', format: 'PDF', language: 'English', pages: 6, readTime: '8 min', description: 'Comprehensive guide to stimulant and non-stimulant ADHD medications, side effects, and what to report to your provider.', lastUpdated: '2026-03-10', downloads: 198, tags: ['medication', 'stimulants', 'safety'] },
-  { id: 'ed5', title: 'Naloxone (Narcan) — How to Save a Life', category: 'Substance Use', format: 'Infographic', language: 'English', pages: 1, readTime: '2 min', description: 'Visual guide on recognizing opioid overdose and administering intranasal naloxone.', lastUpdated: '2026-02-01', downloads: 76, tags: ['harm reduction', 'opioids', 'safety'] },
-  { id: 'ed6', title: 'Entendiendo su Puntaje de PHQ-9', category: 'Depression', format: 'PDF', language: 'Spanish', pages: 2, readTime: '3 min', description: 'Spanish-language version of PHQ-9 score interpretation guide.', lastUpdated: '2026-03-01', downloads: 54, tags: ['screening', 'PHQ-9', 'Spanish'] },
-  { id: 'ed7', title: 'Sleep Hygiene — 10 Rules for Better Sleep', category: 'Sleep', format: 'PDF', language: 'English', pages: 2, readTime: '4 min', description: 'Evidence-based sleep hygiene practices for patients with insomnia or disrupted sleep patterns.', lastUpdated: '2026-01-15', downloads: 312, tags: ['insomnia', 'self-help', 'wellness'] },
-  { id: 'ed8', title: 'My Safety Plan Template', category: 'Crisis & Safety', format: 'Worksheet', language: 'English', pages: 1, readTime: '10 min', description: 'Fillable safety plan worksheet based on the Stanley-Brown Safety Planning Intervention. For patients with suicidal ideation.', lastUpdated: '2026-04-01', downloads: 167, tags: ['safety plan', 'suicide prevention', 'C-SSRS'] },
-  { id: 'ed9', title: 'Bipolar Disorder — Mood Tracking Journal', category: 'Bipolar', format: 'Worksheet', language: 'English', pages: 4, readTime: '5 min', description: 'Daily mood tracking worksheet with sleep, medication adherence, and energy level columns.', lastUpdated: '2026-02-20', downloads: 89, tags: ['mood tracking', 'self-monitoring'] },
-  { id: 'ed10', title: 'CBT Thought Record Worksheet', category: 'Anxiety', format: 'Worksheet', language: 'English', pages: 2, readTime: '10 min', description: 'Cognitive Behavioral Therapy thought record for identifying automatic thoughts, cognitive distortions, and balanced alternatives.', lastUpdated: '2026-03-15', downloads: 245, tags: ['CBT', 'worksheet', 'cognitive'] },
-  { id: 'ed11', title: 'Supporting a Loved One with Depression', category: 'Caregiver Support', format: 'PDF', language: 'English', pages: 3, readTime: '5 min', description: 'Guide for family members and caregivers on how to support someone experiencing depression.', lastUpdated: '2026-02-10', downloads: 118, tags: ['family', 'support', 'caregiver'] },
-  { id: 'ed12', title: 'Mindfulness Meditation — Getting Started', category: 'Wellness', format: 'Video', language: 'English', pages: 0, readTime: '12 min', description: '12-minute guided mindfulness meditation video for beginners. Includes body scan and breathing exercises.', lastUpdated: '2026-01-30', downloads: 203, tags: ['mindfulness', 'meditation', 'video'] },
-];
 
 export default function PatientEducation() {
   const [search, setSearch] = useState('');
@@ -31,17 +18,25 @@ export default function PatientEducation() {
   const uploadRef = React.useRef(null);
   const [uploadedName, setUploadedName] = useState(null);
 
+  const [resources, setResources] = useState([]);
+
+  useEffect(() => {
+    educationResourcesApi.list().then(data => {
+      if (Array.isArray(data)) setResources(data);
+    }).catch(() => {});
+  }, []);
+
   const filtered = useMemo(() => {
-    let list = [...MOCK_RESOURCES];
+    let list = [...resources];
     if (filterCat !== 'All') list = list.filter(r => r.category === filterCat);
     if (filterFmt !== 'All') list = list.filter(r => r.format === filterFmt);
     if (filterLang !== 'All') list = list.filter(r => r.language === filterLang);
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter(r => r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.tags.some(t => t.includes(q)));
+      list = list.filter(r => r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || (r.tags || []).some(t => t.toLowerCase().includes(q)));
     }
     return list;
-  }, [search, filterCat, filterFmt, filterLang]);
+  }, [resources, search, filterCat, filterFmt, filterLang]);
 
   const fmtIcon = { PDF: '📄', Video: '🎬', Infographic: '📊', Worksheet: '📝', 'Web Link': '🔗' };
 
@@ -65,10 +60,10 @@ export default function PatientEducation() {
       {/* Quick Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
         {[
-          { icon: '📚', val: MOCK_RESOURCES.length, label: 'Total Resources' },
-          { icon: '📄', val: MOCK_RESOURCES.filter(r => r.format === 'PDF').length, label: 'PDFs' },
-          { icon: '📝', val: MOCK_RESOURCES.filter(r => r.format === 'Worksheet').length, label: 'Worksheets' },
-          { icon: '🌐', val: [...new Set(MOCK_RESOURCES.map(r => r.language))].length, label: 'Languages' },
+          { icon: '📚', val: resources.length, label: 'Total Resources' },
+          { icon: '📄', val: resources.filter(r => r.format === 'PDF').length, label: 'PDFs' },
+          { icon: '📝', val: resources.filter(r => r.format === 'Worksheet').length, label: 'Worksheets' },
+          { icon: '🌐', val: [...new Set(resources.map(r => r.language))].length, label: 'Languages' },
         ].map(s => (
           <div key={s.label} style={{ background: '#fff', borderRadius: 12, border: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{s.icon}</div>

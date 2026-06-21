@@ -4,9 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { usePatient } from "../contexts/PatientContext";
 import { useSite, appointmentSiteId } from "../contexts/SiteContext";
-import { users as allUsers } from "../data/mockData";
-
-const PROVIDERS = allUsers.filter(u => u.role === "prescriber" || u.role === "nurse" || u.role === "therapist");
+import { users as usersApi } from '../services/api';
 
 /* ── helpers ── */
 const getToday = () => new Date();
@@ -59,7 +57,7 @@ const STATUS_STYLE = {
 };
 const getStatusStyle = s => STATUS_STYLE[s] || STATUS_STYLE["Scheduled"];
 const PROV_COLORS = ["#4f46e5","#0891b2","#059669","#7c3aed","#dc2626","#d97706"];
-const provColor = id => PROV_COLORS[PROVIDERS.findIndex(p => p.id === id) % PROV_COLORS.length] || "#4f46e5";
+const provColor = (id, provs) => PROV_COLORS[(provs || []).findIndex(p => p.id === id) % PROV_COLORS.length] || "#4f46e5";
 
 const card = (extra = {}) => ({
   background: "#fff", border: "1px solid var(--border)", borderRadius: 10,
@@ -612,7 +610,7 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
 /* ══════════════════════════════════════════════
    SCHEDULE MODAL
 ══════════════════════════════════════════════ */
-function ScheduleModal({ show, onClose, initialDate, initialVisitType, patients, onSave, defaultProvider, providers = PROVIDERS }) {
+function ScheduleModal({ show, onClose, initialDate, initialVisitType, patients, onSave, defaultProvider, providers = [] }) {
   const defaultProviderId = defaultProvider || providers[0]?.id || "";
   const EMPTY = { isNewPatient:false, patientId:"", newPatientName:"", provider:defaultProviderId,
     date:"", time:"09:00", duration:30, type:"Follow-Up", visitType:"In-Person", reason:"", room:"" };
@@ -1013,7 +1011,7 @@ function RescheduleModal({ apt, show, onClose, onConfirm }) {
 /* ══════════════════════════════════════════════
    WALK-IN MODAL
 ══════════════════════════════════════════════ */
-function WalkInModal({ show, onClose, patients, onSave, providers = PROVIDERS }) {
+function WalkInModal({ show, onClose, patients, onSave, providers = [] }) {
   const EMPTY = { isNewPatient:false, patientId:"", newPatientName:"", provider:providers[0]?.id||"",
     type:"Urgent", reason:"", room:"", insurance:"", copay:"" };
   const [form, setForm] = useState(EMPTY);
@@ -2134,6 +2132,13 @@ export default function Schedule() {
   const isFrontDesk = currentUser?.role === "front_desk" || currentUser?.role === "admin";
   const isProvider  = currentUser?.role === "prescriber" || currentUser?.role === "therapist";
 
+  const [providers, setProviders] = useState([]);
+  useEffect(() => {
+    usersApi.list().then(data => {
+      if (Array.isArray(data)) setProviders(data.filter(u => ['prescriber', 'nurse', 'therapist'].includes(u.role)));
+    }).catch(() => {});
+  }, []);
+
   // Restrict which providers a user can block days for:
   // - front_desk → all providers
   // - prescriber / therapist → only themselves
@@ -2141,13 +2146,13 @@ export default function Schedule() {
   const authorizedProviders = useMemo(() => {
     const userLocationId = currentUser?.locationId || currentUser?.location_id;
     const isAdmin = currentUser?.role === 'admin';
-    if (isAdmin) return PROVIDERS;
+    if (isAdmin) return providers;
     if (isFrontDesk) return userLocationId
-      ? PROVIDERS.filter(p => p.locationId === userLocationId)
-      : PROVIDERS;
-    if (isProvider) return PROVIDERS.filter(p => p.id === currentUser?.id);
+      ? providers.filter(p => p.locationId === userLocationId)
+      : providers;
+    if (isProvider) return providers.filter(p => p.id === currentUser?.id);
     return [];
-  }, [isFrontDesk, isProvider, currentUser]);
+  }, [isFrontDesk, isProvider, currentUser, providers]);
 
   const canBlockDays = authorizedProviders.length > 0;
 
@@ -2182,10 +2187,12 @@ export default function Schedule() {
     setActivityFeed(f => [...f.slice(-49), { icon, text, time }]);
   }, []);
   const [showBlockPanel, setShowBlockPanel] = useState(false);
-  const [blockProvider, setBlockProvider] = useState(() =>
-    // Pre-select the current user if they are a provider, otherwise the first in the list
-    (PROVIDERS.find(p => p.id === currentUser?.id)?.id) || PROVIDERS[0]?.id || ""
-  );
+  const [blockProvider, setBlockProvider] = useState("");
+  useEffect(() => {
+    if (blockProvider === "" && providers.length > 0) {
+      setBlockProvider((providers.find(p => p.id === currentUser?.id)?.id) || providers[0]?.id || "");
+    }
+  }, [providers, currentUser?.id]);
   const [blockDateFrom, setBlockDateFrom] = useState("");
   const [blockDateTo, setBlockDateTo] = useState("");
   const [blockReason, setBlockReason] = useState("");
@@ -2245,7 +2252,7 @@ export default function Schedule() {
 
   const providerBreakdown = useMemo(() => {
     const base = allAppts.filter(a=>a.date===activeDate);
-    return PROVIDERS.map(p => {
+    return providers.map(p => {
       const apts = base.filter(a => a.provider === p.id);
       const telehealth = apts.filter(a => a.visitType === "Telehealth").length;
       const inPerson   = apts.length - telehealth;
@@ -2274,7 +2281,7 @@ export default function Schedule() {
 
       return { ...p, apts, telehealth, inPerson, avgDuration, gaps, overlaps };
     }).filter(p => p.apts.length > 0);
-  }, [allAppts, activeDate]);
+  }, [allAppts, activeDate, providers]);
 
   const providerStatuses = useMemo(() => {
     const map = {};
@@ -2301,22 +2308,22 @@ export default function Schedule() {
 
     // Non-admin: always filter to their own location
     if (!isAdmin && userLocationId) {
-      return PROVIDERS.filter(p => p.locationId === userLocationId || p.id === currentUser?.id);
+      return providers.filter(p => p.locationId === userLocationId || p.id === currentUser?.id);
     }
     // Non-admin with no location assigned: only themselves
     if (!isAdmin) {
-      return PROVIDERS.filter(p => p.id === currentUser?.id);
+      return providers.filter(p => p.id === currentUser?.id);
     }
 
     // Admin with no site filter → all providers
-    if (!isFiltered) return PROVIDERS;
+    if (!isFiltered) return providers;
 
     // Admin with site selected → providers at that site or with appointments there
     const provIdsWithAppts = new Set(allAppts.map(a => a.provider));
-    return PROVIDERS.filter(p =>
+    return providers.filter(p =>
       provIdsWithAppts.has(p.id) || p.locationId === activeSiteId
     );
-  }, [isFiltered, allAppts, activeSiteId, currentUser]);
+  }, [isFiltered, allAppts, activeSiteId, currentUser, providers]);
 
   const handleOpenChart  = useCallback(apt => { if(apt.patientId){selectPatient(apt.patientId);navigate(`/chart/${apt.patientId}/summary`);} }, [selectPatient,navigate]);
   const handleCheckIn    = useCallback(apt => {
@@ -2356,7 +2363,7 @@ export default function Schedule() {
 
   const handleAddBlock = () => {
     if (!blockDateFrom||!blockDateTo||!blockProvider||blockDateTo<blockDateFrom) return;
-    const prov = PROVIDERS.find(p=>p.id===blockProvider);
+    const prov = providers.find(p=>p.id===blockProvider);
     addBlockedDay({ providerId:blockProvider, providerName:prov?`${prov.firstName} ${prov.lastName}`.trim():blockProvider,
       dateFrom:blockDateFrom, dateTo:blockDateTo, type:blockType, reason:blockReason.trim() });
     setBlockDateFrom(""); setBlockDateTo(""); setBlockReason(""); setBlockType("full");
@@ -2758,7 +2765,7 @@ export default function Schedule() {
                   display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                   <div style={{ fontWeight:700, fontSize:13 }}>
                     Appointments
-                    {providerFilter!=="all" && (()=>{ const pv=PROVIDERS.find(p=>p.id===providerFilter); return pv?<span style={{ marginLeft:8, fontSize:11, color:"var(--text-muted)", fontWeight:500 }}>· {pv.firstName} {pv.lastName}</span>:null; })()}
+                    {providerFilter!=="all" && (()=>{ const pv=providers.find(p=>p.id===providerFilter); return pv?<span style={{ marginLeft:8, fontSize:11, color:"var(--text-muted)", fontWeight:500 }}>· {pv.firstName} {pv.lastName}</span>:null; })()}
                   </div>
                   <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                     <span style={{ fontSize:11, color:"var(--text-muted)" }}>{dateAppts.length} appointment{dateAppts.length!==1?"s":""}</span>

@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
-import { encounters as mockEncounters, encounterHistory } from '../data/mockData';
+import { encounters as encountersApi } from '../services/api';
 
 // ─── CPT Fee Schedule ─────────────────────────────────────────────────────────
 const CPT_FEE = {
@@ -735,20 +735,26 @@ function calcPriorityScore(claim) {
 }
 
 // ─── Get Billable Encounters ──────────────────────────────────────────────────
-function getBillableEncounters(patientId, billedEncounterIds) {
+function getBillableEncounters(patientId, billedEncounterIds, apiEncounters = []) {
   const results = [];
-  const histList = encounterHistory[patientId] || [];
-  histList.forEach(enc => {
+  apiEncounters.forEach(enc => {
     if (billedEncounterIds.has(enc.id)) return;
-    if (!enc.cptCode) return;
-    results.push({ id: enc.id, date: enc.date, label: enc.date + ' — ' + enc.visitType + ' (' + (enc.reason || '').slice(0, 40) + ')', providerName: (enc.provider || '') + (enc.credentials ? ', ' + enc.credentials : ''), cptCodes: [enc.cptCode], icdCode: enc.icdCode || '', diagnosis: enc.icdCode ? enc.icdCode.split(' - ').slice(1).join(' - ') : '' });
-  });
-  const detailedList = mockEncounters[patientId] || [];
-  detailedList.forEach(enc => {
-    if (billedEncounterIds.has(enc.id)) return;
-    if (enc.status !== 'Completed') return;
-    if (!enc.cptCodes || enc.cptCodes.length === 0) return;
-    results.push({ id: enc.id, date: enc.date, label: enc.date + ' — ' + enc.type, providerName: enc.providerName || '', cptCodes: enc.cptCodes, icdCode: '', diagnosis: '' });
+    const signed = enc.signed_at || enc.signedAt;
+    if (!signed) return;
+    const cptCodes = enc.cpt_codes || enc.cptCodes || (enc.cptCode ? [enc.cptCode] : []);
+    if (!cptCodes.length) return;
+    const date = enc.date || enc.encounter_date || '';
+    const visitType = enc.visit_type || enc.visitType || enc.type || '';
+    const reason = enc.reason || enc.chief_complaint || '';
+    results.push({
+      id: enc.id,
+      date,
+      label: `${date} — ${visitType}${reason ? ` (${reason.slice(0, 40)})` : ''}`,
+      providerName: enc.provider_name || enc.providerName || enc.signed_by || enc.signedBy || '',
+      cptCodes,
+      icdCode: (enc.icd_codes || enc.icdCodes || [])[0] || enc.icdCode || '',
+      diagnosis: '',
+    });
   });
   return results;
 }
@@ -1621,11 +1627,19 @@ function ClaimDetailModal({ claim, onClose, onMarkPaid, onAppeal }) {
 function GenerateClaimModal({ onClose, onGenerate, patients, billedEncounterIds }) {
   const [selectedPatientId, setSelectedPatientId] = useState('');
   const [selectedEncounterId, setSelectedEncounterId] = useState('');
+  const [patientEncounters, setPatientEncounters] = useState([]);
+
+  useEffect(() => {
+    if (!selectedPatientId) { setPatientEncounters([]); return; }
+    encountersApi.list(selectedPatientId).then(d => {
+      if (Array.isArray(d)) setPatientEncounters(d);
+    }).catch(() => {});
+  }, [selectedPatientId]);
 
   const selectedPatient = patients.find(p => p.id === selectedPatientId) || null;
   const billableEncounters = useMemo(() =>
-    selectedPatientId ? getBillableEncounters(selectedPatientId, billedEncounterIds) : [],
-    [selectedPatientId, billedEncounterIds]
+    selectedPatientId ? getBillableEncounters(selectedPatientId, billedEncounterIds, patientEncounters) : [],
+    [selectedPatientId, billedEncounterIds, patientEncounters]
   );
   const selectedEncounter = billableEncounters.find(e => e.id === selectedEncounterId) || null;
 

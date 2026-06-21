@@ -68,6 +68,10 @@ import treatmentPlanRoutes from './routes/treatmentPlans.js';
 import goalRoutes from './routes/goals.js';
 import secureNoteRoutes from './routes/secureNotes.js';
 import telehealthTokenRoutes from './routes/telehealthToken.js';
+import priorAuthRoutes from './routes/priorAuths.js';
+import patientRecallRoutes from './routes/patientRecalls.js';
+import educationResourceRoutes from './routes/educationResources.js';
+import labTrackingRoutes from './routes/labTracking.js';
 
 const app = express();
 
@@ -333,6 +337,10 @@ app.use('/api/treatment-plans',    authenticate, validateCsrfToken, requireFacil
 app.use('/api/goals',              authenticate, validateCsrfToken, requireFacility, goalRoutes);
 app.use('/api/secure-notes',       authenticate, validateCsrfToken, requireFacility, secureNoteRoutes);
 app.use('/api/telehealth',         authenticate, validateCsrfToken, telehealthTokenRoutes);
+app.use('/api/prior-auths',        authenticate, validateCsrfToken, requireFacility, priorAuthRoutes);
+app.use('/api/patient-recalls',    authenticate, validateCsrfToken, requireFacility, patientRecallRoutes);
+app.use('/api/education-resources',authenticate, validateCsrfToken, educationResourceRoutes);
+app.use('/api/lab-tracking',       authenticate, validateCsrfToken, requireFacility, labTrackingRoutes);
 
 // 404 handler for unknown API routes
 app.use((req, res) => {

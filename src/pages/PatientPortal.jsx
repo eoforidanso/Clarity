@@ -1,7 +1,20 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
-import { users as allUsers } from '../data/mockData';
+import { users as usersApi } from '../services/api';
+import {
+  LiveKitRoom,
+  VideoTrack,
+  RoomAudioRenderer,
+  useLocalParticipant,
+  useRemoteParticipants,
+  useTracks,
+  useRoomContext,
+} from '@livekit/components-react';
+import { Track, ParticipantEvent, RoomEvent } from 'livekit-client';
+
+const PORTAL_API  = import.meta.env.VITE_API_URL || '/api';
+const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL;
 
 /* ── PHQ-9 & GAD-7 question banks ─────────────────────────── */
 const PHQ9_QUESTIONS = [
@@ -554,38 +567,305 @@ const TABS = [
   { key: 'telehealth', icon: '📹', label: 'telehealth' },
 ];
 
-const PORTAL_API = import.meta.env.VITE_API_URL || '/api';
-
 // Fetch real data when logged in via patient portal OTP
 function usePortalData(patientId) {
-  const [portalAppts, setPortalAppts] = useState(null);
-  const [portalMeds,  setPortalMeds]  = useState(null);
-  const [portalMe,    setPortalMe]    = useState(null);
+  const [portalAppts,    setPortalAppts]    = useState(null);
+  const [portalMeds,     setPortalMeds]     = useState(null);
+  const [portalMe,       setPortalMe]       = useState(null);
+  const [portalMessages, setPortalMessages] = useState(null);
 
   useEffect(() => {
-    // Only fetch if this looks like a real portal session (no patientId in currentUser means OTP login)
     const fetchAll = async () => {
       try {
-        const [meRes, apptRes, medRes] = await Promise.all([
+        const [meRes, apptRes, medRes, msgRes] = await Promise.all([
           fetch(`${PORTAL_API}/patient-portal/me`,           { credentials: 'include' }),
           fetch(`${PORTAL_API}/patient-portal/appointments`, { credentials: 'include' }),
           fetch(`${PORTAL_API}/patient-portal/medications`,  { credentials: 'include' }),
+          fetch(`${PORTAL_API}/patient-portal/messages`,     { credentials: 'include' }),
         ]);
         if (meRes.ok)   setPortalMe(await meRes.json());
         if (apptRes.ok) setPortalAppts(await apptRes.json());
         if (medRes.ok)  setPortalMeds(await medRes.json());
+        if (msgRes.ok)  setPortalMessages(await msgRes.json());
       } catch { /* offline */ }
     };
     fetchAll();
   }, [patientId]);
 
-  return { portalMe, portalAppts, portalMeds };
+  return { portalMe, portalAppts, portalMeds, portalMessages };
+}
+
+/* ─── Patient-side LiveKit video room ──────────────────────────────────── */
+function PatientVideoRoom({ token, onLeave }) {
+  return (
+    <div style={{ position:'fixed', inset:0, background:'#0f172a', zIndex:9000, display:'flex', flexDirection:'column' }}>
+      {/* Header */}
+      <div style={{ padding:'12px 20px', background:'#1e293b', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <div style={{ width:10, height:10, borderRadius:'50%', background:'#ef4444', animation:'pulse 1.5s infinite' }} />
+          <span style={{ color:'#fff', fontWeight:700, fontSize:14 }}>Live Session · Clarity Health</span>
+          <span style={{ color:'#94a3b8', fontSize:11 }}>🔒 Encrypted</span>
+        </div>
+        <button onClick={onLeave}
+          style={{ background:'#ef4444', color:'#fff', border:'none', borderRadius:8, padding:'8px 18px', fontWeight:700, fontSize:13, cursor:'pointer' }}>
+          Leave Session
+        </button>
+      </div>
+
+      {/* LiveKit Room */}
+      <LiveKitRoom
+        serverUrl={LIVEKIT_URL}
+        token={token}
+        connect={true}
+        audio={true}
+        video={true}
+        style={{ flex:1, display:'flex', flexDirection:'column' }}
+      >
+        <RoomAudioRenderer />
+        <PatientVideoContent onLeave={onLeave} participantName={token} />
+      </LiveKitRoom>
+    </div>
+  );
+}
+
+function PatientVideoContent({ onLeave }) {
+  const { localParticipant, isCameraEnabled, isMicrophoneEnabled } = useLocalParticipant();
+  const tracks = useTracks([Track.Source.Camera]);
+  const remoteParticipants = useRemoteParticipants();
+  const room = useRoomContext();
+
+  // Track whether provider has admitted us (permissions upgraded from waiting room)
+  const [admitted, setAdmitted] = useState(
+    () => localParticipant?.permissions?.canSubscribe === true
+  );
+
+  useEffect(() => {
+    if (!localParticipant) return;
+    const checkAdmitted = () => {
+      if (localParticipant.permissions?.canSubscribe) setAdmitted(true);
+    };
+    localParticipant.on(ParticipantEvent.ParticipantPermissionsChanged, checkAdmitted);
+    checkAdmitted();
+    return () => localParticipant.off(ParticipantEvent.ParticipantPermissionsChanged, checkAdmitted);
+  }, [localParticipant]);
+
+  // ── Breakout invite state ────────────────────────────────────────────────
+  const [breakoutInvite,  setBreakoutInvite]  = useState(null); // { token, room }
+  const [breakoutActive,  setBreakoutActive]  = useState(false);
+
+  useEffect(() => {
+    if (!room) return;
+    const dec = new TextDecoder();
+    const handleData = (payload) => {
+      try {
+        const msg = JSON.parse(dec.decode(payload));
+        if (msg.type === 'breakout_invite') setBreakoutInvite({ token: msg.token, room: msg.room });
+        if (msg.type === 'breakout_ended')  { setBreakoutActive(false); setBreakoutInvite(null); }
+      } catch { /* ignore */ }
+    };
+    room.on(RoomEvent.DataReceived, handleData);
+    return () => room.off(RoomEvent.DataReceived, handleData);
+  }, [room]);
+
+  const localVideoTrack  = tracks.find(t => t.participant.isLocal);
+  const remoteVideoTrack = tracks.find(t => !t.participant.isLocal);
+
+  // ── Waiting room view ────────────────────────────────────────────────────
+  if (!admitted) {
+    return (
+      <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:32, gap:20 }}>
+        {/* Animated waiting indicator */}
+        <div style={{ position:'relative', width:100, height:100 }}>
+          <div style={{ position:'absolute', inset:0, borderRadius:'50%', border:'3px solid #4f46e5', opacity:0.3, animation:'ping 1.5s cubic-bezier(0,0,0.2,1) infinite' }} />
+          <div style={{ position:'absolute', inset:8, borderRadius:'50%', background:'#1e293b', display:'flex', alignItems:'center', justifyContent:'center', fontSize:36 }}>
+            👩‍⚕️
+          </div>
+        </div>
+
+        <div style={{ textAlign:'center' }}>
+          <div style={{ color:'#e2e8f0', fontWeight:800, fontSize:18, marginBottom:6 }}>You're in the waiting room</div>
+          <div style={{ color:'#94a3b8', fontSize:13, lineHeight:1.6 }}>
+            Your provider will admit you shortly.<br/>
+            Please make sure your camera and microphone are ready.
+          </div>
+        </div>
+
+        {/* Local camera preview while waiting */}
+        {localVideoTrack && isCameraEnabled && (
+          <div style={{ width:240, height:160, borderRadius:12, overflow:'hidden', border:'2px solid #334155', position:'relative' }}>
+            <VideoTrack trackRef={localVideoTrack} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+            <div style={{ position:'absolute', bottom:6, left:8, fontSize:10, color:'#cbd5e1', background:'rgba(0,0,0,0.55)', borderRadius:4, padding:'2px 7px' }}>
+              Your camera preview
+            </div>
+          </div>
+        )}
+
+        {/* Waiting room controls */}
+        <div style={{ display:'flex', gap:10 }}>
+          {[
+            { icon: isMicrophoneEnabled ? '🎤' : '🔇', label: isMicrophoneEnabled ? 'Mute' : 'Unmute', active: !isMicrophoneEnabled, onClick: () => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled) },
+            { icon: isCameraEnabled ? '📹' : '📵', label: isCameraEnabled ? 'Cam Off' : 'Cam On', active: !isCameraEnabled, onClick: () => localParticipant.setCameraEnabled(!isCameraEnabled) },
+          ].map(ctrl => (
+            <button key={ctrl.label} onClick={ctrl.onClick}
+              style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, background: ctrl.active ? '#dc2626' : 'rgba(255,255,255,0.1)', border:'none', borderRadius:10, padding:'10px 20px', cursor:'pointer', color:'#fff', fontSize:20, minWidth:70 }}>
+              <span>{ctrl.icon}</span>
+              <span style={{ fontSize:10, fontWeight:600, opacity:0.85 }}>{ctrl.label}</span>
+            </button>
+          ))}
+          <button onClick={onLeave}
+            style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, background:'rgba(239,68,68,0.2)', border:'1px solid #ef4444', borderRadius:10, padding:'10px 20px', cursor:'pointer', color:'#fca5a5', fontSize:20, minWidth:70 }}>
+            <span>📴</span>
+            <span style={{ fontSize:10, fontWeight:600, opacity:0.85 }}>Leave</span>
+          </button>
+        </div>
+
+        <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
+      </div>
+    );
+  }
+
+  // ── Active session view (after admitted) ─────────────────────────────────
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', padding:16, gap:12, minHeight:0 }}>
+      {/* Admitted banner (shows briefly) */}
+      <div style={{ flexShrink:0, background:'#14532d', border:'1px solid #22c55e', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#4ade80', fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
+        ✅ You've been admitted — your provider can now see and hear you
+      </div>
+
+      {/* Provider / remote view */}
+      <div style={{ flex:1, background:'#1e293b', borderRadius:12, position:'relative', minHeight:0, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        {remoteVideoTrack ? (
+          <VideoTrack trackRef={remoteVideoTrack} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+        ) : (
+          <div style={{ textAlign:'center', color:'#94a3b8' }}>
+            <div style={{ fontSize:48, marginBottom:8 }}>👩‍⚕️</div>
+            <div style={{ fontWeight:700, color:'#e2e8f0', fontSize:14 }}>
+              {remoteParticipants.length === 0 ? 'Waiting for your provider…' : 'Provider connected · camera off'}
+            </div>
+          </div>
+        )}
+
+        {/* Self-view PiP */}
+        <div style={{ position:'absolute', bottom:16, right:16, width:140, height:96, borderRadius:10, overflow:'hidden', border:'2px solid #6366f1', background:'#0f172a' }}>
+          {localVideoTrack && isCameraEnabled ? (
+            <VideoTrack trackRef={localVideoTrack} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+          ) : (
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', color:'#94a3b8', fontSize:11 }}>Camera off</div>
+          )}
+          <div style={{ position:'absolute', bottom:4, left:6, fontSize:9, color:'#cbd5e1', background:'rgba(0,0,0,0.55)', borderRadius:4, padding:'1px 6px' }}>You</div>
+        </div>
+      </div>
+
+      {/* Breakout invite banner */}
+      {breakoutInvite && !breakoutActive && (
+        <div style={{ flexShrink:0, background:'#1e1b4b', border:'1px solid #6366f1', borderRadius:8, padding:'10px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+          <span style={{ fontSize:12, color:'#a5b4fc', fontWeight:600 }}>⊕ Your provider has invited you to a private breakout room</span>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={() => setBreakoutInvite(null)}
+              style={{ padding:'5px 14px', borderRadius:7, border:'1px solid #334155', background:'transparent', color:'#94a3b8', fontSize:12, cursor:'pointer' }}>
+              Decline
+            </button>
+            <button onClick={() => setBreakoutActive(true)}
+              style={{ padding:'5px 14px', borderRadius:7, border:'none', background:'#4f46e5', color:'#fff', fontWeight:700, fontSize:12, cursor:'pointer' }}>
+              Join
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Controls */}
+      <div style={{ display:'flex', gap:10, justifyContent:'center', flexShrink:0 }}>
+        {[
+          { icon: isMicrophoneEnabled ? '🎤' : '🔇', label: isMicrophoneEnabled ? 'Mute' : 'Unmute', active: !isMicrophoneEnabled, onClick: () => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled) },
+          { icon: isCameraEnabled ? '📹' : '📵', label: isCameraEnabled ? 'Cam Off' : 'Cam On', active: !isCameraEnabled, onClick: () => localParticipant.setCameraEnabled(!isCameraEnabled) },
+        ].map(ctrl => (
+          <button key={ctrl.label} onClick={ctrl.onClick}
+            style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, background: ctrl.active ? '#dc2626' : 'rgba(255,255,255,0.1)', border:'none', borderRadius:10, padding:'10px 20px', cursor:'pointer', color:'#fff', fontSize:20, minWidth:70 }}>
+            <span>{ctrl.icon}</span>
+            <span style={{ fontSize:10, fontWeight:600, opacity:0.85 }}>{ctrl.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Breakout room overlay (patient joins the sub-room) */}
+      {breakoutActive && breakoutInvite && (
+        <div style={{ position:'fixed', inset:0, zIndex:6000, background:'#0a0f1e', display:'flex', flexDirection:'column' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'rgba(99,102,241,0.15)', borderBottom:'1px solid #6366f1' }}>
+            <span style={{ color:'#a5b4fc', fontWeight:700, fontSize:13 }}>⊕ Breakout Room</span>
+            <button onClick={() => { setBreakoutActive(false); setBreakoutInvite(null); }}
+              style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #334155', background:'transparent', color:'#94a3b8', fontSize:12, cursor:'pointer' }}>
+              Return to main session
+            </button>
+          </div>
+          <div style={{ flex:1 }}>
+            <LiveKitRoom serverUrl={LIVEKIT_URL} token={breakoutInvite.token} connect>
+              <PatientBreakoutContent onLeave={() => { setBreakoutActive(false); setBreakoutInvite(null); }} />
+            </LiveKitRoom>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PatientBreakoutContent({ onLeave }) {
+  const { localParticipant, isCameraEnabled, isMicrophoneEnabled } = useLocalParticipant();
+  const remoteParticipants = useRemoteParticipants();
+  const tracks = useTracks([Track.Source.Camera]);
+  const room = useRoomContext();
+  const remoteVideoTrack = tracks.find(t => !t.participant.isLocal && t.source === Track.Source.Camera);
+  const localVideoTrack  = tracks.find(t =>  t.participant.isLocal && t.source === Track.Source.Camera);
+
+  useEffect(() => {
+    if (!room) return;
+    const dec = new TextDecoder();
+    const handleData = (payload) => {
+      try {
+        const msg = JSON.parse(dec.decode(payload));
+        if (msg.type === 'breakout_ended') onLeave();
+      } catch { /* ignore */ }
+    };
+    room.on(RoomEvent.DataReceived, handleData);
+    return () => room.off(RoomEvent.DataReceived, handleData);
+  }, [room, onLeave]);
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', padding:12, gap:8 }}>
+      <RoomAudioRenderer />
+      <div style={{ flex:1, background:'#0f172a', borderRadius:10, overflow:'hidden', position:'relative', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        {remoteVideoTrack ? (
+          <VideoTrack trackRef={remoteVideoTrack} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+        ) : (
+          <div style={{ color:'#475569', fontSize:13 }}>
+            {remoteParticipants.length === 0 ? 'Waiting for provider…' : 'No video from provider'}
+          </div>
+        )}
+        {localVideoTrack && (
+          <div style={{ position:'absolute', bottom:10, right:10, width:120, height:80, borderRadius:8, overflow:'hidden', border:'2px solid #6366f1' }}>
+            <VideoTrack trackRef={localVideoTrack} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+          </div>
+        )}
+      </div>
+      <div style={{ display:'flex', gap:8, justifyContent:'center' }}>
+        {[
+          { icon: isMicrophoneEnabled ? '🎤' : '🔇', label: isMicrophoneEnabled ? 'Mute' : 'Unmute', active: !isMicrophoneEnabled, onClick: () => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled) },
+          { icon: isCameraEnabled ? '📹' : '📵',     label: isCameraEnabled ? 'Cam Off' : 'Cam On',   active: !isCameraEnabled,     onClick: () => localParticipant.setCameraEnabled(!isCameraEnabled) },
+        ].map(ctrl => (
+          <button key={ctrl.label} onClick={ctrl.onClick}
+            style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, background: ctrl.active ? '#dc2626' : 'rgba(255,255,255,0.1)', border:'none', borderRadius:10, padding:'10px 20px', cursor:'pointer', color:'#fff', fontSize:20, minWidth:70 }}>
+            <span>{ctrl.icon}</span>
+            <span style={{ fontSize:10, fontWeight:600, opacity:0.85 }}>{ctrl.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function PatientPortal() {
   const { currentUser, logout } = useAuth();
   const { patients, meds, appointments, assessmentScores, addInboxMessage, inboxMessages, updateAppointmentStatus, addAppointment } = usePatient();
-  const { portalMe, portalAppts, portalMeds } = usePortalData(currentUser?.patientId);
+  const { portalMe, portalAppts, portalMeds, portalMessages } = usePortalData(currentUser?.patientId);
 
   /* Allow page scrolling — clinical layout locks body overflow */
   useEffect(() => {
@@ -604,6 +884,23 @@ export default function PatientPortal() {
 
   const [activeTab, setActiveTab] = useState('home');
   const [lang, setLang] = useState('en');
+  const [allUsers, setAllUsers] = useState([]);
+  useEffect(() => {
+    usersApi.list().then(d => { if (Array.isArray(d)) setAllUsers(d); }).catch(() => {});
+  }, []);
+  const [lkToken, setLkToken] = useState(null);
+
+  const joinTelehealth = async (appointmentId) => {
+    if (!LIVEKIT_URL) return;
+    try {
+      const r = await fetch(`${PORTAL_API}/patient-portal/telehealth/token`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ appointmentId }),
+      });
+      const d = await r.json();
+      if (d.token) setLkToken(d.token);
+    } catch { /* ignore */ }
+  };
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const isRTL = lang === 'ar';
 
@@ -715,9 +1012,12 @@ export default function PatientPortal() {
         credentials: u.credentials,
         durations: u.role === 'therapist' ? [60] : [15, 30],
       })),
-    []
+    [allUsers]
   );
-  const [liveSchedProvider, setLiveSchedProvider] = useState(schedulableProviders[0]?.id || '');
+  const [liveSchedProvider, setLiveSchedProvider] = useState('');
+  useEffect(() => {
+    if (!liveSchedProvider && schedulableProviders.length > 0) setLiveSchedProvider(schedulableProviders[0].id);
+  }, [schedulableProviders]);
   const [liveSchedWeekStart, setLiveSchedWeekStart] = useState(() => {
     const d = new Date(); const day = d.getDay();
     const diff = day === 0 ? 1 : day === 6 ? 2 : 0;
@@ -796,43 +1096,32 @@ export default function PatientPortal() {
     return slotsByDay;
   }, [liveSchedProvider, liveSchedWeekDays, appointments, liveSchedDuration, todayKey]);
 
-  const confirmLiveBooking = useCallback(() => {
+  const confirmLiveBooking = useCallback(async () => {
     if (!liveSchedSelectedSlot || !liveSchedProvider || !patient) return;
     const provObj = schedulableProviders.find(p => p.id === liveSchedProvider);
-    const newApt = {
-      id: `pat-book-${Date.now()}`,
-      patientId: patientId,
-      patientName: `${patient.firstName} ${patient.lastName}`,
-      provider: liveSchedProvider,
-      providerName: provObj?.name || '',
-      date: liveSchedSelectedSlot.date,
-      time: liveSchedSelectedSlot.time,
-      duration: liveSchedDuration,
-      type: liveSchedReason,
-      status: 'Scheduled',
-      reason: `Patient self-scheduled: ${liveSchedReason}${liveSchedNotes ? ' — ' + liveSchedNotes : ''}`,
-      visitType: liveSchedVisitType,
-      room: liveSchedVisitType === 'Telehealth' ? 'Virtual' : 'TBD',
-    };
-    addAppointment(newApt);
-    addInboxMessage({
-      type: 'Staff Message',
-      from: `${currentUser?.firstName} ${currentUser?.lastName} (Patient Portal)`,
-      subject: `New Appointment Booked — ${patient.firstName} ${patient.lastName}`,
-      body: `Patient has booked an appointment via the Patient Portal.\n\nPatient: ${patient.firstName} ${patient.lastName} (${patient.mrn})\nProvider: ${provObj?.name}\nDate: ${liveSchedSelectedSlot.date}\nTime: ${liveSchedSelectedSlot.time}\nDuration: ${liveSchedDuration} min\nType: ${liveSchedReason}\nVisit: ${liveSchedVisitType}\nNotes: ${liveSchedNotes || 'None'}`,
-      patient: patientId,
-      patientName: `${patient.firstName} ${patient.lastName}`,
-      date: new Date().toISOString().split('T')[0],
-      status: 'Unread',
-      urgent: false,
-    });
+    // Persist to database via portal endpoint
+    await fetch(`${PORTAL_API}/patient-portal/book-appointment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        providerId:   liveSchedProvider,
+        providerName: provObj?.name || '',
+        date:         liveSchedSelectedSlot.date,
+        time:         liveSchedSelectedSlot.time,
+        duration:     liveSchedDuration,
+        visitType:    liveSchedVisitType,
+        reason:       liveSchedReason,
+        notes:        liveSchedNotes,
+      }),
+    }).catch(() => {});
     setLiveSchedConfirmed(true);
     setTimeout(() => {
       setLiveSchedConfirmed(false);
       setLiveSchedSelectedSlot(null);
       setLiveSchedNotes('');
     }, 4000);
-  }, [liveSchedSelectedSlot, liveSchedProvider, patient, liveSchedDuration, liveSchedReason, liveSchedVisitType, liveSchedNotes, addAppointment, addInboxMessage, currentUser, patientId, schedulableProviders]);
+  }, [liveSchedSelectedSlot, liveSchedProvider, patient, liveSchedDuration, liveSchedReason, liveSchedVisitType, liveSchedNotes, schedulableProviders]);
 
   /* ── Online check-in ─────────────────────────────────────── */
   const [checkInApt, setCheckInApt] = useState(null);
@@ -890,55 +1179,66 @@ export default function PatientPortal() {
   };
 
   /* ── Messaging ───────────────────────────────────────────── */
-  const [messages, setMessages] = useState(() => {
-    const providerName = patient?.assignedProvider === 'u1' ? 'Dr. Chris L.' : patient?.assignedProvider === 'u2' ? 'Joseph (NP)' : 'Your Provider';
-    return [
-      { id: 1, from: 'provider', name: providerName, text: `Hi ${currentUser?.firstName}, just checking in. How are you feeling on your current medication regimen? Any side effects?`, time: '2026-04-08 09:15', read: true },
-      { id: 2, from: 'patient', name: currentUser?.firstName, text: 'Hi! I\'m doing okay. I think the Sertraline is helping but I\'ve been having some trouble sleeping.', time: '2026-04-08 10:32', read: true },
-      { id: 3, from: 'provider', name: providerName, text: 'Thank you for letting me know. We can discuss adjusting your Trazodone dose at your next appointment. In the meantime, try to avoid screens an hour before bed and keep a consistent sleep schedule.', time: '2026-04-08 14:20', read: true },
-      { id: 4, from: 'system', name: 'Clarity', text: '📋 Reminder: Your PHQ-9 and GAD-7 assessments are due before your next appointment. Please complete them under the Assessments tab.', time: '2026-04-09 08:00', read: false },
-    ];
-  });
+  const [messages, setMessages] = useState([]);
   const [msgInput, setMsgInput] = useState('');
   const msgEndRef = useRef(null);
+
+  // Seed messages from API once loaded; fall back to a welcome note if none
+  useEffect(() => {
+    if (portalMessages === null) return; // still loading
+    if (portalMessages.length > 0) {
+      setMessages(portalMessages.map(m => ({
+        id: m.id,
+        from: m.from?.includes('Patient Portal') ? 'patient' : m.type === 'system' ? 'system' : 'provider',
+        name: m.from?.replace(' (Patient Portal)', '') || 'Care Team',
+        text: m.body,
+        time: `${m.date} ${m.time}`,
+        read: true,
+      })));
+    } else {
+      setMessages([{
+        id: 'welcome', from: 'system', name: 'Clarity',
+        text: 'Welcome to your secure messaging portal. Send a message to your care team below.',
+        time: new Date().toISOString().replace('T', ' ').slice(0, 16), read: true,
+      }]);
+    }
+  }, [portalMessages]);
+
   useEffect(() => { msgEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, activeTab]);
 
   const sendMessage = () => {
     if (!msgInput.trim()) return;
+    const text = msgInput.trim();
     setMessages(prev => [...prev, {
       id: Date.now(), from: 'patient', name: currentUser?.firstName,
-      text: msgInput.trim(), time: new Date().toISOString().replace('T', ' ').slice(0, 16), read: true,
+      text, time: new Date().toISOString().replace('T', ' ').slice(0, 16), read: true,
     }]);
-    // Also post to clinical inbox
-    addInboxMessage({
-      type: 'Patient Message',
-      from: `${currentUser?.firstName} ${currentUser?.lastName} (Patient Portal)`,
-      subject: `Message from ${currentUser?.firstName} ${currentUser?.lastName}`,
-      body: msgInput.trim(),
-      patient: patientId,
-      patientName: patient ? `${patient.firstName} ${patient.lastName}` : '',
-      date: new Date().toISOString().split('T')[0],
-      status: 'Unread',
-      urgent: false,
-    });
+    // Post via portal-authenticated endpoint (no staff session required)
+    fetch(`${PORTAL_API}/patient-portal/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ text }),
+    }).catch(() => {});
     setMsgInput('');
   };
 
   /* ── Refill request ──────────────────────────────────────── */
   const [refillRequested, setRefillRequested] = useState({});
-  const requestRefill = (med) => {
+  const requestRefill = async (med) => {
     setRefillRequested(prev => ({ ...prev, [med.id]: true }));
-    addInboxMessage({
-      type: 'Rx Refill Request',
-      from: `${currentUser?.firstName} ${currentUser?.lastName} (Patient Portal)`,
-      subject: `Refill Request: ${med.name} ${med.dose}`,
-      body: `Patient ${currentUser?.firstName} ${currentUser?.lastName} is requesting a refill of ${med.name} ${med.dose} (${med.frequency}). Preferred pharmacy: ${preferredPharmacy}. Refills remaining: ${med.refillsLeft ?? 'Unknown'}.`,
-      patient: patientId,
-      patientName: patient ? `${patient.firstName} ${patient.lastName}` : '',
-      date: new Date().toISOString().split('T')[0],
-      status: 'Unread',
-      urgent: false,
-    });
+    await fetch(`${PORTAL_API}/patient-portal/refill-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        medicationId: med.id,
+        medicationName: med.name,
+        dose: med.dosage || med.dose || '',
+        frequency: med.frequency || '',
+        pharmacy: preferredPharmacy || med.pharmacy || '',
+      }),
+    }).catch(() => {});
   };
 
   /* ── Insurance editing ────────────────────────────────────── */
@@ -1073,17 +1373,30 @@ export default function PatientPortal() {
     const total = assessmentAnswers.reduce((sum, v) => sum + (v >= 0 ? v : 0), 0);
     const toolDef = ASSESSMENT_TOOLS[assessmentMode];
     const interpretation = getInterpretation(assessmentMode, total);
-    addInboxMessage({
-      type: 'Patient Message',
-      from: `${currentUser?.firstName} ${currentUser?.lastName} (Patient Portal)`,
-      subject: `${toolDef.tool} Assessment Completed — Score: ${total}`,
-      body: `Patient completed ${toolDef.tool} via Patient Portal.\n\nScore: ${total}/${toolDef.maxScore}\nInterpretation: ${interpretation}\nAnswers: [${assessmentAnswers.join(', ')}]\nDate: ${new Date().toLocaleDateString()}`,
-      patient: patientId,
-      patientName: patient ? `${patient.firstName} ${patient.lastName}` : '',
-      date: new Date().toISOString().split('T')[0],
-      status: 'Unread',
-      urgent: (assessmentMode === 'cssrs' && total >= 3) || (assessmentMode === 'phq9' && total >= 20),
-    });
+    const today = new Date().toISOString().split('T')[0];
+    const isUrgent = (assessmentMode === 'cssrs' && total >= 3) || (assessmentMode === 'phq9' && total >= 20);
+
+    // Notify provider via staff inbox
+    fetch(`${PORTAL_API}/patient-portal/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        text: `${toolDef.tool} Assessment Completed — Score: ${total}/${toolDef.maxScore}\nInterpretation: ${interpretation}\nDate: ${new Date().toLocaleDateString()}`,
+      }),
+    }).catch(() => {});
+
+    // Save to patient chart assessments
+    fetch(`${PORTAL_API}/patient-portal/assessments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        tool: toolDef.tool, score: total, maxScore: toolDef.maxScore,
+        interpretation, answers: assessmentAnswers, date: today,
+      }),
+    }).catch(() => {});
+
     setAssessmentSubmitted(prev => ({ ...prev, [assessmentMode]: { score: total, maxScore: toolDef.maxScore, interpretation, date: new Date().toLocaleDateString() } }));
     setAssessmentMode(null);
   };
@@ -1116,6 +1429,10 @@ export default function PatientPortal() {
      ═══════════════════════════════════════════════════════════════ */
   return (
     <div className="patient-portal-root" style={{ minHeight: '100vh', background: '#f0f4f8', fontFamily: "'Inter', -apple-system, sans-serif", direction: isRTL ? 'rtl' : 'ltr' }}>
+      {/* LiveKit video session modal */}
+      {lkToken && (
+        <PatientVideoRoom token={lkToken} onLeave={() => setLkToken(null)} />
+      )}
       {/* ── Top Navigation Bar ─────────────────────────────── */}
       <header style={{
         background: 'linear-gradient(135deg, #0d2444 0%, #1b3d6e 100%)',
@@ -2887,12 +3204,16 @@ export default function PatientPortal() {
                       </div>
                       <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>{teleAppts[0].reason}</div>
                     </div>
-                    <button style={{
-                      padding: '14px 28px', borderRadius: 10, background: 'rgba(255,255,255,0.2)',
-                      color: '#fff', border: '1px solid rgba(255,255,255,0.3)', fontWeight: 800, fontSize: 14,
-                      cursor: 'pointer', backdropFilter: 'blur(8px)',
-                    }}>
-                      📹 Join Session
+                    <button
+                      onClick={() => joinTelehealth(teleAppts[0].id)}
+                      disabled={!LIVEKIT_URL}
+                      style={{
+                        padding: '14px 28px', borderRadius: 10, background: LIVEKIT_URL ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)',
+                        color: '#fff', border: '1px solid rgba(255,255,255,0.3)', fontWeight: 800, fontSize: 14,
+                        cursor: LIVEKIT_URL ? 'pointer' : 'not-allowed', backdropFilter: 'blur(8px)',
+                        opacity: LIVEKIT_URL ? 1 : 0.5,
+                      }}>
+                      {LIVEKIT_URL ? '📹 Join Session' : '📹 Video not yet configured'}
                     </button>
                   </div>
                 </div>

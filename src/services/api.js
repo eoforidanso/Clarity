@@ -4,6 +4,25 @@ const API_BASE = import.meta.env?.VITE_API_URL || '/api';
 // No-op — token is now managed as an httpOnly cookie set by the server
 export function setToken(_token) {}
 
+// ── CSRF token management ─────────────────────────────────────────────────────
+// Server issues a single-use token per request; responds with X-New-CSRF-Token
+// for the next one. We keep the latest token in memory and fetch lazily.
+let _csrfToken = null;
+let _csrfFetching = null;
+
+async function ensureCsrfToken() {
+  if (_csrfToken) return _csrfToken;
+  if (_csrfFetching) return _csrfFetching;
+  _csrfFetching = fetch(`${API_BASE}/csrf-token`, { credentials: 'include' })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => { _csrfToken = data?.token ?? null; _csrfFetching = null; return _csrfToken; })
+    .catch(() => { _csrfFetching = null; return null; });
+  return _csrfFetching;
+}
+
+// Call this after logout so the next login fetches a fresh token
+export function clearCsrfToken() { _csrfToken = null; }
+
 // ── Silent token refresh ──────────────────────────────────────────────────────
 // Called automatically when any request returns 401.
 // Tries POST /auth/refresh (uses the 30-day ehr_refresh cookie).
@@ -42,16 +61,30 @@ async function tryRefresh() {
  *   code: 'network' | 'auth' | 'server' | 'client'
  */
 export class ApiError extends Error {
-  constructor(message, status, code) {
+  constructor(message, status, code, details = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.details = details; // array of { field, message } from Zod validation failures
   }
 }
 
+const STATE_CHANGING = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
+// Routes that either don't need CSRF or run before a session exists.
+// All /auth/* routes are excluded — the server doesn't validate CSRF on them.
+const CSRF_SKIP_PREFIXES = ['/auth/', '/patient-portal'];
+
 async function request(path, options = {}, _isRetry = false) {
   const headers = { 'Content-Type': 'application/json', ...options.headers };
+
+  const method = (options.method || 'GET').toUpperCase();
+  const needsCsrf = STATE_CHANGING.has(method) && !CSRF_SKIP_PREFIXES.some(p => path.startsWith(p));
+  if (needsCsrf) {
+    const token = await ensureCsrfToken();
+    if (token) headers['X-CSRF-Token'] = token;
+    _csrfToken = null; // consumed — will be refreshed from X-New-CSRF-Token
+  }
 
   let res;
   try {
@@ -69,6 +102,10 @@ async function request(path, options = {}, _isRetry = false) {
     );
   }
 
+  // Capture rotated CSRF token for the next request
+  const nextCsrf = res.headers.get('X-New-CSRF-Token');
+  if (nextCsrf) _csrfToken = nextCsrf;
+
   // ── Auto-refresh on 401 (expired 8h access token) ──────────────────────
   if (res.status === 401 && !_isRetry && !path.includes('/auth/')) {
     const refreshed = await tryRefresh();
@@ -80,6 +117,14 @@ async function request(path, options = {}, _isRetry = false) {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+
+    // ── Auto-retry on CSRF token invalid/expired (e.g. after server restart) ──
+    if (res.status === 403 && body.action === 'get_csrf_token' && !_isRetry) {
+      _csrfToken = null;
+      await ensureCsrfToken();
+      return request(path, options, true);
+    }
+
     const message =
       body.error ||
       (res.status === 401 ? 'Session expired — please log in again' : `Request failed (${res.status})`);
@@ -87,7 +132,7 @@ async function request(path, options = {}, _isRetry = false) {
       res.status >= 500 ? 'server' :
       res.status === 401 || res.status === 403 ? 'auth' :
       'client';
-    throw new ApiError(message, res.status, code);
+    throw new ApiError(message, res.status, code, body.details || null);
   }
 
   if (res.status === 204) return null;
@@ -111,13 +156,27 @@ export const auth = {
   verifyEpcsPin: (pin) => post('/auth/verify-epcs-pin', { pin }),
   generateEpcsOtp: () => post('/auth/generate-epcs-otp', {}),
   verifyEpcsOtp: (otp) => post('/auth/verify-epcs-otp', { otp }),
-  verify2FA: (tempToken, code) => post('/auth/2fa/verify', { tempToken, code }),
+  verify2FA: (tempToken, code) => post('/auth/mfa/verify', { tempToken, code }),
   setup2FA: () => post('/auth/2fa/setup', {}),
   enable2FA: (secret, code) => post('/auth/2fa/enable', { secret, code }),
   // Re-authenticate to get a short-lived elevated token for sensitive actions
   // Returns { elevatedToken, expiresAt, expiresInSeconds }
   reauth: (password) => post('/auth/reauth', { password }),
   reauthOtp: (otp)  => post('/auth/reauth', { otp }),
+};
+
+// ─── Telehealth ──────────────────────────────────────
+export const telehealth = {
+  token:       (appointmentId)             => post('/telehealth/token', { appointmentId }),
+  breakout:    (appointmentId, participants) => post('/telehealth/breakout', { appointmentId, participants }),
+  admit:       (appointmentId, participantIdentity) => post('/telehealth/admit', { appointmentId, participantIdentity }),
+  guestInvite: (appointmentId, guestName)  => post('/telehealth/guest-invite', { appointmentId, guestName }),
+  join:        (appointmentId, mode)       => post('/appointments/telehealth-session/join', { appointmentId, mode }),
+  leave:       (appointmentId)             => post('/appointments/telehealth-session/leave', { appointmentId }),
+  checkin:     (appointmentId, checkinData) => post('/appointments/telehealth-session/checkin', { appointmentId, checkinData }),
+  participants:(appointmentId)             => get(`/appointments/telehealth-session/${appointmentId}/participants`),
+  consent:     (data)                      => post('/appointments/telehealth-consent', data),
+  getConsent:  (sessionId)                 => get(`/appointments/telehealth-consent/${sessionId}`),
 };
 
 // ─── Patients ────────────────────────────────────────
@@ -394,6 +453,24 @@ export const documents = {
   dischargeSummary: (data) => post('/documents/discharge-summary', data),
 };
 
+// ─── Treatment Plans ────────────────────────────────
+export const treatmentPlans = {
+  list: (params) => get(`/treatment-plans?${new URLSearchParams(params || {})}`),
+  get: (id) => get(`/treatment-plans/${id}`),
+  create: (data) => post('/treatment-plans', data),
+  update: (id, data) => request(`/treatment-plans/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  addGoal: (planId, data) => post(`/treatment-plans/${planId}/goals`, data),
+  updateGoal: (planId, goalId, data) => request(`/treatment-plans/${planId}/goals/${goalId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+};
+
+// ─── Secure Notes ────────────────────────────────────
+export const secureNotes = {
+  list: (params) => get(`/secure-notes?${new URLSearchParams(params || {})}`),
+  create: (data) => post('/secure-notes', data),
+  update: (id, data) => request(`/secure-notes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  remove: (id) => del(`/secure-notes/${id}`),
+};
+
 // ─── FHIR R4 API ────────────────────────────────────
 export const fhir = {
   metadata: () => get('/fhir/metadata'),
@@ -412,4 +489,34 @@ export const fhir = {
   searchMedicationStatements: (params) => get(`/fhir/MedicationStatement?${new URLSearchParams(params)}`),
   // AllergyIntolerance
   searchAllergyIntolerances: (params) => get(`/fhir/AllergyIntolerance?${new URLSearchParams(params)}`),
+};
+
+// ─── Prior Authorizations ────────────────────────────
+export const priorAuths = {
+  list:   (params = {}) => get(`/prior-auths?${new URLSearchParams(params)}`),
+  create: (data)        => post('/prior-auths', data),
+  update: (id, data)    => put(`/prior-auths/${id}`, data),
+  remove: (id)          => del(`/prior-auths/${id}`),
+};
+
+// ─── Patient Recalls ─────────────────────────────────
+export const patientRecalls = {
+  list:   (params = {}) => get(`/patient-recalls?${new URLSearchParams(params)}`),
+  create: (data)        => post('/patient-recalls', data),
+  update: (id, data)    => put(`/patient-recalls/${id}`, data),
+  remove: (id)          => del(`/patient-recalls/${id}`),
+};
+
+// ─── Education Resources ─────────────────────────────
+export const educationResources = {
+  list:     (params = {}) => get(`/education-resources?${new URLSearchParams(params)}`),
+  create:   (data)        => post('/education-resources', data),
+  download: (id)          => post(`/education-resources/${id}/download`, {}),
+  remove:   (id)          => del(`/education-resources/${id}`),
+};
+
+// ─── Lab Order Tracking ──────────────────────────────
+export const labTracking = {
+  list:   (params = {}) => get(`/lab-tracking?${new URLSearchParams(params)}`),
+  update: (id, data)    => put(`/lab-tracking/${id}`, data),
 };

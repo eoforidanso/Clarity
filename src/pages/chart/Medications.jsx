@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../../contexts/PatientContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { medicationInsurance } from '../../data/mockData';
 import { generateILPmpReport } from '../../utils/pmpMock';
 
 // ── confirmation modal ─────────────────────────────────────────────────
@@ -249,7 +248,7 @@ function MedDetail({ med, patientId, onClose }) {
 
         {/* Insurance */}
         {detailTab === 'insurance' && (() => {
-          const ins = medicationInsurance[med.id];
+          const ins = null;
           if (!ins) return (
             <div style={{ flex: 1, padding: '32px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
               No insurance information on file for this medication.

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { patients as patientsApi } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
-import { users } from '../data/mockData';
 import { users as usersApi } from '../services/api';
 
 // ── US States list for license/DEA registration ──────────────────────────────
@@ -568,6 +568,185 @@ const ROLE_BADGE = {
   care_coordinator: 'badge-gray',
 };
 
+const CSV_REQUIRED_COLS = ['firstName', 'lastName', 'dob', 'email'];
+const CSV_TEMPLATE = 'firstName,lastName,dob,email,phone,gender,address\nJane,Doe,1990-05-12,jane.doe@email.com,555-1234,Female,123 Main St';
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n').filter(Boolean);
+  if (lines.length < 2) return { rows: [], error: 'File must have a header row and at least one data row.' };
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  const missing = CSV_REQUIRED_COLS.filter(c => !headers.includes(c));
+  if (missing.length) return { rows: [], error: `Missing required columns: ${missing.join(', ')}` };
+  const rows = lines.slice(1).map((line, i) => {
+    const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+    const row = {};
+    headers.forEach((h, idx) => { row[h] = vals[idx] || ''; });
+    row._rowNum = i + 2;
+    row._valid = CSV_REQUIRED_COLS.every(c => row[c]?.trim());
+    return row;
+  });
+  return { rows, error: null };
+}
+
+function PatientImportTab() {
+  const fileRef = useRef(null);
+  const [step, setStep] = useState('upload'); // upload | preview | done
+  const [parseResult, setParseResult] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importedCount, setImportedCount] = useState(0);
+
+  const handleFile = useCallback((file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = parseCSV(e.target.result);
+      setParseResult(result);
+      if (!result.error) setStep('preview');
+    };
+    reader.readAsText(file);
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file?.name.endsWith('.csv')) handleFile(file);
+  }, [handleFile]);
+
+  const doImport = async () => {
+    const valid = parseResult.rows.filter(r => r._valid);
+    setImporting(true);
+    let count = 0;
+    for (const row of valid) {
+      try {
+        await patientsApi.create({
+          firstName: row.firstName,
+          lastName:  row.lastName,
+          dob:       row.dob,
+          email:     row.email,
+          phone:     row.phone    || '',
+          gender:    row.gender   || '',
+          address:   row.address  ? { street: row.address } : {},
+        });
+        count++;
+      } catch {
+        // skip rows that fail (duplicate email, bad dob, etc.)
+      }
+    }
+    setImportedCount(count);
+    setImporting(false);
+    setStep('done');
+  };
+
+  const reset = () => { setStep('upload'); setParseResult(null); setImportedCount(0); };
+
+  const validRows = parseResult?.rows.filter(r => r._valid) || [];
+  const invalidRows = parseResult?.rows.filter(r => !r._valid) || [];
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <h2 style={{ fontSize: 13 }}>📥 Import Patients from CSV</h2>
+        <button
+          className="btn btn-sm btn-ghost"
+          onClick={() => {
+            const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'clarity_patient_import_template.csv'; a.click();
+            URL.revokeObjectURL(url);
+          }}
+        >
+          ⬇ Download Template
+        </button>
+      </div>
+      <div className="card-body">
+        {step === 'upload' && (
+          <div>
+            <div
+              onDragOver={e => e.preventDefault()}
+              onDrop={handleDrop}
+              onClick={() => fileRef.current?.click()}
+              style={{
+                border: '2px dashed var(--border)', borderRadius: 10, padding: '48px 24px',
+                textAlign: 'center', cursor: 'pointer', transition: 'border-color 0.15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+            >
+              <div style={{ fontSize: 32, marginBottom: 10 }}>📄</div>
+              <p style={{ fontWeight: 600, marginBottom: 6 }}>Drop your CSV file here, or click to browse</p>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                Required columns: <code>firstName, lastName, dob, email</code>
+              </p>
+            </div>
+            <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }}
+              onChange={e => handleFile(e.target.files[0])} />
+            {parseResult?.error && (
+              <div className="alert alert-danger mt-3" style={{ fontSize: 13 }}>{parseResult.error}</div>
+            )}
+          </div>
+        )}
+
+        {step === 'preview' && parseResult && (
+          <div>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
+              <span className="badge badge-success">{validRows.length} ready to import</span>
+              {invalidRows.length > 0 && <span className="badge badge-warning">{invalidRows.length} rows skipped (missing required fields)</span>}
+              <button className="btn btn-sm btn-ghost" style={{ marginLeft: 'auto' }} onClick={reset}>← Back</button>
+            </div>
+            <div style={{ maxHeight: 360, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 16 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-secondary)', position: 'sticky', top: 0 }}>
+                    {['#', 'First', 'Last', 'DOB', 'Email', 'Phone', 'Status'].map(h => (
+                      <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid var(--border)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {parseResult.rows.map(row => (
+                    <tr key={row._rowNum} style={{ borderBottom: '1px solid var(--border)', opacity: row._valid ? 1 : 0.5 }}>
+                      <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>{row._rowNum}</td>
+                      <td style={{ padding: '8px 12px' }}>{row.firstName}</td>
+                      <td style={{ padding: '8px 12px' }}>{row.lastName}</td>
+                      <td style={{ padding: '8px 12px' }}>{row.dob}</td>
+                      <td style={{ padding: '8px 12px' }}>{row.email}</td>
+                      <td style={{ padding: '8px 12px' }}>{row.phone || '—'}</td>
+                      <td style={{ padding: '8px 12px' }}>
+                        {row._valid
+                          ? <span className="badge badge-success">✓ Ready</span>
+                          : <span className="badge badge-warning">⚠ Skipped</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-primary" disabled={importing || validRows.length === 0} onClick={doImport}>
+                {importing ? 'Importing…' : `Import ${validRows.length} Patient${validRows.length !== 1 ? 's' : ''}`}
+              </button>
+              <button className="btn btn-ghost" onClick={reset}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {step === 'done' && (
+          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+            <h3 style={{ fontWeight: 700, marginBottom: 8 }}>{importedCount} patient{importedCount !== 1 ? 's' : ''} imported</h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 24, fontSize: 13 }}>
+              Patients are now available in the roster. They will need to complete registration before their first visit.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button className="btn btn-primary" onClick={reset}>Import Another File</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function HealthAdminToolkit() {
   const { currentUser } = useAuth();
   const { patients, appointments, btgAuditLog, inboxMessages, selectedPatient } = usePatient();
@@ -575,6 +754,13 @@ export default function HealthAdminToolkit() {
   const [activeTab, setActiveTab] = useState('overview');
   const [showRegModal, setShowRegModal] = useState(false);
   const [registeredStaff, setRegisteredStaff] = useState([]);
+  const [staffUsers, setStaffUsers] = useState([]);
+
+  useEffect(() => {
+    usersApi.list().then(data => {
+      if (Array.isArray(data)) setStaffUsers(data);
+    }).catch(() => {});
+  }, []);
 
   // Forms tab state
   const [formSearch, setFormSearch] = useState('');
@@ -607,6 +793,7 @@ export default function HealthAdminToolkit() {
     { id: 'users',     label: '👥 Staff' },
     { id: 'register',  label: '➕ Register Provider' },
     { id: 'patients',  label: '🧑‍⚕️ Patients' },
+    { id: 'import',    label: '📥 Import Patients' },
     { id: 'reports',   label: '📈 Reports' },
     { id: 'settings',  label: '⚙️ Settings' },
   ];
@@ -649,7 +836,7 @@ export default function HealthAdminToolkit() {
         </div>
         <div className="stat-card">
           <span className="stat-label">Staff Members</span>
-          <span className="stat-value">{users.length}</span>
+          <span className="stat-value">{staffUsers.length}</span>
         </div>
       </div>
 
@@ -982,7 +1169,7 @@ export default function HealthAdminToolkit() {
           }
         });
 
-        const allStaff = [...users, ...registeredStaff];
+        const allStaff = [...staffUsers, ...registeredStaff];
 
         const expiryStatus = (dateStr) => {
           if (!dateStr) return null;
@@ -1225,7 +1412,7 @@ export default function HealthAdminToolkit() {
               </thead>
               <tbody>
                 {safePatients.map((p) => {
-                  const provider = users.find((u) => u.id === p.assignedProvider);
+                  const provider = staffUsers.find((u) => u.id === p.assignedProvider);
                   return (
                     <tr
                       key={p.id}
@@ -1255,6 +1442,9 @@ export default function HealthAdminToolkit() {
           </div>
         </div>
       )}
+
+      {/* ── CSV Patient Import Tab ──────────────────────────────────── */}
+      {activeTab === 'import' && <PatientImportTab navigate={navigate} />}
 
       {/* Reports Tab */}
       {activeTab === 'reports' && (
@@ -1294,7 +1484,7 @@ export default function HealthAdminToolkit() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.filter((u) => u.role === 'prescriber').map((u) => {
+                  {staffUsers.filter((u) => u.role === 'prescriber').map((u) => {
                     const provAppts = safeAppts.filter((a) => a.provider === u.id);
                     const provToday = provAppts.filter((a) => a.date === new Date().toISOString().slice(0, 10));
                     return (

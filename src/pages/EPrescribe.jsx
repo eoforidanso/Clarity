@@ -3,8 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { DemoDisabled, DemoSafe } from '../demo/DemoGuard';
 import { PrescriptionPreview } from '../components/PrescriptionPreview';
-import { medicationDatabase, pharmacies, users, problems, allergies } from '../data/mockData';
-import { rxnorm as rxnormApi, openfda as openfdaApi, locations as locationsApi, nppes as nppesApi, dosespot as dosespotApi } from '../services/api';
+import { medicationDatabase, pharmacies } from '../data/mockData';
+import { rxnorm as rxnormApi, openfda as openfdaApi, locations as locationsApi, nppes as nppesApi, dosespot as dosespotApi, users as usersApi, allergies as allergiesApi, problems as problemsApi } from '../services/api';
 import { useSite } from '../contexts/SiteContext';
 import { generateILPmpReport } from '../utils/pmpMock';
 import { checkInteractions }    from '../data/drugInteractions';
@@ -23,8 +23,12 @@ function StaffRefillRequest() {
   const { currentUser } = useAuth();
   const { patients, selectedPatient, selectPatient, meds, inboxMessages, addInboxMessage, updateMessageStatus } = usePatient();
 
-  // MDs, NPs, and PAs are authorized to approve refills
-  const providers = users.filter(u => u.role === 'prescriber' && canApproveRefills(u));
+  const [providers, setProviders] = useState([]);
+  useEffect(() => {
+    usersApi.list().then(d => {
+      if (Array.isArray(d)) setProviders(d.filter(u => u.role === 'prescriber' && canApproveRefills(u)));
+    }).catch(() => {});
+  }, []);
 
   const [activeTab, setActiveTab] = useState('assign'); // 'assign' | 'new'
 
@@ -33,7 +37,10 @@ function StaffRefillRequest() {
   const [reqPatient, setReqPatient] = useState(selectedPatient);
   const [selectedMedName, setSelectedMedName] = useState('');
   const [customMed, setCustomMed] = useState('');
-  const [providerId, setProviderId] = useState(providers[0]?.id || '');
+  const [providerId, setProviderId] = useState('');
+  useEffect(() => {
+    if (!providerId && providers.length > 0) setProviderId(providers[0].id);
+  }, [providers]);
   const [notes, setNotes] = useState('');
   const [urgent, setUrgent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -590,6 +597,18 @@ export default function EPrescribe() {
       setPatientSearch('');
     }
   }, [selectedPatient?.id]);
+
+  const [fetchedAllergies, setFetchedAllergies] = useState([]);
+  const [fetchedProblems, setFetchedProblems] = useState([]);
+  useEffect(() => {
+    if (!prescriptionPatient?.id) { setFetchedAllergies([]); setFetchedProblems([]); return; }
+    allergiesApi.list(prescriptionPatient.id).then(d => {
+      if (Array.isArray(d)) setFetchedAllergies(d.filter(a => a.type === 'Medication' && a.status === 'Active' && a.allergen !== 'No Known Drug Allergies (NKDA)'));
+    }).catch(() => {});
+    problemsApi.list(prescriptionPatient.id).then(d => {
+      if (Array.isArray(d)) setFetchedProblems(d.filter(p => p.status === 'Active'));
+    }).catch(() => {});
+  }, [prescriptionPatient?.id]);
   const [rx, setRx] = useState({
     dose: '',
     frequency: 'Once daily',
@@ -816,9 +835,7 @@ export default function EPrescribe() {
   const hasDea = !!(currentUser?.deaNumber && /^[A-Z]{2}\d{7}$/i.test(currentUser.deaNumber.trim()));
 
   // Allergy + duplicate therapy warnings for warnings panel
-  const patientAllergies = prescriptionPatient
-    ? (allergies[prescriptionPatient.id] || []).filter(a => a.type === 'Medication' && a.status === 'Active' && a.allergen !== 'No Known Drug Allergies (NKDA)')
-    : [];
+  const patientAllergies = fetchedAllergies;
   const allergyConflict = selectedMed
     ? patientAllergies.find(a =>
         selectedMed.name.toLowerCase().includes(a.allergen.toLowerCase().split(' ')[0]) ||
@@ -1963,11 +1980,11 @@ ${buildSignatureBlockHtml({ provider: currentUser, sigDataUrl, timestamp: new Da
                   ))}
                 </div>
               )}
-              {prescriptionPatient && (problems[prescriptionPatient.id] || []).filter(p => p.status === 'Active').length > 0 && (
+              {prescriptionPatient && fetchedProblems.length > 0 && (
                 <div style={{ marginBottom: 8 }}>
                   <span className="text-xs text-muted" style={{ display: 'block', marginBottom: 4 }}>Quick-select from active problem list:</span>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {(problems[prescriptionPatient.id] || []).filter(p => p.status === 'Active').map(p => (
+                    {fetchedProblems.map(p => (
                       <button key={p.id} type="button"
                         onClick={() => setRx({ ...rx, diagnosis: p.description, diagnosisCode: p.code })}
                         style={{

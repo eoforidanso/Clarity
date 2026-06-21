@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
+import { patientRecalls as patientRecallsApi } from '../services/api';
 
 const RECALL_REASONS = [
   'PHQ-9 Rescreen Due', 'GAD-7 Rescreen Due', 'Annual Psychiatric Evaluation',
@@ -20,19 +21,16 @@ const STATUS_COLORS = {
   'Unable to Reach': { bg: '#fef3c7', color: '#78350f', dot: '#d97706' },
 };
 
-const MOCK_RECALLS = [
-  { id: 'rc-1', patientName: 'James Anderson', mrn: 'MRN-001', phone: '(555) 111-2233', email: 'james.a@email.com', reason: 'Medication Monitoring — Lab Due', detail: 'Lithium level and TSH due — last drawn 2/25/2026', lastVisit: '2026-03-24', nextDue: '2026-04-15', outreachStatus: 'Not Started', attempts: 0, lastAttempt: '', method: '', notes: '', provider: 'Dr. Chris Lee' },
-  { id: 'rc-2', patientName: 'Maria Garcia', mrn: 'MRN-002', phone: '(555) 222-3344', email: 'maria.g@email.com', reason: 'GAD-7 Rescreen Due', detail: 'Last GAD-7 score: 14 (moderate) on 2/5/2026. Due for 8-week rescreen.', lastVisit: '2026-04-09', nextDue: '2026-04-05', outreachStatus: 'Contacted', attempts: 1, lastAttempt: '2026-04-10', method: 'Portal Message', notes: 'Patient responded — will complete at next visit', provider: 'Dr. Chris Lee' },
-  { id: 'rc-3', patientName: 'Robert Chen', mrn: 'MRN-003', phone: '(555) 333-4455', email: 'robert.c@email.com', reason: 'No Visit in 90+ Days', detail: 'New patient accepted but never scheduled first appointment. Treatment-resistant depression referral.', lastVisit: '', nextDue: '2026-04-08', outreachStatus: 'Attempted', attempts: 2, lastAttempt: '2026-04-13', method: 'Phone', notes: 'Left voicemail x2. No callback yet.', provider: 'Dr. Chris Lee' },
-  { id: 'rc-4', patientName: 'Ashley Kim', mrn: 'MRN-004', phone: '(555) 444-5566', email: 'ashley.k@email.com', reason: 'Treatment Plan Review Due', detail: 'Treatment plan created 1/15/2026. 90-day review due.', lastVisit: '2026-04-07', nextDue: '2026-04-15', outreachStatus: 'Not Started', attempts: 0, lastAttempt: '', method: '', notes: '', provider: 'April Torres, LCSW' },
-  { id: 'rc-5', patientName: 'Dorothy Wilson', mrn: 'MRN-005', phone: '(555) 555-6677', email: 'dorothy.w@email.com', reason: 'C-SSRS Re-assessment Due', detail: 'Patient endorsed passive SI 3/18/2026. Safety plan in place. C-SSRS rescreen at 30 days.', lastVisit: '2026-03-18', nextDue: '2026-04-17', outreachStatus: 'Scheduled', attempts: 1, lastAttempt: '2026-04-14', method: 'Phone', notes: 'Scheduled for 4/17 follow-up. Patient denies current SI.', provider: 'Dr. Chris Lee' },
-  { id: 'rc-6', patientName: 'Sophia Martinez', mrn: 'MRN-006', phone: '(555) 666-7788', email: 'sophia.m@email.com', reason: 'Missed Last Appointment', detail: 'No-showed 4/3/2026 therapy session. 2nd no-show in 60 days.', lastVisit: '2026-03-13', nextDue: '2026-04-03', outreachStatus: 'Attempted', attempts: 3, lastAttempt: '2026-04-12', method: 'Text/SMS', notes: 'Texted x2, called x1. No response. Sent portal message 4/12.', provider: 'April Torres, LCSW' },
-  { id: 'rc-7', patientName: 'Brian Foster', mrn: 'MRN-007', phone: '(555) 777-8899', email: 'brian.f@email.com', reason: 'Substance Use Screening Overdue', detail: 'AUDIT-C last administered 12/2025. Due for 6-month rescreening.', lastVisit: '2026-03-01', nextDue: '2026-04-01', outreachStatus: 'Unable to Reach', attempts: 4, lastAttempt: '2026-04-14', method: 'Phone', notes: 'Phone disconnected. Email bounced. Consider mailing letter.', provider: 'Dr. Chris Lee' },
-];
 
 export default function PatientRecall() {
   const { currentUser } = useAuth();
-  const [recalls, setRecalls] = useState(MOCK_RECALLS);
+  const [recalls, setRecalls] = useState([]);
+
+  useEffect(() => {
+    patientRecallsApi.list().then(data => {
+      if (Array.isArray(data)) setRecalls(data);
+    }).catch(() => {});
+  }, []);
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterReason, setFilterReason] = useState('All');
   const [search, setSearch] = useState('');
@@ -64,20 +62,37 @@ export default function PatientRecall() {
 
   const logOutreach = () => {
     if (!selectedRecall) return;
-    setRecalls(prev => prev.map(r => r.id === selectedRecall.id ? {
-      ...r, outreachStatus: 'Attempted', attempts: r.attempts + 1,
-      lastAttempt: new Date().toISOString().slice(0, 10),
+    const today = new Date().toISOString().slice(0, 10);
+    const existing = selectedRecall;
+    const newNotes = existing.notes
+      ? `${existing.notes}\n[${today}] ${outreachForm.method}: ${outreachForm.notes}`
+      : `[${today}] ${outreachForm.method}: ${outreachForm.notes}`;
+    const payload = {
+      outreachStatus: 'Attempted',
+      attempts: existing.attempts + 1,
+      lastAttempt: today,
       method: outreachForm.method,
-      notes: r.notes ? `${r.notes}\n[${new Date().toISOString().slice(0, 10)}] ${outreachForm.method}: ${outreachForm.notes}` : `[${new Date().toISOString().slice(0, 10)}] ${outreachForm.method}: ${outreachForm.notes}`,
-    } : r));
-    setSelectedRecall(prev => prev ? { ...prev, attempts: prev.attempts + 1, outreachStatus: 'Attempted' } : null);
+      notes: newNotes,
+    };
+    patientRecallsApi.update(existing.id, payload).then(updated => {
+      setRecalls(prev => prev.map(r => r.id === existing.id ? updated : r));
+      setSelectedRecall(updated);
+    }).catch(() => {
+      setRecalls(prev => prev.map(r => r.id === existing.id ? { ...r, ...payload } : r));
+      setSelectedRecall(prev => prev ? { ...prev, ...payload } : null);
+    });
     setShowOutreach(false);
     setOutreachForm({ method: 'Phone', notes: '' });
   };
 
   const markScheduled = (id) => {
-    setRecalls(prev => prev.map(r => r.id === id ? { ...r, outreachStatus: 'Scheduled' } : r));
-    if (selectedRecall?.id === id) setSelectedRecall(prev => prev ? { ...prev, outreachStatus: 'Scheduled' } : null);
+    patientRecallsApi.update(id, { outreachStatus: 'Scheduled' }).then(updated => {
+      setRecalls(prev => prev.map(r => r.id === id ? updated : r));
+      if (selectedRecall?.id === id) setSelectedRecall(updated);
+    }).catch(() => {
+      setRecalls(prev => prev.map(r => r.id === id ? { ...r, outreachStatus: 'Scheduled' } : r));
+      if (selectedRecall?.id === id) setSelectedRecall(prev => prev ? { ...prev, outreachStatus: 'Scheduled' } : null);
+    });
   };
 
   const isOverdue = (r) => new Date(r.nextDue) < new Date() && r.outreachStatus !== 'Scheduled';

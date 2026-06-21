@@ -2,18 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 
-const MOCK_VITALS_HISTORY = [
-  { date: '2026-01-06', systolic: 128, diastolic: 82, hr: 76, temp: 98.4, rr: 16, spo2: 97, weight: 172, height: 68, bmi: 26.2 },
-  { date: '2025-12-16', systolic: 132, diastolic: 85, hr: 78, temp: 98.6, rr: 18, spo2: 98, weight: 174, height: 68, bmi: 26.5 },
-  { date: '2025-12-02', systolic: 125, diastolic: 80, hr: 72, temp: 98.2, rr: 16, spo2: 99, weight: 171, height: 68, bmi: 26.0 },
-  { date: '2025-11-18', systolic: 138, diastolic: 88, hr: 82, temp: 98.7, rr: 17, spo2: 96, weight: 176, height: 68, bmi: 26.8 },
-  { date: '2025-11-04', systolic: 142, diastolic: 92, hr: 85, temp: 99.0, rr: 18, spo2: 97, weight: 178, height: 68, bmi: 27.1 },
-  { date: '2025-10-21', systolic: 135, diastolic: 86, hr: 80, temp: 98.5, rr: 16, spo2: 98, weight: 175, height: 68, bmi: 26.6 },
-  { date: '2025-10-07', systolic: 130, diastolic: 84, hr: 74, temp: 98.3, rr: 15, spo2: 98, weight: 173, height: 68, bmi: 26.3 },
-  { date: '2025-09-22', systolic: 145, diastolic: 94, hr: 88, temp: 98.9, rr: 19, spo2: 96, weight: 180, height: 68, bmi: 27.4 },
-  { date: '2025-09-08', systolic: 140, diastolic: 90, hr: 84, temp: 98.6, rr: 17, spo2: 97, weight: 179, height: 68, bmi: 27.2 },
-  { date: '2025-08-25', systolic: 136, diastolic: 87, hr: 79, temp: 98.4, rr: 16, spo2: 98, weight: 177, height: 68, bmi: 26.9 },
-];
 
 /* Parse "128/82" → { systolic: 128, diastolic: 82 } */
 function parseBP(bp) {
@@ -102,7 +90,7 @@ export default function VitalsTrending() {
 
   /* Use the selected patient's vitals; fall back to demo data */
   const rawVitals = selectedPatient ? (vitalSigns[selectedPatient.id] || []) : [];
-  const baseVitals = rawVitals.length > 0 ? transformVitals(rawVitals) : MOCK_VITALS_HISTORY;
+  const baseVitals = rawVitals.length > 0 ? transformVitals(rawVitals) : [];
 
   const [vitals] = useState(baseVitals);
   const [selectedMetric, setSelectedMetric] = useState('systolic');
@@ -113,7 +101,7 @@ export default function VitalsTrending() {
     const months = timeRange === '3m' ? 3 : timeRange === '6m' ? 6 : 12;
     const cutoff = new Date(now);
     cutoff.setMonth(cutoff.getMonth() - months);
-    const source = selectedPatient ? transformVitals(vitalSigns[selectedPatient.id] || []) : MOCK_VITALS_HISTORY;
+    const source = selectedPatient ? transformVitals(vitalSigns[selectedPatient.id] || []) : [];
     return source.filter(v => new Date(v.date) >= cutoff);
   }, [selectedPatient, vitalSigns, timeRange]);
 

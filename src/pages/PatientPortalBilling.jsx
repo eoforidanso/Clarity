@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { patients as mockPatientsData } from '../data/mockData';
 import '../styles/global.css';
 
 // Simple API client for billing operations
@@ -83,15 +82,7 @@ const PatientPortalBilling = () => {
         throw new Error('empty');
       }
     } catch (error) {
-      // Fall back to mock data when backend is unavailable
-      const fallback = mockPatientsData.map(p => ({
-        id: p.id,
-        first_name: p.firstName,
-        last_name: p.lastName,
-        email: p.email || `${p.firstName.toLowerCase()}.${p.lastName.toLowerCase()}@example.com`,
-        mrn: p.mrn,
-      }));
-      setPatients(fallback);
+      setPatients([]);
     }
   };
 
@@ -108,23 +99,7 @@ const PatientPortalBilling = () => {
         throw new Error('no data');
       }
     } catch (error) {
-      // Mock fallback: derive a simple statement from mockData patients
-      const patient = mockPatientsData.find(p => p.id === selectedPatient);
-      if (patient) {
-        setStatements([{
-          id: `mock-st-${selectedPatient}`,
-          statement_number: `STMT-${patient.mrn}`,
-          statement_date: new Date(Date.now() - 30 * 86400000).toISOString(),
-          due_date: new Date(Date.now() + 30 * 86400000).toISOString(),
-          total_amount: patient.insurance?.primary?.copay ? patient.insurance.primary.copay * 3 : 75,
-          amount_due: patient.insurance?.primary?.copay || 25,
-          item_count: 1,
-          status: 'outstanding',
-        }]);
-        setTotalPages(1);
-      } else {
-        setStatements([]);
-      }
+      setStatements([]);
     } finally {
       setLoading(false);
     }

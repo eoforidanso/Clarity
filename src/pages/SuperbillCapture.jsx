@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
-import { encounterHistory as mockEncounterHistory, patients as mockPatients } from '../data/mockData';
 
 // CPT fee schedule (code → fee) for deriving charges from encounters
 const CPT_FEE_SCHEDULE = {
@@ -128,17 +127,7 @@ function buildSuperbills(patientContextEncounters, patients) {
     }
   }
 
-  // 2. From mockData encounterHistory (signed historical encounters)
-  for (const [patientId, encList] of Object.entries(mockEncounterHistory || {})) {
-    const patient = patients.find(p => p.id === patientId);
-    for (const enc of (encList || [])) {
-      if (seenIds.has(enc.id)) continue; // don't duplicate
-      // All encounterHistory items are considered signed (historical)
-      result.push(encounterToSuperbill(enc, patientId, patient, persisted));
-    }
-  }
-
-  // 3. If nothing found, fall back to sample superbills
+  // 2. If nothing found, fall back to sample superbills
   if (result.length === 0) {
     return FALLBACK_SUPERBILLS.map(sb => {
       const saved = persisted[sb.id] || {};

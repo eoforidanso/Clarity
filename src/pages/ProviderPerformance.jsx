@@ -1,54 +1,32 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { users as usersApi } from '../services/api';
 
 const TIME_RANGES = ['Last 7 Days', 'Last 30 Days', 'Last Quarter', 'YTD', 'Last Year'];
 
-const MOCK_PROVIDERS = [
-  {
-    id: 'p1', name: 'Dr. Chris Lee', role: 'Psychiatrist', specialty: 'General Psychiatry',
-    avatar: '👨‍⚕️',
-    metrics: {
-      patientsTotal: 142, newPatients: 18, discharges: 5,
-      appointmentsScheduled: 87, appointmentsCompleted: 79, noShows: 4, cancelledByPatient: 3, cancelledByProvider: 1,
-      avgEncounterTime: 32, chargesCaptured: 64250.00, collectionsReceived: 48780.00,
-      claimsSubmitted: 79, claimsDenied: 6, denialRate: 7.6,
-      phq9Avg: 11.2, phq9ImprovedPct: 68, gad7Avg: 9.8, gad7ImprovedPct: 72,
-      prescriptionsWritten: 112, priorAuthsSubmitted: 14, priorAuthApproved: 11,
-      avgDocumentationLag: 0.5, notesCompletedSameDay: 74,
-      satisfaction: 4.8, nps: 82,
-    },
-    trend: [62, 70, 68, 75, 79], // completed appts per month
-  },
-  {
-    id: 'p2', name: 'Dr. April Torres', role: 'Therapist', specialty: 'CBT / Trauma',
-    avatar: '👩‍⚕️',
-    metrics: {
-      patientsTotal: 58, newPatients: 8, discharges: 3,
-      appointmentsScheduled: 96, appointmentsCompleted: 88, noShows: 6, cancelledByPatient: 2, cancelledByProvider: 0,
-      avgEncounterTime: 50, chargesCaptured: 44000.00, collectionsReceived: 38200.00,
-      claimsSubmitted: 88, claimsDenied: 4, denialRate: 4.5,
-      phq9Avg: 8.6, phq9ImprovedPct: 74, gad7Avg: 7.9, gad7ImprovedPct: 78,
-      prescriptionsWritten: 0, priorAuthsSubmitted: 6, priorAuthApproved: 5,
-      avgDocumentationLag: 0.2, notesCompletedSameDay: 92,
-      satisfaction: 4.9, nps: 91,
-    },
-    trend: [78, 82, 84, 86, 88],
-  },
-  {
-    id: 'p3', name: 'Kelly Nguyen', role: 'Nurse Practitioner', specialty: 'Medication Management',
-    avatar: '👩‍⚕️',
-    metrics: {
-      patientsTotal: 98, newPatients: 12, discharges: 2,
-      appointmentsScheduled: 110, appointmentsCompleted: 102, noShows: 5, cancelledByPatient: 2, cancelledByProvider: 1,
-      avgEncounterTime: 22, chargesCaptured: 38500.00, collectionsReceived: 31200.00,
-      claimsSubmitted: 102, claimsDenied: 8, denialRate: 7.8,
-      phq9Avg: 10.1, phq9ImprovedPct: 65, gad7Avg: 9.2, gad7ImprovedPct: 67,
-      prescriptionsWritten: 89, priorAuthsSubmitted: 10, priorAuthApproved: 8,
-      avgDocumentationLag: 1.2, notesCompletedSameDay: 65,
-      satisfaction: 4.6, nps: 74,
-    },
-    trend: [92, 95, 98, 100, 102],
-  },
-];
+function emptyMetrics() {
+  return {
+    patientsTotal: 0, newPatients: 0, discharges: 0,
+    appointmentsScheduled: 0, appointmentsCompleted: 0, noShows: 0, cancelledByPatient: 0, cancelledByProvider: 0,
+    avgEncounterTime: 0, chargesCaptured: 0, collectionsReceived: 0,
+    claimsSubmitted: 0, claimsDenied: 0, denialRate: 0,
+    phq9Avg: 0, phq9ImprovedPct: 0, gad7Avg: 0, gad7ImprovedPct: 0,
+    prescriptionsWritten: 0, priorAuthsSubmitted: 0, priorAuthApproved: 0,
+    avgDocumentationLag: 0, notesCompletedSameDay: 0,
+    satisfaction: 0, nps: 0,
+  };
+}
+
+function userToProvider(u) {
+  return {
+    id: u.id,
+    name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.username || u.name || u.id,
+    role: u.role || '',
+    specialty: u.specialty || u.credentials || '',
+    avatar: '👤',
+    metrics: emptyMetrics(),
+    trend: [],
+  };
+}
 
 const StatCard = ({ icon, value, label, bg, change }) => (
   <div style={{ background: '#fff', borderRadius: 12, border: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -71,17 +49,42 @@ const MiniBar = ({ data, max, color }) => (
 
 export default function ProviderPerformance() {
   const [timeRange, setTimeRange] = useState('Last 30 Days');
-  const [selectedProvider, setSelectedProvider] = useState(MOCK_PROVIDERS[0]);
+  const [providers, setProviders] = useState([]);
+  const [selectedProvider, setSelectedProvider] = useState(null);
   const [view, setView] = useState('overview');
 
+  useEffect(() => {
+    usersApi.list().then(data => {
+      if (Array.isArray(data)) {
+        const providerRoles = ['prescriber', 'psychiatrist', 'therapist', 'nurse_practitioner', 'provider'];
+        const list = data
+          .filter(u => providerRoles.includes((u.role || '').toLowerCase()))
+          .map(userToProvider);
+        setProviders(list);
+      }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!selectedProvider && providers.length > 0) setSelectedProvider(providers[0]);
+  }, [providers]);
+
   const totals = useMemo(() => ({
-    patients: MOCK_PROVIDERS.reduce((s, p) => s + p.metrics.patientsTotal, 0),
-    appointments: MOCK_PROVIDERS.reduce((s, p) => s + p.metrics.appointmentsCompleted, 0),
-    charges: MOCK_PROVIDERS.reduce((s, p) => s + p.metrics.chargesCaptured, 0),
-    collections: MOCK_PROVIDERS.reduce((s, p) => s + p.metrics.collectionsReceived, 0),
-    noShows: MOCK_PROVIDERS.reduce((s, p) => s + p.metrics.noShows, 0),
-    avgSatisfaction: (MOCK_PROVIDERS.reduce((s, p) => s + p.metrics.satisfaction, 0) / MOCK_PROVIDERS.length).toFixed(1),
-  }), []);
+    patients:        providers.reduce((s, p) => s + p.metrics.patientsTotal, 0),
+    appointments:    providers.reduce((s, p) => s + p.metrics.appointmentsCompleted, 0),
+    charges:         providers.reduce((s, p) => s + p.metrics.chargesCaptured, 0),
+    collections:     providers.reduce((s, p) => s + p.metrics.collectionsReceived, 0),
+    noShows:         providers.reduce((s, p) => s + p.metrics.noShows, 0),
+    avgSatisfaction: providers.length > 0
+      ? (providers.reduce((s, p) => s + p.metrics.satisfaction, 0) / providers.length).toFixed(1)
+      : '—',
+  }), [providers]);
+
+  if (!selectedProvider) return (
+    <div className="fade-in" style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>
+      Loading providers…
+    </div>
+  );
 
   const m = selectedProvider.metrics;
 
@@ -114,7 +117,7 @@ export default function ProviderPerformance() {
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
         <div style={{ background: '#fff', borderRadius: 14, border: '1px solid var(--border)', overflow: 'hidden' }}>
           <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Providers</div>
-          {MOCK_PROVIDERS.map(p => (
+          {providers.map(p => (
             <div key={p.id} onClick={() => setSelectedProvider(p)}
               style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: selectedProvider.id === p.id ? 'var(--primary-light)' : 'transparent', display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.15s' }}>
               <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#3b82f6,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: '#fff' }}>{p.avatar}</div>

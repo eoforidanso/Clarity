@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
+import { priorAuths as priorAuthsApi } from '../services/api';
 
 const AUTH_STATUSES = ['Pending Submission', 'Submitted', 'Under Review', 'Info Requested', 'Approved', 'Denied', 'Appeal Filed', 'Appeal Approved'];
 const STATUS_COLORS = {
@@ -22,19 +23,17 @@ const SERVICE_TYPES = [
   'Ketamine / Esketamine', 'Genetic Testing', 'Specialty Medication',
 ];
 
-const MOCK_AUTHS = [
-  { id: 'pa-1', patientId: 'p1', patientName: 'James Anderson', insurance: 'Blue Cross Blue Shield', memberId: 'BCBS-441289', serviceType: 'Medication Management', medication: 'Vyvanse 50mg', cptCode: '99214', icdCodes: ['F90.0', 'F31.81'], requestedUnits: 12, approvedUnits: 12, provider: 'Dr. Chris L.', status: 'Approved', authNumber: 'PA-2026-8841', submitDate: '2026-03-15', reviewDate: '2026-03-18', effectiveDate: '2026-03-20', expirationDate: '2026-09-20', turnaroundDays: 3, notes: 'Approved for 12 visits through 9/20/2026', urgency: 'Standard', denialReason: '' },
-  { id: 'pa-2', patientId: 'p2', patientName: 'Maria Garcia', insurance: 'Aetna', memberId: 'AET-552190', serviceType: 'Neuropsychological Testing', medication: '', cptCode: '96132', icdCodes: ['F90.9', 'F41.1'], requestedUnits: 1, approvedUnits: 0, provider: 'Dr. Chris L.', status: 'Under Review', authNumber: 'PA-2026-9102', submitDate: '2026-04-10', reviewDate: '', effectiveDate: '', expirationDate: '', turnaroundDays: null, notes: 'Peer-to-peer review may be requested', urgency: 'Standard', denialReason: '' },
-  { id: 'pa-3', patientId: 'p4', patientName: 'Ashley Kim', insurance: 'UnitedHealthcare', memberId: 'UHC-339871', serviceType: 'Specialty Medication', medication: 'Spravato (Esketamine) 56mg', cptCode: 'S0013', icdCodes: ['F33.2', 'F33.1'], requestedUnits: 8, approvedUnits: 0, provider: 'Dr. Chris L.', status: 'Denied', authNumber: 'PA-2026-7654', submitDate: '2026-03-28', reviewDate: '2026-04-02', effectiveDate: '', expirationDate: '', turnaroundDays: 5, notes: '', urgency: 'Urgent', denialReason: 'Medical necessity not established. Payer requires documentation of failure of 3+ adequate antidepressant trials. Only 2 documented.' },
-  { id: 'pa-4', patientId: 'p3', patientName: 'Robert Chen', insurance: 'Cigna', memberId: 'CIG-882741', serviceType: 'Intensive Outpatient Program (IOP)', medication: '', cptCode: '90853', icdCodes: ['F33.1', 'F10.20'], requestedUnits: 30, approvedUnits: 0, provider: 'Dr. Chris L.', status: 'Info Requested', authNumber: 'PA-2026-8899', submitDate: '2026-04-05', reviewDate: '', effectiveDate: '', expirationDate: '', turnaroundDays: null, notes: 'Payer requesting: recent treatment history, ASAM criteria assessment, letter of medical necessity', urgency: 'Urgent', denialReason: '' },
-  { id: 'pa-5', patientId: 'p4', patientName: 'Ashley Kim', insurance: 'UnitedHealthcare', memberId: 'UHC-339871', serviceType: 'Specialty Medication', medication: 'Spravato (Esketamine) 56mg', cptCode: 'S0013', icdCodes: ['F33.2', 'F33.1'], requestedUnits: 8, approvedUnits: 0, provider: 'Dr. Chris L.', status: 'Appeal Filed', authNumber: 'PA-2026-7654-A1', submitDate: '2026-04-10', reviewDate: '', effectiveDate: '', expirationDate: '', turnaroundDays: null, notes: 'Appeal filed with updated documentation: 3rd trial (Mirtazapine) added, peer-reviewed literature supporting Spravato', urgency: 'Urgent', denialReason: '' },
-  { id: 'pa-6', patientId: 'p5', patientName: 'Dorothy Wilson', insurance: 'Medicare', memberId: 'MBI-11C22D33', serviceType: 'Transcranial Magnetic Stimulation (TMS)', medication: '', cptCode: '90868', icdCodes: ['F33.2'], requestedUnits: 36, approvedUnits: 0, provider: 'Dr. Chris L.', status: 'Pending Submission', authNumber: '', submitDate: '', reviewDate: '', effectiveDate: '', expirationDate: '', turnaroundDays: null, notes: 'Need to complete CMS form and attach failed medication trials', urgency: 'Standard', denialReason: '' },
-];
 
 export default function PriorAuthTracking() {
   const { currentUser } = useAuth();
   const { patients } = usePatient();
-  const [auths, setAuths] = useState(MOCK_AUTHS);
+  const [auths, setAuths] = useState([]);
+
+  useEffect(() => {
+    priorAuthsApi.list().then(data => {
+      if (Array.isArray(data)) setAuths(data);
+    }).catch(() => {});
+  }, []);
   const [filterStatus, setFilterStatus] = useState('All');
   const [search, setSearch] = useState('');
   const [selectedAuth, setSelectedAuth] = useState(null);
@@ -85,15 +84,20 @@ export default function PriorAuthTracking() {
   }), [auths]);
 
   const updateStatus = (id, status) => {
-    setAuths(prev => prev.map(a => a.id === id ? { ...a, status, reviewDate: status !== a.status ? new Date().toISOString().split('T')[0] : a.reviewDate } : a));
-    if (selectedAuth?.id === id) setSelectedAuth(prev => ({ ...prev, status }));
+    const reviewDate = new Date().toISOString().split('T')[0];
+    priorAuthsApi.update(id, { status, reviewDate }).then(updated => {
+      setAuths(prev => prev.map(a => a.id === id ? updated : a));
+      if (selectedAuth?.id === id) setSelectedAuth(updated);
+    }).catch(() => {
+      setAuths(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+      if (selectedAuth?.id === id) setSelectedAuth(prev => ({ ...prev, status }));
+    });
   };
 
   const submitAuth = () => {
     const patient = (patients || []).find(p => p.id === newForm.patientId);
     if (!patient || !newForm.serviceType || !newForm.insurance) return;
-    const auth = {
-      id: `pa-${Date.now()}`,
+    const payload = {
       patientId: newForm.patientId,
       patientName: `${patient.firstName} ${patient.lastName}`,
       insurance: newForm.insurance,
@@ -103,20 +107,13 @@ export default function PriorAuthTracking() {
       cptCode: newForm.cptCode,
       icdCodes: newForm.icdCodes.split(',').map(c => c.trim()).filter(Boolean),
       requestedUnits: parseInt(newForm.requestedUnits) || 1,
-      approvedUnits: 0,
       provider: `${currentUser.firstName} ${currentUser.lastName}`,
-      status: 'Pending Submission',
-      authNumber: '',
-      submitDate: '',
-      reviewDate: '',
-      effectiveDate: '',
-      expirationDate: '',
-      turnaroundDays: null,
-      notes: newForm.notes,
       urgency: newForm.urgency,
-      denialReason: '',
+      notes: newForm.notes,
     };
-    setAuths(prev => [auth, ...prev]);
+    priorAuthsApi.create(payload).then(created => {
+      setAuths(prev => [created, ...prev]);
+    }).catch(() => {});
     setShowNew(false);
     setNewForm({ patientId: '', insurance: '', memberId: '', serviceType: '', medication: '', cptCode: '', icdCodes: '', requestedUnits: '', urgency: 'Standard', notes: '' });
   };

@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { labTracking as labTrackingApi } from '../services/api';
 
 const URGENCY_STYLES = {
   Stat: { bg: '#fee2e2', color: '#991b1b', icon: '🔴' },
@@ -15,24 +16,26 @@ const STATUS_STYLES = {
   Cancelled: { bg: '#f1f5f9', color: '#64748b', icon: '🚫' },
 };
 
-const MOCK_LAB_ORDERS = [
-  { id: 'lo1', patient: 'Aniyah Brooks', patientId: 'P001', orderDate: '2026-01-06', test: 'Lithium Level', code: '80178', urgency: 'Routine', status: 'Resulted', provider: 'Dr. Christopher Adams', resultDate: '2026-01-06', resultValue: '0.8 mEq/L', refRange: '0.6–1.2 mEq/L', flag: 'Normal', lab: 'Quest Diagnostics' },
-  { id: 'lo2', patient: 'Aniyah Brooks', patientId: 'P001', orderDate: '2026-01-06', test: 'TSH', code: '84443', urgency: 'Routine', status: 'Resulted', provider: 'Dr. Christopher Adams', resultDate: '2026-01-06', resultValue: '2.1 mIU/L', refRange: '0.4–4.0 mIU/L', flag: 'Normal', lab: 'Quest Diagnostics' },
-  { id: 'lo3', patient: 'Marcus Rivera', patientId: 'P002', orderDate: '2026-01-06', test: 'CBC with Differential', code: '85025', urgency: 'Routine', status: 'In Process', provider: 'Dr. Christopher Adams', resultDate: null, resultValue: null, refRange: null, flag: null, lab: 'LabCorp' },
-  { id: 'lo4', patient: 'Marcus Rivera', patientId: 'P002', orderDate: '2026-01-06', test: 'CMP-14', code: '80053', urgency: 'Routine', status: 'In Process', provider: 'Dr. Christopher Adams', resultDate: null, resultValue: null, refRange: null, flag: null, lab: 'LabCorp' },
-  { id: 'lo5', patient: 'Sarah Chen', patientId: 'P003', orderDate: '2026-01-06', test: 'Urine Drug Screen', code: '80307', urgency: 'Stat', status: 'Collected', provider: 'Dr. Christopher Adams', resultDate: null, resultValue: null, refRange: null, flag: null, lab: 'In-House' },
-  { id: 'lo6', patient: 'David Okafor', patientId: 'P004', orderDate: '2026-01-05', test: 'Valproic Acid Level', code: '80164', urgency: 'Urgent', status: 'Resulted', provider: 'Dr. Christopher Adams', resultDate: '2026-01-06', resultValue: '95 mcg/mL', refRange: '50–100 mcg/mL', flag: 'Normal', lab: 'Quest Diagnostics' },
-  { id: 'lo7', patient: 'Emily Tran', patientId: 'P005', orderDate: '2026-01-06', test: 'Prolactin Level', code: '84146', urgency: 'Routine', status: 'Ordered', provider: 'Dr. Christopher Adams', resultDate: null, resultValue: null, refRange: null, flag: null, lab: 'Quest Diagnostics' },
-  { id: 'lo8', patient: 'Emily Tran', patientId: 'P005', orderDate: '2026-01-06', test: 'Fasting Glucose', code: '82947', urgency: 'Routine', status: 'Ordered', provider: 'Dr. Christopher Adams', resultDate: null, resultValue: null, refRange: null, flag: null, lab: 'Quest Diagnostics' },
-  { id: 'lo9', patient: 'Aniyah Brooks', patientId: 'P001', orderDate: '2026-01-05', test: 'Renal Panel', code: '80069', urgency: 'Routine', status: 'Resulted', provider: 'Dr. Christopher Adams', resultDate: '2026-01-05', resultValue: 'See full panel', refRange: '—', flag: 'Normal', lab: 'Quest Diagnostics' },
-  { id: 'lo10', patient: 'David Okafor', patientId: 'P004', orderDate: '2026-01-04', test: 'Hepatic Function Panel', code: '80076', urgency: 'Routine', status: 'Resulted', provider: 'Dr. Christopher Adams', resultDate: '2026-01-05', resultValue: 'ALT 42 U/L', refRange: '7–56 U/L', flag: 'Normal', lab: 'LabCorp' },
-  { id: 'lo11', patient: 'Sarah Chen', patientId: 'P003', orderDate: '2026-01-03', test: 'Clozapine Level', code: '80159', urgency: 'Urgent', status: 'Resulted', provider: 'Dr. Christopher Adams', resultDate: '2026-01-04', resultValue: '450 ng/mL', refRange: '350–600 ng/mL', flag: 'Normal', lab: 'Quest Diagnostics' },
-  { id: 'lo12', patient: 'Marcus Rivera', patientId: 'P002', orderDate: '2026-01-06', test: 'HbA1c', code: '83036', urgency: 'Routine', status: 'Collected', provider: 'Dr. Christopher Adams', resultDate: null, resultValue: null, refRange: null, flag: null, lab: 'LabCorp' },
-];
+function normalizeLabOrder(r) {
+  return {
+    ...r,
+    patient:   r.patient   || r.patientName || '',
+    code:      r.code      || r.cptCode     || '',
+    flag:      r.flag      || r.resultFlag  || null,
+    orderDate: r.orderDate || r.orderedDate || '',
+    lab:       r.lab       || r.facility    || '',
+  };
+}
 
 export default function LabOrderTracking() {
   const { currentUser } = useAuth();
-  const [orders, setOrders] = useState(MOCK_LAB_ORDERS);
+  const [orders, setOrders] = useState([]);
+
+  useEffect(() => {
+    labTrackingApi.list().then(data => {
+      if (Array.isArray(data)) setOrders(data.map(normalizeLabOrder));
+    }).catch(() => {});
+  }, []);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterUrgency, setFilterUrgency] = useState('All');
@@ -284,11 +287,20 @@ export default function LabOrderTracking() {
               {selectedOrder.status !== 'Resulted' && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                   <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => {
-                    setOrders(prev => prev.map(o => o.id === selectedOrder.id ? { ...o, status: 'Resulted', resultDate: new Date().toISOString().split('T')[0], resultValue: 'WNL', flag: 'Normal' } : o));
+                    const update = { status: 'Resulted', resultDate: new Date().toISOString().split('T')[0], resultValue: 'WNL', resultFlag: 'Normal' };
+                    labTrackingApi.update(selectedOrder.id, update).then(updated => {
+                      setOrders(prev => prev.map(o => o.id === selectedOrder.id ? normalizeLabOrder(updated) : o));
+                    }).catch(() => {
+                      setOrders(prev => prev.map(o => o.id === selectedOrder.id ? { ...o, status: 'Resulted', resultDate: update.resultDate, resultValue: 'WNL', flag: 'Normal' } : o));
+                    });
                     setSelectedOrder(null);
                   }}>✅ Mark Resulted</button>
                   <button className="btn btn-secondary" style={{ flex: 1, color: '#dc2626' }} onClick={() => {
-                    setOrders(prev => prev.map(o => o.id === selectedOrder.id ? { ...o, status: 'Cancelled' } : o));
+                    labTrackingApi.update(selectedOrder.id, { status: 'Cancelled' }).then(updated => {
+                      setOrders(prev => prev.map(o => o.id === selectedOrder.id ? normalizeLabOrder(updated) : o));
+                    }).catch(() => {
+                      setOrders(prev => prev.map(o => o.id === selectedOrder.id ? { ...o, status: 'Cancelled' } : o));
+                    });
                     setSelectedOrder(null);
                   }}>🚫 Cancel Order</button>
                 </div>
