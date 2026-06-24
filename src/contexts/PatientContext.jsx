@@ -455,11 +455,14 @@ export function PatientProvider({ children, demoMode = false }) {
         ...prev,
         [patientId]: [created, ...(prev[patientId] || [])],
       }));
+      return created;
     } catch {
+      const fallback = { ...encounter, id: `enc-${Date.now()}` };
       setEncounters((prev) => ({
         ...prev,
-        [patientId]: [{ ...encounter, id: `enc-${Date.now()}` }, ...(prev[patientId] || [])],
+        [patientId]: [fallback, ...(prev[patientId] || [])],
       }));
+      return fallback;
     }
   }, []);
 

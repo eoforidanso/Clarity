@@ -2,8 +2,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { usePatient } from '../../contexts/PatientContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSite } from '../../contexts/SiteContext';
-import { icd10 as icd10Api } from '../../services/api';
+import { icd10 as icd10Api, encounters as encountersApi } from '../../services/api';
 import { CS_SCHEDULE_MAP, getControlledSchedule as _getControlledSchedule } from '../../utils/controlledSubstances';
+import { resolvePharmacyAsync } from '../../utils/rxAutoPopulate';
+import { resolveLabAsync }      from '../../utils/labAutoPopulate';
+import PharmacySearch from '../../components/PharmacySearch';
+import LabSearch      from '../../components/LabSearch';
 
 // ── Print a formatted order fax slip in a new window ────────────────────────
 function printOrderFaxSlip({ order, type, patient, provider, site }) {
@@ -455,6 +459,22 @@ const VISIT_TYPES = [
   'Crisis Intervention','Urgent Care','Initial Evaluation','Discharge Follow-Up',
 ];
 
+const ROS_SYSTEMS = [
+  { key: 'constitutional',  label: 'Constitutional',   hint: 'Fever, chills, weight change, fatigue, night sweats' },
+  { key: 'heent',           label: 'HEENT',            hint: 'Headache, vision, hearing, sinus, throat' },
+  { key: 'cardiovascular',  label: 'Cardiovascular',   hint: 'Chest pain, palpitations, edema, SOB on exertion' },
+  { key: 'respiratory',     label: 'Respiratory',      hint: 'Dyspnea, cough, wheezing' },
+  { key: 'gi',              label: 'Gastrointestinal', hint: 'Nausea, vomiting, diarrhea, constipation, abd. pain' },
+  { key: 'gu',              label: 'Genitourinary',    hint: 'Dysuria, frequency, hematuria' },
+  { key: 'musculoskeletal', label: 'Musculoskeletal',  hint: 'Joint pain, swelling, back pain, muscle weakness' },
+  { key: 'neurological',    label: 'Neurological',     hint: 'Dizziness, numbness, seizures, weakness, tremor' },
+  { key: 'psychiatric',     label: 'Psychiatric',      hint: 'Depression, anxiety, mood changes, sleep, appetite' },
+  { key: 'skin',            label: 'Integumentary',    hint: 'Rash, lesions, pruritus, color changes' },
+  { key: 'endocrine',       label: 'Endocrine',        hint: 'Heat/cold intolerance, polyuria, polydipsia' },
+];
+
+const ROS_INITIAL_TYPES = new Set(['Initial Evaluation', 'Psychiatric Evaluation']);
+
 const STATUS_BADGE = {
   'In Progress': 'badge-warning',
   'Completed': 'badge-success',
@@ -799,6 +819,8 @@ function blankEncounter(currentUser) {
       judgment: 'Good',
       additionalNotes: '',
     },
+    rosIncluded: false,
+    ros: {},
     assessment: '',
     plan: '',
     diagnoses: [],
@@ -875,6 +897,45 @@ function SectionHeader({ icon, title, color }) {
       <span style={{ fontWeight: 800, fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#2a3a50' }}>
         {title}
       </span>
+    </div>
+  );
+}
+
+function CollapsibleNoteSection({ id, icon, title, color, children, defaultOpen = true, isDirty = false, savedAt = null }) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  const rootRef = React.useRef(null);
+
+  // Expose an open-and-scroll function for keyboard shortcut / pill click
+  React.useEffect(() => {
+    const el = document.getElementById(`ns-btn-${id}`);
+    if (el) el.__openSection = () => {
+      setOpen(true);
+      setTimeout(() => rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 40);
+    };
+  });
+
+  return (
+    <div ref={rootRef} id={`ns-${id}`} style={{ marginBottom: 14, borderRadius: 12, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: `1px solid ${color}30` }}>
+      <button type="button" id={`ns-btn-${id}`} onClick={() => setOpen(v => !v)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px',
+          background: `linear-gradient(135deg, ${color}12 0%, ${color}05 100%)`,
+          borderBottom: open ? `1px solid ${color}25` : 'none',
+          border: 'none', borderLeft: `4px solid ${color}`, cursor: 'pointer', textAlign: 'left',
+        }}>
+        <span style={{ fontSize: 16 }}>{icon}</span>
+        <span style={{ flex: 1, fontWeight: 800, fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#1e293b' }}>{title}</span>
+        {isDirty && !savedAt && (
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#d97706', background: '#fef9c3', padding: '2px 8px', borderRadius: 10, border: '1px solid #fde68a', flexShrink: 0 }}>● Unsaved</span>
+        )}
+        {savedAt != null && (
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', background: '#f0fdf4', padding: '2px 8px', borderRadius: 10, border: '1px solid #86efac', flexShrink: 0 }}>✓ Auto-saved</span>
+        )}
+        <span style={{ fontSize: 12, color, flexShrink: 0, fontWeight: 700 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      <div style={{ overflow: 'hidden', maxHeight: open ? '9999px' : 0, transition: 'max-height 0.26s cubic-bezier(0.4,0,0.2,1)', background: 'var(--bg-white)' }}>
+        <div style={{ padding: '16px 18px' }}>{children}</div>
+      </div>
     </div>
   );
 }
@@ -3206,11 +3267,114 @@ function EncounterAssessmentsSection({ d, setD, patient }) {
   );
 }
 
+// ── Review of Systems ─────────────────────────────────────────────────────────
+function ReviewOfSystemsSection({ d, setD }) {
+  const ros = d.ros || {};
+  const setSystem = (key, patch) =>
+    setD(p => ({ ...p, ros: { ...p.ros, [key]: { ...(p.ros?.[key] || {}), ...patch } } }));
+
+  const markAllWNL = () => {
+    const all = {};
+    ROS_SYSTEMS.forEach(s => { all[s.key] = { wnl: true, notes: '' }; });
+    setD(p => ({ ...p, ros: all }));
+  };
+
+  const anyAbnormal = ROS_SYSTEMS.some(s => ros[s.key] && !ros[s.key].wnl && ros[s.key].notes?.trim());
+
+  if (!d.rosIncluded) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 18px', background: '#f8fafc', borderRadius: 8,
+        border: '1px dashed #cbd5e1', gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>ROS not documented for this visit</div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+            Optional — typically performed for initial evaluations and psychiatric assessments
+          </div>
+        </div>
+        <button type="button"
+          onClick={() => setD(p => ({ ...p, rosIncluded: true }))}
+          style={{ flexShrink: 0, padding: '6px 16px', borderRadius: 8, fontSize: 12,
+            fontWeight: 700, cursor: 'pointer', background: '#0891b2', color: '#fff',
+            border: 'none', whiteSpace: 'nowrap' }}>
+          + Include ROS
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button type="button" onClick={markAllWNL}
+            style={{ padding: '5px 14px', borderRadius: 8, fontSize: 11.5, fontWeight: 700,
+              cursor: 'pointer', background: '#f0fdf4', color: '#15803d',
+              border: '1.5px solid #86efac' }}>
+            ✓ Mark all WNL
+          </button>
+          {anyAbnormal && (
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#b45309',
+              background: '#fef3c7', padding: '3px 10px', borderRadius: 10,
+              border: '1px solid #fde68a' }}>
+              ● Abnormals documented
+            </span>
+          )}
+        </div>
+        <button type="button"
+          onClick={() => setD(p => ({ ...p, rosIncluded: false, ros: {} }))}
+          style={{ fontSize: 11, color: '#94a3b8', background: 'none', border: 'none',
+            cursor: 'pointer', padding: '4px 8px', borderRadius: 6 }}>
+          Remove ROS
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 8 }}>
+        {ROS_SYSTEMS.map(sys => {
+          const val = ros[sys.key] || { wnl: true, notes: '' };
+          return (
+            <div key={sys.key} style={{
+              borderRadius: 8, border: val.wnl ? '1px solid #e2e8f0' : '1.5px solid #fbbf24',
+              background: val.wnl ? '#fff' : '#fffbeb',
+              padding: '10px 12px', transition: 'border-color 0.15s, background 0.15s',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: val.wnl ? 0 : 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>{sys.label}</span>
+                <button type="button"
+                  onClick={() => setSystem(sys.key, { wnl: !val.wnl, notes: val.wnl ? val.notes : '' })}
+                  title={sys.hint}
+                  style={{
+                    padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                    cursor: 'pointer', border: 'none',
+                    background: val.wnl ? '#dcfce7' : '#fee2e2',
+                    color: val.wnl ? '#15803d' : '#991b1b',
+                  }}>
+                  {val.wnl ? '✓ WNL' : '✕ Abnormal'}
+                </button>
+              </div>
+              {!val.wnl && (
+                <input
+                  className="form-input"
+                  style={{ fontSize: 12, marginTop: 2 }}
+                  placeholder={sys.hint}
+                  value={val.notes || ''}
+                  onChange={e => setSystem(sys.key, { notes: e.target.value })}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Encounter orders section (medication + lab sub-tabs) ──────────────────────
 function EncounterOrdersSection({ d, setD }) {
   const { currentUser, verifyEPCS, generateEPCSOTP, verifyEPCSOTP } = useAuth();
   const { activeSite } = useSite();
-  const { selectedPatient } = usePatient();
+  const { selectedPatient, meds } = usePatient();
   const [ordersTab, setOrdersTab] = React.useState('meds');
   const [medForm, setMedForm] = React.useState(BLANK_MED_ORDER);
   const [medMode, setMedMode] = React.useState('structured'); // 'structured' | 'freetext'
@@ -3219,6 +3383,9 @@ function EncounterOrdersSection({ d, setD }) {
   const [medSearch, setMedSearch] = React.useState('');
   const [labSearch, setLabSearch] = React.useState('');
   const [pharmSearch, setPharmSearch] = React.useState('');
+  const [pharmObj, setPharmObj] = React.useState(null);
+  const [labObj, setLabObj]     = React.useState(null);
+  const [labAutoSource, setLabAutoSource] = React.useState(null);
   const [showMedDropdown, setShowMedDropdown] = React.useState(false);
   const [showLabDropdown, setShowLabDropdown] = React.useState(false);
   const [showPharmDropdown, setShowPharmDropdown] = React.useState(false);
@@ -3249,9 +3416,43 @@ function EncounterOrdersSection({ d, setD }) {
       ).slice(0, 20)
     : US_PHARMACY_FLAT.slice(0, 20);
 
+  // Auto-populate pharmacy from patient preference / last-used / nearest ZIP
+  React.useEffect(() => {
+    if (pharmObj) return; // already have one
+    const patientMeds = meds?.[selectedPatient?.id] || [];
+    resolvePharmacyAsync(selectedPatient, currentUser, patientMeds).then(resolved => {
+      if (!resolved) return;
+      setPharmObj(resolved);
+      setMedForm(p => ({
+        ...p,
+        pharmacy: resolved.name || '',
+        pharmAddress: resolved.fullAddress || [resolved.address, resolved.city, resolved.state, resolved.zip].filter(Boolean).join(', ') || resolved.address || '',
+      }));
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPatient?.id]);
+
+  // Auto-populate lab from patient history / nearest ZIP
+  React.useEffect(() => {
+    if (labObj) return;
+    const patientOrders = []; // encounter context has no prior orders — skip priorities 1-4 except ZIP
+    resolveLabAsync(selectedPatient, currentUser, patientOrders).then(resolved => {
+      if (!resolved) return;
+      setLabObj(resolved);
+      setLabAutoSource(resolved.sourceLabel);
+      setLabForm(p => ({
+        ...p,
+        labNetwork: resolved.name || '',
+        labAddress: resolved.fullAddress || [resolved.address, resolved.city, resolved.state, resolved.zip].filter(Boolean).join(', ') || '',
+      }));
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPatient?.id]);
+
   const commitMedOrder = (order) => {
     setD(p => ({ ...p, medicationOrders: [...(p.medicationOrders || []), { ...order, id: Date.now() }] }));
     setMedForm(BLANK_MED_ORDER);
+    setPharmObj(null);
     setAutoFilledFields(new Set());
     setMedSearch(''); setPharmSearch('');
     setShowMedDropdown(false); setShowPharmDropdown(false);
@@ -3273,8 +3474,20 @@ function EncounterOrdersSection({ d, setD }) {
 
   const addLabOrder = () => {
     if (!labForm.test) return;
-    setD(p => ({ ...p, labOrders: [...(p.labOrders || []), { ...labForm, id: Date.now() }] }));
+    const fullAddr = labObj
+      ? [labObj.address, labObj.city, labObj.state, labObj.zip].filter(Boolean).join(', ')
+      : labForm.labAddress;
+    setD(p => ({ ...p, labOrders: [...(p.labOrders || []), {
+      ...labForm,
+      labNetwork:   labObj?.name    || labForm.labNetwork,
+      labAddress:   fullAddr        || labForm.labAddress,
+      labNpi:       labObj?.npi     || '',
+      labCliaNumber:labObj?.cliaNumber || '',
+      id: Date.now(),
+    }] }));
     setLabForm(BLANK_LAB_ORDER);
+    setLabObj(null);
+    setLabAutoSource(null);
     setLabSearch(''); setShowLabDropdown(false);
   };
   const removeLabOrder = (id) => setD(p => ({ ...p, labOrders: (p.labOrders || []).filter(o => o.id !== id) }));
@@ -3535,59 +3748,25 @@ function EncounterOrdersSection({ d, setD }) {
               </div>
             </div>
 
-            {/* Pharmacy destination */}
-            <div style={{ marginBottom: 10, position: 'relative' }}>
-              <label className="form-label" style={{ fontSize: 11 }}>Send to Pharmacy</label>
-              <input
-                className="form-input"
-                placeholder="Type pharmacy name (e.g. CVS, Walgreens, Genoa, mail order…)"
-                value={medForm.pharmacy || pharmSearch}
-                onChange={e => {
-                  const v = e.target.value;
-                  setPharmSearch(v);
-                  setMedForm(p => ({ ...p, pharmacy: v }));
-                  setShowPharmDropdown(true);
-                }}
-                onFocus={() => setShowPharmDropdown(true)}
-                onBlur={() => setTimeout(() => setShowPharmDropdown(false), 150)}
-                style={{ fontSize: 13 }}
-              />
-              {showPharmDropdown && pharmSearch.trim().length >= 1 && filteredPharms.length > 0 && (
-                <div style={dropdownStyle}>
-                  <div style={{ padding: '5px 12px 3px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#6b7280', background: '#f9fafb', borderBottom: '1px solid var(--border)' }}>
-                    💊 US Pharmacy Chains — select or keep typing
-                  </div>
-                  {filteredPharms.map((ph, i) => (
-                    <button key={`${ph.name}-${i}`} type="button"
-                      style={{ ...dropdownItemStyle(false), padding: '7px 12px' }}
-                      onMouseOver={e => e.currentTarget.style.background = '#f0fdf4'}
-                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-                      onMouseDown={e => e.preventDefault()}
-                      onClick={() => {
-                        setMedForm(p => ({ ...p, pharmacy: ph.name, pharmAddress: '' }));
-                        setPharmSearch('');
-                        setShowPharmDropdown(false);
-                      }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontWeight: 600, fontSize: 12.5 }}>{ph.name}</span>
-                        <span style={{ fontSize: 10.5, color: '#6b7280', marginLeft: 'auto', background: '#f3f4f6', padding: '1px 6px', borderRadius: 4 }}>
-                          {ph.group}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Pharmacy address — free-text, provider types specific location */}
+            {/* Pharmacy destination — NPI Registry search */}
             <div style={{ marginBottom: 10 }}>
-              <label className="form-label" style={{ fontSize: 11 }}>Pharmacy Address <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional — street, city, state, zip)</span></label>
-              <input className="form-input"
-                placeholder="e.g. 123 Main St, Atlanta, GA 30301 · Ph: (404) 555-0100 · Fax: (404) 555-0101"
-                value={medForm.pharmAddress}
-                onChange={e => setMedForm(p => ({ ...p, pharmAddress: e.target.value }))}
-                style={{ fontSize: 12, color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd' }} />
+              <label className="form-label" style={{ fontSize: 11 }}>Send to Pharmacy</label>
+              <PharmacySearch
+                value={pharmObj}
+                onChange={ph => {
+                  setPharmObj(ph);
+                  if (ph) {
+                    const addr = ph.fullAddress || [ph.address, ph.city, ph.state, ph.zip].filter(Boolean).join(', ');
+                    setMedForm(p => ({ ...p, pharmacy: ph.name || '', pharmAddress: addr }));
+                  } else {
+                    setMedForm(p => ({ ...p, pharmacy: '', pharmAddress: '' }));
+                  }
+                }}
+                compact={false}
+                defaultCity={selectedPatient?.address?.city || ''}
+                defaultZip={selectedPatient?.address?.zip || ''}
+                defaultQuery={pharmObj ? '' : medForm.pharmacy || ''}
+              />
             </div>
 
             <div style={{ marginBottom: 12 }}>
@@ -3804,32 +3983,39 @@ function EncounterOrdersSection({ d, setD }) {
               )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-              <div>
-                <label className="form-label" style={{ fontSize: 11 }}>Priority</label>
-                <select className="form-input" value={labForm.priority}
-                  onChange={e => setLabForm(p => ({ ...p, priority: e.target.value }))} style={{ fontSize: 13 }}>
-                  {['Routine', 'Urgent', 'STAT'].map(p => <option key={p}>{p}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="form-label" style={{ fontSize: 11 }}>Send to Lab / Network</label>
-                <select className="form-input" value={labForm.labNetwork}
-                  onChange={e => setLabForm(p => ({ ...p, labNetwork: e.target.value }))} style={{ fontSize: 13 }}>
-                  <option value="">Select lab network...</option>
-                  {US_LAB_NETWORKS.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </div>
+            <div style={{ marginBottom: 10 }}>
+              <label className="form-label" style={{ fontSize: 11 }}>Priority</label>
+              <select className="form-input" value={labForm.priority}
+                onChange={e => setLabForm(p => ({ ...p, priority: e.target.value }))} style={{ fontSize: 13, maxWidth: 180 }}>
+                {['Routine', 'Urgent', 'STAT'].map(p => <option key={p}>{p}</option>)}
+              </select>
             </div>
 
-            {/* Lab location — free-text, provider types specific branch/address */}
+            {/* Lab facility — NPI Registry search */}
             <div style={{ marginBottom: 10 }}>
-              <label className="form-label" style={{ fontSize: 11 }}>Lab Location / Address <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional — any US location)</span></label>
-              <input className="form-input"
-                placeholder="e.g. Quest Diagnostics — 400 Ponce de Leon Ave, Atlanta, GA 30308"
-                value={labForm.labAddress}
-                onChange={e => setLabForm(p => ({ ...p, labAddress: e.target.value }))}
-                style={{ fontSize: 12, color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd' }} />
+              <label className="form-label" style={{ fontSize: 11 }}>Send to Lab</label>
+              {labAutoSource && labObj && (
+                <div style={{ marginBottom: 6, padding: '4px 10px', borderRadius: 6, fontSize: 11, background: '#ecfeff', border: '1px solid #a5f3fc', color: '#0e7490', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>ℹ {labAutoSource}</span>
+                  <button type="button" onClick={() => setLabAutoSource(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#6b7280' }}>✕</button>
+                </div>
+              )}
+              <LabSearch
+                value={labObj}
+                onChange={lab => {
+                  setLabObj(lab);
+                  setLabAutoSource(null);
+                  if (lab) {
+                    const addr = lab.fullAddress || [lab.address, lab.city, lab.state, lab.zip].filter(Boolean).join(', ');
+                    setLabForm(p => ({ ...p, labNetwork: lab.name || '', labAddress: addr }));
+                  } else {
+                    setLabForm(p => ({ ...p, labNetwork: '', labAddress: '' }));
+                  }
+                }}
+                compact={false}
+                defaultCity={selectedPatient?.address?.city || ''}
+                defaultZip={selectedPatient?.address?.zip || ''}
+              />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end', marginBottom: 10 }}>
@@ -3994,12 +4180,14 @@ const FILTER_TYPES = [
 
 // ── Section tabs config ───────────────────────────────────────────────────────
 const SECTIONS = [
-  { id: 'subjective', label: 'Chief Complaint & Subjective', icon: '🗣️' },
-  { id: 'mse',        label: 'Mental Status Exam',           icon: '🧠' },
-  { id: 'assessment', label: 'Assessment & Plan',            icon: '📋' },
-  { id: 'diagnoses',  label: 'Diagnoses & ICD-10',           icon: '🔖' },
-  { id: 'billing',    label: 'CPT & Billing',                icon: '💳' },
-  { id: 'followup',   label: 'Follow-Up',                    icon: '📅' },
+  { id: 'subjective',  label: 'Subjective',   icon: '🗣️', key: 'S', color: '#4f46e5' },
+  { id: 'mse',         label: 'MSE',          icon: '🧠', key: 'M', color: '#7c3aed' },
+  { id: 'ros',         label: 'ROS',          icon: '🩺', key: 'R', color: '#0891b2' },
+  { id: 'screenings',  label: 'Screenings',   icon: '📋', key: 'N', color: '#4f46e5' },
+  { id: 'assessment',  label: 'Assessment',   icon: '📊', key: 'A', color: '#d97706' },
+  { id: 'diagnoses',   label: 'Diagnoses',    icon: '🔖', key: 'D', color: '#0891b2' },
+  { id: 'billing',     label: 'Billing',      icon: '💳', key: 'B', color: '#1a7f4b' },
+  { id: 'followup',    label: 'Follow-Up',    icon: '📅', key: 'F', color: '#0a8a7e' },
 ];
 
 // ── Main Encounters component ──────────────────────────────────────────────────
@@ -4048,6 +4236,12 @@ export default function Encounters({ patientId }) {
   const [selectedRecord, setSelectedRecord] = useState(null); // { type, data } for non-encounter timeline items
   const [expandedTimelineItem, setExpandedTimelineItem] = useState(null); // id of expanded card
 
+  // ── Auto-save state ──────────────────────────────────────
+  const [autoSavedAt, setAutoSavedAt] = useState(null);
+  const [savedSnapshot, setSavedSnapshot] = useState(null);
+  const autoSaveTimerRef = useRef(null);
+  const autoSaveDraftIdRef = useRef(null); // backend ID created during auto-save of a new encounter
+
   const flashTimerRef = useRef(null);
   useEffect(() => {
     return () => { if (flashTimerRef.current) clearTimeout(flashTimerRef.current); };
@@ -4058,6 +4252,59 @@ export default function Encounters({ patientId }) {
     flashTimerRef.current = setTimeout(() => setSaved(false), 3000);
   };
 
+  // ── Auto-save to backend (3 s debounce) ──────────────────
+  useEffect(() => {
+    const current = draft ?? editDraft;
+    if (!current) return;
+    clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        if (draft) {
+          // New encounter — create backend record on first auto-save, update on subsequent
+          const payload = { date: draft.date, rawData: draft };
+          if (autoSaveDraftIdRef.current) {
+            await encountersApi.update(patientId, autoSaveDraftIdRef.current, payload);
+          } else {
+            const created = await addEncounter(patientId, { ...payload, status: 'Draft' });
+            autoSaveDraftIdRef.current = created?.id || null;
+          }
+        } else if (editDraft) {
+          await encountersApi.update(patientId, editDraft.id, { date: editDraft.date, rawData: editDraft });
+        }
+        setAutoSavedAt(Date.now());
+        setSavedSnapshot(JSON.parse(JSON.stringify(current)));
+      } catch {}
+    }, 3000);
+    return () => clearTimeout(autoSaveTimerRef.current);
+  }, [draft, editDraft]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Auto-enable ROS when visit type switches to an initial/psych type ────────
+  useEffect(() => {
+    const active = draft ?? editDraft;
+    if (!active) return;
+    if (ROS_INITIAL_TYPES.has(active.type) && !active.rosIncluded) {
+      const setter = draft ? setDraft : setEditDraft;
+      setter(p => ({ ...p, rosIncluded: true }));
+    }
+  }, [draft?.type, editDraft?.type]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Keyboard shortcuts for section nav ────────────────────
+  useEffect(() => {
+    if (!creating && !editing) return;
+    const MAP = { s: 'subjective', m: 'mse', r: 'ros', n: 'screenings', a: 'assessment', d: 'diagnoses', b: 'billing', f: 'followup' };
+    const handle = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+      const sectionId = MAP[e.key.toLowerCase()];
+      if (!sectionId) return;
+      e.preventDefault();
+      const btn = document.getElementById(`ns-btn-${sectionId}`);
+      if (btn?.__openSection) btn.__openSection();
+      else document.getElementById(`ns-${sectionId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    window.addEventListener('keydown', handle);
+    return () => window.removeEventListener('keydown', handle);
+  }, [creating, editing]);
+
   const startNew = () => {
     setDraft(blankEncounter(currentUser));
     setCreating(true);
@@ -4065,15 +4312,25 @@ export default function Encounters({ patientId }) {
     setActiveSection('subjective');
   };
   const cancelNew = () => {
+    clearTimeout(autoSaveTimerRef.current);
+    autoSaveDraftIdRef.current = null;
     setCreating(false);
     setDraft(null);
     setSelectedId(patientEncounters[0]?.id || null);
   };
   const saveNew = () => {
     setBillingError(false);
-    addEncounter(patientId, draft);
+    clearTimeout(autoSaveTimerRef.current);
+    if (autoSaveDraftIdRef.current) {
+      updateEncounter(patientId, autoSaveDraftIdRef.current, { ...draft, rawData: draft });
+    } else {
+      addEncounter(patientId, { ...draft, rawData: draft });
+    }
+    autoSaveDraftIdRef.current = null;
     setCreating(false);
     setDraft(null);
+    setSavedSnapshot(null);
+    setAutoSavedAt(null);
     flash();
   };
 
@@ -4084,30 +4341,42 @@ export default function Encounters({ patientId }) {
       return;
     }
     setBillingError(false);
+    clearTimeout(autoSaveTimerRef.current);
     const creds = currentUser?.credentials ? `, ${currentUser.credentials}` : '';
     const closed = {
       ...draft,
       status: 'Completed',
       signedBy: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}${creds}`.trim(),
       signedAt: new Date().toISOString(),
+      rawData: draft,
     };
-    addEncounter(patientId, closed);
+    if (autoSaveDraftIdRef.current) {
+      updateEncounter(patientId, autoSaveDraftIdRef.current, closed);
+    } else {
+      addEncounter(patientId, closed);
+    }
+    autoSaveDraftIdRef.current = null;
     setCreating(false);
     setDraft(null);
     flash();
   };
 
   const startEdit = (enc) => {
-    setEditDraft(JSON.parse(JSON.stringify(enc)));
+    // rawData holds the full frontend draft; fall back to the bare encounter fields
+    const base = enc.rawData ? { ...enc.rawData, id: enc.id } : JSON.parse(JSON.stringify(enc));
+    setEditDraft(base);
     setEditing(true);
     setActiveSection('subjective');
   };
   const cancelEdit = () => { setEditing(false); setEditDraft(null); };
   const saveEdit = () => {
     setBillingError(false);
-    updateEncounter(patientId, editDraft.id, editDraft);
+    clearTimeout(autoSaveTimerRef.current);
+    updateEncounter(patientId, editDraft.id, { ...editDraft, rawData: editDraft });
     setEditing(false);
     setEditDraft(null);
+    setSavedSnapshot(null);
+    setAutoSavedAt(null);
     flash();
   };
 
@@ -4119,12 +4388,14 @@ export default function Encounters({ patientId }) {
     }
     setBillingError(false);
     const creds = currentUser?.credentials ? `, ${currentUser.credentials}` : '';
-    updateEncounter(patientId, editDraft.id, {
+    clearTimeout(autoSaveTimerRef.current);
+    const finalDraft = {
       ...editDraft,
       status: 'Completed',
       signedBy: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}${creds}`.trim(),
       signedAt: new Date().toISOString(),
-    });
+    };
+    updateEncounter(patientId, editDraft.id, { ...finalDraft, rawData: finalDraft });
     setEditing(false);
     setEditDraft(null);
     flash();
@@ -4524,24 +4795,30 @@ export default function Encounters({ patientId }) {
         </div>
 
         {/* ─ Section quick-nav pills ─ */}
-        <div style={{ display: 'flex', gap: 4, padding: '7px 18px', background: '#eef1f6', borderBottom: '1px solid var(--border)', overflowX: 'auto', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 4, padding: '7px 18px', background: '#eef1f6', borderBottom: '1px solid var(--border)', overflowX: 'auto', flexShrink: 0, alignItems: 'center' }}>
           {SECTIONS.map(s => (
-            <span key={s.id} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              padding: '3px 11px', borderRadius: 16, fontSize: 11, fontWeight: 600,
-              background: '#fff', border: '1px solid var(--border)',
-              color: 'var(--text-secondary)', whiteSpace: 'nowrap', cursor: 'default',
-            }}>
-              {s.icon} {s.label}
-            </span>
+            <button key={s.id} type="button"
+              onClick={() => {
+                const btn = document.getElementById(`ns-btn-${s.id}`);
+                if (btn?.__openSection) btn.__openSection();
+                else document.getElementById(`ns-${s.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '3px 11px', borderRadius: 16, fontSize: 11, fontWeight: 600,
+                background: '#fff', border: `1px solid ${s.color}40`,
+                color: s.color, whiteSpace: 'nowrap', cursor: 'pointer',
+              }}>
+              {s.icon} {s.label} <span style={{ fontSize: 9, opacity: 0.6, fontWeight: 400 }}>{s.key}</span>
+            </button>
           ))}
         </div>
 
-        {/* ─ All sections on one page ─ */}
-        <div style={{ padding: '18px' }}>
+        {/* ─ Collapsible sections ─ */}
+        <div style={{ padding: '14px 18px' }}>
 
           {/* AMBIENT SOAP AI GENERATOR */}
-          <div style={{ marginBottom: 18 }}>
+          <div style={{ marginBottom: 14 }}>
             <AmbientSOAPGenerator
               disabled={false}
               onGenerate={(note) => {
@@ -4556,9 +4833,13 @@ export default function Encounters({ patientId }) {
           </div>
 
           {/* ══════ CHIEF COMPLAINT & SUBJECTIVE ══════ */}
-          <div style={{ marginBottom: 24 }}>
-            <SectionHeader icon="🗣️" title="Chief Complaint" color="#0060b6" />
-            <div style={{ marginBottom: 18 }}>
+          {(() => {
+            const SS = savedSnapshot;
+            const isDirty = !SS || d.chiefComplaint !== SS.chiefComplaint || d.subjective !== SS.subjective;
+            return (
+            <CollapsibleNoteSection id="subjective" icon="🗣️" title="Chief Complaint & Subjective" color="#4f46e5"
+              defaultOpen={true} isDirty={isDirty} savedAt={autoSavedAt}>
+            <div style={{ marginBottom: 14 }}>
               <label className="form-label">
                 Chief Complaint <span style={{ color: 'var(--danger)' }}>*</span>
               </label>
@@ -4633,43 +4914,71 @@ export default function Encounters({ patientId }) {
             </div>
 
             <SectionHeader icon="📖" title="Subjective — Patient History & Report" color="#4f46e5" />
-            <div>
-              <VoiceDictation
-                label="History of Present Illness / Patient's Report"
-                rows={10}
-                placeholder="Document patient's subjective report — symptoms, duration, onset, quality, severity, context, modifying factors, associated signs/symptoms, relevant history, medications reviewed, compliance... (🎙️ Click Dictate to use voice)"
-                value={d.subjective}
-                onChange={(val) => setD((p) => ({ ...p, subjective: val }))}
-              />
-            </div>
-          </div>
+            <VoiceDictation
+              label="History of Present Illness / Patient's Report"
+              rows={10}
+              placeholder="Document patient's subjective report — symptoms, duration, onset, quality, severity, context, modifying factors, associated signs/symptoms, relevant history, medications reviewed, compliance... (🎙️ Click Dictate to use voice)"
+              value={d.subjective}
+              onChange={(val) => setD((p) => ({ ...p, subjective: val }))}
+            />
+            </CollapsibleNoteSection>
+            );
+          })()}
 
           {/* ══════ MENTAL STATUS EXAM ══════ */}
-          <div style={{ marginBottom: 24 }}>
-            <SectionHeader icon="🧠" title="Mental Status Examination (MSE)" color="#7c3aed" />
-            <MseTabbedEditor mse={mse} setMseField={setMseField} setD={setD} />
-          </div>
+          {(() => {
+            const SS = savedSnapshot;
+            const isDirty = !SS || JSON.stringify(d.mse) !== JSON.stringify(SS.mse);
+            return (
+            <CollapsibleNoteSection id="mse" icon="🧠" title="Mental Status Examination (MSE)" color="#7c3aed"
+              defaultOpen={true} isDirty={isDirty} savedAt={autoSavedAt}>
+              <MseTabbedEditor mse={mse} setMseField={setMseField} setD={setD} />
+            </CollapsibleNoteSection>
+            );
+          })()}
+
+          {/* ══════ REVIEW OF SYSTEMS ══════ */}
+          {(() => {
+            const SS = savedSnapshot;
+            const isDirty = !SS || d.rosIncluded !== SS.rosIncluded || JSON.stringify(d.ros) !== JSON.stringify(SS.ros);
+            return (
+            <CollapsibleNoteSection id="ros" icon="🩺" title="Review of Systems (ROS)" color="#0891b2"
+              defaultOpen={ROS_INITIAL_TYPES.has(d.type)} isDirty={isDirty} savedAt={autoSavedAt}>
+              <ReviewOfSystemsSection d={d} setD={setD} />
+            </CollapsibleNoteSection>
+            );
+          })()}
 
           {/* ══════ SCREENINGS: PHQ-9 / GAD-7 ══════ */}
-          <div style={{ marginBottom: 24 }}>
-            <SectionHeader icon="📋" title="Screenings — PHQ-9 (Depression) & GAD-7 (Anxiety)" color="#4f46e5" />
-            <EncounterAssessmentsSection d={d} setD={setD} patient={patient} />
-          </div>
+          {(() => {
+            const SS = savedSnapshot;
+            const isDirty = !SS || JSON.stringify(d.assessments) !== JSON.stringify(SS.assessments);
+            return (
+            <CollapsibleNoteSection id="screenings" icon="📋" title="Screenings — PHQ-9 & GAD-7" color="#4f46e5"
+              defaultOpen={false} isDirty={isDirty} savedAt={autoSavedAt}>
+              <EncounterAssessmentsSection d={d} setD={setD} patient={patient} />
+            </CollapsibleNoteSection>
+            );
+          })()}
 
           {/* ══════ ASSESSMENT & PLAN ══════ */}
-          <div style={{ marginBottom: 24 }}>
-            <SectionHeader icon="📊" title="Assessment / Clinical Impression" color="#d97706" />
-            <div style={{ marginBottom: 20 }}>
-              <VoiceDictation
-                label="Assessment"
-                rows={8}
-                placeholder="Provider's clinical assessment — synthesis of subjective/objective findings, diagnostic reasoning, changes from previous visit, risk assessment summary... (🎙️ Click Dictate to use voice)"
-                value={d.assessment}
-                onChange={(val) => setD((p) => ({ ...p, assessment: val }))}
-              />
-            </div>
-            <SectionHeader icon="📋" title="Plan" color="#16a34a" />
-            <div>
+          {(() => {
+            const SS = savedSnapshot;
+            const isDirty = !SS || d.assessment !== SS.assessment || d.plan !== SS.plan;
+            return (
+            <CollapsibleNoteSection id="assessment" icon="📊" title="Assessment & Plan" color="#d97706"
+              defaultOpen={true} isDirty={isDirty} savedAt={autoSavedAt}>
+              <SectionHeader icon="📊" title="Assessment / Clinical Impression" color="#d97706" />
+              <div style={{ marginBottom: 20 }}>
+                <VoiceDictation
+                  label="Assessment"
+                  rows={8}
+                  placeholder="Provider's clinical assessment — synthesis of subjective/objective findings, diagnostic reasoning, changes from previous visit, risk assessment summary... (🎙️ Click Dictate to use voice)"
+                  value={d.assessment}
+                  onChange={(val) => setD((p) => ({ ...p, assessment: val }))}
+                />
+              </div>
+              <SectionHeader icon="📋" title="Plan" color="#16a34a" />
               <VoiceDictation
                 label="Treatment Plan & Orders"
                 rows={10}
@@ -4677,18 +4986,29 @@ export default function Encounters({ patientId }) {
                 value={d.plan}
                 onChange={(val) => setD((p) => ({ ...p, plan: val }))}
               />
-            </div>
-          </div>
+            </CollapsibleNoteSection>
+            );
+          })()}
 
           {/* ══════ DIAGNOSES & ORDERS ══════ */}
-          <div style={{ marginBottom: 24 }}>
-            <SectionHeader icon="🔖" title="Diagnoses & Orders" color="#0891b2" />
-            <DiagnosesAndOrdersSection d={d} setD={setD} />
-          </div>
+          {(() => {
+            const SS = savedSnapshot;
+            const isDirty = !SS || JSON.stringify(d.diagnoses) !== JSON.stringify(SS.diagnoses);
+            return (
+            <CollapsibleNoteSection id="diagnoses" icon="🔖" title="Diagnoses & Orders" color="#0891b2"
+              defaultOpen={true} isDirty={isDirty} savedAt={autoSavedAt}>
+              <DiagnosesAndOrdersSection d={d} setD={setD} />
+            </CollapsibleNoteSection>
+            );
+          })()}
 
           {/* ══════ CPT & BILLING ══════ */}
-          <div style={{ marginBottom: 24 }}>
-            <SectionHeader icon="💳" title="CPT Codes & Billing" color="#1a7f4b" />
+          {(() => {
+            const SS = savedSnapshot;
+            const isDirty = !SS || JSON.stringify(d.cptCodes) !== JSON.stringify(SS.cptCodes) || d.placeOfService !== SS.placeOfService || d.timeSpentMinutes !== SS.timeSpentMinutes || d.billingNotes !== SS.billingNotes;
+            return (
+          <CollapsibleNoteSection id="billing" icon="💳" title="CPT Codes & Billing" color="#1a7f4b"
+            defaultOpen={false} isDirty={isDirty} savedAt={autoSavedAt}>
             {billingError && (
               <div style={{
                 marginBottom: 14, padding: '10px 14px', borderRadius: 6,
@@ -4773,15 +5093,23 @@ export default function Encounters({ patientId }) {
                 onChange={(e) => setD((p) => ({ ...p, billingNotes: e.target.value }))}
                 style={{ resize: 'vertical' }} />
             </div>
-          </div>
+          </CollapsibleNoteSection>
+          );
+          })()}
 
           {/* ══════ FOLLOW-UP ══════ */}
-          <div style={{ marginBottom: 24 }}>
-            <SectionHeader icon="📅" title="Follow-Up Scheduling" color="#0a8a7e" />
+          {(() => {
+            const SS = savedSnapshot;
+            const isDirty = !SS || JSON.stringify(d.followUp) !== JSON.stringify(SS.followUp);
+            return (
+          <CollapsibleNoteSection id="followup" icon="📅" title="Follow-Up Scheduling" color="#0a8a7e"
+            defaultOpen={false} isDirty={isDirty} savedAt={autoSavedAt}>
             <FollowUpScheduler
               value={d.followUp || { needed: false, date: '', time: '', duration: 30, note: '' }}
               onChange={(fu) => setD((p) => ({ ...p, followUp: fu }))} />
-          </div>
+          </CollapsibleNoteSection>
+          );
+          })()}
         </div>
 
         {/* Bottom save bar */}
