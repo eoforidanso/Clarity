@@ -102,45 +102,47 @@ export default function ChartPage() {
   const stickyDragging = useRef(false);
   const stickyOffset = useRef({ x: 0, y: 0 });
   const stickyDebounce = useRef(null);
-  // Track last-persisted value so we skip the spurious save triggered by the
-  // load effect (patient switch loads note → stickyText changes → debounce fires).
-  const stickyLastSaved = useRef('');
 
-  // Load sticky note from patient object (already in PatientContext)
+  // Refs written every render — flush() reads these so it is never stale,
+  // even when called from effect cleanup functions.
+  const stickyPendingRef  = useRef('');   // mirrors stickyText
+  const stickyLastSaved   = useRef('');   // value confirmed in DB
+  const stickyPatientRef  = useRef('');   // patient the refs belong to
+  stickyPendingRef.current = stickyText;
+  stickyPatientRef.current = patientId || '';
+
+  // Idempotent flush — safe to call multiple times; second call is a no-op.
+  const stickyFlush = useCallback(() => {
+    clearTimeout(stickyDebounce.current);
+    const pid  = stickyPatientRef.current;
+    const text = stickyPendingRef.current;
+    if (!pid || text === stickyLastSaved.current) return;
+    patientsApi.updateStickyNote(pid, text).catch(() => {});
+    patchPatient(pid, { stickyNote: text });
+    stickyLastSaved.current = text;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ① Hydration — fires when patient changes; loads freshest value from context.
   useEffect(() => {
-    if (!selectedPatient) return;
-    const note = selectedPatient.stickyNote || '';
+    const note = selectedPatient?.stickyNote ?? '';
     stickyLastSaved.current = note;
     setStickyText(note);
     setStickyOpen(false);
-  }, [selectedPatient?.id]);
+  }, [selectedPatient?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Flush any unsaved edit immediately when the patient changes.
-  // The cleanup runs before the new patientId is applied, so `patientId`
-  // and `stickyText` in this closure still refer to the previous patient.
-  useEffect(() => {
-    return () => {
-      clearTimeout(stickyDebounce.current);
-      if (patientId && stickyText !== stickyLastSaved.current) {
-        patientsApi.updateStickyNote(patientId, stickyText).catch(() => {});
-        patchPatient(patientId, { stickyNote: stickyText });
-        stickyLastSaved.current = stickyText;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId]);
+  // ② Patient-switch flush — cleanup fires BEFORE hydration loads next patient.
+  useEffect(() => () => stickyFlush(), [selectedPatient?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debounced save while typing — skip if text matches last saved value
+  // ③ Unmount flush — covers navigating away from ChartPage entirely.
+  useEffect(() => () => stickyFlush(), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ④ Debounced save while typing.
   useEffect(() => {
     if (!patientId || stickyText === stickyLastSaved.current) return;
     clearTimeout(stickyDebounce.current);
-    stickyDebounce.current = setTimeout(() => {
-      patientsApi.updateStickyNote(patientId, stickyText).catch(() => {});
-      patchPatient(patientId, { stickyNote: stickyText });
-      stickyLastSaved.current = stickyText;
-    }, 800);
+    stickyDebounce.current = setTimeout(stickyFlush, 800);
     return () => clearTimeout(stickyDebounce.current);
-  }, [stickyText, patientId]);
+  }, [stickyText, patientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onStickyMouseDown = (e) => {
     if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
