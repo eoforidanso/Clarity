@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
+import { superbills as superbillsApi } from '../services/api';
 
 // CPT fee schedule (code → fee) for deriving charges from encounters
 const CPT_FEE_SCHEDULE = {
@@ -33,25 +34,6 @@ const PROVIDER_NPI_MAP = {
   'u9': '1376299933',
 };
 
-const STORAGE_KEY = 'ehr_superbill_statuses';
-
-function loadPersistedStatuses() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  } catch {
-    return {};
-  }
-}
-
-function savePersistedStatus(id, overrides) {
-  const existing = loadPersistedStatuses();
-  existing[id] = { ...existing[id], ...overrides, lastUpdated: new Date().toISOString() };
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
-  } catch {
-    // ignore storage errors
-  }
-}
 
 /**
  * Convert a signed encounter object into a superbill shape.
@@ -113,7 +95,6 @@ function encounterToSuperbill(enc, patientId, patient, persisted) {
 }
 
 function buildSuperbills(patientContextEncounters, patients) {
-  const persisted = loadPersistedStatuses();
   const result = [];
   const seenIds = new Set();
 
@@ -123,16 +104,13 @@ function buildSuperbills(patientContextEncounters, patients) {
     for (const enc of (encList || [])) {
       if (!enc.signedAt) continue; // only signed encounters
       seenIds.add(enc.id);
-      result.push(encounterToSuperbill(enc, patientId, patient, persisted));
+      result.push(encounterToSuperbill(enc, patientId, patient, {}));
     }
   }
 
   // 2. If nothing found, fall back to sample superbills
   if (result.length === 0) {
-    return FALLBACK_SUPERBILLS.map(sb => {
-      const saved = persisted[sb.id] || {};
-      return { ...sb, status: saved.status || sb.status, paid: saved.paid != null ? saved.paid : sb.paid, balance: saved.balance != null ? saved.balance : sb.balance, notes: saved.notes || sb.notes };
-    });
+    return [...FALLBACK_SUPERBILLS];
   }
 
   return result.sort((a, b) => new Date(b.dos) - new Date(a.dos));
@@ -163,8 +141,28 @@ export default function SuperbillCapture() {
   // Roles that can edit CPT codes, ICD codes, and modifiers
   const isProvider = ['prescriber', 'therapist', 'admin'].includes(currentUser?.role);
 
-  // Build superbills from signed encounters + mockData encounterHistory, persisted via localStorage
   const [bills, setBills] = useState(() => buildSuperbills(encounters, patients));
+
+  // Load persisted billing statuses from backend and merge into bills
+  useEffect(() => {
+    superbillsApi.getStatuses()
+      .then(statuses => {
+        if (!statuses || !Object.keys(statuses).length) return;
+        setBills(prev => prev.map(b => {
+          const s = statuses[b.id];
+          if (!s) return b;
+          return {
+            ...b,
+            status:  s.billingStatus || b.status,
+            paid:    s.paidAmount    != null ? s.paidAmount    : b.paid,
+            balance: s.adjustmentAmount != null ? s.adjustmentAmount : b.balance,
+            notes:   s.notes || b.notes,
+          };
+        }));
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Re-derive when encounters or patients change (e.g., provider signs a new encounter)
   const [filterStatus, setFilterStatus] = useState('All');
@@ -202,7 +200,7 @@ export default function SuperbillCapture() {
   }, [bills]);
 
   const updateStatus = (id, status) => {
-    savePersistedStatus(id, { status });
+    superbillsApi.saveStatus(id, { billingStatus: status }).catch(() => {});
     setBills(prev => prev.map(b => b.id === id ? { ...b, status } : b));
     if (selectedBill?.id === id) setSelectedBill(prev => ({ ...prev, status }));
   };

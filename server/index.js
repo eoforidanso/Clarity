@@ -9,7 +9,7 @@ import config from './config.js';
 import { initializeDatabase, db } from './db/database.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
-import { authenticate, requireFacility } from './middleware/auth.js';
+import { authenticate, authorize, requireFacility } from './middleware/auth.js';
 import { validateSecrets } from './security/secrets.js';
 import { initializeEncryption } from './security/piiEncryption.js';
 import { getCsrfToken, validateCsrfToken } from './middleware/csrf.js';
@@ -58,7 +58,7 @@ import billingRoutes from './routes/billing.js';
 import userRoutes from './routes/users.js';
 import locationRoutes from './routes/locations.js';
 import adminRoutes from './routes/admin.js';
-import dosespotRoutes from './routes/dosespot.js';
+import dosespotRoutes, { webhookRouter as dosespotWebhookRouter } from './routes/dosespot.js';
 import patientPortalRoutes from './routes/patientPortal.js';
 import providerSignatureRoutes from './routes/providerSignatures.js';
 import phiExportRoutes from './routes/phiExport.js';
@@ -72,6 +72,10 @@ import priorAuthRoutes from './routes/priorAuths.js';
 import patientRecallRoutes from './routes/patientRecalls.js';
 import educationResourceRoutes from './routes/educationResources.js';
 import labTrackingRoutes from './routes/labTracking.js';
+import pharmacyRoutes     from './routes/pharmacies.js';
+import labFacilityRoutes  from './routes/labFacilities.js';
+import patientStatusRoutes from './routes/patientStatus.js';
+import superbillRoutes     from './routes/superbills.js';
 
 const app = express();
 
@@ -190,6 +194,18 @@ app.use('/api/auth/reauth',           authLimiter);
 app.use('/api/auth/verify-epcs-pin',  authLimiter);
 app.use('/api/auth/verify-epcs-otp',  authLimiter);
 
+// Patient portal OTP — strict per-IP limit (5 attempts / 15 min)
+const portalOtpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => req.realIp || req.ip,
+  message: { error: 'Too many attempts. Try again in 15 minutes.' },
+});
+app.use('/api/patient-portal/verify-otp', portalOtpLimiter);
+
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -274,8 +290,8 @@ app.use('/api/auth', authRoutes);
 // Clients call this before state-changing requests to get a fresh CSRF token
 app.get('/api/csrf-token', authenticate, getCsrfToken);
 
-// ── Public routes (no authentication required) ──────────────────────────────────
-app.use('/api/uptime', uptimeRoutes);  // Health monitoring endpoints
+// ── Uptime dashboard — admin only (exposes PID, memory, restart count) ──────────
+app.use('/api/uptime', authenticate, authorize('admin'), uptimeRoutes);
 
 // ── Facility gate — all data routes require a logged-in user with a facility ──
 // Auth routes are excluded (they run before the user is authenticated).
@@ -294,7 +310,8 @@ app.use('/api/fhir',          authenticate, validateCsrfToken, requireFacility);
 app.use('/api/billing',       authenticate, validateCsrfToken, requireFacility);
 app.use('/api/users',         authenticate, validateCsrfToken, requireFacility);
 app.use('/api/locations',     authenticate, validateCsrfToken, requireFacility);
-app.use('/api/dosespot',      authenticate, validateCsrfToken, requireFacility);
+// DoseSpot webhook is called by DoseSpot's servers — no auth or CSRF
+app.use('/api/dosespot', dosespotWebhookRouter);
 app.use('/api/refills',       authenticate, validateCsrfToken, requireFacility);
 
 // Routes with their own authenticate calls (gate + CSRF check already in place above)
@@ -328,7 +345,7 @@ app.use('/api/admin', authenticate, validateCsrfToken, adminRoutes);
 
 app.use('/api/users', userRoutes);
 app.use('/api/locations', locationRoutes);
-app.use('/api/dosespot', dosespotRoutes);
+app.use('/api/dosespot', authenticate, validateCsrfToken, dosespotRoutes);
 app.use('/api/patient-portal', patientPortalRoutes);
 app.use('/api/provider-signatures', providerSignatureRoutes);
 app.use('/api/phi-export',          authenticate, validateCsrfToken, phiExportRoutes);
@@ -341,6 +358,10 @@ app.use('/api/prior-auths',        authenticate, validateCsrfToken, requireFacil
 app.use('/api/patient-recalls',    authenticate, validateCsrfToken, requireFacility, patientRecallRoutes);
 app.use('/api/education-resources',authenticate, validateCsrfToken, educationResourceRoutes);
 app.use('/api/lab-tracking',       authenticate, validateCsrfToken, requireFacility, labTrackingRoutes);
+app.use('/api/pharmacies',         authenticate, validateCsrfToken, pharmacyRoutes);
+app.use('/api/lab-facilities',     authenticate, validateCsrfToken, labFacilityRoutes);
+app.use('/api/patient-status',     authenticate, validateCsrfToken, patientStatusRoutes);
+app.use('/api/superbills',         authenticate, validateCsrfToken, superbillRoutes);
 
 // 404 handler for unknown API routes
 app.use((req, res) => {

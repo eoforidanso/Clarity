@@ -139,10 +139,11 @@ async function request(path, options = {}, _isRetry = false) {
   return res.json();
 }
 
-const get  = (path, options) => request(path, options);
-const post = (path, data) => request(path, { method: 'POST',   body: JSON.stringify(data) });
-const put  = (path, data) => request(path, { method: 'PUT',    body: JSON.stringify(data) });
-const del  = (path, elevatedToken) => request(path, {
+const get   = (path, options) => request(path, options);
+const post  = (path, data) => request(path, { method: 'POST',  body: JSON.stringify(data) });
+const put   = (path, data) => request(path, { method: 'PUT',   body: JSON.stringify(data) });
+const patch = (path, data) => request(path, { method: 'PATCH', body: JSON.stringify(data) });
+const del   = (path, elevatedToken) => request(path, {
   method: 'DELETE',
   ...(elevatedToken && { headers: { Authorization: `Bearer ${elevatedToken}` } }),
 });
@@ -181,10 +182,11 @@ export const telehealth = {
 
 // ─── Patients ────────────────────────────────────────
 export const patients = {
-  list: (params) => get(`/patients?${new URLSearchParams(params)}`),
-  get: (id) => get(`/patients/${id}`),
-  create: (data) => post('/patients', data),
-  update: (id, data) => put(`/patients/${id}`, data),
+  list:             (params)     => get(`/patients?${new URLSearchParams(params)}`),
+  get:              (id)         => get(`/patients/${id}`),
+  create:           (data)       => post('/patients', data),
+  update:           (id, data)   => put(`/patients/${id}`, data),
+  updateStickyNote: (id, note)   => patch(`/patients/${id}/sticky-note`, { note }),
 };
 
 // ─── Clinical (per-patient) ──────────────────────────
@@ -366,16 +368,55 @@ export const openfda = {
 
 // NPPES pharmacy search — backend proxy (CMS blocks browser CORS).
 // Returns { results, total, hasMore, skip }
+// NPI Registry pharmacy taxonomy codes
+export const PHARMACY_SUBTYPES = {
+  '3336C0003X': 'Pharmacy',
+  '3336C0002X': 'Clinic Pharmacy',
+  '3336C0004X': 'Compounding Pharmacy',
+  '3336M0002X': 'Mail Order Pharmacy',
+};
+
+// Nearest pharmacies by patient ZIP — sorted by Haversine distance
+export const nearbyPharmacies = (zip) =>
+  get(`/pharmacies/near/${encodeURIComponent(zip)}`).catch(() => ({ results: [] }));
+
+// Nearest labs by patient ZIP — sorted by Haversine distance
+export const nearbyLabs = (zip) =>
+  get(`/lab-facilities/near/${encodeURIComponent(zip)}`).catch(() => ({ results: [] }));
+
+export const LAB_SUBTYPES = {
+  '291U00000X': 'Clinical Lab',
+  '261QH0100X': 'Hospital Lab',
+  '261QR0200X': 'Radiology',
+  '291900000X': 'Military Lab',
+};
+
 export const nppes = {
-  searchPharmacies: async ({ search = '', city = '', state = '', skip = 0 } = {}) => {
+  // search — ?search=name|zip|npi  &city=  &state=  &skip=  &subtype=3336C0003X,3336M0002X
+  searchPharmacies: async ({ search = '', city = '', state = '', skip = 0, subtype = '' } = {}) => {
     const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    if (city) params.set('city', city);
-    if (state) params.set('state', state);
-    if (skip) params.set('skip', String(skip));
+    if (search)  params.set('search',  search);
+    if (city)    params.set('city',    city);
+    if (state)   params.set('state',   state);
+    if (skip)    params.set('skip',    String(skip));
+    if (subtype) params.set('subtype', subtype);
     try {
       const data = await get(`/external/nppes/pharmacies?${params}`);
-      // Backward compat: backend may return array OR { results, total, hasMore }
+      if (Array.isArray(data)) return { results: data, total: data.length, hasMore: false, skip: 0 };
+      return data || { results: [], total: 0, hasMore: false, skip: 0 };
+    } catch {
+      return { results: [], total: 0, hasMore: false, skip: 0 };
+    }
+  },
+
+  searchLabs: async ({ search = '', city = '', state = '', skip = 0 } = {}) => {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (city)   params.set('city',   city);
+    if (state)  params.set('state',  state);
+    if (skip)   params.set('skip',   String(skip));
+    try {
+      const data = await get(`/external/nppes/labs?${params}`);
       if (Array.isArray(data)) return { results: data, total: data.length, hasMore: false, skip: 0 };
       return data || { results: [], total: 0, hasMore: false, skip: 0 };
     } catch {
@@ -394,9 +435,14 @@ export const locations = {
 
 // ─── DoseSpot ePrescribing ────────────────────────────
 export const dosespot = {
-  status: () => get('/dosespot/status'),
-  prescriberStatus: () => get('/dosespot/prescriber-status'),
-  getSsoUrl: (patientId) => get(`/dosespot/sso${patientId ? `?patientId=${patientId}` : ''}`),
+  status:              ()              => get('/dosespot/status'),
+  prescriberStatus:    ()              => get('/dosespot/prescriber-status'),
+  getSsoUrl:           (patientId)     => get(`/dosespot/sso${patientId ? `?patientId=${patientId}` : ''}`),
+  getNotifications:    ()              => get('/dosespot/notifications'),
+  getPatientRx:        (patientId)     => get(`/dosespot/patients/${patientId}/prescriptions`),
+  syncPatient:         (patientId)     => post(`/dosespot/patients/${patientId}/sync`, {}),
+  enrollPrescriber:    (userId, body)  => put(`/dosespot/prescribers/${userId}/enroll`, body),
+  unenrollPrescriber:  (userId)        => del(`/dosespot/prescribers/${userId}/enroll`),
 };
 
 // ─── Provider Signatures ───────────────────────────
@@ -519,4 +565,35 @@ export const educationResources = {
 export const labTracking = {
   list:   (params = {}) => get(`/lab-tracking?${new URLSearchParams(params)}`),
   update: (id, data)    => put(`/lab-tracking/${id}`, data),
+};
+
+// ─── Pharmacy Directory (NCPDP / DoseSpot) ───────────
+export const pharmacies = {
+  search:  (params = {}) => get(`/pharmacies?${new URLSearchParams(params)}`),
+  recent:  ()            => get('/pharmacies/recent'),
+  getById: (ncpdpId)     => get(`/pharmacies/${ncpdpId}`),
+  lookup:  (ncpdpId)     => post('/pharmacies/lookup', { ncpdpId }),
+};
+
+// ─── Patient Chart Status ────────────────────────────
+export const patientStatus = {
+  get:  (patientId)       => get(`/patient-status/${patientId}`),
+  save: (patientId, data) => put(`/patient-status/${patientId}`, data),
+};
+
+// ─── Superbill Statuses ──────────────────────────────
+export const superbills = {
+  getStatuses:  ()                        => get('/superbills/statuses'),
+  saveStatus:   (encounterId, data)       => put(`/superbills/status/${encounterId}`, data),
+};
+
+// ─── Refill Queue ────────────────────────────────────
+export const refillQueue = {
+  getAll:          ()                     => get('/refills'),
+  create:          (data)                 => post('/refills', data),
+  updateStatus:    (id, status, metadata) => patch(`/refills/${id}/status`, { status, metadata }),
+  updatePharmacy:  (id, data)             => patch(`/refills/${id}/pharmacy`, data),
+  remove:          (id)                   => del(`/refills/${id}`),
+  sendToPharmacy:  (id, data)             => post(`/refills/${id}/send-to-pharmacy`, data),
+  verifyInsurance: (id)                   => post(`/refills/${id}/verify-insurance`, {}),
 };

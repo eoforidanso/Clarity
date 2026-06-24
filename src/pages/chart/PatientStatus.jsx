@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePatient } from '../../contexts/PatientContext';
+import { patientStatus as patientStatusApi } from '../../services/api';
 
 const STATUS_OPTIONS = [
   { value: 'active',       label: 'Active',                    color: '#059669', bg: '#f0fdf4', border: '#86efac', icon: '✅', description: 'Patient is currently receiving care at this practice.' },
@@ -38,36 +39,27 @@ const TRANSFER_OPTIONS = [
   'Other (see notes)',
 ];
 
-function getStorageKey(patientId) { return `patient_status_${patientId}`; }
-
-function loadStatus(patientId) {
-  try {
-    const raw = localStorage.getItem(getStorageKey(patientId));
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
-
-function saveStatus(patientId, data) {
-  try { localStorage.setItem(getStorageKey(patientId), JSON.stringify(data)); } catch {}
-}
-
 export function getPatientStatusRecord(patientId) {
-  return loadStatus(patientId);
+  // Legacy sync accessor — returns null (caller must use async API)
+  return null;
 }
 
 export default function PatientStatus({ patientId }) {
   const { currentUser } = useAuth();
   const { selectedPatient: patient } = usePatient();
 
-  const [statusRecord, setStatusRecord] = useState(() => loadStatus(patient?.id) || { status: 'active', history: [] });
+  const [statusRecord, setStatusRecord] = useState({ status: 'active', history: [] });
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
-    const existing = loadStatus(patient?.id);
-    setStatusRecord(existing || { status: 'active', history: [] });
+    if (!patient?.id) return;
+    patientStatusApi.get(patient.id)
+      .then(data => setStatusRecord(data || { status: 'active', history: [] }))
+      .catch(() => setStatusRecord({ status: 'active', history: [] }));
   }, [patient?.id]);
 
   const currentStatusOpt = STATUS_OPTIONS.find(s => s.value === statusRecord.status) || STATUS_OPTIONS[0];
@@ -106,7 +98,7 @@ export default function PatientStatus({ patientId }) {
     }
   };
 
-  const commitSave = () => {
+  const commitSave = async () => {
     const now = new Date().toISOString();
     const changedBy = `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim() || 'System';
     const historyEntry = {
@@ -122,12 +114,20 @@ export default function PatientStatus({ patientId }) {
       lastModifiedBy: changedBy,
       history: [...(statusRecord.history || []), historyEntry],
     };
-    setStatusRecord(updated);
-    saveStatus(patient?.id, updated);
-    setEditing(false);
-    setConfirmOpen(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setSaving(true);
+    try {
+      await patientStatusApi.save(patient.id, updated);
+      setStatusRecord(updated);
+      setEditing(false);
+      setConfirmOpen(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      // Surface error without crashing the UI
+      setSaved(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const cancelEdit = () => { setEditing(false); setDraft(null); setConfirmOpen(false); };
@@ -333,8 +333,8 @@ export default function PatientStatus({ patientId }) {
 
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                   <button onClick={cancelEdit} className="btn btn-secondary" style={{ fontSize: 13 }}>Cancel</button>
-                  <button onClick={handleSave} style={{ fontSize: 13, padding: '8px 20px', borderRadius: 8, background: STATUS_OPTIONS.find(s => s.value === draft.status)?.color || '#1d4ed8', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}>
-                    💾 Save Status
+                  <button onClick={handleSave} disabled={saving} style={{ fontSize: 13, padding: '8px 20px', borderRadius: 8, background: STATUS_OPTIONS.find(s => s.value === draft.status)?.color || '#1d4ed8', color: '#fff', border: 'none', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                    {saving ? 'Saving…' : '💾 Save Status'}
                   </button>
                 </div>
               </div>
@@ -447,8 +447,8 @@ export default function PatientStatus({ patientId }) {
             </div>
             <div style={{ padding: '14px 22px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button onClick={cancelEdit} className="btn btn-secondary" style={{ fontSize: 13 }}>Cancel</button>
-              <button onClick={commitSave} style={{ padding: '8px 20px', borderRadius: 8, background: STATUS_OPTIONS.find(s => s.value === draft.status)?.color || '#dc2626', color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-                ✓ Confirm Inactivation
+              <button onClick={commitSave} disabled={saving} style={{ padding: '8px 20px', borderRadius: 8, background: STATUS_OPTIONS.find(s => s.value === draft.status)?.color || '#dc2626', color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Saving…' : '✓ Confirm Inactivation'}
               </button>
             </div>
           </div>

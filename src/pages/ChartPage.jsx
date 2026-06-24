@@ -11,11 +11,13 @@ import BTGGuard from '../components/BTGGuard';
 import { ILLINOIS_LABS, getLabProximityInfo } from '../data/illinoisLabs';
 import { checkInteractions } from '../data/drugInteractions';
 import { resolvePharmacy, resolveSigSuggestions, getActiveMedContext } from '../utils/rxAutoPopulate';
+import { patients as patientsApi } from '../services/api';
 import AssessmentScorer from '../components/AssessmentScorer';
 import SafetyPlanBuilder from '../components/SafetyPlanBuilder';
 import MedAdherenceTimeline from '../components/MedAdherenceTimeline';
 import PriorAuthDrawer from '../components/PriorAuthDrawer';
 import PatientPortalInbox from '../components/PatientPortalInbox';
+import DiagnosisOrderComposer from '../components/DiagnosisOrderComposer';
 
 import ChartSummary from './chart/ChartSummary';
 import Demographics from './chart/Demographics';
@@ -53,18 +55,18 @@ export function hasPrescriptiveAuthority(user) {
 }
 
 const ALL_CHART_TABS = [
-  { key: 'summary',      label: '📋 Summary',       component: ChartSummary  },
-  { key: 'encounters',   label: '🗒️ Encounters',     component: Encounters    },
-  { key: 'demographics', label: '👤 Demographics',   component: Demographics  },
-  { key: 'allergies',    label: '⚠️ Allergies',       component: Allergies     },
-  { key: 'problems',     label: '🩺 Problems',        component: ProblemList   },
-  { key: 'vitals',       label: '💓 Vitals',          component: Vitals        },
-  { key: 'medications',  label: '💊 Medications',     component: Medications,  requiresCap: 'canViewMeds' },
-  { key: 'orders',       label: '📝 Orders',          component: Orders,       requiresCap: 'canOrder'    },
-  { key: 'assessments',  label: '📊 Assessments',     component: Assessments  },
-  { key: 'immunizations',label: '💉 Immunizations',   component: Immunizations },
-  { key: 'labs',         label: '🔬 Labs',            component: LabResults    },
-  { key: 'status',       label: '🚫 Patient Status',  component: PatientStatus },
+  { key: 'summary',      icon: '📋', shortLabel: 'Summary',       label: '📋 Summary',       component: ChartSummary  },
+  { key: 'encounters',   icon: '🗒️', shortLabel: 'Encounters',    label: '🗒️ Encounters',     component: Encounters    },
+  { key: 'demographics', icon: '👤', shortLabel: 'Demographics',  label: '👤 Demographics',   component: Demographics  },
+  { key: 'allergies',    icon: '⚠️', shortLabel: 'Allergies',     label: '⚠️ Allergies',       component: Allergies     },
+  { key: 'problems',     icon: '🩺', shortLabel: 'Problems',      label: '🩺 Problems',        component: ProblemList   },
+  { key: 'vitals',       icon: '💓', shortLabel: 'Vitals',        label: '💓 Vitals',          component: Vitals        },
+  { key: 'medications',  icon: '💊', shortLabel: 'Medications',   label: '💊 Medications',     component: Medications,  requiresCap: 'canViewMeds' },
+  { key: 'orders',       icon: '📝', shortLabel: 'Orders',        label: '📝 Orders',          component: Orders,       requiresCap: 'canOrder'    },
+  { key: 'assessments',  icon: '📊', shortLabel: 'Assessments',   label: '📊 Assessments',     component: Assessments  },
+  { key: 'immunizations',icon: '💉', shortLabel: 'Immunizations', label: '💉 Immunizations',   component: Immunizations },
+  { key: 'labs',         icon: '🔬', shortLabel: 'Labs',          label: '🔬 Labs',            component: LabResults    },
+  { key: 'status',       icon: '🚫', shortLabel: 'Status',        label: '🚫 Patient Status',  component: PatientStatus },
 ];
 
 function getVisibleTabs(user) {
@@ -92,29 +94,51 @@ export default function ChartPage() {
   const menuRef = useRef(null);
 
   // ── Sticky Note ──────────────────────────────────────────
-  const [stickyOpen, setStickyOpen] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(`sticky_open_${patientId}`)) ?? false; } catch { return false; }
-  });
-  const [stickyText, setStickyText] = useState(() => {
-    try { return localStorage.getItem(`sticky_note_${patientId}`) || ''; } catch { return ''; }
-  });
-  const [stickyPos, setStickyPos] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(`sticky_pos_${patientId}`)) || { x: 60, y: 120 }; } catch { return { x: 60, y: 120 }; }
-  });
+  const [stickyOpen, setStickyOpen] = useState(false);
+  const [stickyText, setStickyText] = useState('');
+  const [stickyPos, setStickyPos] = useState({ x: 60, y: 120 });
   const [stickyMinimized, setStickyMinimized] = useState(false);
   const stickyDragRef = useRef(null);
   const stickyDragging = useRef(false);
   const stickyOffset = useRef({ x: 0, y: 0 });
+  const stickyDebounce = useRef(null);
+  // Track last-persisted value so we skip the spurious save triggered by the
+  // load effect (patient switch loads note → stickyText changes → debounce fires).
+  const stickyLastSaved = useRef('');
 
+  // Load sticky note from patient object (already in PatientContext)
   useEffect(() => {
-    try { localStorage.setItem(`sticky_note_${patientId}`, stickyText); } catch {}
+    if (!selectedPatient) return;
+    const note = selectedPatient.stickyNote || '';
+    stickyLastSaved.current = note;
+    setStickyText(note);
+    setStickyOpen(false);
+  }, [selectedPatient?.id]);
+
+  // Flush any unsaved edit immediately when the patient changes.
+  // The cleanup runs before the new patientId is applied, so `patientId`
+  // and `stickyText` in this closure still refer to the previous patient.
+  useEffect(() => {
+    return () => {
+      clearTimeout(stickyDebounce.current);
+      if (patientId && stickyText !== stickyLastSaved.current) {
+        patientsApi.updateStickyNote(patientId, stickyText).catch(() => {});
+        stickyLastSaved.current = stickyText;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]);
+
+  // Debounced save while typing — skip if text matches last saved value
+  useEffect(() => {
+    if (!patientId || stickyText === stickyLastSaved.current) return;
+    clearTimeout(stickyDebounce.current);
+    stickyDebounce.current = setTimeout(() => {
+      patientsApi.updateStickyNote(patientId, stickyText).catch(() => {});
+      stickyLastSaved.current = stickyText;
+    }, 800);
+    return () => clearTimeout(stickyDebounce.current);
   }, [stickyText, patientId]);
-  useEffect(() => {
-    try { localStorage.setItem(`sticky_pos_${patientId}`, JSON.stringify(stickyPos)); } catch {}
-  }, [stickyPos, patientId]);
-  useEffect(() => {
-    try { localStorage.setItem(`sticky_open_${patientId}`, JSON.stringify(stickyOpen)); } catch {}
-  }, [stickyOpen, patientId]);
 
   const onStickyMouseDown = (e) => {
     if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
@@ -233,6 +257,19 @@ export default function ChartPage() {
 
   // ── Patient Portal Inbox ─────────────────────────────────
   const [portalInboxOpen, setPortalInboxOpen] = useState(false);
+
+  // ── Split-pane left rail ──────────────────────────────────
+  const [railCollapsed, setRailCollapsed] = useState(() => {
+    try { return localStorage.getItem('chart_rail_collapsed') === '1'; } catch { return false; }
+  });
+  const toggleRail = () => setRailCollapsed(v => {
+    const next = !v;
+    try { localStorage.setItem('chart_rail_collapsed', next ? '1' : '0'); } catch { /* */ }
+    return next;
+  });
+
+  // ── Diagnoses & Orders Composer ──────────────────────────
+  const [composerOpen, setComposerOpen] = useState(false);
 
   // ── Lab location dropdown ────────────────────────────────
   const [labDropdownIdx, setLabDropdownIdx] = useState(null);
@@ -984,23 +1021,40 @@ export default function ChartPage() {
         </div>
       )}
 
-      {/* ── Athena-style Chart Navigation Bar ─────────── */}
-      <div className="athena-chart-toolbar">
-        <div className="athena-chart-tabs">
+      {/* ── Split-Pane Clinical Workspace ────────────── */}
+      <div className="chart-split-workspace">
+
+        {/* Left rail — vertical section nav (no toggle here; toggle lives in toolbar) */}
+        <nav className={`chart-left-rail${railCollapsed ? ' collapsed' : ''}`} aria-label="Chart sections">
           {getVisibleTabs(currentUser).map((t) => (
             <button
               key={t.key}
-              className={`athena-tab ${activeTab === t.key ? 'active' : ''}`}
+              className={`chart-nav-item${activeTab === t.key ? ' active' : ''}`}
               onClick={() => navigate(`/chart/${patientId}/${t.key}`)}
+              title={railCollapsed ? t.shortLabel : undefined}
             >
-              {t.label}
+              <span className="chart-nav-icon">{t.icon}</span>
+              {!railCollapsed && <span className="chart-nav-label">{t.shortLabel}</span>}
             </button>
           ))}
-        </div>
+        </nav>
 
-        {/* Actions toolbar */}
-        <div className="athena-chart-actions-bar">
+        {/* Right pane — toolbar + scrollable content */}
+        <div className="chart-right-pane">
+          <div className="chart-pane-toolbar">
+            {/* Rail toggle lives here so Summary and Composer share the same row */}
+            <button className="chart-rail-toggle-inline" onClick={toggleRail} title={railCollapsed ? 'Expand navigation' : 'Collapse navigation'}>
+              {railCollapsed ? '›' : '‹'}
+            </button>
+            <div className="athena-chart-actions-bar" style={{ borderLeft: 'none', marginLeft: 0 }}>
           {/* ── Clinical Tools ── */}
+          <button
+            className="athena-toolbar-btn composer-trigger-btn"
+            onClick={() => setComposerOpen(true)}
+            title="Diagnoses & Orders Composer"
+          >
+            ✦ Composer
+          </button>
           <button
             className="athena-toolbar-btn"
             onClick={() => setPortalInboxOpen(true)}
@@ -1080,15 +1134,24 @@ export default function ChartPage() {
               </div>
             )}
           </div>
-        </div>
-      </div>
+            </div>
+          </div>
 
-      {/* ── Chart Content Area ────────────────────────── */}
-      <div className="athena-chart-content">
-        <BTGGuard patientId={patientId}>
-          <ActiveComponent patientId={patientId} />
-        </BTGGuard>
-      </div>
+          {/* ── Chart Content Area ──────────────────────── */}
+          <div className="athena-chart-content">
+            <BTGGuard patientId={patientId}>
+              <ActiveComponent patientId={patientId} />
+            </BTGGuard>
+          </div>
+        </div>{/* end chart-right-pane */}
+      </div>{/* end chart-split-workspace */}
+
+      {/* ── Diagnoses & Orders Composer ─────────────────────── */}
+      <DiagnosisOrderComposer
+        isOpen={composerOpen}
+        onClose={() => setComposerOpen(false)}
+        patientId={patientId}
+      />
 
       {/* ═══════════════════════════════════════════════════════
           SLIDE-OUT PANELS

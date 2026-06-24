@@ -1,18 +1,24 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
+import { db } from '../db/database.js';
 import { RefillService } from '../services/RefillService.js';
 import { PharmacyEmailService } from '../services/PharmacyEmailService.js';
 import { SMSService } from '../services/SMSService.js';
 import { InsuranceEligibilityService } from '../services/InsuranceEligibilityService.js';
 import { routeError } from '../utils/routeError.js';
+import { validate } from '../middleware/validate.js';
+import { CreateRefillSchema, SendToPharmacySchema, ResendNotificationSchema } from '../schemas/refillSchema.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = express.Router();
 
 // Middleware
 router.use(authenticate);
+router.use(validateResponse(AnyResponseSchema));
 
 // Create refill
-router.post('/', async (req, res) => {
+router.post('/', validate(CreateRefillSchema), async (req, res) => {
   try {
     const { patientId, medicationId, medicationName, dose, frequency } = req.body;
 
@@ -32,6 +38,70 @@ router.post('/', async (req, res) => {
     res.json({ refillId, status: 'pending' });
   } catch (error) {
     routeError(req, '[Refills] Create error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all refills (no status filter) — used by RefillQueue page
+router.get('/', async (req, res) => {
+  try {
+    const { limit = 200, offset = 0 } = req.query;
+    const rows = await db.prepare(`
+      SELECT r.*,
+        p.first_name, p.last_name, p.date_of_birth,
+        u.first_name AS creator_first, u.last_name AS creator_last
+      FROM refills r
+      JOIN patients p ON r.patient_id = p.id
+      LEFT JOIN users u ON r.created_by = u.id
+      WHERE r.deleted_at IS NULL
+      ORDER BY
+        CASE r.status WHEN 'pending' THEN 0 WHEN 'queued' THEN 1 ELSE 2 END,
+        r.days_remaining ASC NULLS LAST,
+        r.created_at DESC
+      LIMIT ? OFFSET ?
+    `).all(limit, offset);
+
+    const refills = rows.map(r => ({
+      id:               r.id,
+      patientId:        r.patient_id,
+      patientName:      `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+      medicationId:     r.medication_id     || '',
+      medicationName:   r.medication_name,
+      dose:             r.dose              || '',
+      frequency:        r.frequency         || '',
+      refillsRemaining: r.refills_remaining ?? 0,
+      daysRemaining:    r.days_remaining    ?? 0,
+      pharmacy:         r.pharmacy_name     || '',
+      pharmacyAddress:  r.pharmacy_address  || '',
+      pharmacyPhone:    r.pharmacy_phone    || '',
+      pharmacyFax:      r.pharmacy_fax      || '',
+      status:           r.status,
+      priority:         r.priority,
+      createdBy:        r.creator_first
+        ? `${r.creator_first} ${r.creator_last || ''}`.trim()
+        : (r.created_by || ''),
+      createdAt:        r.created_at,
+      queuedAt:         r.queued_at         || null,
+      sentAt:           r.sent_at           || null,
+      filledAt:         r.filled_at         || null,
+      notes:            r.notes             || '',
+      copayAmount:      r.copay_amount      != null ? parseFloat(r.copay_amount) : null,
+    }));
+
+    res.json(refills);
+  } catch (error) {
+    routeError(req, '[Refills] GET all error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get refill statistics — must come before /:id to avoid path conflict
+router.get('/admin/stats', async (req, res) => {
+  try {
+    const stats = await RefillService.getStats();
+    res.json(stats);
+  } catch (error) {
+    routeError(req, '[Refills] Get stats error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -127,7 +197,7 @@ router.post('/:id/verify-insurance', async (req, res) => {
 });
 
 // Send refill to pharmacy
-router.post('/:id/send-to-pharmacy', async (req, res) => {
+router.post('/:id/send-to-pharmacy', validate(SendToPharmacySchema), async (req, res) => {
   try {
     const { pharmacyEmail, pharmacyName, verifyInsurance = false } = req.body;
     const refill = await RefillService.getRefill(req.params.id);
@@ -218,7 +288,7 @@ router.get('/:id/audit-trail', async (req, res) => {
 });
 
 // Resend failed notification
-router.post('/:id/resend-notification', async (req, res) => {
+router.post('/:id/resend-notification', validate(ResendNotificationSchema), async (req, res) => {
   try {
     const { type } = req.body;
     const refill = await RefillService.getRefill(req.params.id);
@@ -247,13 +317,28 @@ router.post('/:id/resend-notification', async (req, res) => {
   }
 });
 
-// Get refill statistics
-router.get('/admin/stats', async (req, res) => {
+// Update pharmacy fields on a refill
+router.patch('/:id/pharmacy', async (req, res) => {
   try {
-    const stats = await RefillService.getStats();
-    res.json(stats);
+    const { pharmacy, pharmacyAddress, pharmacyPhone, pharmacyFax } = req.body;
+    await db.prepare(`
+      UPDATE refills
+      SET pharmacy_name    = ?,
+          pharmacy_address = ?,
+          pharmacy_phone   = ?,
+          pharmacy_fax     = ?,
+          updated_at       = NOW()
+      WHERE id = ? AND deleted_at IS NULL
+    `).run(
+      pharmacy        || '',
+      pharmacyAddress || '',
+      pharmacyPhone   || '',
+      pharmacyFax     || '',
+      req.params.id,
+    );
+    res.json({ ok: true });
   } catch (error) {
-    routeError(req, '[Refills] Get stats error:', error);
+    routeError(req, '[Refills] PATCH pharmacy error:', error);
     res.status(500).json({ error: error.message });
   }
 });

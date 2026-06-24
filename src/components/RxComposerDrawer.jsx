@@ -8,7 +8,7 @@
  *   • PDMP / IL-PMP banner + PDMPDrawer for controlled substances
  *   • EPCS / DEA gates
  *   • Pharmacy auto-population (patient → last-used → provider default)
- *   • PharmacySelectorDrawer (Illinois directory, proximity-sorted)
+ *   • PharmacySearch (national NPI Registry, auto-populates from patient ZIP)
  *   • Sig suggestion chips (patient history → provider favorite → clinic default)
  *
  * Props
@@ -24,10 +24,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getControlledSchedule } from '../utils/controlledSubstances';
 import { checkInteractions }      from '../data/drugInteractions';
-import { resolvePharmacy, resolveSigSuggestions, getActiveMedContext } from '../utils/rxAutoPopulate';
+import { resolvePharmacyAsync, resolveSigSuggestions, getActiveMedContext } from '../utils/rxAutoPopulate';
 import { generateILPmpReport }    from '../utils/pmpMock';
 import PDMPDrawer                 from './PDMPDrawer';
-import PharmacySelectorDrawer     from './PharmacySelectorDrawer';
+import PharmacySearch             from './PharmacySearch';
 import { medicationDatabase }     from '../data/mockData';
 
 // ── Clinic-default sig table (psychiatry) ────────────────────────────────────
@@ -136,10 +136,10 @@ export default function RxComposerDrawer({
   const [showMedDrop, setShowMedDrop] = useState(false);
 
   // ── smart Rx state ──────────────────────────────────────────────────────────
+  const [pharmObj, setPharmObj]               = useState(null);
   const [pharmAutoSource, setPharmAutoSource] = useState(null);
   const [sigSuggestions, setSigSuggestions]   = useState([]);
   const [showActiveMeds, setShowActiveMeds]   = useState(false);
-  const [pharmDrawerOpen, setPharmDrawerOpen] = useState(false);
 
   // ── PDMP state ──────────────────────────────────────────────────────────────
   const [pdmpOpen, setPdmpOpen]             = useState(false);
@@ -170,19 +170,19 @@ export default function RxComposerDrawer({
   // ── Auto-populate pharmacy on open ─────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
-    if (!rx.pharmacy) {
-      const resolved = resolvePharmacy(patient, provider, patientMeds);
-      if (resolved) {
-        setRx(prev => ({
-          ...prev,
-          pharmacy:     resolved.name,
-          pharmAddress: resolved.address || '',
-          pharmPhone:   resolved.phone   || '',
-          pharmFax:     resolved.fax     || '',
-        }));
-        setPharmAutoSource(resolved.sourceLabel);
-      }
-    }
+    if (pharmObj) return;
+    resolvePharmacyAsync(patient, provider, patientMeds).then(resolved => {
+      if (!resolved) return;
+      setPharmObj(resolved);
+      setRx(prev => ({
+        ...prev,
+        pharmacy:     resolved.name    || '',
+        pharmAddress: resolved.address || '',
+        pharmPhone:   resolved.phone   || '',
+        pharmFax:     resolved.fax     || '',
+      }));
+      setPharmAutoSource(resolved.sourceLabel);
+    }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
@@ -241,15 +241,22 @@ export default function RxComposerDrawer({
   };
 
   const handlePharmacySelect = (pharm) => {
+    if (!pharm) {
+      setPharmObj(null);
+      setRx(prev => ({ ...prev, pharmacy: '', pharmAddress: '', pharmPhone: '', pharmFax: '' }));
+      setPharmAutoSource(null);
+      return;
+    }
+    setPharmObj(pharm);
+    const addrParts = [pharm.address, pharm.city, pharm.state, pharm.zip].filter(Boolean);
     setRx(prev => ({
       ...prev,
       pharmacy:     pharm.name    || '',
-      pharmAddress: pharm.address || '',
+      pharmAddress: pharm.fullAddress || addrParts.join(', ') || pharm.address || '',
       pharmPhone:   pharm.phone   || '',
       pharmFax:     pharm.fax     || '',
     }));
     setPharmAutoSource(null);
-    setPharmDrawerOpen(false);
   };
 
   const handleSubmit = () => {
@@ -257,6 +264,7 @@ export default function RxComposerDrawer({
     onSubmit({ ...rx, schedule: schedule || null, isControlled: !!schedule });
     // Reset for next use
     setRx({ ...BLANK_RX });
+    setPharmObj(null);
     setPharmAutoSource(null);
     setSigSuggestions([]);
     setShowActiveMeds(false);
@@ -266,6 +274,7 @@ export default function RxComposerDrawer({
 
   const handleClose = () => {
     setRx({ ...BLANK_RX });
+    setPharmObj(null);
     setPharmAutoSource(null);
     setSigSuggestions([]);
     setShowActiveMeds(false);
@@ -586,30 +595,13 @@ export default function RxComposerDrawer({
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-              <div style={{ flex: 1 }}>
-                <input className="form-input"
-                  value={rx.pharmacy}
-                  onChange={e => { setRx(prev => ({ ...prev, pharmacy: e.target.value })); setPharmAutoSource(null); }}
-                  placeholder="Pharmacy name…"
-                  style={{ fontSize: 13, marginBottom: 6 }} />
-                <input className="form-input"
-                  value={rx.pharmAddress}
-                  onChange={e => setRx(prev => ({ ...prev, pharmAddress: e.target.value }))}
-                  placeholder="Address, city, state, zip…"
-                  style={{ fontSize: 12, color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd' }} />
-              </div>
-              <button
-                type="button"
-                onClick={() => setPharmDrawerOpen(true)}
-                style={{
-                  padding: '7px 12px', borderRadius: 7, fontSize: 11.5, fontWeight: 700,
-                  background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer',
-                  flexShrink: 0, whiteSpace: 'nowrap',
-                }}>
-                🔍 Browse IL<br />Directory
-              </button>
-            </div>
+            <PharmacySearch
+              value={pharmObj}
+              onChange={handlePharmacySelect}
+              defaultCity={patient?.address?.city || ''}
+              defaultZip={patient?.address?.zip   || ''}
+              defaultQuery={rx.pharmacy || ''}
+            />
           </div>
 
           {/* ── Notes ── */}
@@ -674,13 +666,6 @@ export default function RxComposerDrawer({
         />
       )}
 
-      {/* ── PharmacySelectorDrawer ── */}
-      <PharmacySelectorDrawer
-        isOpen={pharmDrawerOpen}
-        onClose={() => setPharmDrawerOpen(false)}
-        onSelect={handlePharmacySelect}
-        patientAddress={patient?.address ? `${patient.address.street || ''} ${patient.address.city || ''} ${patient.address.state || ''} ${patient.address.zip || ''}`.trim() : ''}
-      />
     </>
   );
 }

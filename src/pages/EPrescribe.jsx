@@ -3,14 +3,15 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { DemoDisabled, DemoSafe } from '../demo/DemoGuard';
 import { PrescriptionPreview } from '../components/PrescriptionPreview';
-import { medicationDatabase, pharmacies } from '../data/mockData';
+import { medicationDatabase } from '../data/mockData';
 import { rxnorm as rxnormApi, openfda as openfdaApi, locations as locationsApi, nppes as nppesApi, dosespot as dosespotApi, users as usersApi, allergies as allergiesApi, problems as problemsApi } from '../services/api';
 import { useSite } from '../contexts/SiteContext';
 import { generateILPmpReport } from '../utils/pmpMock';
 import { checkInteractions }    from '../data/drugInteractions';
-import { resolvePharmacy, resolveSigSuggestions, getActiveMedContext } from '../utils/rxAutoPopulate';
+import { resolvePharmacy, resolvePharmacyAsync, resolveSigSuggestions, getActiveMedContext } from '../utils/rxAutoPopulate';
 import { buildSignaturePayload, buildSignatureBlockHtml, getSignatureOnFileWatermarkCss, getSignatureOnFileWatermarkHtml } from '../utils/providerSignature';
 import PharmacySelectorDrawer   from '../components/PharmacySelectorDrawer';
+import PharmacySearch           from '../components/PharmacySearch';
 import RxSignatureBlock         from '../components/RxSignatureBlock';
 import RxReadinessScore         from '../components/RxReadinessScore';
 import { PSYCH_MED_DEFAULTS }   from '../components/RxComposerDrawer';
@@ -554,7 +555,7 @@ function RxSuccessPanel({ selectedMed, rx, prescriptionPatient, currentUser, add
 
 export default function EPrescribe() {
   const { currentUser, verifyEPCS, generateEPCSOTP, verifyEPCSOTP } = useAuth();
-  const { patients, selectedPatient, selectPatient, meds, addMedication, addOrder } = usePatient();
+  const { patients, selectedPatient, selectPatient, meds, addMedication, addOrder, updatePatient, loadPatientClinical } = usePatient();
 
   // ── DoseSpot integration state ───────────────────────────
   const [dsConfigured, setDsConfigured] = useState(false);
@@ -563,13 +564,40 @@ export default function EPrescribe() {
   const [dsError, setDsError] = useState('');
   const [dsIframeUrl, setDsIframeUrl] = useState('');
   const [showDsModal, setShowDsModal] = useState(false);
+  const [dsNotifications, setDsNotifications] = useState({ refillRequests: 0, errors: 0, total: 0 });
+  const [dsPatientRx, setDsPatientRx] = useState([]);
+  const [dsRxLoading, setDsRxLoading] = useState(false);
+  const [showDsRx, setShowDsRx] = useState(false);
 
   useEffect(() => {
-    if (currentUser?.role === 'prescriber') {
-      dosespotApi.status().then(d => setDsConfigured(!!d?.configured)).catch(() => {});
-      dosespotApi.prescriberStatus().then(d => setDsEnrolled(!!d?.enrolled)).catch(() => {});
-    }
+    const isPrescriber = currentUser?.role === 'prescriber' || currentUser?.role === 'nurse_practitioner';
+    if (!isPrescriber) return;
+    dosespotApi.status().then(d => setDsConfigured(!!d?.configured)).catch(() => {});
+    dosespotApi.prescriberStatus().then(d => setDsEnrolled(!!d?.enrolled)).catch(() => {});
   }, [currentUser?.id]);
+
+  // Poll DoseSpot notification counts every 5 minutes when enrolled
+  useEffect(() => {
+    if (!dsConfigured || !dsEnrolled) return;
+    const fetchNotifications = () =>
+      dosespotApi.getNotifications().then(d => setDsNotifications(d)).catch(() => {});
+    fetchNotifications();
+    const timer = setInterval(fetchNotifications, 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [dsConfigured, dsEnrolled]);
+
+  const loadDsPatientRx = async (patientId) => {
+    if (!patientId) return;
+    setDsRxLoading(true);
+    try {
+      const d = await dosespotApi.getPatientRx(patientId);
+      setDsPatientRx(d?.prescriptions || []);
+      setShowDsRx(true);
+    } catch (err) {
+      setDsError(err?.message || 'Failed to load prescriptions from DoseSpot');
+    }
+    setDsRxLoading(false);
+  };
 
   const launchDoseSpot = async (patientId) => {
     setDsLoading(true); setDsError('');
@@ -608,6 +636,10 @@ export default function EPrescribe() {
     problemsApi.list(prescriptionPatient.id).then(d => {
       if (Array.isArray(d)) setFetchedProblems(d.filter(p => p.status === 'Active'));
     }).catch(() => {});
+    // Load meds if not already in context (needed for pharmacy auto-populate)
+    if (!meds[prescriptionPatient.id]?.length) {
+      loadPatientClinical(prescriptionPatient.id);
+    }
   }, [prescriptionPatient?.id]);
   const [rx, setRx] = useState({
     dose: '',
@@ -624,6 +656,7 @@ export default function EPrescribe() {
   });
   const [pharmacySearch, setPharmacySearch] = useState('');
   const [showPharmacyDropdown, setShowPharmacyDropdown] = useState(false);
+  const [selectedPharmacyObj, setSelectedPharmacyObj] = useState(null);
 
   // ── ICD-10 autopopulate ──────────────────────────────────
   const [icdSuggestions, setIcdSuggestions] = useState([]);
@@ -665,17 +698,6 @@ export default function EPrescribe() {
       setFacilityInfo(match || null);
     }).catch(() => {});
   }, [activeSite]);
-
-  // Sort pharmacies by the patient's city first, then alphabetically
-  const patientCity = prescriptionPatient?.address?.city?.toLowerCase() || '';
-
-  const sortedPharmacies = [...pharmacies].sort((a, b) => {
-    const aLocal = patientCity && a.city.toLowerCase() === patientCity;
-    const bLocal = patientCity && b.city.toLowerCase() === patientCity;
-    if (aLocal && !bLocal) return -1;
-    if (!aLocal && bLocal) return 1;
-    return a.city.localeCompare(b.city);
-  });
 
   // ── Live RxNorm search state ─────────────────────────────
   const [rxnormResults, setRxnormResults] = useState([]);
@@ -798,14 +820,22 @@ export default function EPrescribe() {
 
   // ── Pharmacy auto-populate when patient or med changes ───────────────────
   useEffect(() => {
-    if (step === 2 && selectedMed && !rx.pharmacy) {
-      const patMeds = prescriptionPatient ? (meds[prescriptionPatient.id] || []) : [];
-      const resolved = resolvePharmacy(prescriptionPatient, currentUser, patMeds);
-      if (resolved) {
-        setRx(prev => ({ ...prev, pharmacy: resolved.name }));
-        setPharmAutoSource(resolved.sourceLabel);
-      }
-    }
+    if (!(step === 2 && selectedMed && !rx.pharmacy)) return;
+    const patMeds = prescriptionPatient ? (meds[prescriptionPatient.id] || []) : [];
+    resolvePharmacyAsync(prescriptionPatient, currentUser, patMeds).then(resolved => {
+      if (!resolved) return;
+      const addrParts = [resolved.address, resolved.city, resolved.state, resolved.zip].filter(Boolean);
+      const fullAddr  = resolved.fullAddress || addrParts.join(', ') || resolved.address || '';
+      const pharmStr  = fullAddr ? `${resolved.name} — ${fullAddr}` : resolved.name;
+      setSelectedPharmacyObj({
+        name: resolved.name, address: fullAddr, npi: resolved.npi || null,
+        phone: resolved.phone || '', fax: resolved.fax || '',
+        pharmacyType: resolved.pharmacyType || 'retail',
+        distanceMiles: resolved.distanceMiles,
+      });
+      setRx(prev => ({ ...prev, pharmacy: pharmStr }));
+      setPharmAutoSource(resolved.sourceLabel);
+    }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, selectedMed?.name, prescriptionPatient?.id]);
 
@@ -1068,6 +1098,8 @@ export default function EPrescribe() {
     setSelectedMed(null);
     setMedSearch('');
     setRx({ dose: '', frequency: 'Once daily', quantity: '30', refills: '0', sig: '', pharmacy: '', notes: '', daw: false, diagnosis: '', diagnosisCode: '', sendDate: new Date().toISOString().split('T')[0] });
+    setSelectedPharmacyObj(null);
+    setPharmAutoSource(null);
     setPharmacySearch('');
     setShowPharmacyDropdown(false);
     setEpcsPin(['', '', '', '']);
@@ -1184,24 +1216,82 @@ ${buildSignatureBlockHtml({ provider: currentUser, sigDataUrl, timestamp: new Da
 
       {/* DoseSpot launch banner */}
       {dsConfigured && (
-        <div style={{ marginBottom: 20, padding: '14px 20px', background: dsEnrolled ? '#eff6ff' : '#fffbeb', border: `1px solid ${dsEnrolled ? '#93c5fd' : '#fcd34d'}`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-          <img src="https://dosespot.com/wp-content/uploads/2025/01/DoseSpot%E2%84%A2_Logo_Color.png" alt="DoseSpot" style={{ height: 22, objectFit: 'contain' }} onError={e => { e.target.style.display = 'none'; }} />
-          {dsEnrolled ? (
-            <>
-              <span style={{ flex: 1, fontSize: 13, color: '#1e40af' }}>
-                <strong>DoseSpot connected</strong> — Send prescriptions directly to any US pharmacy via Surescripts.
+        <div style={{ marginBottom: 20, padding: '14px 20px', background: dsEnrolled ? '#eff6ff' : '#fffbeb', border: `1px solid ${dsEnrolled ? '#93c5fd' : '#fcd34d'}`, borderRadius: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <img src="https://dosespot.com/wp-content/uploads/2025/01/DoseSpot%E2%84%A2_Logo_Color.png" alt="DoseSpot" style={{ height: 22, objectFit: 'contain' }} onError={e => { e.target.style.display = 'none'; }} />
+            {dsEnrolled ? (
+              <>
+                <span style={{ flex: 1, fontSize: 13, color: '#1e40af' }}>
+                  <strong>DoseSpot connected</strong> — Send prescriptions directly to any US pharmacy via Surescripts.
+                </span>
+                {dsNotifications.total > 0 && (
+                  <span style={{ background: '#dc2626', color: '#fff', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 700 }}>
+                    {dsNotifications.refillRequests > 0 && `${dsNotifications.refillRequests} refill request${dsNotifications.refillRequests !== 1 ? 's' : ''}`}
+                    {dsNotifications.refillRequests > 0 && dsNotifications.errors > 0 && ' · '}
+                    {dsNotifications.errors > 0 && `${dsNotifications.errors} error${dsNotifications.errors !== 1 ? 's' : ''}`}
+                  </span>
+                )}
+                {dsError && <span style={{ fontSize: 12, color: '#dc2626' }}>⚠ {dsError}</span>}
+                {prescriptionPatient && (
+                  <button className="btn btn-sm" disabled={dsRxLoading}
+                    style={{ background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe' }}
+                    onClick={() => showDsRx ? setShowDsRx(false) : loadDsPatientRx(prescriptionPatient.id)}>
+                    {dsRxLoading ? '⏳ Loading…' : showDsRx ? 'Hide DS Rx' : '📋 View DS Prescriptions'}
+                  </button>
+                )}
+                <button className="btn btn-primary btn-sm" disabled={dsLoading}
+                  onClick={() => launchDoseSpot(prescriptionPatient?.id)}>
+                  {dsLoading ? '⏳ Launching…' : '🚀 Launch DoseSpot'}
+                </button>
+              </>
+            ) : (
+              <span style={{ flex: 1, fontSize: 13, color: '#92400e' }}>
+                <strong>DoseSpot is configured</strong> but your provider account is not yet enrolled.
+                Contact your administrator to complete DoseSpot provider enrollment.
               </span>
-              {dsError && <span style={{ fontSize: 12, color: '#dc2626' }}>⚠ {dsError}</span>}
-              <button className="btn btn-primary btn-sm" disabled={dsLoading}
-                onClick={() => launchDoseSpot(prescriptionPatient?.id)}>
-                {dsLoading ? '⏳ Launching…' : '🚀 Launch DoseSpot'}
-              </button>
-            </>
-          ) : (
-            <span style={{ flex: 1, fontSize: 13, color: '#92400e' }}>
-              <strong>DoseSpot is configured</strong> but your provider account is not yet enrolled.
-              Contact your administrator to complete DoseSpot provider enrollment.
-            </span>
+            )}
+          </div>
+
+          {/* DoseSpot patient prescription history */}
+          {showDsRx && dsPatientRx.length > 0 && (
+            <div style={{ marginTop: 14, borderTop: '1px solid #c7d2fe', paddingTop: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#3730a3', marginBottom: 8 }}>
+                DoseSpot Prescription History — {prescriptionPatient?.firstName} {prescriptionPatient?.lastName}
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#e0e7ff' }}>
+                      {['Drug', 'Sig', 'Qty', 'Refills', 'Pharmacy', 'Written', 'Status'].map(h => (
+                        <th key={h} style={{ padding: '5px 8px', textAlign: 'left', fontWeight: 700, color: '#1e40af' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dsPatientRx.map((rx, i) => (
+                      <tr key={rx.dsPrescriptionId || i} style={{ borderTop: '1px solid #e0e7ff' }}>
+                        <td style={{ padding: '5px 8px', fontWeight: 600 }}>{rx.drugName}</td>
+                        <td style={{ padding: '5px 8px', color: '#475569', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rx.sig}</td>
+                        <td style={{ padding: '5px 8px' }}>{rx.quantity ?? '—'}</td>
+                        <td style={{ padding: '5px 8px' }}>{rx.refills ?? '—'}</td>
+                        <td style={{ padding: '5px 8px', color: '#475569' }}>{rx.pharmacy || '—'}</td>
+                        <td style={{ padding: '5px 8px', color: '#475569' }}>{rx.writtenDate ? new Date(rx.writtenDate).toLocaleDateString() : '—'}</td>
+                        <td style={{ padding: '5px 8px' }}>
+                          <span style={{
+                            background: rx.status === 'Active' ? '#dcfce7' : rx.status === 'Cancelled' ? '#fee2e2' : '#fef9c3',
+                            color: rx.status === 'Active' ? '#166534' : rx.status === 'Cancelled' ? '#991b1b' : '#854d0e',
+                            borderRadius: 6, padding: '1px 7px', fontWeight: 700, fontSize: 11,
+                          }}>{rx.status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {showDsRx && dsPatientRx.length === 0 && !dsRxLoading && (
+            <div style={{ marginTop: 10, fontSize: 12, color: '#64748b' }}>No prescriptions found in DoseSpot for this patient.</div>
           )}
         </div>
       )}
@@ -1750,7 +1840,7 @@ ${buildSignatureBlockHtml({ provider: currentUser, sigDataUrl, timestamp: new Da
                   )}
                 </select>
               </div>
-              <div className="form-group" style={{ position: 'relative' }}>
+              <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                   <label className="form-label" style={{ marginBottom: 0 }}>Pharmacy *</label>
                   <button type="button"
@@ -1760,104 +1850,32 @@ ${buildSignatureBlockHtml({ provider: currentUser, sigDataUrl, timestamp: new Da
                     🔍 IL Directory
                   </button>
                 </div>
-                {pharmAutoSource && rx.pharmacy && (
+                {pharmAutoSource && selectedPharmacyObj && (
                   <div style={{ marginBottom: 6, padding: '4px 10px', borderRadius: 6, fontSize: 11, background: '#eff6ff', border: '1px solid #93c5fd', color: '#1d4ed8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>ℹ {pharmAutoSource}</span>
                     <button type="button" onClick={() => setPharmAutoSource(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#6b7280' }}>✕</button>
                   </div>
                 )}
-                {rx.pharmacy ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--primary-light)', border: '1px solid var(--primary)', borderRadius: 'var(--radius)', fontSize: 13 }}>
-                    <span style={{ flex: 1 }}>🏥 <strong>{rx.pharmacy}</strong></span>
-                    <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-muted)' }} onClick={() => { setRx({ ...rx, pharmacy: '' }); setPharmacySearch(''); setPharmAutoSource(null); }}>×</button>
-                  </div>
-                ) : (
-                  <>
-                    {recentPharmacies.length > 0 && (
-                      <div style={{ marginBottom: 6 }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Recently used</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                          {recentPharmacies.map(ph => (
-                            <button key={ph} type="button"
-                              onClick={() => selectPharmacyOption(ph)}
-                              style={{ fontSize: 11, padding: '3px 9px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', cursor: 'pointer', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              🏥 {ph.split(' — ')[0]}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <input className="form-input" style={{ flex: '2 1 200px', minWidth: 160 }} value={pharmacySearch}
-                        onChange={(e) => { setPharmacySearch(e.target.value); setShowPharmacyDropdown(true); }}
-                        onFocus={() => setShowPharmacyDropdown(true)}
-                        placeholder="Pharmacy name, zip, or NPI..." />
-                      <input className="form-input" style={{ flex: '1 1 140px', minWidth: 120 }} value={pharmacyCityFilter}
-                        onChange={(e) => { setPharmacyCityFilter(e.target.value); setShowPharmacyDropdown(true); }}
-                        onFocus={() => setShowPharmacyDropdown(true)}
-                        placeholder="City" />
-                      <select className="form-select" style={{ width: 90, flex: '0 0 90px' }}
-                        value={pharmacyStateFilter}
-                        onChange={(e) => { setPharmacyStateFilter(e.target.value); setShowPharmacyDropdown(true); }}
-                        title="Filter by state">
-                        <option value="">All US</option>
-                        {['AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','PR'].map(s => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                    </div>
-                    {showPharmacyDropdown && (
-                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, maxHeight: 500, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-white)', boxShadow: 'var(--shadow-md)', marginTop: 4 }}>
-                        {(() => {
-                          const q = pharmacySearch.toLowerCase();
-                          const cityQ = pharmacyCityFilter.trim().toLowerCase();
-                          const localMatches = sortedPharmacies.filter(p =>
-                            (!pharmacyStateFilter || p.state === pharmacyStateFilter) &&
-                            (!cityQ || p.city.toLowerCase().includes(cityQ)) &&
-                            (!pharmacySearch || p.name.toLowerCase().includes(q) || p.chain.toLowerCase().includes(q) || p.zip.includes(pharmacySearch) || p.address.toLowerCase().includes(q))
-                          ).slice(0, pharmacySearch || cityQ || pharmacyStateFilter ? 20 : 15);
-                          const localNpis = new Set(localMatches.map(p => p.npi).filter(Boolean));
-                          const liveMatches = nppesResults.filter(p => !localNpis.has(p.npi));
-                          const allResults = [...localMatches, ...liveMatches];
-                          const hasQuery = pharmacySearch.length >= 2 || cityQ.length >= 2 || pharmacyStateFilter;
-                          if (allResults.length === 0 && !nppesLoading) {
-                            return <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>{hasQuery ? 'No pharmacies found — try a different name, city, or state' : 'Type a name, city, or pick a state to browse'}</div>;
-                          }
-                          return (
-                            <>
-                              {localMatches.length > 0 && hasQuery && <div style={{ padding: '4px 12px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, background: 'var(--bg)' }}>Local directory ({localMatches.length})</div>}
-                              {localMatches.map(p => (
-                                <div key={p.id} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}
-                                  onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
-                                  onMouseLeave={e => e.currentTarget.style.background = ''}
-                                  onClick={() => selectPharmacyOption(`${p.name} — ${p.address}, ${p.city}, ${p.state} ${p.zip}`)}>
-                                  <div style={{ fontWeight: 600 }}>{p.name}</div>
-                                  <div style={{ color: 'var(--text-muted)' }}>{p.address}, {p.city}, {p.state} {p.zip}{p.phone ? ' · ' + p.phone : ''}</div>
-                                </div>
-                              ))}
-                              {nppesLoading && <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>🔍 Searching NPPES registry...</div>}
-                              {liveMatches.length > 0 && <div style={{ padding: '4px 12px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, background: 'var(--bg)' }}>NPPES — Live registry ({liveMatches.length}{nppesTotal > liveMatches.length ? ` of ${nppesTotal}+` : ''}{[pharmacyCityFilter, pharmacyStateFilter].filter(Boolean).length ? ` · ${[pharmacyCityFilter, pharmacyStateFilter].filter(Boolean).join(', ')}` : ' · All US'})</div>}
-                              {liveMatches.map(p => (
-                                <div key={p.id} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}
-                                  onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
-                                  onMouseLeave={e => e.currentTarget.style.background = ''}
-                                  onClick={() => selectPharmacyOption(`${p.name} — ${p.address}, ${p.city}, ${p.state} ${p.zip}`)}>
-                                  <div style={{ fontWeight: 600 }}>{p.name} <span style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 400 }}>NPI {p.npi}</span></div>
-                                  <div style={{ color: 'var(--text-muted)' }}>{p.address}, {p.city}, {p.state} {p.zip}{p.phone ? ' · ' + p.phone : ''}</div>
-                                </div>
-                              ))}
-                              {nppesHasMore && !nppesLoading && (
-                                <div style={{ padding: '8px 12px', textAlign: 'center', background: 'var(--bg)' }}>
-                                  <button type="button" className="btn btn-sm btn-secondary" onClick={loadMoreNppes}>Load 200 more pharmacies</button>
-                                </div>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </>
-                )}
+                <PharmacySearch
+                  value={selectedPharmacyObj}
+                  onChange={ph => {
+                    setSelectedPharmacyObj(ph);
+                    setRx(prev => ({ ...prev, pharmacy: ph ? (ph.address ? `${ph.name} — ${ph.address}` : ph.name) : '' }));
+                    if (ph) setPharmAutoSource(null);
+                  }}
+                  showSetDefault={!!prescriptionPatient}
+                  onSetDefault={() => {
+                    if (!selectedPharmacyObj || !prescriptionPatient) return;
+                    updatePatient(prescriptionPatient.id, {
+                      preferredPharmacy: selectedPharmacyObj.name || '',
+                      preferredPharmacyAddress: selectedPharmacyObj.address || '',
+                      preferredPharmacyPhone: selectedPharmacyObj.phone || '',
+                      preferredPharmacyFax: selectedPharmacyObj.fax || '',
+                    }).catch(() => {});
+                  }}
+                  defaultCity={prescriptionPatient?.address?.city || ''}
+                  defaultZip={prescriptionPatient?.address?.zip || ''}
+                />
               </div>
             </div>
 
@@ -2269,11 +2287,11 @@ ${buildSignatureBlockHtml({ provider: currentUser, sigDataUrl, timestamp: new Da
         isOpen={ilPharmDrawer}
         onClose={() => setIlPharmDrawer(false)}
         onSelect={(pharm) => {
-          setRx(prev => ({ ...prev, pharmacy: pharm.name || '' }));
+          const ph = { name: pharm.name || '', address: pharm.address || '', id: null };
+          setSelectedPharmacyObj(ph);
+          setRx(prev => ({ ...prev, pharmacy: ph.address ? `${ph.name} — ${ph.address}` : ph.name }));
           setPharmAutoSource('Auto-selected: IL directory');
           setIlPharmDrawer(false);
-          setPharmacySearch('');
-          setShowPharmacyDropdown(false);
         }}
         patientAddress={prescriptionPatient?.address
           ? `${prescriptionPatient.address.street || ''} ${prescriptionPatient.address.city || ''} ${prescriptionPatient.address.state || ''} ${prescriptionPatient.address.zip || ''}`.trim()

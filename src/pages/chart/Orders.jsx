@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePatient } from '../../contexts/PatientContext';
-import { labOrderDatabase, labFacilities } from '../../data/mockData';
+import { labOrderDatabase } from '../../data/mockData';
 import { locations as locationsApi, users as usersApi } from '../../services/api';
 import { getControlledSchedule } from '../../utils/controlledSubstances';
 import { checkInteractions }     from '../../data/drugInteractions';
-import { resolvePharmacy, resolveSigSuggestions, getActiveMedContext } from '../../utils/rxAutoPopulate';
+import { resolvePharmacy, resolvePharmacyAsync, resolveSigSuggestions, getActiveMedContext } from '../../utils/rxAutoPopulate';
+import { resolveLabAsync }       from '../../utils/labAutoPopulate';
+import LabSearch                 from '../../components/LabSearch';
 import { generateILPmpReport }   from '../../utils/pmpMock';
 import { buildSignaturePayload } from '../../utils/providerSignature';
 import PDMPDrawer                from '../../components/PDMPDrawer';
@@ -22,9 +24,8 @@ export default function Orders({ patientId }) {
   const [orderType, setOrderType] = useState('Lab');
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ type: 'Lab', description: '', priority: 'Routine', notes: '' });
-  const [labFacilitySearch, setLabFacilitySearch] = useState('');
-  const [selectedLabFacility, setSelectedLabFacility] = useState(null);
-  const [labFacilityFocused, setLabFacilityFocused] = useState(false);
+  const [labObj, setLabObj] = useState(null);
+  const [labAutoSource, setLabAutoSource] = useState(null);
   const [forwardTo, setForwardTo] = useState('');
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [formError, setFormError] = useState('');
@@ -82,11 +83,24 @@ export default function Orders({ patientId }) {
   // ── Pharmacy auto-populate when prescription form opens ──────────────────
   useEffect(() => {
     if (form.type === 'Prescription' && showAdd && !rxForm.pharmacy) {
-      const resolved = resolvePharmacy(patient, currentUser, patientMeds);
-      if (resolved) {
-        setRxForm(p => ({ ...p, pharmacy: resolved.name, pharmAddress: resolved.address || '' }));
-        setRxPharmAutoSource(resolved.sourceLabel);
-      }
+      resolvePharmacyAsync(patient, currentUser, patientMeds).then(resolved => {
+        if (resolved) {
+          const addr = resolved.fullAddress || [resolved.address, resolved.city, resolved.state, resolved.zip].filter(Boolean).join(', ') || resolved.address || '';
+          setRxForm(p => ({ ...p, pharmacy: resolved.name, pharmAddress: addr }));
+          setRxPharmAutoSource(resolved.sourceLabel);
+        }
+      }).catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.type, showAdd]);
+
+  // ── Lab auto-populate when lab form opens ────────────────────────────────
+  useEffect(() => {
+    if (form.type === 'Lab' && showAdd && !labObj) {
+      const patientOrders = orders?.[patientId] || [];
+      resolveLabAsync(patient, currentUser, patientOrders).then(resolved => {
+        if (resolved) { setLabObj(resolved); setLabAutoSource(resolved.sourceLabel); }
+      }).catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.type, showAdd]);
@@ -181,6 +195,7 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
   };
 
   const patientOrders = orders[patientId] || [];
+  const orderInsurance = {};
 
   const filteredLabs = search.length > 0
     ? labOrderDatabase.filter(l => l.name.toLowerCase().includes(search.toLowerCase()) || l.code.includes(search))
@@ -267,7 +282,10 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
     const isPrescriber = currentUser?.role === 'prescriber';
     addOrder(patientId, {
       ...form,
-      labFacility: form.type === 'Lab' && selectedLabFacility ? `${selectedLabFacility.name} — ${selectedLabFacility.city}` : '',
+      labFacility:  form.type === 'Lab' && labObj ? labObj.name : '',
+      labAddress:   form.type === 'Lab' && labObj ? [labObj.address, labObj.city, labObj.state, labObj.zip].filter(Boolean).join(', ') : '',
+      labNpi:       form.type === 'Lab' && labObj ? labObj.npi || '' : '',
+      labCliaNumber:form.type === 'Lab' && labObj ? labObj.cliaNumber || '' : '',
       status: mustForward ? 'Pending Provider Review' : 'Pending',
       orderedDate: new Date().toISOString().split('T')[0],
       orderedBy: mustForward
@@ -293,8 +311,8 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
     }
 
     setForm({ type: 'Lab', description: '', priority: 'Routine', notes: '' });
-    setSelectedLabFacility(null);
-    setLabFacilitySearch('');
+    setLabObj(null);
+    setLabAutoSource(null);
     setForwardTo('');
     setFormError('');
     setShowAdd(false);
@@ -476,52 +494,21 @@ td.lbl { width:38%; font-weight:600; color:#374151; }
 
             {form.type === 'Lab' && (
               <>
-                <div className="form-group" style={{ position: 'relative' }}>
+                <div className="form-group">
                   <label className="form-label">Lab Facility</label>
-                  {selectedLabFacility ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: 'var(--radius)', fontSize: 12 }}>
-                      <span style={{ flex: 1 }}>🧪 <strong>{selectedLabFacility.name}</strong> — {selectedLabFacility.address}, {selectedLabFacility.city}</span>
-                      <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-muted)' }} onClick={() => { setSelectedLabFacility(null); setLabFacilitySearch(''); }}>×</button>
+                  {labAutoSource && labObj && (
+                    <div style={{ marginBottom: 6, padding: '4px 10px', borderRadius: 6, fontSize: 11, background: '#ecfeff', border: '1px solid #a5f3fc', color: '#0e7490', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>ℹ {labAutoSource}</span>
+                      <button type="button" onClick={() => setLabAutoSource(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#6b7280' }}>✕</button>
                     </div>
-                  ) : (
-                    <>
-                      <input
-                        className="form-input"
-                        value={labFacilitySearch}
-                        onChange={(e) => setLabFacilitySearch(e.target.value)}
-                        onFocus={() => setLabFacilityFocused(true)}
-                        onBlur={() => setTimeout(() => setLabFacilityFocused(false), 200)}
-                        placeholder="Search all US labs by name, chain, or city (Quest, LabCorp…)"
-                      />
-                      {labFacilityFocused && (
-                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-white)', boxShadow: 'var(--shadow-md)' }}>
-                          {labFacilities.filter(f =>
-                            !labFacilitySearch ||
-                            f.name.toLowerCase().includes(labFacilitySearch.toLowerCase()) ||
-                            f.chain.toLowerCase().includes(labFacilitySearch.toLowerCase()) ||
-                            f.city.toLowerCase().includes(labFacilitySearch.toLowerCase()) ||
-                            f.address.toLowerCase().includes(labFacilitySearch.toLowerCase())
-                          ).map(f => (
-                            <div key={f.id} style={{ padding: '7px 10px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}
-                              onMouseEnter={e => e.currentTarget.style.background = '#ecfdf5'}
-                              onMouseLeave={e => e.currentTarget.style.background = ''}
-                              onClick={() => { setSelectedLabFacility(f); setLabFacilitySearch(''); setLabFacilityFocused(false); }}>
-                              <div style={{ fontWeight: 600 }}>{f.name}</div>
-                              <div style={{ color: 'var(--text-muted)' }}>{f.address}, {f.city} {f.zip} · {f.phone}</div>
-                            </div>
-                          ))}
-                          {labFacilities.filter(f =>
-                            !labFacilitySearch ||
-                            f.name.toLowerCase().includes(labFacilitySearch.toLowerCase()) ||
-                            f.chain.toLowerCase().includes(labFacilitySearch.toLowerCase()) ||
-                            f.city.toLowerCase().includes(labFacilitySearch.toLowerCase())
-                          ).length === 0 && (
-                            <div style={{ padding: 12, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>No labs found</div>
-                          )}
-                        </div>
-                      )}
-                    </>
                   )}
+                  <LabSearch
+                    value={labObj}
+                    onChange={lab => { setLabObj(lab); setLabAutoSource(null); }}
+                    defaultCity={patient?.address?.city || ''}
+                    defaultZip={patient?.address?.zip || ''}
+                    compact
+                  />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Search Lab Orders</label>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
+import { refillQueue as refillApi } from '../services/api';
 
 const REFILL_STATUSES = [
   { id: 'all', label: 'All', icon: '📄', color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
@@ -101,10 +102,10 @@ export default function RefillQueue() {
   }, [editPharmacyForm.pharmacy]);
 
   const saveEditPharmacy = () => {
-    const updated = refillQueue.map(r =>
+    refillApi.updatePharmacy(editPharmacyRefillId, editPharmacyForm).catch(() => {});
+    saveRefillQueue(refillQueue.map(r =>
       r.id === editPharmacyRefillId ? { ...r, ...editPharmacyForm } : r
-    );
-    saveRefillQueue(updated);
+    ));
     setEditPharmacyRefillId(null);
     showToast('✅ Pharmacy updated');
   };
@@ -121,101 +122,11 @@ export default function RefillQueue() {
     });
   };
 
-  // Load refill data from localStorage — seed mock data for Emmanuel's patients if empty
+  // Load refill queue from backend
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('clarity_refill_queue') || '[]';
-      const data = JSON.parse(stored);
-      if (data.length > 0) { setRefillQueue(data); return; }
-
-      const seed = [
-        {
-          id: 'refill-seed-1',
-          patientId: 'pe1', patientName: 'Nadia Osei',
-          medicationId: 'mpe1a', medicationName: 'Escitalopram (Lexapro)',
-          dose: '10mg', frequency: 'Once daily', refillsRemaining: 4, daysRemaining: 5,
-          pharmacy: 'Walgreens – Emmaus Ave',
-          pharmacyAddress: '601 Emmaus Ave, Emmaus, PA 18049',
-          pharmacyPhone: '(610) 965-5600', pharmacyFax: '(610) 965-5601',
-          status: 'pending', priority: 'urgent',
-          createdBy: 'Emmanuel Ofori-Danso, NP',
-          createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-          notes: 'Patient called – running very low, needs refill ASAP',
-        },
-        {
-          id: 'refill-seed-2',
-          patientId: 'pe1', patientName: 'Nadia Osei',
-          medicationId: 'mpe1b', medicationName: 'Hydroxyzine',
-          dose: '25mg', frequency: 'Every 6 hours as needed', refillsRemaining: 2, daysRemaining: 14,
-          pharmacy: 'Walgreens – Emmaus Ave',
-          pharmacyAddress: '601 Emmaus Ave, Emmaus, PA 18049',
-          pharmacyPhone: '(610) 965-5600', pharmacyFax: '(610) 965-5601',
-          status: 'pending', priority: 'normal',
-          createdBy: 'Emmanuel Ofori-Danso, NP',
-          createdAt: new Date(Date.now() - 1 * 86400000).toISOString(),
-          notes: '',
-        },
-        {
-          id: 'refill-seed-3',
-          patientId: 'pe2', patientName: 'Kofi Mensah',
-          medicationId: 'mpe2a', medicationName: 'Sertraline (Zoloft)',
-          dose: '50mg', frequency: 'Once daily', refillsRemaining: 3, daysRemaining: 3,
-          pharmacy: 'CVS Pharmacy – Emmaus',
-          pharmacyAddress: '234 Main St, Emmaus, PA 18049',
-          pharmacyPhone: '(610) 967-2100', pharmacyFax: '(610) 967-2101',
-          status: 'pending', priority: 'urgent',
-          createdBy: 'Emmanuel Ofori-Danso, NP',
-          createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-          notes: 'Patient has follow-up 6/25 – ensure 30-day supply',
-        },
-        {
-          id: 'refill-seed-4',
-          patientId: 'pe2', patientName: 'Kofi Mensah',
-          medicationId: 'mpe2b', medicationName: 'Prazosin',
-          dose: '1mg', frequency: 'Once daily at bedtime', refillsRemaining: 5, daysRemaining: 20,
-          pharmacy: 'CVS Pharmacy – Emmaus',
-          pharmacyAddress: '234 Main St, Emmaus, PA 18049',
-          pharmacyPhone: '(610) 967-2100', pharmacyFax: '(610) 967-2101',
-          status: 'queued', priority: 'normal',
-          createdBy: 'Emmanuel Ofori-Danso, NP',
-          createdAt: new Date(Date.now() - 4 * 86400000).toISOString(),
-          queuedAt: new Date(Date.now() - 1 * 86400000).toISOString(),
-          notes: '',
-        },
-        {
-          id: 'refill-seed-5',
-          patientId: 'pe3', patientName: 'Akua Boateng',
-          medicationId: 'mpe3a', medicationName: 'Lamotrigine',
-          dose: '100mg', frequency: 'Twice daily', refillsRemaining: 2, daysRemaining: 7,
-          pharmacy: 'Rite Aid – Bethlehem Pike',
-          pharmacyAddress: '1515 Bethlehem Pike, Flourtown, PA 19031',
-          pharmacyPhone: '(215) 233-0800', pharmacyFax: '(215) 233-0801',
-          status: 'pending', priority: 'high',
-          createdBy: 'Emmanuel Ofori-Danso, NP',
-          createdAt: new Date(Date.now() - 1 * 86400000).toISOString(),
-          notes: 'Titrating to 150mg next visit – send 100mg for now',
-        },
-        {
-          id: 'refill-seed-6',
-          patientId: 'pe3', patientName: 'Akua Boateng',
-          medicationId: 'mpe3b', medicationName: 'Quetiapine (Seroquel)',
-          dose: '50mg', frequency: 'Once daily at bedtime', refillsRemaining: 1, daysRemaining: 12,
-          pharmacy: 'Rite Aid – Bethlehem Pike',
-          pharmacyAddress: '1515 Bethlehem Pike, Flourtown, PA 19031',
-          pharmacyPhone: '(215) 233-0800', pharmacyFax: '(215) 233-0801',
-          status: 'sent', priority: 'normal',
-          createdBy: 'Emmanuel Ofori-Danso, NP',
-          createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
-          sentAt: new Date(Date.now() - 1 * 86400000).toISOString(),
-          notes: 'Sleep aid – last refill before re-evaluation',
-        },
-      ];
-
-      localStorage.setItem('clarity_refill_queue', JSON.stringify(seed));
-      setRefillQueue(seed);
-    } catch {
-      setRefillQueue([]);
-    }
+    refillApi.getAll()
+      .then(data => setRefillQueue(Array.isArray(data) ? data : []))
+      .catch(() => setRefillQueue([]));
   }, []);
 
   // Filter and sort refills
@@ -244,40 +155,48 @@ export default function RefillQueue() {
     });
 
   const saveRefillQueue = (queue) => {
-    try {
-      localStorage.setItem('clarity_refill_queue', JSON.stringify(queue));
-      setRefillQueue(queue);
-    } catch { /* storage full */ }
+    setRefillQueue(queue);
   };
 
   const handleAddRefill = (patientId, medication) => {
     const patient = patients.find(p => p.id === patientId);
     if (!patient) return;
 
-    const newRefill = {
-      id: `refill-${Date.now()}`,
+    const payload = {
       patientId,
-      patientName: `${patient.firstName} ${patient.lastName}`,
-      medicationId: medication.id,
-      medicationName: medication.name,
-      dose: medication.dose,
-      frequency: medication.frequency,
-      refillsRemaining: medication.refillsLeft || 0,
-      daysRemaining: Math.floor(medication.daysSupply || 30),
-      lastFilled: medication.lastFilled || new Date().toISOString().slice(0, 10),
-      pharmacy: medication.pharmacy || patient.preferredPharmacy || '',
-      pharmacyPhone: medication.pharmacyPhone || patient.preferredPharmacyPhone || '',
-      status: 'pending',
-      priority: 'normal',
-      createdAt: new Date().toISOString(),
-      createdBy: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim() || 'System',
-      queuedAt: null,
-      sentAt: null,
-      notes: '',
+      medicationId:    medication.id,
+      medicationName:  medication.name,
+      dose:            medication.dose,
+      frequency:       medication.frequency,
     };
 
-    const updated = [...refillQueue, newRefill];
-    saveRefillQueue(updated);
+    refillApi.create(payload)
+      .then(result => {
+        const newRefill = {
+          id:               result.refillId || `refill-${Date.now()}`,
+          patientId,
+          patientName:      `${patient.firstName} ${patient.lastName}`,
+          medicationId:     medication.id,
+          medicationName:   medication.name,
+          dose:             medication.dose       || '',
+          frequency:        medication.frequency  || '',
+          refillsRemaining: medication.refillsLeft || 0,
+          daysRemaining:    Math.floor(medication.daysSupply || 30),
+          pharmacy:         medication.pharmacy || patient.preferredPharmacy || '',
+          pharmacyPhone:    medication.pharmacyPhone || patient.preferredPharmacyPhone || '',
+          pharmacyAddress:  '',
+          pharmacyFax:      '',
+          status:           'pending',
+          priority:         'normal',
+          createdAt:        new Date().toISOString(),
+          createdBy:        `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim(),
+          queuedAt:         null,
+          sentAt:           null,
+          notes:            '',
+        };
+        setRefillQueue(prev => [...prev, newRefill]);
+      })
+      .catch(() => {});
   };
 
   const handleToggleSelect = (refillId) => {
@@ -299,10 +218,10 @@ export default function RefillQueue() {
   };
 
   const handleQueueRefill = (refillId) => {
-    const updated = refillQueue.map(r =>
+    refillApi.updateStatus(refillId, 'queued').catch(() => {});
+    saveRefillQueue(refillQueue.map(r =>
       r.id === refillId ? { ...r, status: 'queued', queuedAt: new Date().toISOString() } : r
-    );
-    saveRefillQueue(updated);
+    ));
   };
 
   const handleOpenPharmacyModal = (refill) => {
@@ -324,52 +243,46 @@ export default function RefillQueue() {
 
     setVerifyingInsurance(true);
     try {
-      const response = await fetch(`/api/refills/${selectedRefillForAction.id}/verify-insurance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setEligibilityData(data);
-        setCopayAmount(data.copayAmount);
-        showToast(`✓ Eligible • Copay: $${data.copayAmount.toFixed(2)}`);
-      } else {
-        showToast('✗ Eligibility check failed');
-      }
-    } catch (error) {
-      console.error('Insurance verification error:', error);
-      showToast('✗ Could not verify insurance');
+      const data = await refillApi.verifyInsurance(selectedRefillForAction.id);
+      setEligibilityData(data);
+      setCopayAmount(data.copayAmount);
+      showToast(`✓ Eligible • Copay: $${data.copayAmount.toFixed(2)}`);
+    } catch {
+      showToast('✗ Eligibility check failed');
     } finally {
       setVerifyingInsurance(false);
     }
   };
 
   const handleSendRefill = (refillId) => {
-    const updated = refillQueue.map(r => {
+    refillApi.updateStatus(refillId, 'sent').catch(() => {});
+    if (pharmForm.pharmacy) {
+      refillApi.updatePharmacy(refillId, { pharmacy: pharmForm.pharmacy }).catch(() => {});
+    }
+    saveRefillQueue(refillQueue.map(r => {
       if (r.id === refillId) {
         return {
           ...r,
           status: 'sent',
           sentAt: new Date().toISOString(),
-          pharmacy: pharmForm.pharmacy,
+          pharmacy: pharmForm.pharmacy || r.pharmacy,
           refillsRemaining: pharmForm.refills,
           notes: pharmForm.notes,
           priority: pharmForm.priority,
         };
       }
       return r;
-    });
-    saveRefillQueue(updated);
+    }));
     setShowPharmacyModal(false);
     setSelectedRefillForAction(null);
   };
 
   const handleBulkQueue = () => {
-    const updated = refillQueue.map(r =>
+    const ids = [...selectedRefills];
+    ids.forEach(id => refillApi.updateStatus(id, 'queued').catch(() => {}));
+    saveRefillQueue(refillQueue.map(r =>
       selectedRefills.has(r.id) ? { ...r, status: 'queued', queuedAt: new Date().toISOString() } : r
-    );
-    saveRefillQueue(updated);
+    ));
     setSelectedRefills(new Set());
   };
 
@@ -380,10 +293,12 @@ export default function RefillQueue() {
     }
 
     setBulkSending(true);
-    // Simulate sending refills
-    await new Promise(resolve => setTimeout(resolve, 800));
+    const ids = [...selectedRefills];
+    await Promise.allSettled(
+      ids.map(id => refillApi.updateStatus(id, 'sent').catch(() => {}))
+    );
 
-    const updated = refillQueue.map(r => {
+    saveRefillQueue(refillQueue.map(r => {
       if (selectedRefills.has(r.id)) {
         return {
           ...r,
@@ -396,15 +311,14 @@ export default function RefillQueue() {
         };
       }
       return r;
-    });
-    saveRefillQueue(updated);
+    }));
     setSelectedRefills(new Set());
     setBulkSending(false);
   };
 
   const handleDeleteRefill = (refillId) => {
-    const updated = refillQueue.filter(r => r.id !== refillId);
-    saveRefillQueue(updated);
+    refillApi.remove(refillId).catch(() => {});
+    saveRefillQueue(refillQueue.filter(r => r.id !== refillId));
   };
 
   const statusOption = REFILL_STATUSES.find(s => s.id === filterStatus) || REFILL_STATUSES[0];
