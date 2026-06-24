@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { useStickyNote } from '../hooks/useStickyNote';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
@@ -11,7 +12,6 @@ import BTGGuard from '../components/BTGGuard';
 import { ILLINOIS_LABS, getLabProximityInfo } from '../data/illinoisLabs';
 import { checkInteractions } from '../data/drugInteractions';
 import { resolvePharmacy, resolveSigSuggestions, getActiveMedContext } from '../utils/rxAutoPopulate';
-import { patients as patientsApi } from '../services/api';
 import AssessmentScorer from '../components/AssessmentScorer';
 import SafetyPlanBuilder from '../components/SafetyPlanBuilder';
 import MedAdherenceTimeline from '../components/MedAdherenceTimeline';
@@ -95,54 +95,13 @@ export default function ChartPage() {
 
   // ── Sticky Note ──────────────────────────────────────────
   const [stickyOpen, setStickyOpen] = useState(false);
-  const [stickyText, setStickyText] = useState('');
   const [stickyPos, setStickyPos] = useState({ x: 60, y: 120 });
   const [stickyMinimized, setStickyMinimized] = useState(false);
   const stickyDragRef = useRef(null);
   const stickyDragging = useRef(false);
   const stickyOffset = useRef({ x: 0, y: 0 });
-  const stickyDebounce = useRef(null);
 
-  // Refs written every render — flush() reads these so it is never stale,
-  // even when called from effect cleanup functions.
-  const stickyPendingRef  = useRef('');   // mirrors stickyText
-  const stickyLastSaved   = useRef('');   // value confirmed in DB
-  const stickyPatientRef  = useRef('');   // patient the refs belong to
-  stickyPendingRef.current = stickyText;
-  stickyPatientRef.current = patientId || '';
-
-  // Idempotent flush — safe to call multiple times; second call is a no-op.
-  const stickyFlush = useCallback(() => {
-    clearTimeout(stickyDebounce.current);
-    const pid  = stickyPatientRef.current;
-    const text = stickyPendingRef.current;
-    if (!pid || text === stickyLastSaved.current) return;
-    patientsApi.updateStickyNote(pid, text).catch(() => {});
-    patchPatient(pid, { stickyNote: text });
-    stickyLastSaved.current = text;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ① Hydration — fires when patient changes; loads freshest value from context.
-  useEffect(() => {
-    const note = selectedPatient?.stickyNote ?? '';
-    stickyLastSaved.current = note;
-    setStickyText(note);
-    setStickyOpen(false);
-  }, [selectedPatient?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ② Patient-switch flush — cleanup fires BEFORE hydration loads next patient.
-  useEffect(() => () => stickyFlush(), [selectedPatient?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ③ Unmount flush — covers navigating away from ChartPage entirely.
-  useEffect(() => () => stickyFlush(), []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ④ Debounced save while typing.
-  useEffect(() => {
-    if (!patientId || stickyText === stickyLastSaved.current) return;
-    clearTimeout(stickyDebounce.current);
-    stickyDebounce.current = setTimeout(stickyFlush, 800);
-    return () => clearTimeout(stickyDebounce.current);
-  }, [stickyText, patientId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { note: stickyText, setNote: setStickyText } = useStickyNote(selectedPatient, patchPatient);
 
   const onStickyMouseDown = (e) => {
     if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
