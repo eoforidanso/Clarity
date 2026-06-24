@@ -3,9 +3,11 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { CreatePatientSchema } from '../schemas/patientSchema.js';
+import { CreatePatientSchema, UpdatePatientSchema } from '../schemas/patientSchema.js';
 import { logAudit } from '../db/softDelete.js';
 import { logPhiRead } from '../middleware/phiAudit.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { PatientResponseSchema, PatientListResponseSchema } from '../schemas/responseSchemas.js';
 
 /**
  * IDOR guard — verifies the requesting user has access to this patient.
@@ -56,6 +58,10 @@ function formatPatient(row, opts = {}) { return {
     },
     pcp: row.pcp,
     assignedProvider: row.assigned_provider,
+    preferredPharmacy: row.preferred_pharmacy || '',
+    preferredPharmacyAddress: row.preferred_pharmacy_address || '',
+    preferredPharmacyPhone: row.preferred_pharmacy_phone || '',
+    preferredPharmacyFax: row.preferred_pharmacy_fax || '',
     photo: row.photo_url || row.photo || null,
     isBTG: !!row.is_btg,
     isActive: !!row.is_active,
@@ -68,7 +74,7 @@ function formatPatient(row, opts = {}) { return {
 }
 
 // GET /api/patients
-router.get('/', async (req, res) => { const { search, active, limit: limitParam, offset: offsetParam } = req.query;
+router.get('/', validateResponse(PatientListResponseSchema), async (req, res) => { const { search, active, limit: limitParam, offset: offsetParam } = req.query;
   const limit = Math.min(parseInt(limitParam) || 100, 200); // cap at 200
   const offset = Math.max(parseInt(offsetParam) || 0, 0);
 
@@ -115,7 +121,7 @@ router.get('/zip/:zip', async (req, res) => {
 });
 
 // GET /api/patients/:id — IDOR protected
-router.get('/:id', requirePatientAccess, async (req, res) => {
+router.get('/:id', requirePatientAccess, validateResponse(PatientResponseSchema), async (req, res) => {
   const row = await db.prepare('SELECT * FROM patients WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Patient not found' });
   logPhiRead(req, req.params.id, 'patient');
@@ -124,7 +130,7 @@ router.get('/:id', requirePatientAccess, async (req, res) => {
 });
 
 // POST /api/patients
-router.post('/', authorize('prescriber', 'nurse', 'front_desk', 'admin'), validate(CreatePatientSchema), async (req, res) => { const b = req.body;
+router.post('/', authorize('prescriber', 'nurse', 'front_desk', 'admin'), validate(CreatePatientSchema), validateResponse(PatientResponseSchema), async (req, res) => { const b = req.body;
   const id = uuidv4();
   const countRow = await db.prepare('SELECT COUNT(*) as cnt FROM patients').get();
   const count = Number(countRow?.cnt ?? 0);
@@ -133,8 +139,9 @@ router.post('/', authorize('prescriber', 'nurse', 'front_desk', 'admin'), valida
   // Scope new patients to the creating user's facility unless a specific location is provided
   const primaryLocation = b.locationId || req.user.facility_id || null;
 
-  await db.prepare(`INSERT INTO patients (id, mrn, first_name, last_name, dob, gender, pronouns, ssn, race, ethnicity, language, marital_status, phone, cell_phone, email, address_street, address_city, address_state, address_zip, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, insurance_primary_name, insurance_primary_member_id, insurance_primary_group_number, insurance_primary_copay, pcp, assigned_provider, is_btg, flags, primary_location) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    id, mrn, b.firstName, b.lastName, b.dob, b.gender, b.pronouns || '', b.ssn || '', b.race || '', b.ethnicity || '', b.language || 'English', b.maritalStatus || '', b.phone || '', b.cellPhone || '', b.email || '', b.address?.street || '', b.address?.city || '', b.address?.state || '', b.address?.zip || '', b.emergencyContact?.name || '', b.emergencyContact?.relationship || '', b.emergencyContact?.phone || '', b.insurance?.primary?.name || '', b.insurance?.primary?.memberId || '', b.insurance?.primary?.groupNumber || '', b.insurance?.primary?.copay || 0, b.pcp || '', b.assignedProvider || '', b.isBTG ? 1 : 0, JSON.stringify(b.flags || []), primaryLocation
+  await db.prepare(`INSERT INTO patients (id, mrn, first_name, last_name, dob, gender, pronouns, ssn, race, ethnicity, language, marital_status, phone, cell_phone, email, address_street, address_city, address_state, address_zip, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, insurance_primary_name, insurance_primary_member_id, insurance_primary_group_number, insurance_primary_copay, pcp, assigned_provider, is_btg, flags, primary_location, preferred_pharmacy, preferred_pharmacy_address, preferred_pharmacy_phone, preferred_pharmacy_fax) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    id, mrn, b.firstName, b.lastName, b.dob, b.gender, b.pronouns || '', b.ssn || '', b.race || '', b.ethnicity || '', b.language || 'English', b.maritalStatus || '', b.phone || '', b.cellPhone || '', b.email || '', b.address?.street || '', b.address?.city || '', b.address?.state || '', b.address?.zip || '', b.emergencyContact?.name || '', b.emergencyContact?.relationship || '', b.emergencyContact?.phone || '', b.insurance?.primary?.name || '', b.insurance?.primary?.memberId || '', b.insurance?.primary?.groupNumber || '', b.insurance?.primary?.copay || 0, b.pcp || '', b.assignedProvider || '', b.isBTG ? 1 : 0, JSON.stringify(b.flags || []), primaryLocation,
+    b.preferredPharmacy || '', b.preferredPharmacyAddress || '', b.preferredPharmacyPhone || '', b.preferredPharmacyFax || ''
   );
 
   const row = await db.prepare('SELECT * FROM patients WHERE id = ?').get(id);
@@ -142,7 +149,7 @@ router.post('/', authorize('prescriber', 'nurse', 'front_desk', 'admin'), valida
 });
 
 // PUT /api/patients/:id — IDOR protected
-router.put('/:id', authorize('prescriber', 'nurse', 'front_desk'), requirePatientAccess, async (req, res) => { const existing = await db.prepare('SELECT * FROM patients WHERE id = $1').get(req.params.id);
+router.put('/:id', authorize('prescriber', 'nurse', 'front_desk'), requirePatientAccess, validate(UpdatePatientSchema), validateResponse(PatientResponseSchema), async (req, res) => { const existing = await db.prepare('SELECT * FROM patients WHERE id = $1').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Patient not found' });
 
   // Validate email format if provided
@@ -162,8 +169,10 @@ router.put('/:id', authorize('prescriber', 'nurse', 'front_desk'), requirePatien
       insurance_secondary_name=$24, insurance_secondary_member_id=$25,
       insurance_secondary_group_number=$26, insurance_secondary_copay=$27,
       pcp=$28, assigned_provider=$29, is_btg=$30, flags=$31,
+      preferred_pharmacy=$32, preferred_pharmacy_address=$33,
+      preferred_pharmacy_phone=$34, preferred_pharmacy_fax=$35,
       updated_at=NOW()
-    WHERE id=$32
+    WHERE id=$36
   `).run(
     b.firstName ?? existing.first_name,
     b.lastName ?? existing.last_name,
@@ -196,6 +205,10 @@ router.put('/:id', authorize('prescriber', 'nurse', 'front_desk'), requirePatien
     b.assignedProvider ?? existing.assigned_provider,
     b.isBTG !== undefined ? (b.isBTG ? 1 : 0) : existing.is_btg,
     b.flags ? JSON.stringify(b.flags) : existing.flags,
+    b.preferredPharmacy ?? existing.preferred_pharmacy ?? '',
+    b.preferredPharmacyAddress ?? existing.preferred_pharmacy_address ?? '',
+    b.preferredPharmacyPhone ?? existing.preferred_pharmacy_phone ?? '',
+    b.preferredPharmacyFax ?? existing.preferred_pharmacy_fax ?? '',
     req.params.id
   );
 
@@ -204,7 +217,7 @@ router.put('/:id', authorize('prescriber', 'nurse', 'front_desk'), requirePatien
 });
 
 // PATCH /api/patients/:id/photo — save or remove patient photo URL
-router.patch('/:id/photo', authenticate, async (req, res) => { const { photoUrl } = req.body;
+router.patch('/:id/photo', authenticate, requirePatientAccess, async (req, res) => { const { photoUrl } = req.body;
   // photoUrl can be a data URL (base64) or null to remove
   if (photoUrl !== null && typeof photoUrl !== 'string') { return res.status(400).json({ error: 'photoUrl must be a string or null' });
   }
@@ -224,9 +237,9 @@ router.patch('/:id/photo', authenticate, async (req, res) => { const { photoUrl 
 });
 
 // PATCH /api/patients/:id/sticky-note — save or clear sticky note
-router.patch('/:id/sticky-note', authenticate, async (req, res) => { const { note } = req.body;
+router.patch('/:id/sticky-note', authenticate, requirePatientAccess, async (req, res) => { const { note } = req.body;
   if (typeof note !== 'string') return res.status(400).json({ error: 'note must be a string' });
-  if (note.length > 500) return res.status(400).json({ error: 'Note too long (max 500 chars)' });
+  if (note.length > 5000) return res.status(400).json({ error: 'Note too long (max 5000 chars)' });
 
   await db.prepare(
     `UPDATE patients SET sticky_note = $1, updated_at = NOW() WHERE id = $2`
