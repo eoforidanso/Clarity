@@ -73,6 +73,22 @@ export function buildAccess(user) {
   };
 }
 
+// ─── requirePatientId middleware ─────────────────────────────────────────────
+
+/**
+ * Blocks any request that arrives without a :patientId param.
+ * Apply before requirePatientAccess on all clinical routers.
+ *
+ * No patient context = no clinical action. Every major EHR enforces this:
+ * orders, e-prescribe, labs, vitals, encounters must all be tied to a patient.
+ */
+export function requirePatientId(req, res, next) {
+  if (!req.params.patientId) {
+    return res.status(400).json({ error: 'Patient ID required — no clinical action can be taken without a selected patient' });
+  }
+  next();
+}
+
 // ─── requireRole middleware factory ──────────────────────────────────────────
 
 /**
