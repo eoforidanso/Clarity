@@ -1,28 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
-import {
-  patients as mockPatients,
-  appointments as mockAppointments,
-  inboxMessages as mockInboxMessages,
-  medications as mockMedications,
-} from '../data/mockData';
+import { medications as mockMedications } from '../data/mockData';
 import { DEMO_PATIENTS, DEMO_APPOINTMENTS, DEMO_INBOX } from '../demo/demoData';
-
-/** Roles that can see all locations in mock data (mirrors server GLOBAL_ROLES) */
-const GLOBAL_ROLES = ['admin', 'front_desk'];
-
-/**
- * Filter mock patients by the current user's location.
- * Global roles and users with no locationId see everyone.
- * Scoped roles only see patients whose locationId matches theirs.
- */
-function filterMockByLocation(patients, currentUser) {
-  if (!currentUser) return patients;
-  if (GLOBAL_ROLES.includes(currentUser.role)) return patients;
-  const userLoc = currentUser.locationId || currentUser.location_id;
-  if (!userLoc) return patients; // no location assigned → see all
-  return patients.filter(p => !p.locationId || p.locationId === userLoc);
-}
 import {
   patients as patientsApi,
   allergies as allergiesApi,
@@ -50,9 +29,7 @@ export function PatientProvider({ children, demoMode = false }) {
   const { currentUser } = useAuth();
 
   /* ────── Core state ────── */
-  const [patients, setPatients] = useState(
-    demoMode ? DEMO_PATIENTS : filterMockByLocation(mockPatients || [], currentUser)
-  );
+  const [patients, setPatients] = useState(demoMode ? DEMO_PATIENTS : []);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const MAX_OPEN_CHARTS = 4;
   const [openCharts, setOpenCharts] = useState([]);
@@ -64,30 +41,12 @@ export function PatientProvider({ children, demoMode = false }) {
   const [labResults, setLabResults] = useState({});
   const [assessmentScores, setAssessmentScores] = useState({});
   const [orders, setOrders] = useState({});
-  const [inboxMessages, setInboxMessages] = useState(demoMode ? DEMO_INBOX : (mockInboxMessages || []));
-  const [appointments, setAppointments] = useState(demoMode ? DEMO_APPOINTMENTS : (mockAppointments || []));
+  const [inboxMessages, setInboxMessages] = useState(demoMode ? DEMO_INBOX : []);
+  const [appointments, setAppointments] = useState(demoMode ? DEMO_APPOINTMENTS : []);
   const [btgAuditLog, setBtgAuditLog] = useState([]);
   const [btgAccessGranted, setBtgAccessGranted] = useState({});
   const [encounters, setEncounters] = useState({});
   const [blockedDays, setBlockedDays] = useState([]);
-
-  /* ────── Re-filter mock patients when currentUser changes ────── */
-  const prevUserIdRef = useRef(null);
-  useEffect(() => {
-    if (!currentUser || demoMode) return;
-    if (currentUser.id === prevUserIdRef.current) return;
-    prevUserIdRef.current = currentUser.id;
-    // Re-apply location filter now that we know who's logged in
-    setPatients(prev => {
-      // Keep any non-mock patients (real API patients have no locationId field initially)
-      // and re-filter the mock ones
-      const apiIds = new Set((mockPatients || []).map(p => p.id));
-      const apiPatients = prev.filter(p => !apiIds.has(p.id)); // real backend patients
-      const filtered = filterMockByLocation(mockPatients || [], currentUser);
-      const mockFiltered = filtered.filter(p => !apiPatients.some(a => a.id === p.id));
-      return [...apiPatients, ...mockFiltered];
-    });
-  }, [currentUser?.id, demoMode]);
 
   /* ────── On mount: try to load patients from backend ────── */
   const backendChecked = useRef(false);
@@ -99,22 +58,13 @@ export function PatientProvider({ children, demoMode = false }) {
       try {
         const apiPatients = await patientsApi.list({});
         if (Array.isArray(apiPatients)) {
-          // Merge locally stored photos
           const withPhotos = apiPatients.map(p => {
             try {
               const stored = localStorage.getItem(`clarity_pt_photo_${p.id}`);
               return stored ? { ...p, photo: stored } : p;
             } catch { return p; }
           });
-
-          // Keep mock-only patients (not in backend) filtered by location
-          const apiIds = new Set(withPhotos.map(p => p.id));
-          const mockOnly = filterMockByLocation(
-            (mockPatients || []).filter(p => !apiIds.has(p.id)),
-            currentUser
-          );
-
-          setPatients([...withPhotos, ...mockOnly]);
+          setPatients(withPhotos);
         }
       } catch { /* backend unavailable */ }
 
@@ -154,7 +104,7 @@ export function PatientProvider({ children, demoMode = false }) {
     const [rAllergies, rProblems, rVitals, rMeds, rImmun, rLabs, rAssess, rOrders, rEnc] = results;
 
     if (rAllergies.status === 'fulfilled')  setAllergies(prev  => arrayToMap(patientId, rAllergies.value, prev));
-    if (rProblems.status === 'fulfilled')   setProblemList(prev => arrayToMap(patientId, rProblems.value, prev));
+    if (rProblems.status === 'fulfilled')   setProblemList(prev => arrayToMap(patientId, (rProblems.value || []).map(p => ({ ...p, name: p.name || (p.code ? `${p.code} — ${p.description || ''}` : p.description || '') })), prev));
     if (rVitals.status === 'fulfilled')     setVitalSigns(prev  => arrayToMap(patientId, rVitals.value, prev));
     if (rMeds.status === 'fulfilled')       setMeds(prev => arrayToMap(patientId, rMeds.value, prev));
     else if (mockMedications[patientId])   setMeds(prev => arrayToMap(patientId, mockMedications[patientId], prev));
@@ -213,6 +163,11 @@ export function PatientProvider({ children, demoMode = false }) {
     setPatients((prev) => prev.map((p) => (p.id === patientId ? merged : p)));
     setSelectedPatient((cur) => (cur?.id === patientId ? merged : cur));
     return merged;
+  }, []);
+
+  const patchPatient = useCallback((patientId, patch) => {
+    setPatients((prev) => prev.map((p) => p.id === patientId ? { ...p, ...patch } : p));
+    setSelectedPatient((cur) => cur?.id === patientId ? { ...cur, ...patch } : cur);
   }, []);
 
   // Photo stored in localStorage (base64) — no backend upload needed
@@ -537,6 +492,7 @@ export function PatientProvider({ children, demoMode = false }) {
         selectPatient,
         addPatient,
         updatePatient,
+        patchPatient,
         updatePatientPhoto,
         getPatientPhoto,
         openCharts,

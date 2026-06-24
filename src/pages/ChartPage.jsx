@@ -81,7 +81,7 @@ export default function ChartPage() {
   const { patientId, tab } = useParams();
   const { currentUser } = useAuth();
   const {
-    openChart, selectedPatient, allergies, problemList, vitalSigns, meds,
+    openChart, selectedPatient, patchPatient, allergies, problemList, vitalSigns, meds,
     immunizations, labResults, assessmentScores, orders, addOrder, encounters,
     inboxMessages, appointments,
   } = usePatient();
@@ -123,6 +123,7 @@ export default function ChartPage() {
       clearTimeout(stickyDebounce.current);
       if (patientId && stickyText !== stickyLastSaved.current) {
         patientsApi.updateStickyNote(patientId, stickyText).catch(() => {});
+        patchPatient(patientId, { stickyNote: stickyText });
         stickyLastSaved.current = stickyText;
       }
     };
@@ -135,6 +136,7 @@ export default function ChartPage() {
     clearTimeout(stickyDebounce.current);
     stickyDebounce.current = setTimeout(() => {
       patientsApi.updateStickyNote(patientId, stickyText).catch(() => {});
+      patchPatient(patientId, { stickyNote: stickyText });
       stickyLastSaved.current = stickyText;
     }, 800);
     return () => clearTimeout(stickyDebounce.current);
