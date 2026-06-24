@@ -31,6 +31,8 @@ export function PatientProvider({ children, demoMode = false }) {
 
   /* ────── Core state ────── */
   const [patients, setPatients] = useState(demoMode ? DEMO_PATIENTS : []);
+  const patientsRef = useRef(patients); // always current — lets callbacks read latest without being recreated
+  patientsRef.current = patients;
   const [selectedPatient, setSelectedPatient] = useState(null);
   const MAX_OPEN_CHARTS = 4;
   const [openCharts, setOpenCharts] = useState([]);
@@ -118,13 +120,13 @@ export function PatientProvider({ children, demoMode = false }) {
 
   /* ────── Select / Open / Close patient ────── */
   const selectPatient = useCallback((patientId) => {
-    const p = patients.find((pt) => pt.id === patientId);
+    const p = patientsRef.current.find((pt) => pt.id === patientId);
     setSelectedPatient(p || null);
     if (p) loadPatientClinical(patientId);
-  }, [patients, loadPatientClinical]);
+  }, [loadPatientClinical]);
 
   const openChart = useCallback((patientId) => {
-    const p = patients.find((pt) => pt.id === patientId);
+    const p = patientsRef.current.find((pt) => pt.id === patientId);
     if (!p) return;
     setSelectedPatient(p);
     setOpenCharts((prev) => {
@@ -134,7 +136,7 @@ export function PatientProvider({ children, demoMode = false }) {
       return next;
     });
     loadPatientClinical(patientId);
-  }, [patients, loadPatientClinical]);
+  }, [loadPatientClinical]);
 
   const closeChart = useCallback((patientId) => {
     let remaining;
