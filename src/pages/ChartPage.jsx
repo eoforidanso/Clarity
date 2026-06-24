@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import PatientBanner from '../components/PatientBanner';
 import PharmacySelectorDrawer from '../components/PharmacySelectorDrawer';
 import PDMPDrawer from '../components/PDMPDrawer';
+import { patients as patientsApi } from '../services/api';
 import { getControlledSchedule } from '../utils/controlledSubstances';
 import { generateILPmpReport } from '../utils/pmpMock';
 import BTGGuard from '../components/BTGGuard';
@@ -103,6 +104,20 @@ export default function ChartPage() {
   // Note lives in PatientContext — no local state, no effects needed.
   const stickyText = selectedPatient?.stickyNote ?? '';
   const setStickyText = (note) => updateStickyNote(selectedPatient?.id, note);
+  const [stickySaveStatus, setStickySaveStatus] = useState(null); // null | 'saving' | 'saved' | 'error'
+  const stickySaveTimerRef = useRef(null);
+  const saveStickyNote = useCallback(async () => {
+    if (!selectedPatient?.id) return;
+    setStickySaveStatus('saving');
+    try {
+      await patientsApi.updateStickyNote(selectedPatient.id, stickyText);
+      setStickySaveStatus('saved');
+    } catch {
+      setStickySaveStatus('error');
+    }
+    clearTimeout(stickySaveTimerRef.current);
+    stickySaveTimerRef.current = setTimeout(() => setStickySaveStatus(null), 2500);
+  }, [selectedPatient?.id, stickyText]);
 
   const onStickyMouseDown = (e) => {
     if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
@@ -3148,23 +3163,43 @@ export default function ChartPage() {
               <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 marginTop: 6, paddingTop: 6, borderTop: '1px dashed rgba(120,53,15,0.15)',
+                gap: 6,
               }}>
-                <span style={{
-                  fontSize: 10, color: 'rgba(120,53,15,0.4)', fontFamily: 'Inter, sans-serif',
-                  fontWeight: 600, fontStyle: 'italic',
-                }}>
-                  {stickyText.length > 0 ? `${stickyText.length} chars · auto-saved` : 'For this chart only'}
-                </span>
-                {stickyText.length > 0 && (
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   <button
-                    onClick={(e) => { e.stopPropagation(); if (confirm('Clear sticky note?')) setStickyText(''); }}
+                    onClick={(e) => { e.stopPropagation(); saveStickyNote(); }}
+                    disabled={stickySaveStatus === 'saving'}
                     style={{
-                      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-                      background: 'rgba(220,38,38,0.1)', color: '#dc2626', border: 'none',
-                      cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                      fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 4,
+                      background: stickySaveStatus === 'saved' ? 'rgba(22,163,74,0.15)'
+                               : stickySaveStatus === 'error'  ? 'rgba(220,38,38,0.15)'
+                               : 'rgba(120,53,15,0.15)',
+                      color: stickySaveStatus === 'saved' ? '#15803d'
+                           : stickySaveStatus === 'error'  ? '#dc2626'
+                           : '#78350f',
+                      border: 'none', cursor: stickySaveStatus === 'saving' ? 'wait' : 'pointer',
+                      fontFamily: 'Inter, sans-serif', transition: 'background 0.2s',
                     }}
-                  >🗑 Clear</button>
-                )}
+                  >
+                    {stickySaveStatus === 'saving' ? '…' : stickySaveStatus === 'saved' ? '✓ Saved' : stickySaveStatus === 'error' ? '✗ Error' : '💾 Save'}
+                  </button>
+                  {stickyText.length > 0 && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); if (confirm('Clear sticky note?')) setStickyText(''); }}
+                      style={{
+                        fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 4,
+                        background: 'rgba(220,38,38,0.1)', color: '#dc2626', border: 'none',
+                        cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                      }}
+                    >🗑</button>
+                  )}
+                </div>
+                <span style={{
+                  fontSize: 9, color: 'rgba(120,53,15,0.35)', fontFamily: 'Inter, sans-serif',
+                  fontStyle: 'italic',
+                }}>
+                  {stickyText.length > 0 ? `${stickyText.length} chars` : 'For this chart only'}
+                </span>
               </div>
             </div>
           )}
