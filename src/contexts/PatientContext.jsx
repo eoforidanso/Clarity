@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
+import { scheduleSave, flushAll } from '../services/stickyNoteQueue';
 import { medications as mockMedications } from '../data/mockData';
 import { DEMO_PATIENTS, DEMO_APPOINTMENTS, DEMO_INBOX } from '../demo/demoData';
 import {
@@ -168,6 +169,18 @@ export function PatientProvider({ children, demoMode = false }) {
   const patchPatient = useCallback((patientId, patch) => {
     setPatients((prev) => prev.map((p) => p.id === patientId ? { ...p, ...patch } : p));
     setSelectedPatient((cur) => cur?.id === patientId ? { ...cur, ...patch } : cur);
+  }, []);
+
+  const updateStickyNote = useCallback((patientId, note) => {
+    setPatients((prev) => prev.map((p) => p.id === patientId ? { ...p, stickyNote: note } : p));
+    setSelectedPatient((cur) => cur?.id === patientId ? { ...cur, stickyNote: note } : cur);
+    scheduleSave(patientId, note);
+  }, []);
+
+  // Flush any pending saves if the user closes/refreshes the tab
+  useEffect(() => {
+    window.addEventListener('beforeunload', flushAll);
+    return () => window.removeEventListener('beforeunload', flushAll);
   }, []);
 
   // Photo stored in localStorage (base64) — no backend upload needed
@@ -493,6 +506,7 @@ export function PatientProvider({ children, demoMode = false }) {
         addPatient,
         updatePatient,
         patchPatient,
+        updateStickyNote,
         updatePatientPhoto,
         getPatientPhoto,
         openCharts,

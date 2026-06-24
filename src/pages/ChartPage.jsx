@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useStickyNote } from '../hooks/useStickyNote';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
@@ -81,7 +80,7 @@ export default function ChartPage() {
   const { patientId, tab } = useParams();
   const { currentUser } = useAuth();
   const {
-    openChart, selectedPatient, patchPatient, allergies, problemList, vitalSigns, meds,
+    openChart, selectedPatient, updateStickyNote, allergies, problemList, vitalSigns, meds,
     immunizations, labResults, assessmentScores, orders, addOrder, encounters,
     inboxMessages, appointments,
   } = usePatient();
@@ -101,7 +100,9 @@ export default function ChartPage() {
   const stickyDragging = useRef(false);
   const stickyOffset = useRef({ x: 0, y: 0 });
 
-  const { note: stickyText, setNote: setStickyText } = useStickyNote(selectedPatient, patchPatient);
+  // Note lives in PatientContext — no local state, no effects needed.
+  const stickyText = selectedPatient?.stickyNote ?? '';
+  const setStickyText = (note) => updateStickyNote(selectedPatient?.id, note);
 
   const onStickyMouseDown = (e) => {
     if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
