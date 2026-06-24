@@ -20,6 +20,31 @@ const InsurancePlanSchema = z.object({
   copay:       z.number().min(0).max(10000).optional().default(0),
 }).optional();
 
+export const UpdatePatientSchema = z.object({
+  firstName:        z.string().min(1).max(100).trim().optional(),
+  lastName:         z.string().min(1).max(100).trim().optional(),
+  dob:              z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  gender:           z.string().max(50).optional(),
+  pronouns:         z.string().max(50).optional(),
+  race:             z.string().max(100).optional(),
+  ethnicity:        z.string().max(100).optional(),
+  language:         z.string().max(50).optional(),
+  maritalStatus:    z.string().max(50).optional(),
+  phone:            z.string().max(20).optional(),
+  cellPhone:        z.string().max(20).optional(),
+  email:            z.string().email().max(255).optional().or(z.literal('')).optional(),
+  address:          AddressSchema,
+  emergencyContact: EmergencyContactSchema,
+  insurance:        z.object({
+    primary:   InsurancePlanSchema,
+    secondary: InsurancePlanSchema,
+  }).optional(),
+  pcp:              z.string().max(100).optional(),
+  assignedProvider: z.string().max(100).optional(),
+  isBTG:            z.boolean().optional(),
+  flags:            z.array(z.string().max(50)).optional(),
+});
+
 export const CreatePatientSchema = z.object({
   firstName:        z.string().min(1).max(100).trim(),
   lastName:         z.string().min(1).max(100).trim(),
