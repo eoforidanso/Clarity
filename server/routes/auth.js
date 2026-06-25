@@ -8,7 +8,13 @@ import db from '../db/database.js';
 import { authenticate, requireElevated } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
 import { needsMfa, isSensitiveRoute, SENSITIVE_ROUTES } from '../security/authRules.js';
-import { rateLimitLoginByIp, rateLimitLoginByUsername, trackLoginFailure, checkAccountLockout, lockAccount } from '../security/rateLimiter.js';
+import { rateLimitLoginByIp, rateLimitLoginByUsername, rateLimitMfaByIp, rateLimitRefreshByIp, trackLoginFailure, checkAccountLockout, lockAccount } from '../security/rateLimiter.js';
+import { validate } from '../middleware/validate.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { MeResponseSchema } from '../schemas/responseSchemas.js';
+import { z } from 'zod';
+
+const EmptyBodySchema = z.object({});
 // Send OTP email via Resend HTTP API (port 443 — works on DigitalOcean)
 async function sendOtpEmail(to, otp) { const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -234,6 +240,16 @@ router.post('/login', rateLimitLoginByIp, async (req, res) => { const { username
   const mfaRequired = needsMfa(provisionalSession, user);
 
   if (mfaRequired) {
+    // Allow skip if device was trusted within the last 24 hours
+    const trustCookie = req.cookies?.mfa_trust;
+    if (trustCookie) {
+      try {
+        const tp = jwt.verify(trustCookie, config.jwtSecret, { algorithms: ['HS256'] });
+        if (tp.type === 'mfa_trust' && tp.sub === user.id) {
+          return res.json(await issueFullSession(res, req, user));
+        }
+      } catch { /* expired or tampered — fall through to MFA gate */ }
+    }
     // ── MFA Gate: pending session, require verification before full token ────
     if (!user.email) {
       return res.status(500).json({ error: 'No email address on file for this account. Contact your administrator.' });
@@ -249,7 +265,7 @@ router.post('/login', rateLimitLoginByIp, async (req, res) => { const { username
     const masked = user.email.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '*'.repeat(Math.max(1, b.length)) + c);
 
     // Always log OTP to server console
-    console.log(`[2FA] OTP for ${user.username} (${masked}): ${otp}`);
+    console.info(`[2FA] OTP for ${user.username} (${masked}): ${otp}`);
 
     // Send email (non-blocking)
     if (process.env.RESEND_API_KEY) {
@@ -292,7 +308,7 @@ router.post('/login', rateLimitLoginByIp, async (req, res) => { const { username
 });
 
 // GET /api/auth/me
-router.get('/me', authenticate, async (req, res) => { res.json({
+router.get('/me', authenticate, validateResponse(MeResponseSchema), async (req, res) => { res.json({
     user: {
       id: req.user.id, username: req.user.username, firstName: req.user.first_name, lastName: req.user.last_name, name: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
       role: req.user.role,
@@ -349,52 +365,6 @@ router.post('/change-password', authenticate, async (req, res) => { const { curr
   // Return mustChangePassword: false so the frontend can update state directly
   // without needing a refreshUser() round-trip — prevents infinite loop on DB lag
   res.json({ ok: true, message: 'Password changed successfully', mustChangePassword: false });
-});
-
-// POST /api/auth/refresh — swap 30-day refresh token for new 8h access token
-router.post('/refresh', async (req, res) => { const rawRefresh = req.cookies?.ehr_refresh;
-  if (!rawRefresh) return res.status(401).json({ error: 'No refresh token' });
-
-  const tokenHash = crypto.createHash('sha256').update(rawRefresh).digest('hex');
-
-  const record = await db.prepare(`
-    SELECT rt.id, rt.user_id, rt.session_id, rt.expires_at, rt.is_active,
-           u.id as uid, u.username, u.first_name, u.last_name, u.role,
-           u.credentials, u.specialty, u.npi, u.dea_number, u.email,
-           u.two_factor_enabled, u.must_change_password, u.patient_id, u.location_id
-    FROM refresh_tokens rt
-    JOIN users u ON u.id = rt.user_id
-    WHERE rt.token_hash = $1
-  `).get(tokenHash);
-
-  if (!record || !record.is_active) { return res.status(401).json({ error: 'Invalid or expired refresh token' });
-  }
-  if (new Date(record.expires_at) < new Date()) { await db.prepare(`UPDATE refresh_tokens SET is_active = FALSE WHERE id = $1`).run(record.id);
-    return res.status(401).json({ error: 'Refresh token expired — please log in again' });
-  }
-
-  // Mark refresh token as used (update last_used_at)
-  await db.prepare(`UPDATE refresh_tokens SET last_used_at = NOW() WHERE id = $1`).run(record.id);
-
-  // Issue new 8h access token reusing same session_id
-  const sessionId = record.session_id || uuidv4();
-  const token = jwt.sign(
-    { userId: record.user_id, role: record.role, sessionId },
-    config.jwtSecret,
-    { algorithm: 'HS256', expiresIn: config.jwtExpiresIn }
-  );
-  const tokenHash2 = crypto.createHash('sha256').update(token).digest('hex');
-  const expiresAt  = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
-
-  // Update session with new token hash
-  try { await db.prepare(`
-      UPDATE sessions SET token_hash = $1, expires_at = $2, is_active = TRUE
-      WHERE id = $3
-    `).run(tokenHash2, expiresAt, sessionId); } catch { /* session may not exist — create one */ }
-
-  res.cookie('ehr_token', token, { httpOnly: true, secure: true, sameSite: 'none', domain: '.clarity-ehr.com', maxAge: 8 * 60 * 60 * 1000, path: '/',  });
-
-  res.json({ ok: true, message: 'Access token refreshed' });
 });
 
 // POST /api/auth/logout
@@ -464,7 +434,7 @@ router.post('/generate-epcs-otp', authenticate, async (req, res) => { // Generat
 
   // In a real deployment, deliver OTP via SMS or authenticator app — never expose it in the response.
   if (process.env.NODE_ENV === 'development') {
-    console.log(`[DEV ONLY] EPCS OTP for user ${req.user.id }: ${ otp }`);
+    console.info(`[DEV ONLY] EPCS OTP for user ${req.user.id }: ${ otp }`);
   }
   res.json({ expiresAt, message: 'OTP generated and sent' });
 });
@@ -491,7 +461,7 @@ router.post('/verify-epcs-otp', authenticate, async (req, res) => { const { otp 
 });
 
 // POST /api/auth/mfa/verify — validate email OTP and upgrade pending session to full session
-router.post('/mfa/verify', async (req, res) => {
+router.post('/mfa/verify', rateLimitMfaByIp, async (req, res) => {
   const { tempToken, code } = req.body;
   if (!tempToken || !code) {
     return res.status(400).json({ error: 'tempToken and code are required' });
@@ -595,6 +565,20 @@ router.post('/mfa/verify', async (req, res) => {
     sameSite: 'none',
     domain: '.clarity-ehr.com',
     maxAge: 30 * 24 * 60 * 60 * 1000,
+    path: '/'
+  });
+
+  // Trust this device for 24 hours — skip MFA on next login within that window
+  res.cookie('mfa_trust', jwt.sign(
+    { sub: user.id, type: 'mfa_trust' },
+    config.jwtSecret,
+    { algorithm: 'HS256', expiresIn: '24h' }
+  ), {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    domain: '.clarity-ehr.com',
+    maxAge: 24 * 60 * 60 * 1000,
     path: '/'
   });
 
@@ -785,7 +769,7 @@ router.get('/session-risk', authenticate, async (req, res) => {
 
 // POST /api/auth/refresh — issue new access token from valid refresh token
 // Implements token rotation: old refresh token is revoked, new one issued
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', rateLimitRefreshByIp, validate(EmptyBodySchema), async (req, res) => {
   const oldToken = req.cookies?.ehr_refresh;
   if (!oldToken) {
     return res.status(401).json({ error: 'No refresh token provided' });
