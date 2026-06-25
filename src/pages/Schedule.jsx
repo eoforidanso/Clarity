@@ -2134,7 +2134,7 @@ export default function Schedule() {
 
   const [providers, setProviders] = useState([]);
   useEffect(() => {
-    usersApi.list().then(data => {
+    usersApi.directory().then(data => {
       if (Array.isArray(data)) setProviders(data.filter(u => ['prescriber', 'nurse', 'therapist'].includes(u.role)));
     }).catch(() => {});
   }, []);
