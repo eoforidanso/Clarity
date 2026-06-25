@@ -616,7 +616,9 @@ function ScheduleModal({ show, onClose, initialDate, initialVisitType, patients,
     date:"", time:"09:00", duration:30, type:"Follow-Up", visitType:"In-Person", reason:"", room:"" };
   const [form, setForm] = useState(EMPTY);
   const [saved, setSaved] = useState(false);
-  useEffect(() => { if (show) { setForm({ ...EMPTY, provider:defaultProvider||providers[0]?.id||"", date:initialDate||"", ...(initialVisitType ? { visitType:initialVisitType, type:initialVisitType==="Telehealth"?"Telehealth":"Follow-Up", room:initialVisitType==="Telehealth"?"Virtual":"" } : {}) }); setSaved(false); } }, [show, initialDate, initialVisitType, defaultProvider]);
+  useEffect(() => { if (show) { setForm({ ...EMPTY, provider:defaultProvider||providers[0]?.id||"", date:initialDate||"", ...(initialVisitType ? { visitType:initialVisitType, type:initialVisitType==="Telehealth"?"Telehealth":"Follow-Up", room:initialVisitType==="Telehealth"?"Virtual":"" } : {}) }); setSaved(false); } }, [show, initialDate, initialVisitType, defaultProvider]); // eslint-disable-line
+  // If providers load after the modal opens, auto-fill the provider field if it's still empty
+  useEffect(() => { if (show && !form.provider && providers[0]?.id) setForm(f => ({ ...f, provider: defaultProvider || providers[0].id })); }, [show, providers]); // eslint-disable-line
   const upd = (k, v) => setForm(f => ({ ...f, [k]:v }));
   const canSubmit = form.date && form.time && form.provider && (form.isNewPatient ? form.newPatientName.trim() : form.patientId);
   const handleSubmit = () => {
