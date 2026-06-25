@@ -65,8 +65,10 @@ export function buildAccess(user) {
      */
     locationClause(column = 'primary_location') {
       if (canSeeAll || !locationId) return { clause: '', params: [] };
+      // Match untagged records (NULL) OR records at the user's location —
+      // consistent with canAccessLocation which also allows NULL-tagged records.
       return {
-        clause: ` AND ${column} = ?`,
+        clause: ` AND (${column} IS NULL OR ${column} = ?)`,
         params: [locationId],
       };
     },
