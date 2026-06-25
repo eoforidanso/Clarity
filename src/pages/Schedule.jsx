@@ -2309,8 +2309,9 @@ export default function Schedule() {
     const userLocationId = currentUser?.locationId || currentUser?.location_id;
 
     // Non-admin: always filter to their own location
+    // Include providers without a locationId (e.g. directory response before server restart)
     if (!isAdmin && userLocationId) {
-      return providers.filter(p => p.locationId === userLocationId || p.id === currentUser?.id);
+      return providers.filter(p => !p.locationId || p.locationId === userLocationId || p.id === currentUser?.id);
     }
     // Non-admin with no location assigned: only themselves
     if (!isAdmin) {
@@ -2321,9 +2322,10 @@ export default function Schedule() {
     if (!isFiltered) return providers;
 
     // Admin with site selected → providers at that site or with appointments there
+    // Providers without locationId are included as a fallback (directory endpoint before server restart)
     const provIdsWithAppts = new Set(allAppts.map(a => a.provider));
     return providers.filter(p =>
-      provIdsWithAppts.has(p.id) || p.locationId === activeSiteId
+      provIdsWithAppts.has(p.id) || !p.locationId || p.locationId === activeSiteId
     );
   }, [isFiltered, allAppts, activeSiteId, currentUser, providers]);
 
@@ -2968,7 +2970,7 @@ export default function Schedule() {
         patients={patients}
         defaultProvider={isProvider ? currentUser?.id : undefined}
         providers={siteProviders}
-        onSave={apt => { addAppointment(apt); setShowModal(false); setModalVisitType('In-Person'); }}
+        onSave={apt => { addAppointment({ ...apt, locationId: activeSiteId !== 'all' ? activeSiteId : undefined }); setShowModal(false); setModalVisitType('In-Person'); }}
       />
     </div>
   );
