@@ -87,7 +87,7 @@ async function issueFullSession(res, req, user) { const ip       = req.realIp ||
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
   try { await db.prepare(
-      'INSERT INTO sessions (id, user_id, token_hash, ip_address, user_agent, expires_at, device_id) VALUES ($1, $2, $3, $4, $5, $6, $7)'
+      'INSERT INTO sessions (id, user_id, token_hash, ip_address, user_agent, expires_at, device_id, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)'
     ).run(sessionId, user.id, tokenHash, ip, req.get('User-Agent') || '', expiresAt, dbDeviceId); } catch (e) { console.warn('[sessions]', e.message); }
 
   // Issue 30-day refresh token alongside the 8h access token
@@ -228,8 +228,8 @@ router.post('/login', rateLimitLoginByIp, async (req, res) => { const { username
   const sessionExpiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
   try {
     await db.prepare(`
-      INSERT INTO sessions (id, user_id, ip_address, user_agent, created_at, expires_at, device_id, risk_score, revoked_at)
-      VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, NULL)
+      INSERT INTO sessions (id, user_id, ip_address, user_agent, created_at, expires_at, device_id, risk_score, revoked_at, is_active)
+      VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, NULL, TRUE)
     `).run(sessionId, user.id, ip, ua, sessionExpiresAt, dbDeviceId, initialRiskScore);
   } catch (e) {
     console.warn('[sessions]', e.message);
