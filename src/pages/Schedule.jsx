@@ -513,13 +513,13 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
     return next?.id || null;
   }, [appts, nowMins]);
 
-  // Build byHour map for hours 8–18
+  // Build byHour map for hours 7–20 (covers early morning and evening slots)
   const byHour = useMemo(() => {
     const map = new Map();
-    for (let h = 8; h <= 18; h++) map.set(h, []);
+    for (let h = 7; h <= 20; h++) map.set(h, []);
     appts.forEach(apt => {
       const h = apt.time ? parseInt(apt.time.split(":")[0], 10) : null;
-      if (h !== null && h >= 8 && h <= 18) map.get(h).push(apt);
+      if (h !== null && h >= 7 && h <= 20) map.get(h).push(apt);
     });
     return map;
   }, [appts]);
@@ -2214,10 +2214,12 @@ export default function Schedule() {
   }, [blockedDays]);
 
   const allAppts = useMemo(() => {
-    const byRole = (appointments || []).filter(a => a.provider===currentUser?.id || isFrontDesk);
-    if (!isFiltered) return byRole;
-    return byRole.filter(a => appointmentSiteId(a) === activeSiteId);
-  }, [appointments, currentUser, isFrontDesk, activeSiteId, isFiltered]);
+    // Backend already scopes to the user's facility — no need to filter by provider here.
+    // The providerFilter dropdown (below) handles per-provider narrowing for the day view.
+    const base = appointments || [];
+    if (!isFiltered) return base;
+    return base.filter(a => appointmentSiteId(a) === activeSiteId);
+  }, [appointments, activeSiteId, isFiltered]);
   const todayKey = toKey(getToday());
 
   const aptsByDate = useMemo(() => {

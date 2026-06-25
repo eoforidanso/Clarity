@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 const VISIT_TYPES   = ['In-Person', 'Telehealth', 'Phone', 'Home Visit'];
-const APPT_STATUSES = ['Scheduled', 'Confirmed', 'Checked In', 'In Progress', 'Completed', 'Cancelled', 'No Show'];
-const APPT_TYPES    = ['Office Visit', 'Follow-Up', 'New Patient', 'Urgent', 'Procedure', 'Telehealth', 'Phone Consult'];
+const APPT_STATUSES = ['Scheduled', 'Confirmed', 'Checked In', 'In Progress', 'Completed', 'Cancelled', 'No Show', 'Rescheduled'];
+const APPT_TYPES    = ['Office Visit', 'Follow-Up', 'New Patient', 'Urgent', 'Procedure', 'Telehealth', 'Phone Consult', 'Medication Review'];
 
 export const CreateAppointmentSchema = z.object({
   patientId:    z.string().uuid().optional().nullable(),
@@ -34,4 +34,26 @@ export const UpdateAppointmentSchema = z.object({
   visitType:    z.enum(VISIT_TYPES).optional(),
   room:         z.string().max(50).optional(),
   locationId:   z.string().uuid().optional().nullable(),
+});
+
+export const BlockedDaySchema = z.object({
+  provider:  z.string(),
+  date:      z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  blockType: z.string().optional(),
+  reason:    z.string().optional(),
+});
+
+const CONSENT_VALUES = ['granted', 'denied', 'not_asked'];
+const CONSENT_METHODS = ['verbal', 'written', 'waived'];
+
+export const TelehealthConsentSchema = z.object({
+  sessionId:               z.string(),
+  patientName:             z.string(),
+  recordingConsent:        z.enum(CONSENT_VALUES),
+  providerConfirmed:       z.boolean(),
+  appointmentId:           z.string().optional(),
+  patientId:               z.string().optional(),
+  patientLocation:         z.string().optional(),
+  recordingConsentMethod:  z.enum(CONSENT_METHODS).optional(),
+  complianceChecklist:     z.record(z.any()).optional(),
 });
