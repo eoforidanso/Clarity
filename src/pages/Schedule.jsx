@@ -2634,8 +2634,8 @@ export default function Schedule() {
                     )}
                   </div>
                   <button onClick={() => shiftDay(1)} style={{ background:"none", border:"1px solid var(--border)", borderRadius:7, padding:"4px 12px", cursor:"pointer", fontSize:14, fontWeight:700, color:"var(--text-secondary)" }}>▶</button>
-                  {isFrontDesk && (
-                    <button className="btn btn-primary btn-sm" onClick={() => { setModalDate(activeDate); setShowModal(true); }}
+                  {canCreateAppointment && (
+                    <button className="btn btn-primary btn-sm" onClick={() => { setModalDate(activeDate); setModalVisitType('In-Person'); setShowModal(true); }}
                       style={{ marginLeft:"auto", fontSize:12, fontWeight:700 }}>＋ Schedule Patient</button>
                   )}
                 </div>
@@ -2774,6 +2774,10 @@ export default function Schedule() {
                   <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                     <span style={{ fontSize:11, color:"var(--text-muted)" }}>{dateAppts.length} appointment{dateAppts.length!==1?"s":""}</span>
                     {providerFilter!=="all" && <button onClick={() => setProviderFilter("all")} style={{ background:"none", border:"1px solid var(--border)", borderRadius:6, padding:"2px 8px", cursor:"pointer", fontSize:10, color:"var(--text-secondary)" }}>All providers ×</button>}
+                    {canCreateAppointment && dateAppts.length > 0 && (
+                      <button onClick={() => { setModalDate(activeDate); setModalVisitType('In-Person'); setShowModal(true); }}
+                        style={{ background:"#4f46e5", color:"#fff", border:"none", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer" }}>＋ Add</button>
+                    )}
                   </div>
                 </div>
                 <div style={{ padding:"14px 16px", minHeight:100 }}>
