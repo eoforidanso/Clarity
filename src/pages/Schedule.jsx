@@ -513,58 +513,70 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
     return next?.id || null;
   }, [appts, nowMins]);
 
-  // Build byHour map for hours 7–20 (covers early morning and evening slots)
-  const byHour = useMemo(() => {
+  // Build bySlot map in 30-minute increments from 7:00 to 20:30
+  const bySlot = useMemo(() => {
     const map = new Map();
-    for (let h = 7; h <= 20; h++) map.set(h, []);
+    for (let h = 7; h <= 20; h++) {
+      map.set(`${String(h).padStart(2,"0")}:00`, []);
+      map.set(`${String(h).padStart(2,"0")}:30`, []);
+    }
     appts.forEach(apt => {
-      const h = apt.time ? parseInt(apt.time.split(":")[0], 10) : null;
-      if (h !== null && h >= 7 && h <= 20) map.get(h).push(apt);
+      if (!apt.time) return;
+      const [h, m] = apt.time.split(":").map(Number);
+      if (h < 7 || h > 20) return;
+      const half = m >= 30 ? "30" : "00";
+      const key  = `${String(h).padStart(2,"0")}:${half}`;
+      if (map.has(key)) map.get(key).push(apt);
     });
     return map;
   }, [appts]);
+
+  const nowSlotKey = (() => {
+    const h = now.getHours(), m = now.getMinutes();
+    return `${String(h).padStart(2,"0")}:${m >= 30 ? "30" : "00"}`;
+  })();
 
   return (
     <div style={{ position: "relative", paddingLeft: 72 }}>
       {/* Vertical line */}
       <div style={{ position: "absolute", left: 44, top: 0, bottom: 0, width: 2, background: "linear-gradient(180deg, #e2e8f0 0%, #e2e8f0 100%)", borderRadius: 1 }} />
 
-      {Array.from(byHour.entries()).map(([hour, hourAppts]) => {
-        const slotCount    = hourAppts.length;
-        const slotCapacity = DEFAULT_CAPACITY;
-        const capacityClass = getSlotStatus(slotCount, slotCapacity);
-        const dotColor = capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : "#e2e8f0";
-        const dotBorder = capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : "#cbd5e1";
-        const isCurrentHour = isToday && now.getHours() === hour;
-        const hourKey = String(hour).padStart(2, "0") + ":00";
+      {Array.from(bySlot.entries()).map(([slotKey, slotAppts]) => {
+        const [slotH, slotM]  = slotKey.split(":").map(Number);
+        const slotStartMins   = slotH * 60 + slotM;
+        const isHalfHour      = slotM === 30;
+        const slotCount       = slotAppts.length;
+        const slotCapacity    = 1; // one appointment per 30-min slot
+        const capacityClass   = getSlotStatus(slotCount, slotCapacity);
+        const dotColor  = capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : isHalfHour ? "#f1f5f9" : "#e2e8f0";
+        const dotBorder = capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : isHalfHour ? "#e2e8f0" : "#cbd5e1";
+        const isCurrentSlot   = isToday && nowSlotKey === slotKey;
+        const posWithinSlot   = `${(((nowMins - slotStartMins) / 30) * 100).toFixed(0)}%`;
+        // Half-hour rows are smaller and lighter to visually de-emphasise them
+        const rowStyle = isHalfHour
+          ? { marginBottom: 2, borderRadius: 6, position: "relative", opacity: 0.85 }
+          : { marginBottom: 2, borderRadius: 8, position: "relative" };
 
         return (
-          <div key={hour} className={`calendar-slot ${capacityClass}`} style={{ marginBottom: 4, borderRadius: 8, position: "relative" }}>
+          <div key={slotKey} className={`calendar-slot ${capacityClass}`} style={rowStyle}>
             {/* Current-time bar */}
-            {isCurrentHour && (
-              <div style={{ position: "absolute", left: 44, right: 0, height: 2, background: "#ef4444", zIndex: 5, top: `${((now.getMinutes()/60)*100).toFixed(0)}%` }}>
+            {isCurrentSlot && (
+              <div style={{ position: "absolute", left: 44, right: 0, height: 2, background: "#ef4444", zIndex: 5, top: posWithinSlot }}>
                 <div style={{ position: "absolute", left: -5, top: -4, width: 10, height: 10, borderRadius: "50%", background: "#ef4444" }} />
               </div>
             )}
 
-            {/* Hour marker */}
-            <div style={{ position: "relative", marginBottom: 8, display: "flex", alignItems: "center" }}>
+            {/* Slot label */}
+            <div style={{ position: "relative", marginBottom: slotCount > 0 ? 6 : 0, display: "flex", alignItems: "center" }}>
               <div style={{ position: "absolute", left: -72, width: 72, display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end", paddingRight: 14 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                  {fmtTime12(hourKey).replace(":00", "")}
+                <span style={{ fontSize: isHalfHour ? 10 : 11, fontWeight: isHalfHour ? 500 : 700, color: isHalfHour ? "#94a3b8" : "#64748b", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                  {isHalfHour ? fmtTime12(slotKey) : fmtTime12(slotKey).replace(":00", "")}
                 </span>
-                {/* Timeline dot — color-coded by capacity */}
-                <div style={{ width: 10, height: 10, borderRadius: "50%", background: dotColor, border: `2px solid ${dotBorder}`, flexShrink: 0, zIndex: 1, transition: "background 0.25s ease" }} />
+                <div style={{ width: isHalfHour ? 6 : 10, height: isHalfHour ? 6 : 10, borderRadius: "50%", background: dotColor, border: `2px solid ${dotBorder}`, flexShrink: 0, zIndex: 1, transition: "background 0.25s ease" }} />
               </div>
-              {/* count/capacity + status badge */}
+              {/* capacity badge */}
               {slotCount > 0 && (
                 <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5 }}>
-                  <span className="count" style={{
-                    fontSize: 10, fontWeight: 700, color: capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#b45309" : "#94a3b8",
-                    fontVariantNumeric: "tabular-nums",
-                  }}>
-                    {slotCount}/{slotCapacity}
-                  </span>
                   {capacityClass && (
                     <span style={{
                       fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 4,
@@ -580,10 +592,10 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
               )}
             </div>
 
-            {/* Cards for this hour or empty slot */}
+            {/* Appointment cards or empty row */}
             {slotCount > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-                {hourAppts.map(apt => (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+                {slotAppts.map(apt => (
                   <AptCard key={apt.id} apt={apt} todayKey={todayKey}
                     isCurrent={isToday && apt.id === currentAptId}
                     patientPhoto={patients?.find(p => p.id === apt.patientId)?.photo}
@@ -596,7 +608,7 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
                 ))}
               </div>
             ) : (
-              <div style={{ padding: "8px 0 8px 0", color: "var(--text-dim)", fontSize: 11, fontStyle: "italic", borderBottom: "1px dashed #f1f5f9" }}>
+              <div style={{ padding: isHalfHour ? "4px 0" : "6px 0", color: "var(--text-dim)", fontSize: 10, fontStyle: "italic", borderBottom: `1px dashed ${isHalfHour ? "#f8fafc" : "#f1f5f9"}` }}>
                 — open —
               </div>
             )}
