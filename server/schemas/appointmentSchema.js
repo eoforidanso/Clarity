@@ -17,7 +17,7 @@ export const CreateAppointmentSchema = z.object({
   reason:       z.string().max(500).optional().default(''),
   visitType:    z.enum(VISIT_TYPES).optional().default('In-Person'),
   room:         z.string().max(50).optional().default(''),
-  locationId:   z.string().uuid().optional().nullable(),
+  locationId:   z.string().min(1).max(100).optional().nullable(),
 });
 
 export const UpdateAppointmentSchema = z.object({
@@ -33,7 +33,7 @@ export const UpdateAppointmentSchema = z.object({
   reason:       z.string().max(500).optional(),
   visitType:    z.enum(VISIT_TYPES).optional(),
   room:         z.string().max(50).optional(),
-  locationId:   z.string().uuid().optional().nullable(),
+  locationId:   z.string().min(1).max(100).optional().nullable(),
 });
 
 export const BlockedDaySchema = z.object({

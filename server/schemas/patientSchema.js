@@ -67,7 +67,7 @@ export const CreatePatientSchema = z.object({
   }).optional(),
   pcp:              z.string().max(100).optional().default(''),
   assignedProvider: z.string().max(100).optional().default(''),
-  locationId:       z.string().uuid().optional().nullable(),
+  locationId:       z.string().min(1).max(100).optional().nullable(),
   isBTG:            z.boolean().optional().default(false),
   flags:            z.array(z.string().max(50)).optional().default([]),
 });

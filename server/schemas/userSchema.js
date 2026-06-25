@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const VALID_ROLES = ['prescriber', 'nurse', 'front_desk', 'admin', 'therapist', 'supervisor'];
+const VALID_ROLES = ['prescriber', 'nurse', 'front_desk', 'admin', 'therapist', 'biller'];
 
 export const CreateUserSchema = z.object({
   username:          z.string().min(2).max(50).regex(/^[a-zA-Z0-9._-]+$/, 'Alphanumeric, dots, underscores and hyphens only'),
@@ -13,7 +13,7 @@ export const CreateUserSchema = z.object({
   specialty:         z.string().max(100).optional().default(''),
   npi:               z.string().max(20).optional().default(''),
   deaNumber:         z.string().max(20).optional().default(''),
-  locationId:        z.string().uuid().optional().nullable(),
+  locationId:        z.string().min(1).max(100).optional().nullable(),
   twoFactorEnabled:  z.boolean().optional().default(false),
   mustChangePassword:z.boolean().optional().default(true),
 });
@@ -27,6 +27,6 @@ export const UpdateUserSchema = z.object({
   specialty:         z.string().max(100).optional(),
   npi:               z.string().max(20).optional(),
   deaNumber:         z.string().max(20).optional(),
-  locationId:        z.string().uuid().optional().nullable(),
+  locationId:        z.string().min(1).max(100).optional().nullable(),
   twoFactorEnabled:  z.boolean().optional(),
 });
