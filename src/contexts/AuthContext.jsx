@@ -134,11 +134,26 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const controller = new AbortController();
     sessionControllerRef.current = controller;
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     const restoreSession = async () => {
       try {
-        const data = await authApi.me({ signal: controller.signal });
+        let data;
+        try {
+          data = await authApi.me({ signal: controller.signal });
+        } catch (firstErr) {
+          // Access token may be expired — try refreshing before giving up
+          if (firstErr.status === 401) {
+            const refreshed = await authApi.refresh();
+            if (refreshed) {
+              data = await authApi.me({ signal: controller.signal });
+            } else {
+              throw firstErr;
+            }
+          } else {
+            throw firstErr;
+          }
+        }
         const user = data.user;
         const enriched = {
           ...user,
@@ -174,28 +189,8 @@ export function AuthProvider({ children }) {
     // Try backend auth first
     try {
       const data = await authApi.login(username, password);
-      if (data.requiresTwoFactor) {
-        // Demo/offline mode: if this is a known mock user, bypass 2FA so the
-        // app is usable without a live email server (local dev or demo).
-        const mockUser = mockUsers.find(
-          u => u.username === username && u.password === password
-        );
-        if (mockUser) {
-          const { password: _pw, epcsPin: _pin, ...safeUser } = mockUser;
-          const enriched = {
-            ...safeUser,
-            name: safeUser.name || `${safeUser.firstName} ${safeUser.lastName || ''}`.trim(),
-          };
-          const userWithSig = withSignature(enriched);
-          setCurrentUser(userWithSig);
-          setIsAuthenticated(true);
-          setAuthMode('mock');
-          lastActivityRef.current = Date.now();
-          // Fetch signature from backend asynchronously (non-blocking on mock)
-          hydrateSignatureFromBackend(userWithSig, setCurrentUser);
-          return { ok: true, mustChangePassword: !!enriched.mustChangePassword };
-        }
-        return { ok: false, requiresTwoFactor: true, tempToken: data.tempToken, emailHint: data.emailHint };
+      if (data.requiresMfa) {
+        return { ok: false, requiresMfa: true, tempToken: data.tempToken, emailHint: data.emailHint, mockCode: data.mockCode };
       }
       const user = data.user;
       const enriched = {

@@ -153,6 +153,7 @@ export const auth = {
   login: (username, password) => post('/auth/login', { username, password }),
   logout: () => post('/auth/logout', {}),
   me: (options) => get('/auth/me', options),
+  refresh: () => tryRefresh(),
   changePassword: (currentPassword, newPassword) => post('/auth/change-password', { currentPassword, newPassword }),
   verifyEpcsPin: (pin) => post('/auth/verify-epcs-pin', { pin }),
   generateEpcsOtp: () => post('/auth/generate-epcs-otp', {}),
