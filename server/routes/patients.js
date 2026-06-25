@@ -27,11 +27,12 @@ async function requirePatientAccess(req, res, next) { const patientId = req.para
 
   if (canSeeAll) return next();
 
-  // Scoped roles: must be assigned provider or same location
+  // Scoped roles: must be assigned provider, same location, or patient is untagged (no location)
   const isAssignedProvider = patient.assigned_provider === userId;
+  const untagged           = !patient.primary_location;
   const sameLocation       = location_id && patient.primary_location === location_id;
 
-  if (!isAssignedProvider && !sameLocation) { logAudit({
+  if (!isAssignedProvider && !untagged && !sameLocation) { logAudit({
       actorId: userId, actorName: `${req.user.first_name } ${ req.user.last_name || '' }`.trim(),
       action: 'IDOR_BLOCKED', targetId: patientId, targetType: 'patient',
       details: { role, reason: 'Not assigned provider and not same location' },

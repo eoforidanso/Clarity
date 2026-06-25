@@ -156,7 +156,7 @@ export function SiteProvider({ children }) {
       });
   }, []);
 
-  useEffect(() => { loadSites(); }, [loadSites]);
+  useEffect(() => { if (currentUser?.id) loadSites(); }, [loadSites, currentUser?.id]);
 
   // Expose reload so MultiLocationManagement can refresh after create/update/delete
   const reloadSites = loadSites;
