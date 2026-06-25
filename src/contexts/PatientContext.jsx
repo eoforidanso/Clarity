@@ -51,11 +51,9 @@ export function PatientProvider({ children, demoMode = false }) {
   const [encounters, setEncounters] = useState({});
   const [blockedDays, setBlockedDays] = useState([]);
 
-  /* ────── On mount: try to load patients from backend ────── */
-  const backendChecked = useRef(false);
+  /* ────── Load patients/appointments from backend when authenticated ────── */
   useEffect(() => {
-    if (backendChecked.current) return;
-    backendChecked.current = true;
+    if (!currentUser?.id) return;
 
     (async () => {
       try {
@@ -86,7 +84,7 @@ export function PatientProvider({ children, demoMode = false }) {
         if (Array.isArray(apiBlocked)) setBlockedDays(apiBlocked);
       } catch { /* ignore */ }
     })();
-  }, []);
+  }, [currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ────── Load clinical data for a patient from backend ────── */
   const loadPatientClinical = useCallback(async (patientId) => {
