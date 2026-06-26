@@ -137,7 +137,7 @@ async function issueFullSession(res, req, user) { const ip       = req.realIp ||
 
 // POST /api/auth/login
 router.post('/login', rateLimitLoginByIp, async (req, res) => { const { username, password } = req.body;
-  if (!username || !password) { return res.status(400).json({ error: 'Username and password are required' });
+  if (!username || !password) { return res.status(400).json({ error: 'Email/username and password are required' });
   }
 
   // Input validation: enforce type, length, and strip control characters
@@ -145,13 +145,13 @@ router.post('/login', rateLimitLoginByIp, async (req, res) => { const { username
   }
   const sanitizedUsername = username.replace(/[\x00-\x1F\x7F]/g, '').trim();
   if (sanitizedUsername.length < 1 || sanitizedUsername.length > 100) {
-    return res.status(400).json({ error: 'Invalid username' });
+    return res.status(400).json({ error: 'Invalid username or email' });
   }
   if (password.length < 1 || password.length > 200) {
     return res.status(400).json({ error: 'Invalid password' });
   }
 
-  const user = await db.prepare('SELECT id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, totp_secret, must_change_password, patient_id, location_id, is_global, is_locked, locked_reason FROM users WHERE username = ?').get(sanitizedUsername);
+  const user = await db.prepare('SELECT id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, totp_secret, must_change_password, patient_id, location_id, is_global, is_locked, locked_reason FROM users WHERE username = $1 OR (email IS NOT NULL AND email != \'\' AND LOWER(email) = LOWER($1))').get(sanitizedUsername);
 
   // ── Account lockout check ───────────────────────────────────────────────────
   if (user?.is_locked) {

@@ -154,7 +154,7 @@ export default function LoginPage() {
 
     // Client-side empty-field validation (Epic/athena pattern: instant inline feedback)
     const errs = {};
-    if (!username.trim()) errs.username = 'Username is required';
+    if (!username.trim()) errs.username = 'Email or username is required';
     if (!password)        errs.password = 'Password is required';
     if (Object.keys(errs).length) {
       setFieldErrors(errs);
@@ -506,10 +506,10 @@ export default function LoginPage() {
                 className={shakeForm ? 'login-form--shake' : undefined}
                 style={{ marginTop: 16 }}
               >
-                {/* Username — floating label */}
+                {/* Email or Username — floating label */}
                 <div className="lf-group">
                   <div className={`lf-float-wrapper${username ? ' has-value' : ''}${fieldErrors.username ? ' has-error' : ''}`}>
-                    <label className="lf-float-label" htmlFor="login-username">Username</label>
+                    <label className="lf-float-label" htmlFor="login-username">Email or Username</label>
                     <input
                       ref={usernameRef}
                       id="login-username"
@@ -517,8 +517,8 @@ export default function LoginPage() {
                       className={`lf-input${fieldErrors.username ? ' lf-input--error' : ''}`}
                       value={username}
                       onChange={(e) => { setUsername(e.target.value); if (fieldErrors.username) setFieldErrors(f => ({...f, username: ''})); }}
-                      placeholder="e.g. dr.jane"
-                      autoComplete="username"
+                      placeholder="e.g. dr.jane or jane@clinic.com"
+                      autoComplete="username email"
                       required
                       aria-required="true"
                       aria-invalid={fieldErrors.username ? 'true' : 'false'}
