@@ -37,6 +37,15 @@ jobs:
             alter_bool_col inbox_messages urgent false
             alter_bool_col pharmacies is_active true
             alter_bool_col telehealth_session_participants is_active true
+            alter_bool_col inbox_messages read false
+            alter_bool_col medications is_controlled false
+            alter_bool_col medication_database is_controlled false
+            alter_bool_col encounters is_signed false
+            alter_bool_col ar_aging follow_up_needed false
+            alter_bool_col patient_statements delivered false
+            alter_bool_col denial_management appeal_submitted false
+            alter_bool_col btg_audit_log approved true
+            alter_bool_col direct_messages read false
 
             echo ""
             echo "=== Verify column types ==="

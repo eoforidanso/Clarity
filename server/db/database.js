@@ -1056,8 +1056,17 @@ export async function initializeDatabase() {
     { table: 'patients', col: 'is_active', def: 'true' },
     { table: 'sessions', col: 'is_active', def: 'true' },
     { table: 'inbox_messages', col: 'urgent', def: 'false' },
+    { table: 'inbox_messages', col: 'read', def: 'false' },
     { table: 'pharmacies', col: 'is_active', def: 'true' },
     { table: 'telehealth_session_participants', col: 'is_active', def: 'true' },
+    { table: 'medications', col: 'is_controlled', def: 'false' },
+    { table: 'medication_database', col: 'is_controlled', def: 'false' },
+    { table: 'encounters', col: 'is_signed', def: 'false' },
+    { table: 'ar_aging', col: 'follow_up_needed', def: 'false' },
+    { table: 'patient_statements', col: 'delivered', def: 'false' },
+    { table: 'denial_management', col: 'appeal_submitted', def: 'false' },
+    { table: 'btg_audit_log', col: 'approved', def: 'true' },
+    { table: 'direct_messages', col: 'read', def: 'false' },
   ];
   for (const { table, col, def } of boolFixes) {
     const { rows } = await pool.query(
