@@ -878,6 +878,26 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
     (form.isNewPatient ? form.newPatientName.trim() : form.patientId) &&
     !providerConflict && !patientConflict;
 
+  // Find the first open slot for the selected provider on the selected date
+  const nextAvailableTime = useMemo(() => {
+    if (!providerConflict || !form.provider || !form.date) return null;
+    const provAppts = existingAppts
+      .filter(a => a.provider === form.provider && a.date === form.date && a.status !== 'Cancelled' && a.status !== 'No Show' && a.time)
+      .sort((a, b) => toMins(a.time) - toMins(b.time));
+    const needed = Number(form.duration || 30);
+    for (let mins = 7 * 60; mins <= 20 * 60 - needed; mins += 15) {
+      const slotEnd = mins + needed;
+      const blocked = provAppts.some(a => {
+        const s = toMins(a.time); const e = s + Number(a.duration || 30);
+        return s < slotEnd && e > mins;
+      });
+      if (!blocked) {
+        const h = Math.floor(mins / 60); const m = mins % 60;
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      }
+    }
+    return null;
+  }, [providerConflict, form.provider, form.date, form.duration, existingAppts]); // eslint-disable-line
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -907,6 +927,27 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
             color:"#fff", fontWeight:800, fontSize:20, width:32, height:32, cursor:"pointer",
             display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
         </div>
+        {/* Conflict banners — pinned above the scrollable form so they're always visible */}
+        {(providerConflict || patientConflict) && (
+          <div style={{ padding:"0 22px 0", display:"flex", flexDirection:"column", gap:6, borderBottom:"1px solid #fee2e2" }}>
+            {providerConflict && (
+              <div style={{ background:"#fef2f2", border:"1.5px solid #fca5a5", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#991b1b", fontWeight:600, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginTop:12, marginBottom: patientConflict ? 0 : 12 }}>
+                <span>⛔ Time taken — provider booked at {fmtTime12(providerConflict.time)} ({providerConflict.duration||30} min). Change the time or provider.</span>
+                {nextAvailableTime && (
+                  <button type="button" onClick={() => upd('time', nextAvailableTime)}
+                    style={{ background:"#dc2626", color:"#fff", border:"none", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>
+                    Use {fmtTime12(nextAvailableTime)}
+                  </button>
+                )}
+              </div>
+            )}
+            {patientConflict && (
+              <div style={{ background:"#fef2f2", border:"1.5px solid #fca5a5", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#991b1b", fontWeight:600, marginBottom:12 }}>
+                ⛔ Patient already scheduled today at {fmtTime12(patientConflict.time)}. One appointment per patient per day.
+              </div>
+            )}
+          </div>
+        )}
         <div style={{ padding:"20px 22px", display:"flex", flexDirection:"column", gap:14, maxHeight:"72vh", overflowY:"auto" }}>
           <div>
             <LBL c="Patient Type" />
@@ -976,16 +1017,6 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
             <LBL c="Reason for Visit" />
             <input type="text" className="form-input" placeholder="Chief complaint or reason..." value={form.reason} onChange={e=>upd("reason",e.target.value)} />
           </div>
-          {providerConflict && (
-            <div style={{ background:"#fef2f2", border:"1.5px solid #fca5a5", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#991b1b", fontWeight:600 }}>
-              ⚠️ Provider already has an appointment at {fmtTime12(providerConflict.time)} ({providerConflict.duration||30} min) — select a different time or provider.
-            </div>
-          )}
-          {patientConflict && (
-            <div style={{ background:"#fef2f2", border:"1.5px solid #fca5a5", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#991b1b", fontWeight:600 }}>
-              ⚠️ This patient already has an appointment on this date at {fmtTime12(patientConflict.time)}. Patients can only be scheduled once per day.
-            </div>
-          )}
         </div>
         <div style={{ padding:"14px 22px", borderTop:"1px solid #e2e8f0", background:"#f8fafc",
           display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -993,7 +1024,8 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
           <div style={{ display:"flex", gap:8 }}>
             <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
             <button className="btn btn-primary btn-sm" disabled={!canSubmit||saved} onClick={handleSubmit}
-              style={{ opacity:canSubmit&&!saved?1:0.45 }}>📅 Confirm Appointment</button>
+              title={providerConflict?"Provider already booked at this time":patientConflict?"Patient already scheduled today":!form.provider?"Select a provider":!form.date||!form.time?"Fill in date and time":!(form.isNewPatient?form.newPatientName.trim():form.patientId)?"Select a patient":""}
+              style={{ opacity:canSubmit&&!saved?1:0.5, cursor:canSubmit&&!saved?"pointer":"not-allowed" }}>📅 Confirm Appointment</button>
           </div>
         </div>
       </div>
