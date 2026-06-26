@@ -9,6 +9,7 @@ jobs:
           DO_HOST: ${{ secrets.DO_HOST }}
           DO_USER: ${{ secrets.DO_USER }}
           DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          DB_URL: ${{ secrets.DATABASE_URL }}
         run: |
           mkdir -p ~/.ssh
           echo "$DO_SSH_KEY" > ~/.ssh/id_ed25519
@@ -17,16 +18,40 @@ jobs:
           ssh $DO_USER@$DO_HOST << 'EOF'
             echo "=== PM2 LIST ==="
             pm2 list
+
             echo ""
-            echo "=== PM2 LOGS (last 40 lines) ==="
-            pm2 logs --lines 40 --nostream 2>/dev/null || pm2 logs clarity-api --lines 40 --nostream 2>/dev/null
+            echo "=== PM2 LOGS (last 30 lines) ==="
+            pm2 logs clarity-api --lines 30 --nostream 2>/dev/null
+
             echo ""
-            echo "=== PORT 5001 ==="
-            ss -tlnp | grep 5001 || echo "Nothing on 5001"
+            echo "=== RECENT PORTAL INBOX MESSAGES ==="
+            psql "$DATABASE_URL" -c "
+              SELECT id, type, from_name, to_user, patient_id, patient_name, date, time
+              FROM inbox_messages
+              WHERE type IN ('Patient Message','Rx Refill Request','Staff Message','Provider Reply')
+              ORDER BY date DESC, time DESC
+              LIMIT 10;
+            " 2>/dev/null || echo "psql not available or query failed"
+
             echo ""
-            echo "=== NGINX STATUS ==="
-            systemctl is-active nginx 2>/dev/null || true
+            echo "=== PORTAL PATIENTS — assigned_provider + primary_location ==="
+            psql "$DATABASE_URL" -c "
+              SELECT id, first_name, last_name, email, assigned_provider, primary_location
+              FROM patients
+              WHERE email IS NOT NULL
+              ORDER BY last_name
+              LIMIT 20;
+            " 2>/dev/null
+
             echo ""
-            echo "=== NGINX CONFIG ==="
-            cat /etc/nginx/sites-enabled/clarity-ehr 2>/dev/null || cat /etc/nginx/sites-enabled/default 2>/dev/null || echo "Config not found"
+            echo "=== PROVIDERS — id + facility_id ==="
+            psql "$DATABASE_URL" -c "
+              SELECT id, username, first_name, last_name, role, facility_id, location_id
+              FROM users
+              WHERE role IN ('provider','physician','nurse_practitioner','attending')
+              ORDER BY last_name
+              LIMIT 20;
+            " 2>/dev/null
           EOF
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
