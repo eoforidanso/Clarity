@@ -567,8 +567,18 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
           ? { marginBottom: 2, borderRadius: 6, position: "relative", opacity: 0.85 }
           : { marginBottom: 2, borderRadius: 8, position: "relative" };
 
+        const isClickable = slotCount === 0 && !!onSlotClick;
         return (
-          <div key={slotKey} className={`calendar-slot ${capacityClass}`} style={rowStyle}>
+          <div key={slotKey} className={`calendar-slot ${capacityClass}`}
+            style={{
+              ...rowStyle,
+              cursor: isClickable ? "pointer" : "default",
+              minHeight: isClickable ? (isHalfHour ? 28 : 36) : undefined,
+            }}
+            onClick={isClickable ? () => onSlotClick(slotKey) : undefined}
+            onMouseEnter={isClickable ? e => { e.currentTarget.style.background = "#f0fdf4"; } : undefined}
+            onMouseLeave={isClickable ? e => { e.currentTarget.style.background = ""; } : undefined}
+          >
             {/* Current-time bar */}
             {isCurrentSlot && (
               <div style={{ position: "absolute", left: 44, right: 0, height: 2, background: "#ef4444", zIndex: 5, top: posWithinSlot }}>
@@ -602,7 +612,7 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
               )}
             </div>
 
-            {/* Appointment cards or empty row */}
+            {/* Appointment cards or open-slot label */}
             {slotCount > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
                 {slotAppts.map(apt => (
@@ -617,30 +627,16 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
                     onUpdateStatus={onUpdateStatus} onReschedule={onReschedule} />
                 ))}
               </div>
-            ) : (
-              onSlotClick ? (
-                <div
-                  onClick={() => onSlotClick(slotKey)}
-                  style={{
-                    padding: isHalfHour ? "3px 8px" : "5px 8px",
-                    marginBottom: isHalfHour ? 0 : 2,
-                    borderRadius: 5,
-                    background: isHalfHour ? "transparent" : "#f0fdf4",
-                    border: isHalfHour ? "none" : "1px dashed #86efac",
-                    color: "#16a34a", fontSize: 10, fontWeight: 700,
-                    cursor: "pointer", transition: "background 0.12s, border-color 0.12s",
-                    display: "flex", alignItems: "center", gap: 4,
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "#dcfce7"; e.currentTarget.style.borderColor = "#4ade80"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = isHalfHour ? "transparent" : "#f0fdf4"; e.currentTarget.style.borderColor = isHalfHour ? "" : "#86efac"; }}
-                >
-                  {!isHalfHour && "＋ open"}
-                </div>
-              ) : (
-                <div style={{ padding: isHalfHour ? "4px 0" : "6px 0", color: "var(--text-dim)", fontSize: 10, fontStyle: "italic", borderBottom: `1px dashed ${isHalfHour ? "#f8fafc" : "#f1f5f9"}` }}>
-                  — open —
+            ) : isClickable ? (
+              !isHalfHour && (
+                <div style={{ padding: "4px 8px 6px", color: "#16a34a", fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>
+                  ＋ open
                 </div>
               )
+            ) : (
+              <div style={{ padding: isHalfHour ? "4px 0" : "6px 0", color: "var(--text-dim)", fontSize: 10, fontStyle: "italic", borderBottom: `1px dashed ${isHalfHour ? "#f8fafc" : "#f1f5f9"}` }}>
+                {!isHalfHour && "— open —"}
+              </div>
             )}
           </div>
         );
