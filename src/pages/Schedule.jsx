@@ -618,21 +618,29 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
                 ))}
               </div>
             ) : (
-              <div
-                onClick={() => onSlotClick?.(slotKey)}
-                style={{
-                  padding: isHalfHour ? "4px 0" : "6px 0",
-                  color: onSlotClick ? "#16a34a" : "var(--text-dim)",
-                  fontSize: 10, fontStyle: "italic",
-                  borderBottom: `1px dashed ${isHalfHour ? "#f8fafc" : "#f1f5f9"}`,
-                  cursor: onSlotClick ? "pointer" : "default",
-                  borderRadius: 4, transition: "background 0.12s",
-                }}
-                onMouseEnter={e => { if (onSlotClick) { e.currentTarget.style.background = "#f0fdf4"; e.currentTarget.style.color = "#15803d"; } }}
-                onMouseLeave={e => { e.currentTarget.style.background = ""; e.currentTarget.style.color = onSlotClick ? "#16a34a" : ""; }}
-              >
-                {onSlotClick ? "＋ open" : "— open —"}
-              </div>
+              onSlotClick ? (
+                <div
+                  onClick={() => onSlotClick(slotKey)}
+                  style={{
+                    padding: isHalfHour ? "3px 8px" : "5px 8px",
+                    marginBottom: isHalfHour ? 0 : 2,
+                    borderRadius: 5,
+                    background: isHalfHour ? "transparent" : "#f0fdf4",
+                    border: isHalfHour ? "none" : "1px dashed #86efac",
+                    color: "#16a34a", fontSize: 10, fontWeight: 700,
+                    cursor: "pointer", transition: "background 0.12s, border-color 0.12s",
+                    display: "flex", alignItems: "center", gap: 4,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "#dcfce7"; e.currentTarget.style.borderColor = "#4ade80"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = isHalfHour ? "transparent" : "#f0fdf4"; e.currentTarget.style.borderColor = isHalfHour ? "" : "#86efac"; }}
+                >
+                  {!isHalfHour && "＋ open"}
+                </div>
+              ) : (
+                <div style={{ padding: isHalfHour ? "4px 0" : "6px 0", color: "var(--text-dim)", fontSize: 10, fontStyle: "italic", borderBottom: `1px dashed ${isHalfHour ? "#f8fafc" : "#f1f5f9"}` }}>
+                  — open —
+                </div>
+              )
             )}
           </div>
         );
@@ -819,7 +827,7 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
                 );
               })}
 
-              {/* Open slot hints — visible on hover, click to book */}
+              {/* Open slots — always visible, click to book */}
               {onCellClick && timeMarks.filter(({ mins }) => {
                 if (mins >= DAY_END_MIN) return false;
                 const slotEnd = mins + 30;
@@ -828,21 +836,24 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
                   const e = s + Number(a.duration || 30);
                   return s < slotEnd && e > mins;
                 });
-              }).map(({ top, key }) => (
+              }).map(({ top, key, isHalf }) => (
                 <div key={`open-${key}`}
                   onClick={e => { e.stopPropagation(); onCellClick(p.id, activeDate, key); }}
                   title={`Book ${p.firstName} at ${fmtTime12(key)}`}
                   style={{
-                    position:'absolute', top: top + 1, left:1, right:1, height:52,
+                    position:'absolute', top: top + 1, left:3, right:3, height:52,
                     display:'flex', alignItems:'center', justifyContent:'center',
-                    cursor:'pointer', zIndex:1, borderRadius:4,
-                    color:'#16a34a', fontSize:10, fontStyle:'italic', fontWeight:600,
-                    opacity:0, transition:'opacity 0.12s, background 0.12s',
+                    cursor:'pointer', zIndex:1, borderRadius:5,
+                    background: isHalf ? 'transparent' : '#f0fdf4',
+                    border: isHalf ? 'none' : '1px dashed #86efac',
+                    transition:'background 0.12s, border-color 0.12s',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.opacity='1'; e.currentTarget.style.background='#f0fdf480'; }}
-                  onMouseLeave={e => { e.currentTarget.style.opacity='0'; e.currentTarget.style.background=''; }}
+                  onMouseEnter={e => { e.currentTarget.style.background='#dcfce7'; e.currentTarget.style.borderColor='#4ade80'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background= isHalf ? 'transparent' : '#f0fdf4'; e.currentTarget.style.borderColor= isHalf ? '' : '#86efac'; }}
                 >
-                  ＋ open
+                  {!isHalf && (
+                    <span style={{ fontSize:10, fontWeight:700, color:'#16a34a', letterSpacing:'0.2px' }}>＋ open</span>
+                  )}
                 </div>
               ))}
             </div>
