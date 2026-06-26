@@ -19,16 +19,28 @@ jobs:
             set -e
             export $(grep -v '^#' /var/www/ehr/server/.env | grep DATABASE_URL)
 
+            alter_bool_col() {
+              local tbl=$1 col=$2 def=${3:-false}
+              echo "--- $tbl.$col"
+              psql "$DATABASE_URL" -c "ALTER TABLE $tbl ALTER COLUMN $col DROP DEFAULT" 2>/dev/null || true
+              psql "$DATABASE_URL" -c "ALTER TABLE $tbl ALTER COLUMN $col TYPE BOOLEAN USING ${col}::int::boolean"
+              psql "$DATABASE_URL" -c "ALTER TABLE $tbl ALTER COLUMN $col SET DEFAULT $def"
+              echo "✅ $tbl.$col converted to BOOLEAN DEFAULT $def"
+            }
+
             echo "=== Altering column types ==="
-            psql "$DATABASE_URL" -c "ALTER TABLE users ALTER COLUMN two_factor_enabled TYPE BOOLEAN USING two_factor_enabled::int::boolean" && echo "✅ two_factor_enabled" || echo "⚠️  two_factor_enabled (may already be BOOLEAN)"
-            psql "$DATABASE_URL" -c "ALTER TABLE users ALTER COLUMN must_change_password TYPE BOOLEAN USING must_change_password::int::boolean" && echo "✅ must_change_password" || echo "⚠️  must_change_password (may already be BOOLEAN)"
-            psql "$DATABASE_URL" -c "ALTER TABLE patients ALTER COLUMN is_btg TYPE BOOLEAN USING is_btg::int::boolean" && echo "✅ is_btg" || echo "⚠️  is_btg (may already be BOOLEAN)"
-            psql "$DATABASE_URL" -c "ALTER TABLE inbox_messages ALTER COLUMN urgent TYPE BOOLEAN USING urgent::int::boolean" && echo "✅ urgent" || echo "⚠️  urgent (may already be BOOLEAN)"
+            alter_bool_col users two_factor_enabled false
+            alter_bool_col users must_change_password false
+            alter_bool_col patients is_btg false
+            alter_bool_col inbox_messages urgent false
 
+            echo ""
             echo "=== Verify column types ==="
-            psql "$DATABASE_URL" -c "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE column_name IN ('two_factor_enabled','must_change_password','is_btg','urgent') ORDER BY table_name, column_name"
+            psql "$DATABASE_URL" -c "SELECT table_name, column_name, data_type, column_default FROM information_schema.columns WHERE column_name IN ('two_factor_enabled','must_change_password','is_btg','urgent') ORDER BY table_name, column_name"
 
+            echo ""
             echo "=== Restarting API ==="
+            cd /var/www/ehr
             pm2 delete clarity-api 2>/dev/null || true
             pm2 start /var/www/ehr/ecosystem.config.cjs --env production
             pm2 save

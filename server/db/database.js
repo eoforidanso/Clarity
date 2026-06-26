@@ -1061,7 +1061,9 @@ export async function initializeDatabase() {
       [table, col]
     );
     if (rows[0]?.data_type === 'integer') {
+      await pool.query(`ALTER TABLE ${table} ALTER COLUMN ${col} DROP DEFAULT`);
       await pool.query(`ALTER TABLE ${table} ALTER COLUMN ${col} TYPE BOOLEAN USING ${col}::int::boolean`);
+      await pool.query(`ALTER TABLE ${table} ALTER COLUMN ${col} SET DEFAULT false`);
     }
   }
 
