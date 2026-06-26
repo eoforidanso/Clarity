@@ -28,7 +28,8 @@ jobs:
             cd /var/www/ehr
             git fetch origin
             git checkout main
-            git pull origin main
+            git reset --hard origin/main
+            git clean -fd --exclude='.env*' --exclude='node_modules' --exclude='server/node_modules'
 
             # Install frontend deps and build
             npm install
