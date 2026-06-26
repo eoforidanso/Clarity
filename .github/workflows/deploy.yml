@@ -29,15 +29,15 @@ jobs:
             git fetch origin
             git checkout main
             git reset --hard origin/main
-            git clean -fd --exclude='.env*' --exclude='node_modules' --exclude='server/node_modules'
+            git clean -fd -e '.env' -e '.env.production' -e '.env.local'
 
             # Install frontend deps and build
-            npm install
+            npm ci
             npm run build
 
             # Install backend deps
             cd server
-            npm install --production
+            npm ci --omit=dev
             cd ..
 
             # Restart API (process is named ehr-api)
