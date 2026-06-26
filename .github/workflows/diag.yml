@@ -9,13 +9,13 @@ jobs:
           DO_HOST: ${{ secrets.DO_HOST }}
           DO_USER: ${{ secrets.DO_USER }}
           DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
-          DB_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           mkdir -p ~/.ssh
           echo "$DO_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H $DO_HOST >> ~/.ssh/known_hosts
-          ssh $DO_USER@$DO_HOST << 'EOF'
+          ssh $DO_USER@$DO_HOST bash << EOF
             echo "=== PM2 LIST ==="
             pm2 list
 
@@ -31,12 +31,12 @@ jobs:
               WHERE type IN ('Patient Message','Rx Refill Request','Staff Message','Provider Reply')
               ORDER BY date DESC, time DESC
               LIMIT 10;
-            " 2>/dev/null || echo "psql not available or query failed"
+            " 2>/dev/null || echo "psql query failed"
 
             echo ""
             echo "=== PORTAL PATIENTS — assigned_provider + primary_location ==="
             psql "$DATABASE_URL" -c "
-              SELECT id, first_name, last_name, email, assigned_provider, primary_location
+              SELECT id, first_name, last_name, assigned_provider, primary_location
               FROM patients
               WHERE email IS NOT NULL
               ORDER BY last_name
@@ -48,10 +48,8 @@ jobs:
             psql "$DATABASE_URL" -c "
               SELECT id, username, first_name, last_name, role, facility_id, location_id
               FROM users
-              WHERE role IN ('provider','physician','nurse_practitioner','attending')
+              WHERE role IN ('provider','physician','nurse_practitioner','attending','admin')
               ORDER BY last_name
               LIMIT 20;
             " 2>/dev/null
           EOF
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
