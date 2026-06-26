@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
-import html2pdf from 'html2pdf.js';
 
 const FinancialPresentation = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -928,7 +927,7 @@ const FinancialPresentation = () => {
     setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
   };
 
-  const exportToPdf = () => {
+  const exportToPdf = async () => {
     const element = presentationRef.current;
     const opt = {
       margin: 0,
@@ -937,6 +936,7 @@ const FinancialPresentation = () => {
       html2canvas: { scale: 2 },
       jsPDF: { format: 'a4', orientation: 'landscape' },
     };
+    const html2pdf = (await import('html2pdf.js')).default;
     html2pdf().set(opt).from(element).save();
   };
 
