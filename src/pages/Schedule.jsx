@@ -644,35 +644,50 @@ const VISIT_COLORS = {
 };
 
 function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, todayKey, isToday, onCellClick, onAptClick }) {
-  const SLOTS = [];
-  for (let h = 7; h <= 20; h++) {
-    SLOTS.push(`${String(h).padStart(2,'0')}:00`);
-    SLOTS.push(`${String(h).padStart(2,'0')}:30`);
+  const DAY_START_MIN = 7 * 60;   // 7:00 AM
+  const DAY_END_MIN   = 20 * 60;  // 8:00 PM
+  const PX_PER_MIN    = 1.8;      // 30 min = 54px, 60 min = 108px, 15 min = 27px
+  const TOTAL_H       = (DAY_END_MIN - DAY_START_MIN) * PX_PER_MIN;
+  const COL    = 190;
+  const TIME_W = 64;
+
+  // Time marks for gutter labels + grid lines (every 30 min)
+  const timeMarks = [];
+  for (let mins = DAY_START_MIN; mins <= DAY_END_MIN; mins += 30) {
+    const top    = (mins - DAY_START_MIN) * PX_PER_MIN;
+    const h      = Math.floor(mins / 60);
+    const m      = mins % 60;
+    const key    = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    timeMarks.push({ top, key, isHalf: m === 30, mins });
   }
 
-  const now = new Date();
-  const nowMins = now.getHours() * 60 + now.getMinutes();
-
-  // Map: providerId → slotKey → appointments[]
-  const grid = useMemo(() => {
+  // Group appointments by provider for this date
+  const dayAppts = useMemo(() => {
     const map = {};
-    siteProviders.forEach(p => {
-      map[p.id] = {};
-      SLOTS.forEach(s => { map[p.id][s] = []; });
-    });
-    allAppts.filter(a => a.date === activeDate).forEach(apt => {
-      if (!apt.provider || !apt.time) return;
-      const [h, m] = apt.time.split(':').map(Number);
-      if (h < 7 || h > 20) return;
-      const slot = `${String(h).padStart(2,'0')}:${m >= 30 ? '30' : '00'}`;
-      if (map[apt.provider]?.[slot]) map[apt.provider][slot].push(apt);
+    siteProviders.forEach(p => { map[p.id] = []; });
+    allAppts.filter(a => a.date === activeDate && a.provider && a.time).forEach(apt => {
+      if (map[apt.provider]) map[apt.provider].push(apt);
     });
     return map;
   }, [siteProviders, allAppts, activeDate]); // eslint-disable-line
 
-  const COL = 190;   // px per provider column
-  const TIME_W = 64; // px for time-label gutter
-  const ROW_H = 54;  // px per 30-min slot
+  const now     = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nowTop  = isToday && nowMins >= DAY_START_MIN && nowMins <= DAY_END_MIN
+    ? (nowMins - DAY_START_MIN) * PX_PER_MIN : null;
+
+  const aptTop    = apt => { const [h,m] = apt.time.split(':').map(Number); return Math.max(0, (h*60+m - DAY_START_MIN) * PX_PER_MIN); };
+  const aptHeight = apt => Math.max(22, (apt.duration || 30) * PX_PER_MIN);
+
+  const handleColClick = (e, providerId) => {
+    const rect  = e.currentTarget.getBoundingClientRect();
+    const relY  = e.clientY - rect.top;
+    const snap  = Math.floor(relY / PX_PER_MIN / 30) * 30;
+    const mins  = DAY_START_MIN + snap;
+    const h     = Math.floor(mins / 60);
+    const m     = mins % 60;
+    onCellClick?.(providerId, activeDate, `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+  };
 
   if (siteProviders.length === 0) {
     return (
@@ -684,7 +699,7 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
 
   return (
     <div style={{ overflowX:'auto', background:'#fff', border:'1px solid var(--border)', borderRadius:12 }}>
-      <div style={{ minWidth: TIME_W + siteProviders.length * COL, position:'relative' }}>
+      <div style={{ minWidth: TIME_W + siteProviders.length * COL }}>
 
         {/* ── Sticky provider header ── */}
         <div style={{
@@ -697,7 +712,7 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
           <div style={{ borderRight:'2px solid #e2e8f0' }} />
           {siteProviders.map(p => {
             const pc = provColor(p.id);
-            const aptCount = Object.values(grid[p.id] || {}).flat().length;
+            const aptCount = (dayAppts[p.id] || []).length;
             return (
               <div key={p.id} style={{ padding:'10px 8px', borderLeft:'1px solid #e2e8f0', display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
                 <div style={{ width:36, height:36, borderRadius:'50%', background:pc, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:13, flexShrink:0, marginBottom:2 }}>
@@ -717,95 +732,81 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
           })}
         </div>
 
-        {/* ── Time rows ── */}
-        {SLOTS.map(slot => {
-          const [sh, sm] = slot.split(':').map(Number);
-          const slotMins  = sh * 60 + sm;
-          const isHalf    = sm === 30;
-          const isCurrent = isToday && nowMins >= slotMins && nowMins < slotMins + 30;
-          const pct       = isCurrent ? ((nowMins - slotMins) / 30 * 100).toFixed(1) : null;
+        {/* ── Grid body: time gutter + provider columns ── */}
+        <div style={{ display:'flex' }}>
+          {/* Time gutter */}
+          <div style={{ width:TIME_W, flexShrink:0, position:'relative', height:TOTAL_H, borderRight:'2px solid #e2e8f0' }}>
+            {timeMarks.map(({ top, key, isHalf }) => (
+              <div key={key} style={{ position:'absolute', top: top - 7, left:0, right:0, display:'flex', alignItems:'center', justifyContent:'flex-end', paddingRight:8, pointerEvents:'none' }}>
+                <span style={{ fontSize:isHalf?9:11, fontWeight:isHalf?400:700, color:isHalf?'#d1d5db':'#6b7280', lineHeight:1, userSelect:'none' }}>
+                  {isHalf ? fmtTime12(key) : fmtTime12(key).replace(':00','')}
+                </span>
+              </div>
+            ))}
+          </div>
 
-          return (
-            <div key={slot} style={{
-              display:'grid',
-              gridTemplateColumns:`${TIME_W}px repeat(${siteProviders.length}, ${COL}px)`,
-              borderBottom:`1px ${isHalf ? 'dashed' : 'solid'} ${isHalf ? '#f4f4f5' : '#e4e4e7'}`,
-              minHeight:ROW_H,
-              background: isCurrent ? 'rgba(239,68,68,0.03)' : 'transparent',
-              position:'relative',
-            }}>
-              {/* Current-time indicator */}
-              {isCurrent && (
-                <div style={{ position:'absolute', left:TIME_W, right:0, height:2, background:'#ef4444', zIndex:5, top:`${pct}%`, pointerEvents:'none' }}>
-                  <div style={{ position:'absolute', left:-5, top:-4, width:10, height:10, borderRadius:'50%', background:'#ef4444' }} />
+          {/* Provider columns — absolute-positioned so block height = duration */}
+          {siteProviders.map(p => (
+            <div key={p.id}
+              style={{ width:COL, flexShrink:0, position:'relative', height:TOTAL_H, borderLeft:'1px solid #f1f5f9', cursor:'cell' }}
+              onClick={e => handleColClick(e, p.id)}
+              title={`Click a time slot to book ${p.firstName}`}
+            >
+              {/* 30-min grid lines */}
+              {timeMarks.map(({ top, key, isHalf }) => (
+                <div key={key} style={{ position:'absolute', top, left:0, right:0, height:0,
+                  borderTop:`1px ${isHalf?'dashed':'solid'} ${isHalf?'#f4f4f5':'#e4e4e7'}`, pointerEvents:'none' }} />
+              ))}
+
+              {/* Current time indicator */}
+              {nowTop !== null && (
+                <div style={{ position:'absolute', top:nowTop, left:0, right:0, height:2, background:'#ef4444', zIndex:5, pointerEvents:'none' }}>
+                  <div style={{ position:'absolute', left:-4, top:-4, width:8, height:8, borderRadius:'50%', background:'#ef4444' }} />
                 </div>
               )}
 
-              {/* Time label */}
-              <div style={{ padding:'6px 10px 0 0', textAlign:'right', fontSize:isHalf?9.5:11, fontWeight:isHalf?400:700, color:isHalf?'#d1d5db':'#6b7280', borderRight:'2px solid #e2e8f0', userSelect:'none' }}>
-                {isHalf ? fmtTime12(slot) : fmtTime12(slot).replace(':00','')}
-              </div>
-
-              {/* Provider cells */}
-              {siteProviders.map(p => {
-                const cellAppts = grid[p.id]?.[slot] || [];
+              {/* Appointment blocks — height reflects actual duration */}
+              {(dayAppts[p.id] || []).map(apt => {
+                const color    = VISIT_COLORS[apt.type] || '#6366f1';
+                const top      = aptTop(apt);
+                const height   = aptHeight(apt);
+                const duration = apt.duration || 30;
+                const isActive = apt.status === 'In Progress' || apt.status === 'Checked In';
                 return (
-                  <div key={p.id}
-                    onClick={() => cellAppts.length === 0 && onCellClick?.(p.id, activeDate, slot)}
-                    style={{ borderLeft:'1px solid #f4f4f5', padding:'2px 3px', minHeight:ROW_H, position:'relative', cursor: cellAppts.length === 0 ? 'pointer' : 'default' }}
-                    title={cellAppts.length === 0 ? `Book ${p.firstName} at ${fmtTime12(slot)}` : undefined}
+                  <div key={apt.id}
+                    onClick={e => { e.stopPropagation(); onAptClick?.(apt); }}
+                    title={`${apt.patientName} · ${apt.type} · ${duration}m · ${apt.status}`}
+                    style={{
+                      position:'absolute', top: top + 1, left:3, right:3, height: height - 2,
+                      background:`${color}15`, border:`1.5px solid ${color}60`,
+                      borderLeft:`4px solid ${color}`, borderRadius:5,
+                      padding:'3px 6px', overflow:'hidden', cursor:'pointer', zIndex:2,
+                      boxShadow: isActive ? `0 0 0 2px ${color}40` : 'none',
+                      transition:'box-shadow 0.15s',
+                    }}
                   >
-                    {/* Hover ＋ for empty cells */}
-                    {cellAppts.length === 0 && (
-                      <div className="cell-add-hint" style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', opacity:0, transition:'opacity 0.12s' }}
-                        onMouseEnter={e=>e.currentTarget.style.opacity='1'}
-                        onMouseLeave={e=>e.currentTarget.style.opacity='0'}
-                      >
-                        <span style={{ fontSize:18, color:'#cbd5e1', fontWeight:400 }}>＋</span>
+                    <div style={{ fontSize:9.5, fontWeight:800, color, lineHeight:1 }}>
+                      {fmtTime12(apt.time || '')} {apt.visitType==='Telehealth'?'📹':''} · {duration}m
+                    </div>
+                    {height >= 42 && (
+                      <div style={{ fontSize:10.5, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:1 }}>
+                        {apt.patientName || 'Patient'}
                       </div>
                     )}
-
-                    {/* Appointment blocks */}
-                    {cellAppts.map(apt => {
-                      const color = VISIT_COLORS[apt.type] || '#6366f1';
-                      const isActive = apt.status === 'In Progress' || apt.status === 'Checked In';
-                      return (
-                        <div key={apt.id}
-                          onClick={e => { e.stopPropagation(); onAptClick?.(apt); }}
-                          style={{
-                            background:`${color}15`,
-                            border:`1.5px solid ${color}60`,
-                            borderLeft:`4px solid ${color}`,
-                            borderRadius:5,
-                            padding:'3px 6px',
-                            marginBottom:2,
-                            cursor:'pointer',
-                            boxShadow: isActive ? `0 0 0 2px ${color}40` : 'none',
-                            transition:'box-shadow 0.15s',
-                          }}
-                          title={`${apt.patientName} · ${apt.type} · ${apt.status}`}
-                        >
-                          <div style={{ fontSize:9.5, fontWeight:800, color, lineHeight:1 }}>
-                            {fmtTime12(apt.time || slot)} {apt.visitType==='Telehealth'?'📹':''}
-                          </div>
-                          <div style={{ fontSize:10.5, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:1 }}>
-                            {apt.patientName || 'Patient'}
-                          </div>
-                          <div style={{ fontSize:9.5, color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                            {apt.type}
-                          </div>
-                          {apt.status !== 'Scheduled' && apt.status !== 'Confirmed' && (
-                            <div style={{ fontSize:8.5, fontWeight:700, color, marginTop:1, textTransform:'uppercase', letterSpacing:'0.3px' }}>{apt.status}</div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {height >= 58 && (
+                      <div style={{ fontSize:9.5, color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {apt.type}
+                      </div>
+                    )}
+                    {apt.status !== 'Scheduled' && apt.status !== 'Confirmed' && height >= 70 && (
+                      <div style={{ fontSize:8.5, fontWeight:700, color, marginTop:1, textTransform:'uppercase', letterSpacing:'0.3px' }}>{apt.status}</div>
+                    )}
                   </div>
                 );
               })}
             </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -816,11 +817,12 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
 ══════════════════════════════════════════════ */
 function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitType, patients, onSave, defaultProvider, providers = [] }) {
   const defaultProviderId = defaultProvider || providers[0]?.id || "";
+  const DURATION_BY_TYPE = { 'New Patient':60, 'Follow-Up':30, 'Urgent':30, 'Medication Review':30, 'Telehealth':60, 'Office Visit':30, 'Phone Consult':15, 'Procedure':60 };
   const EMPTY = { isNewPatient:false, patientId:"", newPatientName:"", provider:defaultProviderId,
     date:"", time:"09:00", duration:30, type:"Follow-Up", visitType:"In-Person", reason:"", room:"" };
   const [form, setForm] = useState(EMPTY);
   const [saved, setSaved] = useState(false);
-  useEffect(() => { if (show) { setForm({ ...EMPTY, provider:defaultProvider||providers[0]?.id||"", date:initialDate||"", time:initialTime||"09:00", ...(initialVisitType ? { visitType:initialVisitType, type:initialVisitType==="Telehealth"?"Telehealth":"Follow-Up", room:initialVisitType==="Telehealth"?"Virtual":"" } : {}) }); setSaved(false); } }, [show, initialDate, initialTime, initialVisitType, defaultProvider]); // eslint-disable-line
+  useEffect(() => { if (show) { const initType = initialVisitType==="Telehealth" ? "Telehealth" : "Follow-Up"; setForm({ ...EMPTY, provider:defaultProvider||providers[0]?.id||"", date:initialDate||"", time:initialTime||"09:00", type:initType, duration:DURATION_BY_TYPE[initType]??30, ...(initialVisitType==="Telehealth" ? { visitType:"Telehealth", room:"Virtual" } : {}) }); setSaved(false); } }, [show, initialDate, initialTime, initialVisitType, defaultProvider]); // eslint-disable-line
   // If providers load after the modal opens, auto-fill the provider field if it's still empty
   useEffect(() => { if (show && !form.provider && providers[0]?.id) setForm(f => ({ ...f, provider: defaultProvider || providers[0].id })); }, [show, providers]); // eslint-disable-line
   const upd = (k, v) => setForm(f => ({ ...f, [k]:v }));
@@ -893,8 +895,8 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
             </div>
             <div>
               <LBL c="Appointment Type" />
-              <select className="form-input" value={form.type} onChange={e=>upd("type",e.target.value)}>
-                <option>Follow-Up</option><option>New Patient</option><option>Urgent</option><option>Medication Review</option><option>Telehealth</option>
+              <select className="form-input" value={form.type} onChange={e=>{ upd("type",e.target.value); upd("duration", DURATION_BY_TYPE[e.target.value]??30); }}>
+                <option>Follow-Up</option><option>New Patient</option><option>Urgent</option><option>Medication Review</option><option>Telehealth</option><option>Office Visit</option><option>Phone Consult</option><option>Procedure</option>
               </select>
             </div>
           </div>
