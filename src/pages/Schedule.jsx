@@ -861,6 +861,17 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
   const canSubmit = form.date && form.time && form.provider &&
     (form.isNewPatient ? form.newPatientName.trim() : form.patientId) &&
     !providerConflict && !patientConflict;
+
+  // Derived end time — auto-advances when start time or duration changes
+  const computedEndTime = useMemo(() => {
+    if (!form.time) return '';
+    const [h, m] = form.time.split(':').map(Number);
+    const total = h * 60 + m + Number(form.duration || 30);
+    const eh = Math.floor(total / 60) % 24;
+    const em = total % 60;
+    return `${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
+  }, [form.time, form.duration]);
+
   const handleSubmit = () => {
     if (!canSubmit) return;
     const prov = providers.find(p => p.id===form.provider);
@@ -916,9 +927,17 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
               {providers.map(p=><option key={p.id} value={p.id}>{p.firstName} {p.lastName}{p.credentials?" — "+p.credentials:""}</option>)}
             </select>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:14 }}>
             <div><LBL c="Date" /><input type="date" className="form-input" value={form.date} onChange={e=>upd("date",e.target.value)} /></div>
-            <div><LBL c="Time" /><input type="time" className="form-input" value={form.time} onChange={e=>upd("time",e.target.value)} /></div>
+            <div><LBL c="Start Time" /><input type="time" className="form-input" value={form.time} onChange={e=>upd("time",e.target.value)} /></div>
+            <div>
+              <LBL c="End Time" />
+              <div style={{ padding:"8px 12px", borderRadius:8, border:"1px solid #e2e8f0", background:"#f8fafc",
+                fontSize:13, color:"#475569", fontWeight:700, display:"flex", alignItems:"center", height:38, gap:6 }}>
+                <span style={{ fontSize:10, color:"#94a3b8" }}>→</span>
+                {computedEndTime ? fmtTime12(computedEndTime) : '—'}
+              </div>
+            </div>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
             <div>
