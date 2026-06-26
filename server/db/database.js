@@ -1067,6 +1067,16 @@ export async function initializeDatabase() {
     }
   }
 
+  // Backfill appointments that have null location_id with their provider's location
+  await pool.query(`
+    UPDATE appointments a
+    SET location_id = u.location_id
+    FROM users u
+    WHERE a.provider = u.id
+      AND a.location_id IS NULL
+      AND u.location_id IS NOT NULL
+  `);
+
   // Expand role CHECK constraint to include 'admin' (idempotent)
   await pool.query(`
     DO $$ BEGIN

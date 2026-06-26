@@ -39,6 +39,18 @@ jobs:
             psql "$DATABASE_URL" -c "SELECT table_name, column_name, data_type, column_default FROM information_schema.columns WHERE column_name IN ('two_factor_enabled','must_change_password','is_btg','urgent') ORDER BY table_name, column_name"
 
             echo ""
+            echo "=== Backfill null location_id on appointments ==="
+            psql "$DATABASE_URL" -c "
+              UPDATE appointments a
+              SET location_id = u.location_id
+              FROM users u
+              WHERE a.provider = u.id
+                AND a.location_id IS NULL
+                AND u.location_id IS NOT NULL;
+              SELECT 'Rows updated: ' || COUNT(*) FROM appointments WHERE location_id IS NOT NULL;
+            "
+
+            echo ""
             echo "=== Restarting API ==="
             cd /var/www/ehr
             pm2 delete clarity-api 2>/dev/null || true
