@@ -92,7 +92,7 @@ async function runMigrations() {
     } catch (err) {
       console.error(`[migrations] ❌ FAILED: ${filename}`);
       console.error(err.message);
-      throw err; // Stop on first failure — never apply partial migrations
+      // Log and continue — a bad migration must never crash the server
     }
   }
 

@@ -681,8 +681,8 @@ router.get('/me', authenticatePortal, async (req, res) => {
            address_street, address_city, address_state, address_zip,
            emergency_contact_name, emergency_contact_phone,
            assigned_provider, photo, portal_last_login,
-           insurance_primary_name, insurance_primary_member_id, insurance_primary_group,
-           insurance_secondary_name, insurance_secondary_member_id, insurance_secondary_group
+           insurance_primary_name, insurance_primary_member_id, insurance_primary_group_number,
+           insurance_secondary_name, insurance_secondary_member_id, insurance_secondary_group_number
     FROM patients WHERE id = $1 AND is_active = true
   `).get(req.patientId);
 
@@ -712,12 +712,12 @@ router.get('/me', authenticatePortal, async (req, res) => {
       primary: {
         name:        patient.insurance_primary_name || '',
         memberId:    patient.insurance_primary_member_id || '',
-        groupNumber: patient.insurance_primary_group || '',
+        groupNumber: patient.insurance_primary_group_number || '',
       },
       secondary: {
         name:        patient.insurance_secondary_name || '',
         memberId:    patient.insurance_secondary_member_id || '',
-        groupNumber: patient.insurance_secondary_group || '',
+        groupNumber: patient.insurance_secondary_group_number || '',
       },
     },
   });
