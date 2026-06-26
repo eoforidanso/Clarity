@@ -59,8 +59,12 @@ jobs:
             cd ..
 
             pm2 delete ehr-api 2>/dev/null || true
-            pm2 startOrRestart /var/www/ehr/ecosystem.config.cjs --env production
+            pm2 delete clarity-api 2>/dev/null || true
+            pm2 start /var/www/ehr/ecosystem.config.cjs --env production
             pm2 save
+            sleep 5
+            pm2 list
+            pm2 logs clarity-api --lines 20 --nostream
             echo "✅ Production deployment complete"
           EOF
 
