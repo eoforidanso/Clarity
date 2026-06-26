@@ -364,6 +364,10 @@ router.post('/book-appointment', authenticatePortal, validate(PortalBookAppointm
   ).get(req.patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
+  // Use the provider's actual location so the appointment appears in the staff schedule
+  const providerUser = await db.prepare('SELECT location_id FROM users WHERE id = $1').get(providerId);
+  const locationId = providerUser?.location_id || null;
+
   const patientName = `${patient.first_name} ${patient.last_name}`;
   const id = uuidv4();
   const now = new Date();
@@ -371,15 +375,16 @@ router.post('/book-appointment', authenticatePortal, validate(PortalBookAppointm
   await db.prepare(`
     INSERT INTO appointments
       (id, patient_id, patient_name, provider, provider_name, date, time, duration, type, status, reason, visit_type, room, location_id, created_at, updated_at)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'loc1',NOW(),NOW())
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW(),NOW())
   `).run(
     id, req.patientId, patientName,
     providerId, providerName || '',
     date, time, duration || 30,
-    reason || 'Follow-Up', 'Scheduled',
-    `Patient self-scheduled: ${reason || 'Follow-Up'}${notes ? ' — ' + notes : ''}`,
+    'Follow-Up', 'Scheduled',
+    `Patient self-scheduled${reason ? ': ' + reason : ''}${notes ? ' — ' + notes : ''}`,
     visitType || 'In-Person',
-    visitType === 'Telehealth' ? 'Virtual' : 'TBD'
+    visitType === 'Telehealth' ? 'Virtual' : 'TBD',
+    locationId
   );
 
   // Inbox notification for care team

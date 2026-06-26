@@ -445,6 +445,13 @@ export function PatientProvider({ children, demoMode = false }) {
     }
   }, []);
 
+  const refreshAppointments = useCallback(async () => {
+    try {
+      const apiApts = await appointmentsApi.list({});
+      if (Array.isArray(apiApts)) setAppointments(apiApts);
+    } catch { /* ignore */ }
+  }, []);
+
   /* ────── Encounters ────── */
   const addEncounter = useCallback(async (patientId, encounter) => {
     try {
@@ -541,6 +548,7 @@ export function PatientProvider({ children, demoMode = false }) {
         appointments,
         updateAppointmentStatus,
         addAppointment,
+        refreshAppointments,
         encounters,
         addEncounter,
         updateEncounter,

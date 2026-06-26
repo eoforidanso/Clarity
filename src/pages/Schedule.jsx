@@ -2895,7 +2895,14 @@ function BatchSelectPanel({ appts, selected, onToggle, onSelectAll, onClearAll, 
 ══════════════════════════════════════════════ */
 export default function Schedule() {
   const { currentUser } = useAuth();
-  const { appointments, updateAppointmentStatus, addAppointment, selectPatient, patients, blockedDays, addBlockedDay, removeBlockedDay } = usePatient();
+  const { appointments, updateAppointmentStatus, addAppointment, refreshAppointments, selectPatient, patients, blockedDays, addBlockedDay, removeBlockedDay } = usePatient();
+
+  // Poll for new portal-booked appointments every 60 seconds
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const id = setInterval(refreshAppointments, 60_000);
+    return () => clearInterval(id);
+  }, [currentUser?.id, refreshAppointments]);
   const { activeSiteId, isFiltered } = useSite();
   const navigate = useNavigate();
   const isFrontDesk = currentUser?.role === "front_desk" || currentUser?.role === "admin";
