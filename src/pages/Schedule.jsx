@@ -822,13 +822,34 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
     date:"", time:"09:00", duration:30, type:"Follow-Up", visitType:"In-Person", reason:"", room:"" };
   const [form, setForm] = useState(EMPTY);
   const [saved, setSaved] = useState(false);
-  useEffect(() => { if (show) { const initType = initialVisitType==="Telehealth" ? "Telehealth" : "Follow-Up"; setForm({ ...EMPTY, provider:defaultProvider||providers[0]?.id||"", date:initialDate||"", time:initialTime||"09:00", type:initType, duration:DURATION_BY_TYPE[initType]??30, ...(initialVisitType==="Telehealth" ? { visitType:"Telehealth", room:"Virtual" } : {}) }); setSaved(false); } }, [show, initialDate, initialTime, initialVisitType, defaultProvider]); // eslint-disable-line
+  useEffect(() => { if (show) { const initType = initialVisitType==="Telehealth" ? "Telehealth" : "Follow-Up"; const initDur = DURATION_BY_TYPE[initType]??30; const initProvider = defaultProvider||providers[0]?.id||""; const initDate = initialDate||""; setForm({ ...EMPTY, provider:initProvider, date:initDate, time:initialTime||computeFirstAvailable(initProvider, initDate, initDur), type:initType, duration:initDur, ...(initialVisitType==="Telehealth" ? { visitType:"Telehealth", room:"Virtual" } : {}) }); setSaved(false); } }, [show, initialDate, initialTime, initialVisitType, defaultProvider]); // eslint-disable-line
   // If providers load after the modal opens, auto-fill the provider field if it's still empty
   useEffect(() => { if (show && !form.provider && providers[0]?.id) setForm(f => ({ ...f, provider: defaultProvider || providers[0].id })); }, [show, providers]); // eslint-disable-line
+
+  // When provider or date changes mid-form, jump to that provider's first open slot
+  useEffect(() => { if (show && form.provider && form.date) upd('time', computeFirstAvailable(form.provider, form.date, form.duration)); }, [form.provider, form.date]); // eslint-disable-line
   const upd = (k, v) => setForm(f => ({ ...f, [k]:v }));
 
   // Convert HH:MM to total minutes
   const toMins = t => { if (!t) return 0; const [h,m] = t.split(':').map(Number); return h*60+m; };
+
+  // First open slot for the given provider/date (walks 7am-8pm in 15-min steps)
+  const computeFirstAvailable = (provider, date, dur) => {
+    if (!provider || !date) return '07:00';
+    const needed = Number(dur || 30);
+    const provAppts = existingAppts.filter(
+      a => a.provider === provider && a.date === date && a.status !== 'Cancelled' && a.status !== 'No Show' && a.time
+    );
+    for (let mins = 7 * 60; mins <= 20 * 60 - needed; mins += 15) {
+      const slotEnd = mins + needed;
+      const blocked = provAppts.some(a => {
+        const s = toMins(a.time); const e = s + Number(a.duration || 30);
+        return s < slotEnd && e > mins;
+      });
+      if (!blocked) return `${String(Math.floor(mins / 60)).padStart(2,'0')}:${String(mins % 60).padStart(2,'0')}`;
+    }
+    return '07:00';
+  };
 
   const addMinutes = (time24, minsToAdd) => {
     if (!time24) return '';
