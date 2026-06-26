@@ -38,8 +38,9 @@ jobs:
             echo "======================================================"
 
             # ── LOCATIONS ─────────────────────────────────────────────
-            run_check "Locations table: all rows" \
-              "SELECT id, name, status FROM locations ORDER BY sort_order"
+            echo ""
+            echo "=== Locations table: all rows ==="
+            psql "$DATABASE_URL" -c "SELECT id, name, status FROM locations ORDER BY sort_order"
 
             # ── USERS ─────────────────────────────────────────────────
             run_check "Users with location_id not in locations" \
@@ -158,11 +159,12 @@ jobs:
                GROUP BY bd.provider, bd.date, bd.block_type"
 
             # ── COLUMN TYPE CHECK ─────────────────────────────────────
-            run_check "Boolean column types (should all be 'boolean')" \
+            run_check "Boolean columns still stored as INTEGER (should be empty)" \
               "SELECT table_name, column_name, data_type
                FROM information_schema.columns
                WHERE table_schema = 'public'
-                 AND column_name IN ('two_factor_enabled','must_change_password','is_btg','is_active','urgent')
+                 AND column_name IN ('two_factor_enabled','must_change_password','is_btg','is_active','urgent','is_signed','is_controlled','read','approved','delivered','follow_up_needed','appeal_submitted')
+                 AND data_type = 'integer'
                ORDER BY table_name, column_name"
 
             # ── SUMMARY ───────────────────────────────────────────────

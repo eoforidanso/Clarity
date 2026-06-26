@@ -35,6 +35,8 @@ jobs:
             alter_bool_col patients is_active true
             alter_bool_col sessions is_active true
             alter_bool_col inbox_messages urgent false
+            alter_bool_col pharmacies is_active true
+            alter_bool_col telehealth_session_participants is_active true
 
             echo ""
             echo "=== Verify column types ==="
@@ -46,6 +48,19 @@ jobs:
               UPDATE appointments SET provider = NULL, provider_name = provider_name || ' [removed]'
               WHERE provider IN ('u1','u2')
                 AND NOT EXISTS (SELECT 1 FROM users WHERE id = appointments.provider);
+            "
+
+            echo ""
+            echo "=== Fix u9 appointment: repoint to Emmanuel's actual user ID ==="
+            psql "$DATABASE_URL" -c "
+              UPDATE appointments a
+              SET provider = u.id,
+                  provider_name = u.first_name || ' ' || u.last_name
+              FROM users u
+              WHERE u.username = 'dr.emmanuel'
+                AND a.provider = 'u9'
+                AND u.id != 'u9';
+              SELECT 'Emmanuel user ID on server:', id, username FROM users WHERE username = 'dr.emmanuel';
             "
 
             echo ""

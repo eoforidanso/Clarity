@@ -1050,14 +1050,16 @@ export async function initializeDatabase() {
 
   // Coerce any INTEGER boolean columns to proper BOOLEAN (idempotent)
   const boolFixes = [
-    { table: 'users', col: 'two_factor_enabled' },
-    { table: 'users', col: 'must_change_password' },
-    { table: 'patients', col: 'is_btg' },
-    { table: 'patients', col: 'is_active' },
-    { table: 'sessions', col: 'is_active' },
-    { table: 'inbox_messages', col: 'urgent' },
+    { table: 'users', col: 'two_factor_enabled', def: 'false' },
+    { table: 'users', col: 'must_change_password', def: 'false' },
+    { table: 'patients', col: 'is_btg', def: 'false' },
+    { table: 'patients', col: 'is_active', def: 'true' },
+    { table: 'sessions', col: 'is_active', def: 'true' },
+    { table: 'inbox_messages', col: 'urgent', def: 'false' },
+    { table: 'pharmacies', col: 'is_active', def: 'true' },
+    { table: 'telehealth_session_participants', col: 'is_active', def: 'true' },
   ];
-  for (const { table, col } of boolFixes) {
+  for (const { table, col, def } of boolFixes) {
     const { rows } = await pool.query(
       `SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name=$2`,
       [table, col]
@@ -1065,7 +1067,7 @@ export async function initializeDatabase() {
     if (rows[0]?.data_type === 'integer') {
       await pool.query(`ALTER TABLE ${table} ALTER COLUMN ${col} DROP DEFAULT`);
       await pool.query(`ALTER TABLE ${table} ALTER COLUMN ${col} TYPE BOOLEAN USING ${col}::int::boolean`);
-      await pool.query(`ALTER TABLE ${table} ALTER COLUMN ${col} SET DEFAULT false`);
+      await pool.query(`ALTER TABLE ${table} ALTER COLUMN ${col} SET DEFAULT ${def}`);
     }
   }
 
