@@ -738,7 +738,7 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
           <div style={{ width:TIME_W, flexShrink:0, position:'relative', height:TOTAL_H, borderRight:'2px solid #e2e8f0' }}>
             {timeMarks.map(({ top, key, isHalf }) => (
               <div key={key} style={{ position:'absolute', top: top - 7, left:0, right:0, display:'flex', alignItems:'center', justifyContent:'flex-end', paddingRight:8, pointerEvents:'none' }}>
-                <span style={{ fontSize:isHalf?9:11, fontWeight:isHalf?400:700, color:isHalf?'#d1d5db':'#6b7280', lineHeight:1, userSelect:'none' }}>
+                <span style={{ fontSize:isHalf?10:12, fontWeight:isHalf?500:700, color:isHalf?'#94a3b8':'#475569', lineHeight:1, userSelect:'none' }}>
                   {isHalf ? fmtTime12(key) : fmtTime12(key).replace(':00','')}
                 </span>
               </div>
@@ -755,7 +755,7 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
               {/* 30-min grid lines */}
               {timeMarks.map(({ top, key, isHalf }) => (
                 <div key={key} style={{ position:'absolute', top, left:0, right:0, height:0,
-                  borderTop:`1px ${isHalf?'dashed':'solid'} ${isHalf?'#f4f4f5':'#e4e4e7'}`, pointerEvents:'none' }} />
+                  borderTop:`1px ${isHalf?'dashed':'solid'} ${isHalf?'#e2e8f0':'#cbd5e1'}`, pointerEvents:'none' }} />
               ))}
 
               {/* Current time indicator */}
@@ -844,13 +844,19 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
   }, [form.provider, form.date, form.time, form.duration, existingAppts]); // eslint-disable-line
 
   // Patient same-day check: patient already has a non-cancelled appt this day
+  // Match by ID first; fall back to name to catch appointments saved without patientId
   const patientConflict = useMemo(() => {
     if (form.isNewPatient || !form.patientId || !form.date) return null;
-    return existingAppts.find(a =>
-      a.patientId === form.patientId && a.date === form.date &&
-      a.status !== 'Cancelled' && a.status !== 'No Show'
-    ) || null;
-  }, [form.isNewPatient, form.patientId, form.date, existingAppts]); // eslint-disable-line
+    const pat = (patients || []).find(p => p.id === form.patientId);
+    const fullName = pat ? `${pat.firstName} ${pat.lastName}`.trim().toLowerCase() : null;
+    return existingAppts.find(a => {
+      if (a.date !== form.date) return false;
+      if (a.status === 'Cancelled' || a.status === 'No Show') return false;
+      if (a.patientId && a.patientId === form.patientId) return true;
+      if (fullName && a.patientName?.trim().toLowerCase() === fullName) return true;
+      return false;
+    }) || null;
+  }, [form.isNewPatient, form.patientId, form.date, existingAppts, patients]); // eslint-disable-line
 
   const canSubmit = form.date && form.time && form.provider &&
     (form.isNewPatient ? form.newPatientName.trim() : form.patientId) &&
