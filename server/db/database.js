@@ -1049,27 +1049,21 @@ export async function initializeDatabase() {
   }
 
   // Coerce any INTEGER boolean columns to proper BOOLEAN (idempotent)
-  await pool.query(`
-    DO $$ BEGIN
-      IF (SELECT data_type FROM information_schema.columns
-          WHERE table_name='users' AND column_name='two_factor_enabled') = 'integer' THEN
-        ALTER TABLE users ALTER COLUMN two_factor_enabled TYPE BOOLEAN USING two_factor_enabled::int::boolean;
-      END IF;
-      IF (SELECT data_type FROM information_schema.columns
-          WHERE table_name='users' AND column_name='must_change_password') = 'integer' THEN
-        ALTER TABLE users ALTER COLUMN must_change_password TYPE BOOLEAN USING must_change_password::int::boolean;
-      END IF;
-      IF (SELECT data_type FROM information_schema.columns
-          WHERE table_name='patients' AND column_name='is_btg') = 'integer' THEN
-        ALTER TABLE patients ALTER COLUMN is_btg TYPE BOOLEAN USING is_btg::int::boolean;
-      END IF;
-      IF (SELECT data_type FROM information_schema.columns
-          WHERE table_name='inbox_messages' AND column_name='urgent') = 'integer' THEN
-        ALTER TABLE inbox_messages ALTER COLUMN urgent TYPE BOOLEAN USING urgent::int::boolean;
-      END IF;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END $$;
-  `);
+  const boolFixes = [
+    { table: 'users', col: 'two_factor_enabled' },
+    { table: 'users', col: 'must_change_password' },
+    { table: 'patients', col: 'is_btg' },
+    { table: 'inbox_messages', col: 'urgent' },
+  ];
+  for (const { table, col } of boolFixes) {
+    const { rows } = await pool.query(
+      `SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name=$2`,
+      [table, col]
+    );
+    if (rows[0]?.data_type === 'integer') {
+      await pool.query(`ALTER TABLE ${table} ALTER COLUMN ${col} TYPE BOOLEAN USING ${col}::int::boolean`);
+    }
+  }
 
   // Expand role CHECK constraint to include 'admin' (idempotent)
   await pool.query(`
