@@ -1616,7 +1616,12 @@ function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, a
   const [rescheduleApt, setRescheduleApt] = useState(null);
   const [preVerifyApt, setPreVerifyApt] = useState(null);
   const [toast, setToast] = useState(null);
+  const [alertThresholds, setAlertThresholds] = useState({ wait: 20, provWait: 10 });
+  const [showAlertSettings, setShowAlertSettings] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+  const [overdueAlerts, setOverdueAlerts] = useState([]);
   const toastTimerFD = useRef(null);
+  const alertIntervalRef = useRef(null);
   useEffect(() => { return () => { if (toastTimerFD.current) clearTimeout(toastTimerFD.current); }; }, []);
 
   const showToast = (msg, type = "success") => {
@@ -1737,6 +1742,76 @@ function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, a
     walkIns:    todayApts.filter(a=>a.isWalkIn).length,
   }), [todayApts]);
 
+  /* alert engine — re-runs whenever appointments or thresholds change, then every 60 s */
+  useEffect(() => {
+    const check = () => {
+      const alerts = [];
+      todayApts.forEach(apt => {
+        if (apt.status === 'Checked In' && apt.checkInTime) {
+          const mins = Math.floor((Date.now() - apt.checkInTime) / 60000);
+          if (mins >= alertThresholds.wait) alerts.push({ apt, type:'wait', mins });
+        }
+        if (apt.status === 'Arrived' && apt.arrivedTime) {
+          const mins = Math.floor((Date.now() - apt.arrivedTime) / 60000);
+          if (mins >= alertThresholds.provWait) alerts.push({ apt, type:'provWait', mins });
+        }
+      });
+      setOverdueAlerts(alerts);
+    };
+    check();
+    clearInterval(alertIntervalRef.current);
+    alertIntervalRef.current = setInterval(check, 60000);
+    return () => clearInterval(alertIntervalRef.current);
+  }, [todayApts, alertThresholds]); // eslint-disable-line
+
+  /* summary stats */
+  const summaryStats = useMemo(() => {
+    const total = todayApts.length;
+    if (!total) return null;
+    const waitSamples = todayApts.filter(a => a.checkInTime && a.arrivedTime)
+      .map(a => Math.floor((a.arrivedTime - a.checkInTime) / 60000));
+    const avgWait = waitSamples.length
+      ? Math.round(waitSamples.reduce((s,v)=>s+v,0) / waitSamples.length) : null;
+    const completionRate = Math.round(
+      todayApts.filter(a=>a.status==='Checked Out'||a.status==='Completed').length / total * 100
+    );
+    const noShowRate = Math.round(todayApts.filter(a=>a.status==='No Show').length / total * 100);
+    const byHour = {};
+    todayApts.forEach(a => {
+      if (!a.time) return;
+      const h = parseInt(a.time.split(':')[0]);
+      byHour[h] = (byHour[h]||0) + 1;
+    });
+    const hours = Object.keys(byHour).map(Number).sort((a,b)=>a-b);
+    const peakHour = hours.length ? hours.reduce((a,b) => byHour[a]>=byHour[b]?a:b) : null;
+    return { avgWait, completionRate, noShowRate, peakHour, byHour, hours };
+  }, [todayApts]);
+
+  /* CSV export */
+  const exportCSV = useCallback(() => {
+    const hdrs = ['Time','Patient','MRN','Provider','Type','Visit Type','Status','Copay ($)','Check-In','Arrived','Wait (min)','Prov Wait (min)','Reason'];
+    const rows = todayApts.map(apt => {
+      const pat = patients?.find(p => p.id === apt.patientId);
+      const fmt = ts => ts ? new Date(ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
+      const waitMins = apt.checkInTime && apt.arrivedTime ? Math.floor((apt.arrivedTime - apt.checkInTime) / 60000) : '';
+      const provWaitMins = apt.arrivedTime && apt.status==='Arrived' ? Math.floor((Date.now()-apt.arrivedTime)/60000) : '';
+      const copay = pat?.insurance?.primary?.copay;
+      return [
+        fmtTime12(apt.time), apt.patientName||'', pat?.mrn||'', apt.providerName||'',
+        apt.type||'', apt.visitType||'', apt.status||'',
+        copay!=null?copay:'', fmt(apt.checkInTime), fmt(apt.arrivedTime),
+        waitMins, provWaitMins, (apt.reason||'').replace(/,/g,';'),
+      ];
+    });
+    const csv = [hdrs,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+    const a = Object.assign(document.createElement('a'),{
+      href: URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'})),
+      download:`front-desk-log-${todayKey}.csv`,
+    });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    showToast('Front desk log exported ✓');
+  }, [todayApts, patients, todayKey]); // eslint-disable-line
+
   const now = new Date();
   const timeLabel = now.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
 
@@ -1764,7 +1839,62 @@ function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, a
             {new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})} · Live as of {timeLabel}
           </div>
         </div>
-        <div style={{ marginLeft:"auto" }}>
+        <div style={{ marginLeft:"auto", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+          {/* Alert threshold settings */}
+          <div style={{ position:"relative" }}>
+            <button onClick={() => setShowAlertSettings(v=>!v)}
+              style={{ padding:"6px 12px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer",
+                border:`1.5px solid ${overdueAlerts.length>0?"#dc2626":"#e2e8f0"}`,
+                background: overdueAlerts.length>0?"#fee2e2":showAlertSettings?"#f1f5f9":"#fff",
+                color: overdueAlerts.length>0?"#dc2626":"var(--text-secondary)",
+                display:"flex", alignItems:"center", gap:6 }}>
+              🔔
+              {overdueAlerts.length>0 && (
+                <span style={{ background:"#dc2626", color:"#fff", borderRadius:"50%", width:16, height:16,
+                  fontSize:9, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {overdueAlerts.length}
+                </span>
+              )}
+              Alerts
+            </button>
+            {showAlertSettings && (
+              <div style={{ position:"absolute", top:"calc(100% + 6px)", right:0, zIndex:500, background:"#fff",
+                borderRadius:10, border:"1.5px solid #e2e8f0", boxShadow:"0 8px 30px rgba(0,0,0,0.12)", padding:16, width:240 }}>
+                <div style={{ fontWeight:700, fontSize:12, color:"var(--text-primary)", marginBottom:12 }}>⚙ Alert Thresholds</div>
+                {[
+                  { key:'wait',     label:'Patient wait (Check-In → Arrived)', icon:'⏳' },
+                  { key:'provWait', label:'Provider wait (Arrived → Session)',  icon:'🚪' },
+                ].map(t => (
+                  <div key={t.key} style={{ marginBottom:12 }}>
+                    <div style={{ fontSize:11, fontWeight:600, color:"var(--text-secondary)", marginBottom:4 }}>{t.icon} {t.label}</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <input type="range" min={5} max={60} step={5} value={alertThresholds[t.key]}
+                        onChange={e => setAlertThresholds(prev => ({...prev,[t.key]:Number(e.target.value)}))}
+                        style={{ flex:1, accentColor:"#dc2626" }} />
+                      <span style={{ fontSize:12, fontWeight:800, color:"#dc2626", minWidth:36 }}>{alertThresholds[t.key]}m</span>
+                    </div>
+                  </div>
+                ))}
+                <button onClick={() => setShowAlertSettings(false)}
+                  style={{ width:"100%", padding:"6px 0", borderRadius:7, border:"none", background:"#f1f5f9",
+                    fontSize:12, fontWeight:700, cursor:"pointer", color:"var(--text-secondary)" }}>Done</button>
+              </div>
+            )}
+          </div>
+
+          <button onClick={() => setShowSummary(v=>!v)}
+            style={{ padding:"6px 12px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer",
+              border:"1.5px solid #e2e8f0", background:showSummary?"#4f46e5":"#fff",
+              color:showSummary?"#fff":"var(--text-secondary)" }}>
+            📊 Summary
+          </button>
+
+          <button onClick={exportCSV}
+            style={{ padding:"6px 12px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer",
+              border:"1.5px solid #e2e8f0", background:"#fff", color:"var(--text-secondary)" }}>
+            📥 Export
+          </button>
+
           <button onClick={() => setShowWalkIn(true)}
             style={{ padding:"7px 16px", borderRadius:8, fontSize:12, fontWeight:700, border:"none",
               background:"#dc2626", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>
@@ -1794,6 +1924,83 @@ function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, a
           </div>
         ))}
       </div>
+
+      {/* ── OVERDUE ALERTS BANNER ── */}
+      {overdueAlerts.length > 0 && (
+        <div style={{ background:"#fee2e2", border:"1.5px solid #fca5a5", borderRadius:10, padding:"12px 16px", marginBottom:14 }}>
+          <div style={{ fontWeight:800, fontSize:12, color:"#991b1b", marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
+            🚨 {overdueAlerts.length} patient{overdueAlerts.length!==1?'s':''} waiting too long
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {overdueAlerts.map(({apt,type,mins},i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:10, fontSize:12 }}>
+                <span style={{ background:"#dc2626", color:"#fff", borderRadius:5, padding:"2px 7px", fontSize:10, fontWeight:800, flexShrink:0 }}>
+                  {mins}m
+                </span>
+                <strong>{apt.patientName}</strong>
+                <span style={{ color:"#991b1b" }}>
+                  {type==='wait'
+                    ? `waiting after check-in (threshold: ${alertThresholds.wait}m)`
+                    : `provider not yet in session (threshold: ${alertThresholds.provWait}m)`}
+                </span>
+                <span style={{ marginLeft:"auto", color:"#64748b", fontSize:11 }}>{apt.providerName}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── DAILY SUMMARY PANEL ── */}
+      {showSummary && summaryStats && (
+        <div style={{ ...card({ padding:"16px 18px" }), marginBottom:14 }}>
+          <div style={{ fontWeight:800, fontSize:13, color:"var(--text-primary)", marginBottom:14 }}>📊 Today's Summary</div>
+          {/* Top metrics */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:10, marginBottom:16 }}>
+            {[
+              { label:"Avg wait (Check-In→Arrived)", val: summaryStats.avgWait!=null ? `${summaryStats.avgWait} min` : "—", icon:"⏱", color:"#1e40af" },
+              { label:"Completion rate",              val: `${summaryStats.completionRate}%`,  icon:"✅", color:"#166534" },
+              { label:"No-show rate",                 val: `${summaryStats.noShowRate}%`,      icon:"🚫", color:"#92400e" },
+              { label:"Peak hour",                    val: summaryStats.peakHour!=null
+                ? fmtTime12(`${String(summaryStats.peakHour).padStart(2,'0')}:00`) : "—",     icon:"📈", color:"#7c3aed" },
+            ].map(m => (
+              <div key={m.label} style={{ background:"#f8fafc", borderRadius:8, padding:"10px 12px" }}>
+                <div style={{ fontSize:18, marginBottom:4 }}>{m.icon}</div>
+                <div style={{ fontSize:18, fontWeight:800, color:m.color, lineHeight:1 }}>{m.val}</div>
+                <div style={{ fontSize:10, color:"var(--text-muted)", fontWeight:600, marginTop:4 }}>{m.label}</div>
+              </div>
+            ))}
+          </div>
+          {/* Hourly bar chart */}
+          {summaryStats.hours.length > 0 && (
+            <div>
+              <div style={{ fontSize:11, fontWeight:700, color:"var(--text-secondary)", marginBottom:8, textTransform:"uppercase", letterSpacing:0.5 }}>Appointments by Hour</div>
+              <div style={{ display:"flex", alignItems:"flex-end", gap:6, height:60 }}>
+                {summaryStats.hours.map(h => {
+                  const count = summaryStats.byHour[h];
+                  const maxCount = Math.max(...Object.values(summaryStats.byHour));
+                  const pct = (count / maxCount) * 100;
+                  const isPeak = h === summaryStats.peakHour;
+                  return (
+                    <div key={h} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+                      <div style={{ fontSize:9, fontWeight:700, color: isPeak?"#7c3aed":"var(--text-muted)" }}>{count}</div>
+                      <div style={{ width:"100%", height:`${pct}%`, minHeight:4, borderRadius:"3px 3px 0 0",
+                        background: isPeak?"#7c3aed":"#e2e8f0", transition:"height 0.3s" }} />
+                      <div style={{ fontSize:8, color:"var(--text-muted)", fontWeight:600 }}>
+                        {h>12?`${h-12}p`:h===12?'12p':h===0?'12a':`${h}a`}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {showSummary && !summaryStats && (
+        <div style={{ ...card({ padding:"20px" }), marginBottom:14, textAlign:"center", color:"var(--text-muted)", fontSize:12 }}>
+          No appointments scheduled today yet.
+        </div>
+      )}
 
       {/* filter tabs */}
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
