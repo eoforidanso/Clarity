@@ -153,9 +153,15 @@ export default function PatientPortalLogin() {
   // ── Step 2: Self-registration identity form ───────────────────────────────
   const handleRegister = async (e) => {
     e.preventDefault();
-    if (!reg.firstName.trim() || !reg.lastName.trim() || !reg.dob) return;
+    if (!email.trim() || !reg.firstName.trim() || !reg.lastName.trim() || !reg.dob) return;
     setError(''); setLoading(true);
     try {
+      // Ensure portal_users row exists before identity match
+      await fetch(`${API}/patient-portal/register`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify({ email: email.trim() }),
+      });
+
       const res  = await fetch(`${API}/patient-portal/verify-identity`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -281,15 +287,28 @@ export default function PatientPortalLogin() {
           {step === 'email' && (
             <>
               <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0e1e30', marginBottom: 6 }}>Sign in to your account</h1>
-              <p style={{ color: '#6b7ea0', fontSize: 13, marginBottom: 24 }}>Enter your email address. We'll send a one-time code, or sign in with your password if you've set one.</p>
+              <p style={{ color: '#6b7ea0', fontSize: 13, marginBottom: 24 }}>Enter your email to receive a one-time sign-in code.</p>
               <form onSubmit={handleEmail}>
                 <Input label="Email address" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required autoFocus />
                 <button type="submit" disabled={loading || !email.trim()} style={S.btnPrimary(loading || !email.trim())}>
-                  {loading ? 'Checking…' : '→ Continue'}
+                  {loading ? 'Checking…' : '→ Sign In'}
                 </button>
               </form>
-              <p style={{ marginTop: 20, fontSize: 12, color: '#6b7ea0', textAlign: 'center' }}>
-                First time? Click Continue and we'll walk you through setup.
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
+                <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+                <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>OR</span>
+                <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+              </div>
+
+              <button
+                onClick={() => { setError(''); setStep('register'); }}
+                style={{ width: '100%', padding: '12px', borderRadius: 7, fontWeight: 700, fontSize: 14, background: '#fff', color: '#0060b6', border: '2px solid #0060b6', cursor: 'pointer' }}
+              >
+                Create a new account
+              </button>
+              <p style={{ marginTop: 12, fontSize: 11, color: '#94a3b8', textAlign: 'center' }}>
+                Already received a clinic invite? Check your email for the activation link.
               </p>
             </>
           )}
@@ -303,6 +322,7 @@ export default function PatientPortalLogin() {
                 Enter your details as they appear in your medical records so we can link your chart.
               </p>
               <form onSubmit={handleRegister}>
+                <Input label="Email address" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required />
                 <div style={S.row}>
                   <Input label="First name" value={reg.firstName} onChange={e => setReg1('firstName', e.target.value)} placeholder="Jane" required />
                   <Input label="Last name"  value={reg.lastName}  onChange={e => setReg1('lastName',  e.target.value)} placeholder="Doe"  required />
