@@ -8,7 +8,7 @@ ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,short_name=EXCLUDED.short_name
 
 -- Idayatu Ola Omoniyi, NP  (initial password: Welcome2026, must change on first login)
 INSERT INTO users (id,username,password_hash,first_name,last_name,role,credentials,specialty,npi,dea_number,email,two_factor_enabled,must_change_password,location_id)
-VALUES ('u11','np.ola','$2a$12$Wl0FNhQgJ8IqMX1SN2TCPub.6vrB4GKJe3YUYDpbsu9qT/qlIzRGu','Idayatu Ola','Omoniyi','prescriber','NP','Psychiatry','1174282826','','ola_somoniyi@yahoo.com',true,1,'loc-victory')
+VALUES ('u11','np.ola','$2a$12$Wl0FNhQgJ8IqMX1SN2TCPub.6vrB4GKJe3YUYDpbsu9qT/qlIzRGu','Idayatu Ola','Omoniyi','prescriber','NP','Psychiatry','1174282826','','ola_somoniyi@yahoo.com',true,true,'loc-victory')
 ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,last_name=EXCLUDED.last_name,email=EXCLUDED.email,password_hash=EXCLUDED.password_hash,must_change_password=EXCLUDED.must_change_password,location_id=EXCLUDED.location_id;
 
 SELECT 'np.ola inserted' AS result, id, username, role, email FROM users WHERE username='np.ola';
