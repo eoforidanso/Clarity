@@ -830,6 +830,20 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
   // Convert HH:MM to total minutes
   const toMins = t => { if (!t) return 0; const [h,m] = t.split(':').map(Number); return h*60+m; };
 
+  const addMinutes = (time24, minsToAdd) => {
+    if (!time24) return '';
+    const [h, m] = time24.split(':').map(Number);
+    const total = h * 60 + m + Number(minsToAdd);
+    const eh = Math.floor(total / 60) % 24;
+    const em = total % 60;
+    return `${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
+  };
+
+  const [endTime, setEndTime] = useState('');
+  useEffect(() => {
+    setEndTime(addMinutes(form.time, form.duration || 30));
+  }, [form.time, form.duration]); // eslint-disable-line
+
   // Provider double-booking check: does any existing (non-cancelled) appt for this provider overlap?
   const providerConflict = useMemo(() => {
     if (!form.provider || !form.date || !form.time) return null;
@@ -838,7 +852,9 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
     return existingAppts.find(a => {
       if (a.provider !== form.provider || a.date !== form.date) return false;
       if (a.status === 'Cancelled' || a.status === 'No Show') return false;
-      const s = toMins(a.time); const e = s + (a.duration || 30);
+      if (!a.time) return false;
+      const s = toMins(a.time); const e = s + Number(a.duration || 30);
+      if (isNaN(s) || isNaN(e)) return false;
       return s < newEnd && e > newStart;
     }) || null;
   }, [form.provider, form.date, form.time, form.duration, existingAppts]); // eslint-disable-line
@@ -862,15 +878,6 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
     (form.isNewPatient ? form.newPatientName.trim() : form.patientId) &&
     !providerConflict && !patientConflict;
 
-  // Derived end time — auto-advances when start time or duration changes
-  const computedEndTime = useMemo(() => {
-    if (!form.time) return '';
-    const [h, m] = form.time.split(':').map(Number);
-    const total = h * 60 + m + Number(form.duration || 30);
-    const eh = Math.floor(total / 60) % 24;
-    const em = total % 60;
-    return `${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
-  }, [form.time, form.duration]);
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -935,7 +942,7 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
               <div style={{ padding:"8px 12px", borderRadius:8, border:"1px solid #e2e8f0", background:"#f8fafc",
                 fontSize:13, color:"#475569", fontWeight:700, display:"flex", alignItems:"center", height:38, gap:6 }}>
                 <span style={{ fontSize:10, color:"#94a3b8" }}>→</span>
-                {computedEndTime ? fmtTime12(computedEndTime) : '—'}
+                {endTime ? fmtTime12(endTime) : '—'}
               </div>
             </div>
           </div>
@@ -2578,7 +2585,7 @@ export default function Schedule() {
   // - site filter active → providers at that site
   // - non-admin (prescriber/therapist/nurse) → always scoped to their own location
   const siteProviders = useMemo(() => {
-    const isAdmin = currentUser?.role === 'admin';
+    const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'front_desk';
     const userLocationId = currentUser?.locationId || currentUser?.location_id;
 
     // Non-admin: always filter to their own location
