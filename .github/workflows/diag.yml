@@ -9,47 +9,49 @@ jobs:
           DO_HOST: ${{ secrets.DO_HOST }}
           DO_USER: ${{ secrets.DO_USER }}
           DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           mkdir -p ~/.ssh
           echo "$DO_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H $DO_HOST >> ~/.ssh/known_hosts
-          ssh $DO_USER@$DO_HOST bash << EOF
+          ssh $DO_USER@$DO_HOST << 'REMOTE'
             echo "=== PM2 LIST ==="
             pm2 list
 
             echo ""
-            echo "=== PM2 LOGS (last 30 lines) ==="
-            pm2 logs clarity-api --lines 30 --nostream 2>/dev/null
+            echo "=== PM2 LOGS (last 20 lines) ==="
+            pm2 logs clarity-api --lines 20 --nostream 2>/dev/null
 
             echo ""
-            echo "=== RECENT PORTAL INBOX MESSAGES ==="
-            psql "$DATABASE_URL" -c "
-              SELECT id, type, from_name, to_user, patient_id, patient_name, date, time
-              FROM inbox_messages
-              WHERE type IN ('Patient Message','Rx Refill Request','Staff Message','Provider Reply')
-              ORDER BY date DESC, time DESC
-              LIMIT 10;
-            " 2>/dev/null || echo "psql query failed"
+            echo "=== DB QUERY via Node ==="
+            cd /var/www/ehr
+            node -e "
+              import('./server/db/database.js').then(async ({ db }) => {
+                console.log('--- Recent portal inbox messages ---');
+                const msgs = await db.prepare(\`
+                  SELECT id, type, from_name, to_user, patient_id, patient_name, date, time
+                  FROM inbox_messages
+                  WHERE type IN ('Patient Message','Rx Refill Request','Staff Message','Provider Reply')
+                  ORDER BY date DESC, time DESC LIMIT 10
+                \`).all();
+                console.log(JSON.stringify(msgs, null, 2));
 
-            echo ""
-            echo "=== PORTAL PATIENTS — assigned_provider + primary_location ==="
-            psql "$DATABASE_URL" -c "
-              SELECT id, first_name, last_name, assigned_provider, primary_location
-              FROM patients
-              WHERE email IS NOT NULL
-              ORDER BY last_name
-              LIMIT 20;
-            " 2>/dev/null
+                console.log('--- Portal patients (assigned_provider + primary_location) ---');
+                const pts = await db.prepare(\`
+                  SELECT id, first_name, last_name, assigned_provider, primary_location
+                  FROM patients WHERE email IS NOT NULL ORDER BY last_name LIMIT 20
+                \`).all();
+                console.log(JSON.stringify(pts, null, 2));
 
-            echo ""
-            echo "=== PROVIDERS — id + facility_id ==="
-            psql "$DATABASE_URL" -c "
-              SELECT id, username, first_name, last_name, role, facility_id, location_id
-              FROM users
-              WHERE role IN ('provider','physician','nurse_practitioner','attending','admin')
-              ORDER BY last_name
-              LIMIT 20;
-            " 2>/dev/null
-          EOF
+                console.log('--- Provider user IDs ---');
+                const provs = await db.prepare(\`
+                  SELECT id, username, first_name, last_name, role, facility_id, location_id
+                  FROM users WHERE role IN ('provider','physician','nurse_practitioner','attending','admin')
+                  ORDER BY last_name LIMIT 20
+                \`).all();
+                console.log(JSON.stringify(provs, null, 2));
+
+                process.exit(0);
+              }).catch(e => { console.error(e.message); process.exit(1); });
+            "
+          REMOTE
