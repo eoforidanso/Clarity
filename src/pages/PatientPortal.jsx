@@ -862,6 +862,14 @@ function PatientBreakoutContent({ onLeave }) {
   );
 }
 
+function fmt12(time) {
+  if (!time) return '';
+  const [h, m] = time.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
 export default function PatientPortal() {
   const { currentUser, logout } = useAuth();
   const { patients, meds, appointments, assessmentScores, addInboxMessage, inboxMessages, updateAppointmentStatus, addAppointment } = usePatient();
@@ -1533,7 +1541,7 @@ export default function PatientPortal() {
                   <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.12)', padding: '8px 14px', borderRadius: 8, width: 'fit-content' }}>
                     <span style={{ fontSize: 16 }}>📅</span>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 700 }}>{t.nextAppointment}: {new Date(nextAppt.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at {nextAppt.time}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700 }}>{t.nextAppointment}: {new Date(nextAppt.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at {fmt12(nextAppt.time)}</div>
                       <div style={{ fontSize: 11, opacity: 0.7 }}>{nextAppt.type} with {nextAppt.providerName} · {nextAppt.visitType}</div>
                     </div>
                   </div>
@@ -1555,7 +1563,7 @@ export default function PatientPortal() {
                   </div>
                   {in48hAppts.map(a => (
                     <div key={a.id} style={{ fontSize: 13, color: '#78350f' }}>
-                      <strong>{a.date === todayKey ? `🔴 ${t.today}` : `🟡 ${t.tomorrow}`}</strong> — {a.type} with {a.providerName} at <strong>{a.time}</strong> ({a.visitType})
+                      <strong>{a.date === todayKey ? `🔴 ${t.today}` : `🟡 ${t.tomorrow}`}</strong> — {a.type} with {a.providerName} at <strong>{fmt12(a.time)}</strong> ({a.visitType})
                     </div>
                   ))}
                 </div>
@@ -1825,7 +1833,7 @@ export default function PatientPortal() {
                     {a.date === todayKey ? 'You have an appointment TODAY' : 'You have an appointment TOMORROW'}
                   </div>
                   <div style={{ fontSize: 12, color: a.date === todayKey ? '#7f1d1d' : '#78350f', marginTop: 2 }}>
-                    {a.type} with {a.providerName} at {a.time} · {a.visitType}
+                    {a.type} with {a.providerName} at {fmt12(a.time)} · {a.visitType}
                   </div>
                 </div>
                 {a.date === todayKey && !checkInComplete[a.id] && a.status !== 'Checked In' && (
@@ -1891,7 +1899,7 @@ export default function PatientPortal() {
                           {alreadyCheckedIn && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#dcfce7', color: '#065f46', marginLeft: 8 }}>✅ CHECKED IN</span>}
                         </div>
                         <div style={{ fontSize: 12, color: '#64748b' }}>
-                          {a.time} · {a.duration || 30} min · {a.providerName}
+                          {fmt12(a.time)} · {a.duration || 30} min · {a.providerName}
                         </div>
                         <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{a.reason}</div>
                       </div>
@@ -2012,7 +2020,7 @@ export default function PatientPortal() {
                   <div style={{ padding: '16px 22px', background: 'linear-gradient(135deg,#059669,#065f46)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontWeight: 800, fontSize: 16 }}>✅ Online Check-In</div>
-                      <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{checkInApt.type} · {checkInApt.time} · {checkInApt.providerName}</div>
+                      <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{checkInApt.type} · {fmt12(checkInApt.time)} · {checkInApt.providerName}</div>
                     </div>
                     <button onClick={() => { setCheckInApt(null); setCheckInStep(1); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 800, fontSize: 20, width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
                   </div>
@@ -2375,7 +2383,7 @@ export default function PatientPortal() {
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 700, fontSize: 12, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.type}</div>
-                            <div style={{ fontSize: 10, color: '#64748b' }}>{a.providerName} · {a.date} at {a.time}</div>
+                            <div style={{ fontSize: 10, color: '#64748b' }}>{a.providerName} · {a.date} at {fmt12(a.time)}</div>
                           </div>
                           <span style={{ fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: a.status === 'Confirmed' ? '#dcfce7' : a.status === 'Checked In' ? '#dbeafe' : '#f1f5f9', color: a.status === 'Confirmed' ? '#065f46' : a.status === 'Checked In' ? '#1e40af' : '#475569', whiteSpace: 'nowrap' }}>
                             {a.status}
@@ -2800,7 +2808,7 @@ export default function PatientPortal() {
                     <div>
                       <div style={{ fontWeight: 800, fontSize: 14, color: '#92400e' }}>{t.preVisitPayment}</div>
                       <div style={{ fontSize: 12, color: '#78350f', marginTop: 2 }}>
-                        {t.payPreVisit} — {nextAppt.type} on {nextAppt.date} at {nextAppt.time}
+                        {t.payPreVisit} — {nextAppt.type} on {nextAppt.date} at {fmt12(nextAppt.time)}
                       </div>
                     </div>
                   </div>
@@ -3197,7 +3205,7 @@ export default function PatientPortal() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>
-                        {new Date(teleAppts[0].date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {teleAppts[0].time}
+                        {new Date(teleAppts[0].date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {fmt12(teleAppts[0].time)}
                       </div>
                       <div style={{ fontSize: 13, opacity: 0.8 }}>
                         {teleAppts[0].type} with {teleAppts[0].providerName} · {teleAppts[0].duration || 30} min
@@ -3227,7 +3235,7 @@ export default function PatientPortal() {
                         <div key={a.id} style={{ padding: '14px 18px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <div>
                             <div style={{ fontWeight: 700, fontSize: 13 }}>
-                              {new Date(a.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {a.time}
+                              {new Date(a.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {fmt12(a.time)}
                             </div>
                             <div style={{ fontSize: 12, color: '#64748b' }}>{a.type} · {a.providerName}</div>
                           </div>

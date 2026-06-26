@@ -29,6 +29,7 @@ import {
 } from '../schemas/portalSchema.js';
 import { validateResponse } from '../middleware/validateResponse.js';
 import { AnyResponseSchema } from '../schemas/responseSchemas.js';
+import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
 router.use(validateResponse(AnyResponseSchema));
@@ -254,7 +255,7 @@ router.post('/messages', authenticatePortal, validate(PortalMessageSchema), asyn
     return res.status(400).json({ error: 'Message text is required' });
   }
   const patient = await db.prepare(
-    'SELECT id, first_name, last_name FROM patients WHERE id = $1'
+    'SELECT id, first_name, last_name, assigned_provider FROM patients WHERE id = $1'
   ).get(req.patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
@@ -264,10 +265,11 @@ router.post('/messages', authenticatePortal, validate(PortalMessageSchema), asyn
   await db.prepare(`
     INSERT INTO inbox_messages
       (id, type, from_name, to_user, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent)
-    VALUES ($1,$2,$3,NULL,$4,$5,$6,$7,$8,$9,false,'Normal','Unread',false)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,'Normal','Unread',false)
   `).run(
     id, 'Patient Message',
     `${patientName} (Patient Portal)`,
+    patient.assigned_provider || null,
     req.patientId, patientName,
     `Message from ${patientName}`,
     text.trim(),
@@ -312,7 +314,7 @@ router.post('/refill-request', authenticatePortal, validate(PortalRefillRequestS
   if (!medicationName) return res.status(400).json({ error: 'medicationName required' });
 
   const patient = await db.prepare(
-    'SELECT id, first_name, last_name FROM patients WHERE id = $1'
+    'SELECT id, first_name, last_name, assigned_provider FROM patients WHERE id = $1'
   ).get(req.patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
@@ -332,15 +334,16 @@ router.post('/refill-request', authenticatePortal, validate(PortalRefillRequestS
     pharmacy ? `Preferred pharmacy: ${pharmacy}` : null
   );
 
-  // Also send an inbox notification to the care team
+  // Also send an inbox notification to the assigned provider
   const msgId = uuidv4();
   await db.prepare(`
     INSERT INTO inbox_messages
-      (id, type, from_name, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false,'Normal','Unread',false)
+      (id, type, from_name, to_user, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,'Normal','Unread',false)
   `).run(
     msgId, 'Rx Refill Request',
     `${patientName} (Patient Portal)`,
+    patient.assigned_provider || null,
     req.patientId, patientName,
     `Refill Request: ${medicationName}${dose ? ' ' + dose : ''}`,
     `Patient has requested a refill via the Patient Portal.\n\nMedication: ${medicationName}${dose ? ' ' + dose : ''}${frequency ? ' — ' + frequency : ''}${pharmacy ? '\nPreferred pharmacy: ' + pharmacy : ''}`,
@@ -387,15 +390,16 @@ router.post('/book-appointment', authenticatePortal, validate(PortalBookAppointm
     locationId
   );
 
-  // Inbox notification for care team
+  // Inbox notification to the booked provider
   const msgId = uuidv4();
   await db.prepare(`
     INSERT INTO inbox_messages
-      (id, type, from_name, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false,'Normal','Unread',false)
+      (id, type, from_name, to_user, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,'Normal','Unread',false)
   `).run(
     msgId, 'Staff Message',
     `${patientName} (Patient Portal)`,
+    providerId,
     req.patientId, patientName,
     `New Appointment Booked — ${patientName}`,
     `Patient has booked an appointment via the Patient Portal.\n\nPatient: ${patientName} (MRN: ${patient.mrn})\nProvider: ${providerName}\nDate: ${date}\nTime: ${time}\nDuration: ${duration || 30} min\nType: ${reason || 'Follow-Up'}\nVisit: ${visitType || 'In-Person'}${notes ? '\nNotes: ' + notes : ''}`,
@@ -404,6 +408,40 @@ router.post('/book-appointment', authenticatePortal, validate(PortalBookAppointm
   );
 
   res.status(201).json({ ok: true, appointmentId: id });
+});
+
+// ── 11. Staff → Patient reply (surfaces in patient portal) ───────────────────
+// Called from the provider's inbox "Reply to Patient" action.
+// Requires a normal staff session (authenticate middleware), not portal auth.
+router.post('/staff-reply', authenticate, async (req, res) => {
+  const { patientId, text } = req.body;
+  if (!patientId || !text?.trim()) {
+    return res.status(400).json({ error: 'patientId and text are required' });
+  }
+  const patient = await db.prepare('SELECT id, first_name, last_name FROM patients WHERE id = $1').get(patientId);
+  if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+  const id = uuidv4();
+  const now = new Date();
+  const providerName = `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() || req.user.username;
+  const patientName  = `${patient.first_name} ${patient.last_name}`;
+
+  await db.prepare(`
+    INSERT INTO inbox_messages
+      (id, type, from_name, to_user, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,'Normal','Unread',false)
+  `).run(
+    id, 'Provider Reply',
+    providerName,
+    null,
+    patientId, patientName,
+    `Message from ${providerName}`,
+    text.trim(),
+    now.toISOString().split('T')[0],
+    now.toTimeString().slice(0, 5)
+  );
+
+  res.status(201).json({ ok: true, id });
 });
 
 // ── Telehealth token (portal patient joins a LiveKit room) ────────────────────
