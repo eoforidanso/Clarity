@@ -1081,6 +1081,16 @@ export async function initializeDatabase() {
       AND u.location_id IS NOT NULL
   `);
 
+  // Fix any appointment whose location_id doesn't match its provider's assigned location
+  await pool.query(`
+    UPDATE appointments a
+    SET location_id = u.location_id
+    FROM users u
+    WHERE a.provider = u.id
+      AND a.location_id != u.location_id
+      AND u.location_id IS NOT NULL
+  `);
+
   // Expand role CHECK constraint to include 'admin' (idempotent)
   await pool.query(`
     DO $$ BEGIN

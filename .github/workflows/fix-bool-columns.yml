@@ -76,6 +76,28 @@ jobs:
             "
 
             echo ""
+            echo "=== Fix appointments where location_id doesn't match provider's location ==="
+            psql "$DATABASE_URL" -c "
+              UPDATE appointments a
+              SET location_id = u.location_id
+              FROM users u
+              WHERE a.provider = u.id
+                AND a.location_id != u.location_id
+                AND u.location_id IS NOT NULL;
+              SELECT 'Location-mismatched rows fixed: ' || ROW_COUNT();
+            " 2>/dev/null || psql "$DATABASE_URL" -c "
+              WITH fixed AS (
+                UPDATE appointments a
+                SET location_id = u.location_id
+                FROM users u
+                WHERE a.provider = u.id
+                  AND a.location_id != u.location_id
+                  AND u.location_id IS NOT NULL
+                RETURNING a.id
+              ) SELECT 'Location-mismatched rows fixed: ' || COUNT(*) FROM fixed;
+            "
+
+            echo ""
             echo "=== Restarting API ==="
             cd /var/www/ehr
             pm2 delete clarity-api 2>/dev/null || true
