@@ -258,15 +258,79 @@ router.post('/verify-otp', async (req, res) => { const { email, otp } = req.body
 
 // ── 3. Me (authenticated) ─────────────────────────────────────────────────────
 
-router.get('/me', authenticatePortal, async (req, res) => { const patient = await db.prepare(
-    `SELECT id, first_name, last_name, email, dob, gender, phone, cell_phone, address_street, address_city, address_state, address_zip, assigned_provider, photo, portal_last_login
-     FROM patients WHERE id = $1 AND is_active = true`
-  ).get(req.patientId);
+router.get('/me', authenticatePortal, async (req, res) => {
+  const patient = await db.prepare(`
+    SELECT id, mrn, first_name, last_name, email, dob, gender, phone, cell_phone,
+           address_street, address_city, address_state, address_zip,
+           emergency_contact_name, emergency_contact_phone,
+           assigned_provider, photo, portal_last_login,
+           insurance_primary_name, insurance_primary_member_id, insurance_primary_group,
+           insurance_secondary_name, insurance_secondary_member_id, insurance_secondary_group
+    FROM patients WHERE id = $1 AND is_active = true
+  `).get(req.patientId);
 
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-  res.json({ id: patient.id, firstName: patient.first_name, lastName: patient.last_name, email: patient.email, dob: patient.dob, gender: patient.gender, phone: patient.phone || patient.cell_phone, address: [patient.address_street, patient.address_city, patient.address_state, patient.address_zip]
-      .filter(Boolean).join(', '), assignedProvider: patient.assigned_provider, photo: patient.photo, lastLogin: patient.portal_last_login,  });
+  res.json({
+    id:               patient.id,
+    mrn:              patient.mrn,
+    firstName:        patient.first_name,
+    lastName:         patient.last_name,
+    email:            patient.email,
+    dob:              patient.dob,
+    gender:           patient.gender,
+    phone:            patient.phone,
+    cellPhone:        patient.cell_phone,
+    addressStreet:    patient.address_street,
+    addressCity:      patient.address_city,
+    addressState:     patient.address_state,
+    addressZip:       patient.address_zip,
+    address:          [patient.address_street, patient.address_city, patient.address_state, patient.address_zip].filter(Boolean).join(', '),
+    emergencyName:    patient.emergency_contact_name,
+    emergencyPhone:   patient.emergency_contact_phone,
+    assignedProvider: patient.assigned_provider,
+    photo:            patient.photo,
+    lastLogin:        patient.portal_last_login,
+    insurance: {
+      primary: {
+        name:        patient.insurance_primary_name || '',
+        memberId:    patient.insurance_primary_member_id || '',
+        groupNumber: patient.insurance_primary_group || '',
+      },
+      secondary: {
+        name:        patient.insurance_secondary_name || '',
+        memberId:    patient.insurance_secondary_member_id || '',
+        groupNumber: patient.insurance_secondary_group || '',
+      },
+    },
+  });
+});
+
+// ── 3b. Update Profile ────────────────────────────────────────────────────────
+router.put('/profile', authenticatePortal, async (req, res) => {
+  const { phone, cellPhone, addressStreet, addressCity, addressState, addressZip, emergencyName, emergencyPhone, gender } = req.body;
+
+  await db.prepare(`
+    UPDATE patients SET
+      phone = COALESCE($1, phone),
+      cell_phone = COALESCE($2, cell_phone),
+      address_street = COALESCE($3, address_street),
+      address_city = COALESCE($4, address_city),
+      address_state = COALESCE($5, address_state),
+      address_zip = COALESCE($6, address_zip),
+      emergency_contact_name = COALESCE($7, emergency_contact_name),
+      emergency_contact_phone = COALESCE($8, emergency_contact_phone),
+      gender = COALESCE($9, gender)
+    WHERE id = $10
+  `).run(
+    phone || null, cellPhone || null,
+    addressStreet || null, addressCity || null, addressState || null, addressZip || null,
+    emergencyName || null, emergencyPhone || null,
+    gender || null,
+    req.patientId
+  );
+
+  res.json({ ok: true });
 });
 
 // ── 4b. Providers list (for patient to select who to message) ────────────────

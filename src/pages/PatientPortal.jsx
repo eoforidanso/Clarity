@@ -182,7 +182,7 @@ const TRANSLATIONS = {
   en: {
     home: 'Home', messages: 'Messages', medications: 'Medications', appointments: 'Appointments',
     bookAppointment: 'Book Appointment', assessments: 'Assessments', insurance: 'Insurance',
-    telehealth: 'Telehealth', billing: 'Billing & Payments', signOut: 'Sign Out',
+    telehealth: 'Telehealth', billing: 'Billing & Payments', signOut: 'Sign Out', myProfile: 'My Profile',
     welcomeBack: 'Welcome back', nextAppointment: 'Next Appointment', messageProvider: 'Message Provider',
     completeAssessments: 'Complete Assessments', appointmentReminder: 'Appointment Reminder',
     today: 'TODAY', tomorrow: 'TOMORROW', activeMeds: 'Active Meds', upcomingAppts: 'Upcoming Appts',
@@ -556,15 +556,16 @@ const LABS = [
 ];
 
 const TABS = [
-  { key: 'home', icon: '🏠', label: 'home' },
-  { key: 'messages', icon: '💬', label: 'messages' },
+  { key: 'home',        icon: '🏠', label: 'home' },
+  { key: 'messages',   icon: '💬', label: 'messages' },
   { key: 'medications', icon: '💊', label: 'medications' },
-  { key: 'appointments', icon: '📅', label: 'appointments' },
-  { key: 'schedule', icon: '🗓️', label: 'bookAppointment' },
+  { key: 'appointments',icon: '📅', label: 'appointments' },
+  { key: 'schedule',   icon: '🗓️', label: 'bookAppointment' },
   { key: 'assessments', icon: '📊', label: 'assessments' },
-  { key: 'billing', icon: '💳', label: 'billing' },
-  { key: 'insurance', icon: '🏥', label: 'insurance' },
+  { key: 'billing',    icon: '💳', label: 'billing' },
+  { key: 'insurance',  icon: '🏥', label: 'insurance' },
   { key: 'telehealth', icon: '📹', label: 'telehealth' },
+  { key: 'profile',    icon: '👤', label: 'myProfile' },
 ];
 
 // Fetch real data when logged in via patient portal OTP
@@ -1242,6 +1243,45 @@ export default function PatientPortal() {
       body: JSON.stringify({ text, providerId: selectedProviderId || undefined }),
     }).catch(() => {});
     setMsgInput('');
+  };
+
+  /* ── Profile editing ─────────────────────────────────────── */
+  const [profileForm, setProfileForm] = useState(null); // null = not loaded yet
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+
+  // Seed form from portalMe when it loads
+  useEffect(() => {
+    if (portalMe && !profileForm) {
+      setProfileForm({
+        phone:         portalMe.phone || '',
+        cellPhone:     portalMe.cellPhone || '',
+        addressStreet: portalMe.addressStreet || '',
+        addressCity:   portalMe.addressCity || '',
+        addressState:  portalMe.addressState || '',
+        addressZip:    portalMe.addressZip || '',
+        emergencyName:  portalMe.emergencyName || '',
+        emergencyPhone: portalMe.emergencyPhone || '',
+        gender:        portalMe.gender || '',
+      });
+    }
+  }, [portalMe]);
+
+  const saveProfile = async () => {
+    if (!profileForm) return;
+    setProfileSaving(true);
+    try {
+      await fetch(`${PORTAL_API}/patient-portal/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(profileForm),
+      });
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 3000);
+    } catch { /* ignore */ } finally {
+      setProfileSaving(false);
+    }
   };
 
   /* ── Refill request ──────────────────────────────────────── */
@@ -3309,6 +3349,124 @@ export default function PatientPortal() {
             </div>
           </div>
         )}
+
+        {/* ── Profile Tab ─────────────────────────────────────────── */}
+        {activeTab === 'profile' && (
+          <div style={{ maxWidth: 720, margin: '0 auto', padding: '0 4px' }}>
+
+            {/* Identity card — read-only */}
+            <div style={cardStyle}>
+              <div style={cardHeaderStyle()}>👤 Personal Information</div>
+              <div style={{ padding: 20 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                  {[
+                    ['Legal Name', `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || '—'],
+                    ['Date of Birth', portalMe?.dob || patient?.dob || '—'],
+                    ['MRN', portalMe?.mrn || patient?.mrn || '—'],
+                    ['Email', portalMe?.email || patient?.email || '—'],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>{label}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: '#94a3b8', background: '#f8fafc', padding: '8px 12px', borderRadius: 6 }}>
+                  To update your name, date of birth, or email address, please contact your clinic directly.
+                </div>
+              </div>
+            </div>
+
+            {/* Editable contact info */}
+            {profileForm && (
+              <>
+                <div style={{ ...cardStyle, marginTop: 16 }}>
+                  <div style={cardHeaderStyle()}>📞 Contact Information</div>
+                  <div style={{ padding: 20 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                      {[
+                        ['Phone', 'phone', 'tel', '(555) 000-0000'],
+                        ['Cell Phone', 'cellPhone', 'tel', '(555) 000-0000'],
+                      ].map(([label, field, type, ph]) => (
+                        <div key={field}>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{label}</label>
+                          <input type={type} value={profileForm[field]} onChange={e => setProfileForm(p => ({ ...p, [field]: e.target.value }))} placeholder={ph}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                        </div>
+                      ))}
+                      <div>
+                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Gender</label>
+                        <select value={profileForm.gender} onChange={e => setProfileForm(p => ({ ...p, gender: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', background: '#fff', boxSizing: 'border-box' }}>
+                          <option value="">Select…</option>
+                          {['Male','Female','Non-binary','Prefer not to say','Other'].map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ ...cardStyle, marginTop: 16 }}>
+                  <div style={cardHeaderStyle()}>🏠 Address</div>
+                  <div style={{ padding: 20 }}>
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Street Address</label>
+                      <input type="text" value={profileForm.addressStreet} onChange={e => setProfileForm(p => ({ ...p, addressStreet: e.target.value }))} placeholder="123 Main St"
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 12 }}>
+                      {[
+                        ['City', 'addressCity', 'City'],
+                        ['State', 'addressState', 'NY'],
+                        ['ZIP', 'addressZip', '10001'],
+                      ].map(([label, field, ph]) => (
+                        <div key={field}>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{label}</label>
+                          <input type="text" value={profileForm[field]} onChange={e => setProfileForm(p => ({ ...p, [field]: e.target.value }))} placeholder={ph}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ ...cardStyle, marginTop: 16 }}>
+                  <div style={cardHeaderStyle()}>🆘 Emergency Contact</div>
+                  <div style={{ padding: 20 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                      {[
+                        ['Contact Name', 'emergencyName', 'text', 'Full name'],
+                        ['Contact Phone', 'emergencyPhone', 'tel', '(555) 000-0000'],
+                      ].map(([label, field, type, ph]) => (
+                        <div key={field}>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{label}</label>
+                          <input type={type} value={profileForm[field]} onChange={e => setProfileForm(p => ({ ...p, [field]: e.target.value }))} placeholder={ph}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <button onClick={saveProfile} disabled={profileSaving}
+                    style={{ padding: '11px 28px', borderRadius: 8, fontWeight: 700, fontSize: 14, background: profileSaving ? '#cce0f5' : 'linear-gradient(180deg,#1872c8,#0055a8)', color: '#fff', border: 'none', cursor: profileSaving ? 'not-allowed' : 'pointer' }}>
+                    {profileSaving ? 'Saving…' : 'Save Changes'}
+                  </button>
+                  {profileSaved && <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600 }}>✅ Saved successfully</span>}
+                </div>
+              </>
+            )}
+
+            {/* Last login info */}
+            {portalMe?.lastLogin && (
+              <div style={{ marginTop: 20, padding: '10px 16px', background: '#f8fafc', borderRadius: 8, fontSize: 12, color: '#64748b' }}>
+                Last portal login: {new Date(portalMe.lastLogin).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+              </div>
+            )}
+          </div>
+        )}
+
       </main>
 
       {/* AI Assistant Floating Widget */}
