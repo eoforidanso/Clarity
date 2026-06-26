@@ -8,11 +8,19 @@
     "build": "vite build",
     "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "wrangler pages deploy dist --project-name=clarity-ehr"
+    "deploy": "wrangler pages deploy dist --project-name=clarity-ehr",
+    "bugcheck": "node scripts/bugcheck.js",
+    "bugcheck:fast": "node scripts/bugcheck.js --fast",
+    "bugcheck:api": "node scripts/bugcheck.js --layer=api",
+    "bugcheck:verbose": "node scripts/bugcheck.js --verbose"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "@livekit/components-react": "^2.9.21",
     "@sentry/react": "^10.53.1",
     "date-fns": "^3.6.0",
+    "html2pdf.js": "^0.14.0",
+    "livekit-client": "^2.19.2",
     "lucide-react": "^0.378.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
