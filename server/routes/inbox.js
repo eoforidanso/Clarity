@@ -50,7 +50,7 @@ router.post('/', validate(InboxMessageSchema), validateResponse(InboxMessageResp
     const b = req.body;
     const id = uuidv4();
     await db.prepare('INSERT INTO inbox_messages (id, type, from_name, to_user, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
-      id, b.type, b.from, b.to, b.patient || null, b.patientName || '', b.subject || '', b.body || '', b.date || new Date().toISOString().split('T')[0], b.time || new Date().toTimeString().slice(0, 5), b.read ? 1 : 0, b.priority || 'Normal', b.status || 'Unread', b.urgent ? 1 : 0
+      id, b.type, b.from, b.to, b.patient || null, b.patientName || '', b.subject || '', b.body || '', b.date || new Date().toISOString().split('T')[0], b.time || new Date().toTimeString().slice(0, 5), b.read ? true : false, b.priority || 'Normal', b.status || 'Unread', b.urgent ? true : false
     );
     const row = await db.prepare('SELECT * FROM inbox_messages WHERE id = ?').get(id);
     res.status(201).json(formatMsg(row));
@@ -68,7 +68,7 @@ router.put('/:id', validate(InboxUpdateSchema), validateResponse(InboxMessageRes
 
     const b = req.body;
     await db.prepare(`UPDATE inbox_messages SET read=?, status=?, priority=?, updated_at=NOW() WHERE id=?`).run(
-      b.read !== undefined ? (b.read ? 1 : 0) : existing.read,
+      b.read !== undefined ? (b.read ? true : false) : existing.read,
       b.status ?? existing.status,
       b.priority ?? existing.priority,
       req.params.id
