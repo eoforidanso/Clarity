@@ -1048,6 +1048,29 @@ export async function initializeDatabase() {
     await pool.query(m);
   }
 
+  // Coerce any INTEGER boolean columns to proper BOOLEAN (idempotent)
+  await pool.query(`
+    DO $$ BEGIN
+      IF (SELECT data_type FROM information_schema.columns
+          WHERE table_name='users' AND column_name='two_factor_enabled') = 'integer' THEN
+        ALTER TABLE users ALTER COLUMN two_factor_enabled TYPE BOOLEAN USING two_factor_enabled::int::boolean;
+      END IF;
+      IF (SELECT data_type FROM information_schema.columns
+          WHERE table_name='users' AND column_name='must_change_password') = 'integer' THEN
+        ALTER TABLE users ALTER COLUMN must_change_password TYPE BOOLEAN USING must_change_password::int::boolean;
+      END IF;
+      IF (SELECT data_type FROM information_schema.columns
+          WHERE table_name='patients' AND column_name='is_btg') = 'integer' THEN
+        ALTER TABLE patients ALTER COLUMN is_btg TYPE BOOLEAN USING is_btg::int::boolean;
+      END IF;
+      IF (SELECT data_type FROM information_schema.columns
+          WHERE table_name='inbox_messages' AND column_name='urgent') = 'integer' THEN
+        ALTER TABLE inbox_messages ALTER COLUMN urgent TYPE BOOLEAN USING urgent::int::boolean;
+      END IF;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$;
+  `);
+
   // Expand role CHECK constraint to include 'admin' (idempotent)
   await pool.query(`
     DO $$ BEGIN

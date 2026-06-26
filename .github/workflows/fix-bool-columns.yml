@@ -1,0 +1,74 @@
+name: Fix Boolean Columns
+on: workflow_dispatch
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Convert integer columns to BOOLEAN and restart API
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DO_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H $DO_HOST >> ~/.ssh/known_hosts
+          ssh $DO_USER@$DO_HOST << 'EOF'
+            set -e
+
+            # Load DATABASE_URL from server env
+            export $(grep -v '^#' /var/www/ehr/server/.env | grep DATABASE_URL)
+
+            echo "=== Converting integer boolean columns ==="
+            psql "$DATABASE_URL" << 'SQL'
+              DO $$ BEGIN
+                -- users.two_factor_enabled
+                IF (SELECT data_type FROM information_schema.columns
+                    WHERE table_name='users' AND column_name='two_factor_enabled') = 'integer' THEN
+                  ALTER TABLE users ALTER COLUMN two_factor_enabled TYPE BOOLEAN USING two_factor_enabled::int::boolean;
+                  RAISE NOTICE 'Converted users.two_factor_enabled to BOOLEAN';
+                ELSE
+                  RAISE NOTICE 'users.two_factor_enabled already BOOLEAN, skipping';
+                END IF;
+
+                -- users.must_change_password
+                IF (SELECT data_type FROM information_schema.columns
+                    WHERE table_name='users' AND column_name='must_change_password') = 'integer' THEN
+                  ALTER TABLE users ALTER COLUMN must_change_password TYPE BOOLEAN USING must_change_password::int::boolean;
+                  RAISE NOTICE 'Converted users.must_change_password to BOOLEAN';
+                ELSE
+                  RAISE NOTICE 'users.must_change_password already BOOLEAN, skipping';
+                END IF;
+
+                -- patients.is_btg
+                IF (SELECT data_type FROM information_schema.columns
+                    WHERE table_name='patients' AND column_name='is_btg') = 'integer' THEN
+                  ALTER TABLE patients ALTER COLUMN is_btg TYPE BOOLEAN USING is_btg::int::boolean;
+                  RAISE NOTICE 'Converted patients.is_btg to BOOLEAN';
+                ELSE
+                  RAISE NOTICE 'patients.is_btg already BOOLEAN, skipping';
+                END IF;
+
+                -- inbox_messages.urgent
+                IF (SELECT data_type FROM information_schema.columns
+                    WHERE table_name='inbox_messages' AND column_name='urgent') = 'integer' THEN
+                  ALTER TABLE inbox_messages ALTER COLUMN urgent TYPE BOOLEAN USING urgent::int::boolean;
+                  RAISE NOTICE 'Converted inbox_messages.urgent to BOOLEAN';
+                ELSE
+                  RAISE NOTICE 'inbox_messages.urgent already BOOLEAN, skipping';
+                END IF;
+              END $$;
+SQL
+
+            echo "=== Verify column types ==="
+            psql "$DATABASE_URL" -c "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE column_name IN ('two_factor_enabled','must_change_password','is_btg','urgent') ORDER BY table_name, column_name;"
+
+            echo "=== Restarting API ==="
+            pm2 delete clarity-api 2>/dev/null || true
+            pm2 start /var/www/ehr/ecosystem.config.cjs --env production
+            pm2 save
+            sleep 5
+            pm2 list
+            pm2 logs clarity-api --lines 15 --nostream
+          EOF
