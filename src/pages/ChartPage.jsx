@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import PatientBanner from '../components/PatientBanner';
 import PharmacySelectorDrawer from '../components/PharmacySelectorDrawer';
 import PDMPDrawer from '../components/PDMPDrawer';
-import { patients as patientsApi } from '../services/api';
+import { patients as patientsApi, users as usersApi } from '../services/api';
 import { getControlledSchedule } from '../utils/controlledSubstances';
 import { generateILPmpReport } from '../utils/pmpMock';
 import BTGGuard from '../components/BTGGuard';
@@ -77,18 +77,241 @@ function getVisibleTabs(user) {
 // Keep alias for existing references
 const chartTabs = ALL_CHART_TABS;
 
+// ── Chart-side slot picker modal ─────────────────────────────────────────────
+function ChartSlotModal({ patient, providers, existingAppts, currentUser, onSave, onClose }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const isProviderRole = ['prescriber', 'nurse', 'therapist'].includes(currentUser?.role);
+  const defaultProvider = isProviderRole
+    ? (providers.find(p => p.id === currentUser?.id) ? currentUser.id : (providers[0]?.id ?? ''))
+    : (providers[0]?.id ?? '');
+
+  const [date, setDate]               = useState(today);
+  const [providerId, setProviderId]   = useState(defaultProvider);
+  const [duration, setDuration]       = useState(30);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [aptType, setAptType]         = useState('Office Visit');
+  const [visitType, setVisitType]     = useState('Follow-up');
+  const [reason, setReason]           = useState('');
+  const [saving, setSaving]           = useState(false);
+
+  const toMins = t => { if (!t) return NaN; const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const fmtTime12 = t => {
+    if (!t) return '';
+    const [h, m] = t.split(':').map(Number);
+    return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+  };
+
+  // Map every blocked 15-min chunk → { name } for this provider/date
+  const bookedMap = useMemo(() => {
+    const map = {};
+    existingAppts
+      .filter(a => a.provider === providerId && a.date === date && a.status !== 'Cancelled' && a.status !== 'No Show' && a.time)
+      .forEach(a => {
+        const start = toMins(a.time);
+        const dur   = Number(a.duration || 30);
+        for (let m = start; m < start + dur; m += 15) {
+          const key = `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`;
+          if (!map[key]) map[key] = { name: (a.patientName || '').split(' ')[0] || 'Pt' };
+        }
+      });
+    return map;
+  }, [existingAppts, providerId, date]);
+
+  // 30-min slots 7 AM – 8 PM
+  const slots = useMemo(() => {
+    const result = [];
+    for (let m = 7 * 60; m < 20 * 60; m += 30) {
+      result.push(`${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`);
+    }
+    return result;
+  }, []);
+
+  const isSlotOpen = useCallback(slotTime => {
+    const start = toMins(slotTime);
+    for (let m = start; m < start + duration; m += 15) {
+      if (bookedMap[`${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`]) return false;
+    }
+    return true;
+  }, [bookedMap, duration]);
+
+  const handleConfirm = async () => {
+    if (!selectedSlot || !providerId || saving) return;
+    setSaving(true);
+    const prov = providers.find(p => p.id === providerId);
+    await onSave({
+      patientId:    patient?.id,
+      patientName:  patient ? `${patient.firstName} ${patient.lastName}` : '',
+      provider:     providerId,
+      providerName: prov ? `${prov.firstName} ${prov.lastName}${prov.credentials ? ', ' + prov.credentials : ''}` : '',
+      date,
+      time:         selectedSlot,
+      duration,
+      type:         aptType,
+      visitType,
+      reason,
+      status:       'Scheduled',
+    });
+    setSaving(false);
+    onClose();
+  };
+
+  const APPT_TYPES  = ['Office Visit', 'Telehealth', 'New Patient', 'Follow-up', 'Procedure', 'Lab Only'];
+  const VISIT_TYPES = ['Follow-up', 'New Patient', 'Annual Wellness', 'Urgent', 'Consultation', 'Preventive'];
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background:'#fff', borderRadius:14, width:540, maxHeight:'90vh', overflow:'hidden', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
+
+        {/* Header */}
+        <div style={{ padding:'16px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#4f46e5', color:'#fff', borderRadius:'14px 14px 0 0' }}>
+          <div>
+            <div style={{ fontWeight:700, fontSize:15 }}>📅 Schedule Appointment</div>
+            <div style={{ fontSize:12, opacity:0.85, marginTop:2 }}>
+              {patient ? `${patient.firstName} ${patient.lastName}` : 'Patient'} · patient locked
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background:'rgba(255,255,255,0.18)', border:'none', color:'#fff', borderRadius:6, width:28, height:28, fontSize:18, cursor:'pointer', lineHeight:1 }}>×</button>
+        </div>
+
+        {/* Controls */}
+        <div style={{ padding:'14px 20px 10px', borderBottom:'1px solid #f3f4f6', display:'flex', flexWrap:'wrap', gap:10 }}>
+          <div style={{ flex:1, minWidth:130 }}>
+            <label style={{ fontSize:11, fontWeight:700, color:'#6b7280', display:'block', marginBottom:3 }}>DATE</label>
+            <input type="date" value={date} min={today}
+              onChange={e => { setDate(e.target.value); setSelectedSlot(null); }}
+              style={{ width:'100%', border:'1.5px solid #d1d5db', borderRadius:7, padding:'6px 8px', fontSize:13, fontFamily:'inherit', boxSizing:'border-box' }} />
+          </div>
+          <div style={{ flex:2, minWidth:190 }}>
+            <label style={{ fontSize:11, fontWeight:700, color:'#6b7280', display:'block', marginBottom:3 }}>PROVIDER</label>
+            <select value={providerId}
+              onChange={e => { setProviderId(e.target.value); setSelectedSlot(null); }}
+              style={{ width:'100%', border:'1.5px solid #d1d5db', borderRadius:7, padding:'6px 8px', fontSize:13, fontFamily:'inherit', boxSizing:'border-box' }}>
+              {providers.map(p => (
+                <option key={p.id} value={p.id}>{p.firstName} {p.lastName}{p.credentials ? `, ${p.credentials}` : ''}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ width:'100%' }}>
+            <label style={{ fontSize:11, fontWeight:700, color:'#6b7280', display:'block', marginBottom:4 }}>DURATION</label>
+            <div style={{ display:'flex', gap:6 }}>
+              {[15, 30, 45, 60, 90].map(d => (
+                <button key={d} type="button"
+                  onClick={() => { setDuration(d); setSelectedSlot(null); }}
+                  style={{ padding:'4px 14px', borderRadius:20, fontSize:12, fontWeight:700, cursor:'pointer',
+                    border: `1.5px solid ${duration === d ? '#4f46e5' : '#d1d5db'}`,
+                    background: duration === d ? '#ede9fe' : '#f9fafb',
+                    color: duration === d ? '#4f46e5' : '#6b7280' }}>
+                  {d}m
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Slot grid */}
+        <div style={{ overflowY:'auto', flex:1, padding:'14px 20px' }}>
+          <div style={{ fontSize:11, fontWeight:700, color:'#6b7280', marginBottom:10, textTransform:'uppercase', letterSpacing:0.5 }}>
+            Open slots — {new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' })}
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:8 }}>
+            {slots.map(slot => {
+              const open = isSlotOpen(slot);
+              const isSelected = selectedSlot === slot;
+              const booked = bookedMap[slot];
+              return (
+                <button key={slot} type="button" disabled={!open}
+                  onClick={() => open && setSelectedSlot(isSelected ? null : slot)}
+                  style={{
+                    padding:'9px 4px', borderRadius:8, fontSize:12, fontWeight:700,
+                    cursor: open ? 'pointer' : 'not-allowed', textAlign:'center',
+                    border: `1.5px solid ${isSelected ? '#4f46e5' : open ? '#86efac' : '#fca5a5'}`,
+                    background: isSelected ? '#4f46e5' : open ? '#f0fdf4' : '#fef2f2',
+                    color: isSelected ? '#fff' : open ? '#15803d' : '#991b1b',
+                    opacity: open ? 1 : 0.75, transition:'all 0.12s',
+                  }}>
+                  {fmtTime12(slot)}
+                  {!open && booked && (
+                    <div style={{ fontSize:9, fontWeight:500, marginTop:2, opacity:0.8 }}>{booked.name}</div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Detail fields shown after slot selection */}
+          {selectedSlot && (
+            <div style={{ marginTop:16, padding:14, background:'#f8fafc', borderRadius:10, border:'1.5px solid #e2e8f0' }}>
+              <div style={{ fontWeight:700, fontSize:13, color:'#1e293b', marginBottom:12 }}>
+                {fmtTime12(selectedSlot)} · {duration} min
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+                <div>
+                  <label style={{ fontSize:11, fontWeight:700, color:'#6b7280', display:'block', marginBottom:3 }}>APPOINTMENT TYPE</label>
+                  <select value={aptType} onChange={e => setAptType(e.target.value)}
+                    style={{ width:'100%', border:'1.5px solid #d1d5db', borderRadius:7, padding:'6px 8px', fontSize:12, fontFamily:'inherit', boxSizing:'border-box' }}>
+                    {APPT_TYPES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:11, fontWeight:700, color:'#6b7280', display:'block', marginBottom:3 }}>VISIT TYPE</label>
+                  <select value={visitType} onChange={e => setVisitType(e.target.value)}
+                    style={{ width:'100%', border:'1.5px solid #d1d5db', borderRadius:7, padding:'6px 8px', fontSize:12, fontFamily:'inherit', boxSizing:'border-box' }}>
+                    {VISIT_TYPES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize:11, fontWeight:700, color:'#6b7280', display:'block', marginBottom:3 }}>REASON FOR VISIT</label>
+                <input type="text" value={reason} onChange={e => setReason(e.target.value)}
+                  placeholder="e.g. medication review, annual follow-up…"
+                  style={{ width:'100%', border:'1.5px solid #d1d5db', borderRadius:7, padding:'6px 8px', fontSize:12, fontFamily:'inherit', boxSizing:'border-box' }} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding:'12px 20px', borderTop:'1px solid #e5e7eb', display:'flex', justifyContent:'flex-end', gap:10, background:'#fafafa', borderRadius:'0 0 14px 14px' }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #d1d5db', background:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', color:'#374151' }}>
+            Cancel
+          </button>
+          <button type="button" onClick={handleConfirm} disabled={!selectedSlot || saving}
+            style={{ padding:'8px 22px', borderRadius:8, border:'none', fontSize:13, fontWeight:700,
+              cursor: selectedSlot && !saving ? 'pointer' : 'not-allowed',
+              background: selectedSlot ? '#4f46e5' : '#e5e7eb',
+              color: selectedSlot ? '#fff' : '#9ca3af',
+              opacity: saving ? 0.7 : 1 }}>
+            {saving ? 'Saving…' : '📅 Confirm Appointment'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ChartPage() {
   const { patientId, tab } = useParams();
   const { currentUser } = useAuth();
   const {
     openChart, selectedPatient, updateStickyNote, allergies, problemList, vitalSigns, meds,
     immunizations, labResults, assessmentScores, orders, addOrder, encounters,
-    inboxMessages, appointments,
+    inboxMessages, appointments, addAppointment,
   } = usePatient();
   const navigate = useNavigate();
   const location = useLocation();
 
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // ── Chart-side slot-picker scheduling ─────────────────────────────────
+  const [showSlotModal, setShowSlotModal] = useState(false);
+  const [slotProviders, setSlotProviders] = useState([]);
+  useEffect(() => {
+    usersApi.directory().then(data => {
+      if (Array.isArray(data)) setSlotProviders(data.filter(u => ['prescriber', 'nurse', 'therapist'].includes(u.role)));
+    }).catch(() => {});
+  }, []);
   const [activePanel, setActivePanel] = useState(null); // 'quickview' | 'ordergroup' | 'export' | 'forms'
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const menuRef = useRef(null);
@@ -1449,8 +1672,14 @@ export default function ChartPage() {
                           </>
                         )}
 
+                        <button
+                          type="button"
+                          onClick={() => setShowSlotModal(true)}
+                          style={{ width:'100%', marginTop:10, padding:'8px 0', borderRadius:8, border:'2px solid #4f46e5', background:'#ede9fe', color:'#4f46e5', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                          📅 Schedule Appointment
+                        </button>
                         <div
-                          style={{ fontSize: 11, color: 'var(--primary)', marginTop: 8, cursor: 'pointer', fontWeight: 600 }}
+                          style={{ fontSize: 11, color: 'var(--primary)', marginTop: 6, cursor: 'pointer', fontWeight: 600 }}
                           onClick={() => { closePanel(); navigate('/schedule'); }}
                         >
                           Open full schedule →
@@ -3215,6 +3444,18 @@ export default function ChartPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Slot picker modal from chart */}
+      {showSlotModal && (
+        <ChartSlotModal
+          patient={selectedPatient}
+          providers={slotProviders}
+          existingAppts={appointments}
+          currentUser={currentUser}
+          onSave={addAppointment}
+          onClose={() => setShowSlotModal(false)}
+        />
       )}
 
       {/* Inline keyframes for slide panel animation */}
