@@ -1,0 +1,29 @@
+name: Diagnose Server
+on: workflow_dispatch
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH Diagnostics
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DO_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H $DO_HOST >> ~/.ssh/known_hosts
+          ssh $DO_USER@$DO_HOST << 'EOF'
+            echo "=== PM2 LIST ==="
+            pm2 list
+            echo ""
+            echo "=== PM2 LOGS (last 40 lines) ==="
+            pm2 logs --lines 40 --nostream 2>/dev/null || pm2 logs clarity-api --lines 40 --nostream 2>/dev/null
+            echo ""
+            echo "=== PORT 5001 ==="
+            ss -tlnp | grep 5001 || echo "Nothing on 5001"
+            echo ""
+            echo "=== NGINX STATUS ==="
+            systemctl is-active nginx 2>/dev/null || true
+          EOF
