@@ -99,14 +99,14 @@ router.post('/request-access', validate(PortalRequestAccessSchema), async (req, 
 
   const normalised = email.trim().toLowerCase();
 
-  // Always respond the same way to prevent email enumeration
   const patient = await db.prepare(
     `SELECT id, first_name, last_name, email, portal_locked_until, portal_otp_attempts
      FROM patients WHERE LOWER(email) = $1 AND is_active = true`
   ).get(normalised);
 
-  if (!patient) { // Don't reveal whether email exists
-    return res.json({ ok: true, hint: normalised.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '***' + c) });
+  if (!patient) {
+    // Email not in system — ask patient to verify identity instead
+    return res.json({ ok: true, needsVerification: true });
   }
 
   // Lock check
@@ -122,6 +122,68 @@ router.post('/request-access', validate(PortalRequestAccessSchema), async (req, 
 
   // Send email (non-blocking) — plaintext OTP goes only to the patient's inbox
   sendPortalOtp(patient.email, otp, patient.first_name).catch(e =>
+    console.error('[portal] OTP email failed:', e.message)
+  );
+
+  const masked = normalised.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '***' + c);
+  res.json({ ok: true, hint: masked });
+});
+
+// ── 1b. Verify Identity (email not on file — match by demographics) ───────────
+router.post('/verify-identity', async (req, res) => {
+  const { email, firstName, lastName, dob, phone } = req.body;
+  if (!email || !firstName || !lastName || !dob) {
+    return res.status(400).json({ error: 'Email, first name, last name, and date of birth are required' });
+  }
+
+  const normalised = email.trim().toLowerCase();
+
+  // Normalise phone — strip all non-digits for comparison
+  const normalisePhone = (p) => (p || '').replace(/\D/g, '');
+  const inputPhone = normalisePhone(phone);
+
+  // Match by name + DOB (case-insensitive). Phone is a secondary check if provided.
+  const candidates = await db.prepare(`
+    SELECT id, first_name, last_name, dob, phone, cell_phone, email, portal_locked_until
+    FROM patients
+    WHERE LOWER(first_name) = LOWER($1)
+      AND LOWER(last_name)  = LOWER($2)
+      AND dob = $3
+      AND is_active = true
+  `).all(firstName.trim(), lastName.trim(), dob.trim());
+
+  let matched = null;
+
+  if (candidates.length === 1) {
+    matched = candidates[0];
+  } else if (candidates.length > 1 && inputPhone) {
+    // Multiple name+DOB matches — use phone to disambiguate
+    matched = candidates.find(c =>
+      normalisePhone(c.phone) === inputPhone || normalisePhone(c.cell_phone) === inputPhone
+    ) || null;
+  }
+
+  if (!matched) {
+    // Generic message — don't reveal what did/didn't match
+    return res.status(404).json({ error: 'We could not verify your identity. Please contact your clinic to be registered.' });
+  }
+
+  // Lock check
+  if (matched.portal_locked_until && new Date(matched.portal_locked_until) > new Date()) {
+    return res.status(429).json({ error: 'Too many attempts. Please try again in 10 minutes.' });
+  }
+
+  // Link the email to this chart (or update if they provided a new one)
+  await db.prepare(`UPDATE patients SET email = $1 WHERE id = $2`).run(normalised, matched.id);
+
+  // Generate and send OTP
+  const otp     = generateOtp();
+  const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  await db.prepare(
+    `UPDATE patients SET portal_otp = $1, portal_otp_expires = $2, portal_otp_attempts = 0 WHERE id = $3`
+  ).run(hashOtp(otp), expires, matched.id);
+
+  sendPortalOtp(normalised, otp, matched.first_name).catch(e =>
     console.error('[portal] OTP email failed:', e.message)
   );
 
