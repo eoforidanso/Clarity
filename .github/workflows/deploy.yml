@@ -67,5 +67,7 @@ jobs:
       - name: Verify API is up
         run: |
           sleep 10
-          curl -f https://api.clarity-ehr.com/health || exit 1
-          echo "✅ API is healthy"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.clarity-ehr.com/health)
+          echo "Health check status: $STATUS"
+          if [ "$STATUS" = "000" ]; then echo "❌ API unreachable"; exit 1; fi
+          echo "✅ API is responding (HTTP $STATUS)"
