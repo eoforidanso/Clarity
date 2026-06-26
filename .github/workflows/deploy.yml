@@ -24,17 +24,28 @@ jobs:
           ssh-keyscan -H $DO_HOST >> ~/.ssh/known_hosts
 
           ssh $DO_USER@$DO_HOST << 'EOF'
+            set -e
             cd /var/www/ehr
             git fetch origin
             git checkout main
             git pull origin main
+
+            # Install frontend deps and build
+            npm install
+            npm run build
+
+            # Install backend deps
+            cd server
             npm install --production
-            pm2 restart ehr
+            cd ..
+
+            # Restart API (process is named ehr-api)
+            pm2 restart ehr-api
             echo "✅ Production deployment complete"
           EOF
 
       - name: Verify API is up
         run: |
-          sleep 5
+          sleep 10
           curl -f https://api.clarity-ehr.com/health || exit 1
           echo "✅ API is healthy"
