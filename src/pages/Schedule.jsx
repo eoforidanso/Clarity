@@ -679,6 +679,7 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
 
   const aptTop    = apt => { const [h,m] = apt.time.split(':').map(Number); return Math.max(0, (h*60+m - DAY_START_MIN) * PX_PER_MIN); };
   const aptHeight = apt => Math.max(22, (apt.duration || 30) * PX_PER_MIN);
+  const slotToMins = t => { if (!t) return 0; const [h,m] = t.split(':').map(Number); return h*60+m; };
 
   const handleColClick = (e, providerId) => {
     const rect  = e.currentTarget.getBoundingClientRect();
@@ -805,6 +806,33 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
                   </div>
                 );
               })}
+
+              {/* Open slot hints — visible on hover, click to book */}
+              {onCellClick && timeMarks.filter(({ mins }) => {
+                if (mins >= DAY_END_MIN) return false;
+                const slotEnd = mins + 30;
+                return !(dayAppts[p.id] || []).some(a => {
+                  const s = slotToMins(a.time);
+                  const e = s + Number(a.duration || 30);
+                  return s < slotEnd && e > mins;
+                });
+              }).map(({ top, key }) => (
+                <div key={`open-${key}`}
+                  onClick={e => { e.stopPropagation(); onCellClick(p.id, activeDate, key); }}
+                  title={`Book ${p.firstName} at ${fmtTime12(key)}`}
+                  style={{
+                    position:'absolute', top: top + 1, left:1, right:1, height:52,
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    cursor:'pointer', zIndex:1, borderRadius:4,
+                    color:'#16a34a', fontSize:10, fontStyle:'italic', fontWeight:600,
+                    opacity:0, transition:'opacity 0.12s, background 0.12s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.opacity='1'; e.currentTarget.style.background='#f0fdf480'; }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity='0'; e.currentTarget.style.background=''; }}
+                >
+                  ＋ open
+                </div>
+              ))}
             </div>
           ))}
         </div>
