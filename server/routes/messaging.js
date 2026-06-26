@@ -4,13 +4,15 @@ import db from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { routeError } from '../utils/routeError.js';
 import { validate } from '../middleware/validate.js';
-import { ChannelMessageSchema, DmMessageSchema } from '../schemas/messagingSchema.js';
+import { ChannelMessageSchema, DmMessageSchema, ReactionsSchema } from '../schemas/messagingSchema.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { ChannelListResponseSchema, ChannelMessageListResponseSchema, DmListResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate);
 
 // GET /api/messaging/channels
-router.get('/channels', async (req, res) => {
+router.get('/channels', validateResponse(ChannelListResponseSchema), async (req, res) => {
   try {
     const channels = await db.prepare('SELECT * FROM staff_channels ORDER BY name').all();
     res.json(channels.map(c => ({ id: c.id, name: c.name, type: c.type })));
@@ -21,7 +23,7 @@ router.get('/channels', async (req, res) => {
 });
 
 // GET /api/messaging/channels/:channelId/messages
-router.get('/channels/:channelId/messages', async (req, res) => {
+router.get('/channels/:channelId/messages', validateResponse(ChannelMessageListResponseSchema), async (req, res) => {
   try {
     const { limit } = req.query;
     const parsedLimit = parseInt(limit, 10);
@@ -62,7 +64,7 @@ router.post('/channels/:channelId/messages', validate(ChannelMessageSchema), asy
 });
 
 // PUT /api/messaging/messages/:messageId/reactions
-router.put('/messages/:messageId/reactions', async (req, res) => {
+router.put('/messages/:messageId/reactions', validate(ReactionsSchema), async (req, res) => {
   try {
     const { reactions } = req.body;
     await db.prepare('UPDATE staff_messages SET reactions = ? WHERE id = ?').run(JSON.stringify(reactions), req.params.messageId);
@@ -83,7 +85,7 @@ function mapDm(r) { return {
 
 // GET /api/messaging/dm/:userId/messages
 // Returns all DMs between the authenticated user and :userId
-router.get('/dm/:userId/messages', async (req, res) => {
+router.get('/dm/:userId/messages', validateResponse(DmListResponseSchema), async (req, res) => {
   try {
     const me = req.user.id;
     const other = req.params.userId;
@@ -131,7 +133,7 @@ router.post('/dm/:userId/messages', validate(DmMessageSchema), async (req, res) 
 });
 
 // PUT /api/messaging/dm/messages/:messageId/reactions
-router.put('/dm/messages/:messageId/reactions', async (req, res) => {
+router.put('/dm/messages/:messageId/reactions', validate(ReactionsSchema), async (req, res) => {
   try {
     const { reactions } = req.body;
     const me = req.user.id;

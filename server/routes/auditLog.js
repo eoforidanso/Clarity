@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { getAuditLog } from '../middleware/auditLog.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate); // RBAC: all routes require authentication
+router.use(validateResponse(AnyResponseSchema));
 
 // GET /api/audit-log
 router.get('/', authenticate, authorize('admin', 'front_desk'), async (req, res) => {

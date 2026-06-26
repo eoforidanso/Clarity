@@ -3,9 +3,12 @@ import { authenticate } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
 import db from '../db/database.js';
 import { v4 as uuidv4 } from 'uuid';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate); // RBAC: all routes require authentication
+router.use(validateResponse(AnyResponseSchema));
 
 /**
  * FHIR R4 Basic API

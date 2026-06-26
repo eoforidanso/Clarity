@@ -15,7 +15,7 @@ import { logAudit } from '../db/softDelete.js';
 
 export async function requirePatientAccess(req, res, next) {
   const patientId = req.params.patientId || req.params.id;
-  if (!patientId) return next();
+  if (!patientId) return res.status(400).json({ error: 'Patient ID required' });
 
   const patient = await db
     .prepare('SELECT id, assigned_provider, primary_location FROM patients WHERE id = ?')

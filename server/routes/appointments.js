@@ -3,8 +3,10 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { CreateAppointmentSchema, UpdateAppointmentSchema } from '../schemas/appointmentSchema.js';
+import { CreateAppointmentSchema, UpdateAppointmentSchema, BlockedDaySchema, TelehealthConsentSchema } from '../schemas/appointmentSchema.js';
 import { routeError } from '../utils/routeError.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AppointmentResponseSchema, AppointmentListResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate);
@@ -14,7 +16,7 @@ function formatAppt(r) { return {
 }
 
 // GET /api/appointments
-router.get('/', async (req, res) => {
+router.get('/', validateResponse(AppointmentListResponseSchema), async (req, res) => {
   const { date, provider, status, startDate, endDate, locationId } = req.query;
   const facilityId = req.user.facility_id;
   const isGlobal   = req.access.canSeeAll;
@@ -38,7 +40,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/appointments
-router.post('/', validate(CreateAppointmentSchema), async (req, res) => {
+router.post('/', validate(CreateAppointmentSchema), validateResponse(AppointmentResponseSchema), async (req, res) => {
   try {
     const b = req.body;
     const id = uuidv4();
@@ -55,7 +57,7 @@ router.post('/', validate(CreateAppointmentSchema), async (req, res) => {
 });
 
 // PUT /api/appointments/:id
-router.put('/:id', validate(UpdateAppointmentSchema), async (req, res) => {
+router.put('/:id', validate(UpdateAppointmentSchema), validateResponse(AppointmentResponseSchema), async (req, res) => {
   try {
     const existing = await db.prepare('SELECT * FROM appointments WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Appointment not found' });
@@ -111,7 +113,7 @@ router.get('/blocked-days/list', async (req, res) => {
 });
 
 // POST /api/appointments/blocked-days
-router.post('/blocked-days', async (req, res) => {
+router.post('/blocked-days', validate(BlockedDaySchema), async (req, res) => {
   try {
     const b = req.body;
     const id = uuidv4();
@@ -140,7 +142,7 @@ router.delete('/blocked-days/:id', async (req, res) => {
 
 // POST /api/appointments/telehealth-consent
 // Records provider-confirmed recording consent before a session starts.
-router.post('/telehealth-consent', authenticate, async (req, res) => { const {
+router.post('/telehealth-consent', authenticate, validate(TelehealthConsentSchema), async (req, res) => { const {
     sessionId, appointmentId, patientId, patientName, patientLocation, recordingConsent, // 'granted' | 'denied' | 'not_asked'
     recordingConsentMethod, // 'verbal' | 'written' | 'waived'
     providerConfirmed, // boolean

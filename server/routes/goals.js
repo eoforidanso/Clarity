@@ -3,10 +3,13 @@ import db              from '../db/database.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { GoalsService } from '../services/GoalsService.js';
 import { routeError } from '../utils/routeError.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate);
 router.use(authorize('therapist'));
+router.use(validateResponse(AnyResponseSchema));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

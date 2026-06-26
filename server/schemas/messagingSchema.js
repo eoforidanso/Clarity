@@ -70,3 +70,30 @@ export const RxHistorySchema = z.object({
   type:         z.enum(['New Prescription', 'Refill', 'Transfer', 'Change']).optional().default('Refill'),
   note:         z.string().max(500).optional().default(''),
 });
+
+export const UpdateMedicationSchema = z.object({
+  name:        z.string().max(200).optional(),
+  dose:        z.string().max(100).optional(),
+  route:       z.string().max(50).optional(),
+  frequency:   z.string().max(100).optional(),
+  prescriber:  z.string().max(200).optional(),
+  status:      z.enum(['Active', 'Inactive', 'Discontinued', 'On Hold']).optional(),
+  refillsLeft: z.number().int().min(0).max(99).optional(),
+  pharmacy:    z.string().max(200).optional(),
+  lastFilled:  z.string().max(20).optional(),
+  sig:         z.string().max(500).optional(),
+});
+
+export const InboxUpdateSchema = z.object({
+  read:     z.boolean().optional(),
+  status:   z.string().max(50).optional(),
+  priority: z.string().max(50).optional(),
+});
+
+export const InboxStatusUpdateSchema = z.object({
+  status: z.string().min(1).max(50),
+});
+
+export const ReactionsSchema = z.object({
+  reactions: z.record(z.any()),
+});

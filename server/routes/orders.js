@@ -1,4 +1,5 @@
 import { requirePatientAccess } from '../middleware/idor.js';
+import { requirePatientId } from '../middleware/accessControl.js';
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
@@ -6,14 +7,16 @@ import { authenticate } from '../middleware/auth.js';
 import { routeError } from '../utils/routeError.js';
 import { validate } from '../middleware/validate.js';
 import { CreateOrderSchema, UpdateOrderSchema } from '../schemas/orderSchema.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { OrderResponseSchema, OrderListResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate);
-router.use('/:patientId', requirePatientAccess);
-router.use('/:patientId/*', requirePatientAccess);
+router.use('/:patientId', requirePatientId, requirePatientAccess);
+router.use('/:patientId/*', requirePatientId, requirePatientAccess);
 
 // GET /api/patients/:patientId/orders
-router.get('/:patientId/orders', async (req, res) => {
+router.get('/:patientId/orders', validateResponse(OrderListResponseSchema), async (req, res) => {
   try {
     const rows = await db.prepare('SELECT * FROM orders WHERE patient_id = ? ORDER BY ordered_date DESC').all(req.params.patientId);
     res.json(rows.map(r => ({
@@ -26,7 +29,7 @@ router.get('/:patientId/orders', async (req, res) => {
 });
 
 // POST /api/patients/:patientId/orders
-router.post('/:patientId/orders', validate(CreateOrderSchema), async (req, res) => {
+router.post('/:patientId/orders', validate(CreateOrderSchema), validateResponse(OrderResponseSchema), async (req, res) => {
   try {
     const b = req.body;
     const id = uuidv4();
@@ -41,7 +44,7 @@ router.post('/:patientId/orders', validate(CreateOrderSchema), async (req, res) 
 });
 
 // PUT /api/patients/:patientId/orders/:orderId
-router.put('/:patientId/orders/:orderId', validate(UpdateOrderSchema), async (req, res) => {
+router.put('/:patientId/orders/:orderId', validate(UpdateOrderSchema), validateResponse(OrderResponseSchema), async (req, res) => {
   try {
     const b = req.body;
     const existing = await db.prepare('SELECT * FROM orders WHERE id = ? AND patient_id = ?').get(req.params.orderId, req.params.patientId);

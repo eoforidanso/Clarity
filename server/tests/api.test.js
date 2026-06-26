@@ -24,12 +24,12 @@ async function loginWith2FA(username, password) {
   const res = await request(app).post('/api/auth/login').send({ username, password });
   expect(res.status).to.equal(200);
 
-  if (res.body.requiresTwoFactor) {
+  if (res.body.requiresMfa) {
     expect(res.body.tempToken).to.be.a('string');
     expect(res.body.mockCode).to.be.a('string');
 
     const verifyRes = await request(app)
-      .post('/api/auth/2fa/verify')
+      .post('/api/auth/mfa/verify')
       .send({ tempToken: res.body.tempToken, code: res.body.mockCode });
 
     expect(verifyRes.status).to.equal(200);

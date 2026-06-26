@@ -1,17 +1,20 @@
 import { requirePatientAccess } from '../middleware/idor.js';
+import { requirePatientId } from '../middleware/accessControl.js';
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { routeError } from '../utils/routeError.js';
 import { validate } from '../middleware/validate.js';
-import { MedicationSchema, RxHistorySchema } from '../schemas/messagingSchema.js';
+import { MedicationSchema, RxHistorySchema, UpdateMedicationSchema } from '../schemas/messagingSchema.js';
 import { logPhiRead } from '../middleware/phiAudit.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { MedicationResponseSchema, MedicationListResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate);
-router.use('/:patientId', requirePatientAccess);
-router.use('/:patientId/*', requirePatientAccess);
+router.use('/:patientId', requirePatientId, requirePatientAccess);
+router.use('/:patientId/*', requirePatientId, requirePatientAccess);
 
 async function formatMed(row) { const rxHistory = await db.prepare('SELECT * FROM medication_rx_history WHERE medication_id = ? ORDER BY date DESC').all(row.id);
   return {
@@ -21,7 +24,7 @@ async function formatMed(row) { const rxHistory = await db.prepare('SELECT * FRO
 }
 
 // GET /api/patients/:patientId/medications
-router.get('/:patientId/medications', async (req, res) => {
+router.get('/:patientId/medications', validateResponse(MedicationListResponseSchema), async (req, res) => {
   try {
     logPhiRead(req, req.params.patientId, 'medications');
     const rows = await db.prepare('SELECT * FROM medications WHERE patient_id = ? ORDER BY status ASC, name ASC').all(req.params.patientId);
@@ -33,7 +36,7 @@ router.get('/:patientId/medications', async (req, res) => {
 });
 
 // POST /api/patients/:patientId/medications
-router.post('/:patientId/medications', validate(MedicationSchema), async (req, res) => {
+router.post('/:patientId/medications', validate(MedicationSchema), validateResponse(MedicationResponseSchema), async (req, res) => {
   try {
     const b = req.body;
     const id = uuidv4();
@@ -59,7 +62,7 @@ router.post('/:patientId/medications', validate(MedicationSchema), async (req, r
 });
 
 // PUT /api/patients/:patientId/medications/:medId
-router.put('/:patientId/medications/:medId', async (req, res) => {
+router.put('/:patientId/medications/:medId', validate(UpdateMedicationSchema), validateResponse(MedicationResponseSchema), async (req, res) => {
   try {
     const b = req.body;
     const existing = await db.prepare('SELECT * FROM medications WHERE id = ? AND patient_id = ?').get(req.params.medId, req.params.patientId);

@@ -2,12 +2,17 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate, requireElevated } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
+import { BtgRequestAccessSchema } from '../schemas/btgSchema.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate);
+router.use(validateResponse(AnyResponseSchema));
 
 // POST /api/btg/request-access
-router.post('/request-access', requireElevated, async (req, res) => { const { patientId, reason } = req.body;
+router.post('/request-access', requireElevated, validate(BtgRequestAccessSchema), async (req, res) => { const { patientId, reason } = req.body;
   if (!patientId || !reason) { return res.status(400).json({ error: 'Patient ID and reason are required' });
   }
   if (reason.length < 10) { return res.status(400).json({ error: 'Reason must be at least 10 characters' });

@@ -2,10 +2,15 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate, requireElevated, authorize } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
+import { PrescribeSchema } from '../schemas/eprescribeSchema.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate);
 router.use(authorize('prescriber'));
+router.use(validateResponse(AnyResponseSchema));
 
 // GET /api/eprescribe/medication-database
 router.get('/medication-database', async (req, res) => { const { search } = req.query;
@@ -21,7 +26,7 @@ router.get('/medication-database', async (req, res) => { const { search } = req.
 });
 
 // POST /api/eprescribe/prescribe
-router.post('/prescribe', requireElevated, async (req, res) => { const b = req.body;
+router.post('/prescribe', requireElevated, validate(PrescribeSchema), async (req, res) => { const b = req.body;
   const medId = uuidv4();
   const userName = `${req.user.first_name } ${ req.user.last_name }`.trim();
 

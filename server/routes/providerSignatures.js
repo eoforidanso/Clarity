@@ -21,9 +21,18 @@ import db from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
 import { routeError } from '../utils/routeError.js';
+import { validate } from '../middleware/validate.js';
+import { z } from 'zod';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
+
+const ProviderSignatureSchema = z.object({
+  signatureDataUrl: z.string().min(1),
+});
 
 const router = Router();
 router.use(authenticate);
+router.use(validateResponse(AnyResponseSchema));
 
 // Max base64 payload: ~512 KB  →  roughly 384 KB raw image
 const MAX_SIGNATURE_BYTES = 512 * 1024;
@@ -64,7 +73,7 @@ router.get('/me', async (req, res) => {
 // ── PUT /api/provider-signatures/me ─────────────────────────────────────────
 // Upsert the authenticated provider's signature.
 // Body: { signatureDataUrl: "data:image/png;base64,…" }
-router.put('/me', async (req, res) => {
+router.put('/me', validate(ProviderSignatureSchema), async (req, res) => {
   const { signatureDataUrl } = req.body;
 
   const validationError = validateDataUrl(signatureDataUrl);

@@ -9,8 +9,15 @@ import { authenticate, authorize, requireElevated } from '../middleware/auth.js'
 import db from '../db/database.js';
 import { setDeviceTrust, getUserDevices } from '../security/geoDevice.js';
 import { routeError } from '../utils/routeError.js';
+import { validate } from '../middleware/validate.js';
+import { z } from 'zod';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
+
+const EmptyBodySchema = z.object({});
 
 const router = Router();
+router.use(validateResponse(AnyResponseSchema));
 router.use(authenticate, authorize('admin'));
 
 const SECURITY_ACTIONS = [
@@ -140,7 +147,7 @@ router.get('/devices/:userId', async (req, res) => { try {
 });
 
 // POST /api/security/devices/:id/revoke
-router.post('/devices/:id/revoke', async (req, res) => { try {
+router.post('/devices/:id/revoke', validate(EmptyBodySchema), async (req, res) => { try {
     await setDeviceTrust(req.params.id, 'revoked');
     const { changes } = await db.prepare(
       `UPDATE sessions SET is_active = FALSE WHERE device_id = $1 AND is_active = TRUE`
@@ -150,14 +157,14 @@ router.post('/devices/:id/revoke', async (req, res) => { try {
 });
 
 // POST /api/security/devices/:id/trust
-router.post('/devices/:id/trust', async (req, res) => { try {
+router.post('/devices/:id/trust', validate(EmptyBodySchema), async (req, res) => { try {
     await setDeviceTrust(req.params.id, 'trusted');
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/security/devices/:id/flag
-router.post('/devices/:id/flag', async (req, res) => { try {
+router.post('/devices/:id/flag', validate(EmptyBodySchema), async (req, res) => { try {
     await setDeviceTrust(req.params.id, 'suspicious');
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }

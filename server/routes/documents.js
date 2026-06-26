@@ -2,9 +2,14 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
 import db from '../db/database.js';
+import { validate } from '../middleware/validate.js';
+import { ProgressNoteDocSchema, PrescriptionDocSchema, PatientSummaryDocSchema, DischargeSummaryDocSchema } from '../schemas/documentSchema.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate); // RBAC: all routes require authentication
+router.use(validateResponse(AnyResponseSchema));
 
 /**
  * PDF Generation (text-based, no external dependencies)
@@ -39,7 +44,7 @@ async function getProviderInfo(userId) { const u = await db.prepare('SELECT * FR
 }
 
 // ── POST /api/documents/progress-note ─────────────────
-router.post('/progress-note', authenticate, async (req, res) => { const { encounterId, patientId } = req.body;
+router.post('/progress-note', authenticate, validate(ProgressNoteDocSchema), async (req, res) => { const { encounterId, patientId } = req.body;
   if (!encounterId || !patientId) { return res.status(400).json({ error: 'encounterId and patientId are required' });
   }
 
@@ -103,7 +108,7 @@ router.post('/progress-note', authenticate, async (req, res) => { const { encoun
 });
 
 // ── POST /api/documents/prescription ──────────────────
-router.post('/prescription', authenticate, async (req, res) => { const { medicationId, patientId } = req.body;
+router.post('/prescription', authenticate, validate(PrescriptionDocSchema), async (req, res) => { const { medicationId, patientId } = req.body;
   if (!medicationId || !patientId) { return res.status(400).json({ error: 'medicationId and patientId are required' });
   }
 
@@ -139,7 +144,7 @@ router.post('/prescription', authenticate, async (req, res) => { const { medicat
 });
 
 // ── POST /api/documents/patient-summary ───────────────
-router.post('/patient-summary', authenticate, async (req, res) => { const { patientId } = req.body;
+router.post('/patient-summary', authenticate, validate(PatientSummaryDocSchema), async (req, res) => { const { patientId } = req.body;
   if (!patientId) return res.status(400).json({ error: 'patientId is required' });
 
   const patient = await getPatientHeader(patientId);
@@ -182,7 +187,7 @@ router.post('/patient-summary', authenticate, async (req, res) => { const { pati
 });
 
 // ── POST /api/documents/discharge-summary ─────────────
-router.post('/discharge-summary', authenticate, async (req, res) => { const { patientId, encounterId, dischargePlan, followUpInstructions } = req.body;
+router.post('/discharge-summary', authenticate, validate(DischargeSummaryDocSchema), async (req, res) => { const { patientId, encounterId, dischargePlan, followUpInstructions } = req.body;
   if (!patientId) return res.status(400).json({ error: 'patientId is required' });
 
   const patient = await getPatientHeader(patientId);

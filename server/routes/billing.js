@@ -2,9 +2,21 @@ import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { auditMiddleware } from '../middleware/auditLog.js';
 import db from '../db/database.js';
+import { validate } from '../middleware/validate.js';
+import {
+  ClaimSubmitSchema,
+  RecordPaymentSchema,
+  DenialAppealSchema,
+  DenialResolveSchema,
+  TelehealthBillingSchema,
+  PatientPortalPaymentSchema,
+} from '../schemas/billingSchema.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = express.Router();
 router.use(authenticate); // RBAC: all routes require authentication
+router.use(validateResponse(AnyResponseSchema));
 
 // ============= INSURANCE VERIFICATION =============
 
@@ -151,7 +163,7 @@ router.post('/claims/generate', authenticate, auditMiddleware('CLAIM_GENERATE', 
 });
 
 // Submit claims to insurance
-router.post('/claims/submit', authenticate, auditMiddleware('CLAIM_SUBMIT', 'Claim'), async (req, res) => { try {
+router.post('/claims/submit', authenticate, auditMiddleware('CLAIM_SUBMIT', 'Claim'), validate(ClaimSubmitSchema), async (req, res) => { try {
     const { claimIds } = req.body;
     
     if (!Array.isArray(claimIds) || claimIds.length === 0) { return res.status(400).json({ error: 'No claims specified for submission' });
@@ -244,7 +256,7 @@ router.get('/claims', authenticate, async (req, res) => { try {
 // ============= PAYMENTS & COLLECTIONS =============
 
 // Record payment
-router.post('/payments', authenticate, auditMiddleware('PAYMENT_RECORD', 'Payment'), async (req, res) => { try {
+router.post('/payments', authenticate, auditMiddleware('PAYMENT_RECORD', 'Payment'), validate(RecordPaymentSchema), async (req, res) => { try {
     const {
       claimId, paymentType, // 'insurance', 'patient', 'adjustment'
       paymentMethod, // 'check', 'eft', 'cash', 'card'
@@ -467,7 +479,7 @@ router.get('/denials', authenticate, async (req, res) => { try {
 });
 
 // Initiate denial appeal
-router.post('/denials/:id/appeal', authenticate, auditMiddleware('DENIAL_APPEAL', 'Denial Management'), async (req, res) => { try {
+router.post('/denials/:id/appeal', authenticate, auditMiddleware('DENIAL_APPEAL', 'Denial Management'), validate(DenialAppealSchema), async (req, res) => { try {
     const { id } = req.params;
     const { appeal_notes, appeal_documents, priority } = req.body;
     
@@ -502,7 +514,7 @@ router.post('/denials/:id/appeal', authenticate, auditMiddleware('DENIAL_APPEAL'
 });
 
 // Update denial resolution
-router.put('/denials/:id/resolve', authenticate, auditMiddleware('DENIAL_RESOLVE', 'Denial Management'), async (req, res) => { try {
+router.put('/denials/:id/resolve', authenticate, auditMiddleware('DENIAL_RESOLVE', 'Denial Management'), validate(DenialResolveSchema), async (req, res) => { try {
     const { id } = req.params;
     const { resolution_notes, resolution_amount } = req.body;
     
@@ -537,7 +549,7 @@ router.put('/denials/:id/resolve', authenticate, auditMiddleware('DENIAL_RESOLVE
 // ============= TELEHEALTH BILLING =============
 
 // Create telehealth session billing
-router.post('/telehealth/session-billing', authenticate, auditMiddleware('TELEHEALTH_BILLING', 'Telehealth Billing'), async (req, res) => { try {
+router.post('/telehealth/session-billing', authenticate, auditMiddleware('TELEHEALTH_BILLING', 'Telehealth Billing'), validate(TelehealthBillingSchema), async (req, res) => { try {
     const { session_id, patient_id, provider_id, session_duration, session_type, platform_used, technology_fee, documentation_notes } = req.body;
     
     // Get telehealth billing rates
@@ -704,7 +716,7 @@ router.get('/patient-portal/payment-history/:patientId', authenticate, async (re
 });
 
 // Process patient portal payment
-router.post('/patient-portal/payment', authenticate, auditMiddleware('PATIENT_PAYMENT', 'Patient Portal'), async (req, res) => { try {
+router.post('/patient-portal/payment', authenticate, auditMiddleware('PATIENT_PAYMENT', 'Patient Portal'), validate(PatientPortalPaymentSchema), async (req, res) => { try {
     const { patient_id, statement_id, amount, payment_method, card_last_four, transaction_id } = req.body;
     
     // Validate payment — patient_statements has no facility_id column

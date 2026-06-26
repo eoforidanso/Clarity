@@ -35,14 +35,15 @@ export class SMSService {
 
   static async _sendSMS(refillId, patientPhone, message) {
     try {
-      // In development/test: mock SMS service logs to console
-      const messageId = `SMS-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      let messageId;
 
-      // Log SMS in development
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[SMS] To: ${patientPhone}`);
-        console.log(`[SMS] Message: ${message}`);
-        console.log(`[SMS] ID: ${messageId}`);
+      if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM_NUMBER) {
+        // Live Twilio send via REST API (no SDK dependency)
+        messageId = await this.sendViaTwilio(patientPhone, message);
+      } else {
+        // Dev/test: log only
+        messageId = `SMS-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        console.info(`[SMS:dev] To: ${patientPhone} | ${message}`);
       }
 
       // Create notification record
@@ -93,27 +94,33 @@ export class SMSService {
     }
   }
 
-  // Production: Twilio integration
+  // Send via Twilio REST API (no SDK — uses built-in fetch)
   static async sendViaTwilio(phoneNumber, message) {
-    try {
-      if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
-        throw new Error('Twilio credentials not configured');
-      }
+    const sid = process.env.TWILIO_ACCOUNT_SID;
+    const token = process.env.TWILIO_AUTH_TOKEN;
+    const from = process.env.TWILIO_FROM_NUMBER;
 
-      // TODO: Implement Twilio client
-      // const twilio = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-      // const result = await twilio.messages.create({
-      //   body: message,
-      //   from: process.env.TWILIO_PHONE_NUMBER,
-      //   to: phoneNumber,
-      // });
-      // return result.sid;
-
-      throw new Error('Twilio integration not yet implemented');
-    } catch (error) {
-      console.error('[SMSService] Twilio error:', error);
-      throw error;
+    if (!sid || !token || !from) {
+      throw new Error('Twilio credentials not configured (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER)');
     }
+
+    const body = new URLSearchParams({ To: phoneNumber, From: from, Body: message });
+    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+
+    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: 'POST',
+      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`Twilio ${res.status}: ${err.message || res.statusText}`);
+    }
+
+    const data = await res.json();
+    console.info(`[SMS] Twilio sent: ${data.sid} → ${this._maskPhone(phoneNumber)}`);
+    return data.sid;
   }
 
   // Retry sending failed SMS

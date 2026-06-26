@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import db from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate);
+router.use(validateResponse(AnyResponseSchema));
 
 function calculateAge(dob) { if (!dob) return null;
   const birth = new Date(dob);

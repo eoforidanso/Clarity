@@ -3,6 +3,10 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { routeError } from '../utils/routeError.js';
+import { validate } from '../middleware/validate.js';
+import { SecureNoteSchema } from '../schemas/secureNoteSchema.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { SecureNoteResponseSchema, SecureNoteListResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate);
@@ -44,7 +48,7 @@ function visibilityClause(user) {
 }
 
 // GET /api/secure-notes
-router.get('/', async (req, res) => {
+router.get('/', validateResponse(SecureNoteListResponseSchema), async (req, res) => {
   try {
     const { clause, params } = visibilityClause(req.user);
     const { patientId, type } = req.query;
@@ -66,7 +70,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/secure-notes
-router.post('/', async (req, res) => {
+router.post('/', validate(SecureNoteSchema), validateResponse(SecureNoteResponseSchema), async (req, res) => {
   try {
     const b = req.body;
     if (!b.content?.trim()) return res.status(400).json({ error: 'content is required' });
@@ -102,7 +106,7 @@ router.post('/', async (req, res) => {
 });
 
 // PATCH /api/secure-notes/:id
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', validateResponse(SecureNoteResponseSchema), async (req, res) => {
   try {
     const existing = await db.prepare('SELECT * FROM secure_notes WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Note not found' });

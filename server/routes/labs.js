@@ -1,4 +1,5 @@
 import { requirePatientAccess } from '../middleware/idor.js';
+import { requirePatientId } from '../middleware/accessControl.js';
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
@@ -7,11 +8,13 @@ import { routeError } from '../utils/routeError.js';
 import { validate } from '../middleware/validate.js';
 import { CreateLabSchema } from '../schemas/labSchema.js';
 import { logPhiRead } from '../middleware/phiAudit.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { LabResultResponseSchema, LabListResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate);
-router.use('/:patientId', requirePatientAccess);
-router.use('/:patientId/*', requirePatientAccess);
+router.use('/:patientId', requirePatientId, requirePatientAccess);
+router.use('/:patientId/*', requirePatientId, requirePatientAccess);
 
 async function formatLabResult(row) { const tests = await db.prepare('SELECT * FROM lab_result_tests WHERE lab_result_id = ?').all(row.id);
   const testsFormatted = await Promise.all(tests.map(async t => {
@@ -25,7 +28,7 @@ async function formatLabResult(row) { const tests = await db.prepare('SELECT * F
 }
 
 // GET /api/patients/:patientId/labs
-router.get('/:patientId/labs', async (req, res) => {
+router.get('/:patientId/labs', validateResponse(LabListResponseSchema), async (req, res) => {
   try {
     logPhiRead(req, req.params.patientId, 'labs');
     const rows = await db.prepare('SELECT * FROM lab_results WHERE patient_id = ? ORDER BY order_date DESC').all(req.params.patientId);
@@ -37,7 +40,7 @@ router.get('/:patientId/labs', async (req, res) => {
 });
 
 // GET /api/patients/:patientId/labs/:labId
-router.get('/:patientId/labs/:labId', async (req, res) => {
+router.get('/:patientId/labs/:labId', validateResponse(LabResultResponseSchema), async (req, res) => {
   try {
     const row = await db.prepare('SELECT * FROM lab_results WHERE id = ? AND patient_id = ?').get(req.params.labId, req.params.patientId);
     if (!row) return res.status(404).json({ error: 'Lab result not found' });
@@ -49,7 +52,7 @@ router.get('/:patientId/labs/:labId', async (req, res) => {
 });
 
 // POST /api/patients/:patientId/labs
-router.post('/:patientId/labs', validate(CreateLabSchema), async (req, res) => {
+router.post('/:patientId/labs', validate(CreateLabSchema), validateResponse(LabResultResponseSchema), async (req, res) => {
   try {
     const b = req.body;
     const id = uuidv4();

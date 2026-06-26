@@ -5,9 +5,12 @@ import { authenticate } from '../middleware/auth.js';
 import { routeError } from '../utils/routeError.js';
 import { validate } from '../middleware/validate.js';
 import { SmartPhraseSchema } from '../schemas/messagingSchema.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate);
+router.use(validateResponse(AnyResponseSchema));
 
 // GET /api/smart-phrases
 router.get('/', async (req, res) => {

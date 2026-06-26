@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import db from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate);
+router.use(validateResponse(AnyResponseSchema));
 
 // Helper: awaits the query then returns the scalar count
 async function count(sql, ...params) {

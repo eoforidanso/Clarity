@@ -8,7 +8,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPTIME_FILE = path.join(__dirname, '../..', 'logs/uptime.json');
 const REBOOT_LOG = path.join(__dirname, '../..', 'logs/reboots.log');
 
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
+
 const router = express.Router();
+router.use(validateResponse(AnyResponseSchema));
 
 /**
  * GET /api/uptime

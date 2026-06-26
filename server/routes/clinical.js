@@ -7,9 +7,12 @@ import { routeError } from '../utils/routeError.js';
 import { validate } from '../middleware/validate.js';
 import { AllergySchema, ProblemSchema, VitalsSchema, ImmunizationSchema, AssessmentSchema } from '../schemas/clinicalSchema.js';
 import { logPhiRead } from '../middleware/phiAudit.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate);
+router.use(validateResponse(AnyResponseSchema));
 
 // ── IDOR guard — all clinical sub-routes require patient access ───────────────
 async function requirePatientAccess(req, res, next) { const patientId = req.params.patientId;

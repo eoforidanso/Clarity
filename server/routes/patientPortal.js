@@ -15,16 +15,34 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db/database.js';
+import { portalTelehealthToken } from './telehealthToken.js';
+import { validate } from '../middleware/validate.js';
+import {
+  PortalRequestAccessSchema,
+  PortalMessageSchema,
+  PortalAssessmentSchema,
+  PortalRefillRequestSchema,
+  PortalBookAppointmentSchema,
+  PortalTelehealthTokenSchema,
+} from '../schemas/portalSchema.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
+router.use(validateResponse(AnyResponseSchema));
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function generateOtp() { return String(Math.floor(100000 + Math.random() * 900000)); }
 
+function hashOtp(otp) {
+  return crypto.createHash('sha256').update(otp).digest('hex');
+}
+
 async function sendPortalOtp(toEmail, otp, patientName) { if (!process.env.RESEND_API_KEY) {
-    console.warn('[portal] RESEND_API_KEY not set — OTP:', otp);
+    console.warn('[portal] RESEND_API_KEY not set — OTP not sent (check email configuration)');
     return; }
   const res = await fetch('https://api.resend.com/emails', { method: 'POST', headers: {
       'Authorization': `Bearer ${process.env.RESEND_API_KEY }`,
@@ -63,7 +81,7 @@ function issuePortalToken(patientId) { return jwt.sign(
 
 function authenticatePortal(req, res, next) { const token = req.cookies?.portal_token;
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
-  try { const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
+  try { const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     if (payload.type !== 'portal') return res.status(401).json({ error: 'Invalid token type' });
     req.patientId = payload.patientId;
     next();
@@ -74,7 +92,7 @@ function authenticatePortal(req, res, next) { const token = req.cookies?.portal_
 
 // ── 1. Request OTP ────────────────────────────────────────────────────────────
 
-router.post('/request-access', async (req, res) => { const { email } = req.body;
+router.post('/request-access', validate(PortalRequestAccessSchema), async (req, res) => { const { email } = req.body;
   if (!email || typeof email !== 'string') { return res.status(400).json({ error: 'Email is required' });
   }
 
@@ -83,7 +101,7 @@ router.post('/request-access', async (req, res) => { const { email } = req.body;
   // Always respond the same way to prevent email enumeration
   const patient = await db.prepare(
     `SELECT id, first_name, last_name, email, portal_locked_until, portal_otp_attempts
-     FROM patients WHERE LOWER(email) = $1 AND is_active = TRUE`
+     FROM patients WHERE LOWER(email) = $1 AND is_active = 1`
   ).get(normalised);
 
   if (!patient) { // Don't reveal whether email exists
@@ -99,15 +117,12 @@ router.post('/request-access', async (req, res) => { const { email } = req.body;
 
   await db.prepare(
     `UPDATE patients SET portal_otp = $1, portal_otp_expires = $2, portal_otp_attempts = 0 WHERE id = $3`
-  ).run(otp, expires, patient.id);
+  ).run(hashOtp(otp), expires, patient.id);
 
-  // Send email (non-blocking)
+  // Send email (non-blocking) — plaintext OTP goes only to the patient's inbox
   sendPortalOtp(patient.email, otp, patient.first_name).catch(e =>
     console.error('[portal] OTP email failed:', e.message)
   );
-
-  // Log to server for admin recovery
-  console.log(`[portal] OTP for ${ patient.first_name } ${ patient.last_name } (${ patient.id }): ${ otp }`);
 
   const masked = normalised.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '***' + c);
   res.json({ ok: true, hint: masked });
@@ -122,7 +137,7 @@ router.post('/verify-otp', async (req, res) => { const { email, otp } = req.body
   const patient = await db.prepare(
     `SELECT id, first_name, last_name, email, portal_otp, portal_otp_expires,
             portal_otp_attempts, portal_locked_until
-     FROM patients WHERE LOWER(email) = $1 AND is_active = TRUE`
+     FROM patients WHERE LOWER(email) = $1 AND is_active = 1`
   ).get(normalised);
 
   if (!patient) return res.status(401).json({ error: 'Invalid code' });
@@ -135,9 +150,14 @@ router.post('/verify-otp', async (req, res) => { const { email, otp } = req.body
   if (!patient.portal_otp_expires || new Date(patient.portal_otp_expires) < new Date()) { return res.status(401).json({ error: 'Code expired — request a new one' });
   }
 
-  // OTP check (constant-time compare)
-  const valid = patient.portal_otp &&
-    crypto.timingSafeEqual(Buffer.from(patient.portal_otp), Buffer.from(otp.trim()));
+  // OTP check — hash submitted value and compare hashes (constant-time, same-length buffers).
+  // Guard against legacy plaintext OTPs (6 chars) left in DB before the hashing migration:
+  // treat them as invalid so they cannot be guessed and force the patient to re-request.
+  const storedHash    = patient.portal_otp || '';
+  const submittedHash = hashOtp(otp.trim());
+  const isHashed      = storedHash.length === 64; // SHA-256 hex is always 64 chars
+  const valid = isHashed &&
+    crypto.timingSafeEqual(Buffer.from(storedHash), Buffer.from(submittedHash));
 
   if (!valid) { const attempts = (patient.portal_otp_attempts || 0) + 1;
     if (attempts >= 5) {
@@ -177,7 +197,7 @@ router.post('/verify-otp', async (req, res) => { const { email, otp } = req.body
 
 router.get('/me', authenticatePortal, async (req, res) => { const patient = await db.prepare(
     `SELECT id, first_name, last_name, email, dob, gender, phone, cell_phone, address_street, address_city, address_state, address_zip, assigned_provider, photo, portal_last_login
-     FROM patients WHERE id = $1 AND is_active = TRUE`
+     FROM patients WHERE id = $1 AND is_active = 1`
   ).get(req.patientId);
 
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
@@ -211,13 +231,182 @@ router.get('/medications', authenticatePortal, async (req, res) => { const rows 
     id:               r.id, name:             r.name, dosage:           r.dose, frequency:        r.frequency, prescriber:       r.prescriber || '—', startDate:        r.start_date, status:           r.status, refillsRemaining: r.refills_left ?? null, pharmacy:         r.pharmacy || '—',  })));
 });
 
+// ── 7. Portal Messages ────────────────────────────────────────────────────────
+
+router.get('/messages', authenticatePortal, async (req, res) => {
+  const rows = await db.prepare(`
+    SELECT id, from_name, subject, body, date, time, type, urgent
+    FROM inbox_messages
+    WHERE patient_id = $1
+    ORDER BY date ASC, time ASC
+    LIMIT 100
+  `).all(req.patientId);
+  res.json(rows.map(r => ({
+    id: r.id, from: r.from_name, subject: r.subject,
+    body: r.body, date: r.date, time: r.time,
+    type: r.type, urgent: !!r.urgent,
+  })));
+});
+
+router.post('/messages', authenticatePortal, validate(PortalMessageSchema), async (req, res) => {
+  const { text } = req.body;
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({ error: 'Message text is required' });
+  }
+  const patient = await db.prepare(
+    'SELECT id, first_name, last_name FROM patients WHERE id = $1'
+  ).get(req.patientId);
+  if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+  const id = uuidv4();
+  const now = new Date();
+  const patientName = `${patient.first_name} ${patient.last_name}`;
+  await db.prepare(`
+    INSERT INTO inbox_messages
+      (id, type, from_name, to_user, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent)
+    VALUES ($1,$2,$3,NULL,$4,$5,$6,$7,$8,$9,0,'Normal','Unread',0)
+  `).run(
+    id, 'Patient Message',
+    `${patientName} (Patient Portal)`,
+    req.patientId, patientName,
+    `Message from ${patientName}`,
+    text.trim(),
+    now.toISOString().split('T')[0],
+    now.toTimeString().slice(0, 5)
+  );
+  res.status(201).json({ ok: true, id });
+});
+
+// ── 8. Portal Assessments ──────────────────────────────────────────────────────
+
+router.post('/assessments', authenticatePortal, validate(PortalAssessmentSchema), async (req, res) => {
+  const { tool, score, maxScore, interpretation, answers, date } = req.body;
+  if (!tool || score === undefined) {
+    return res.status(400).json({ error: 'tool and score are required' });
+  }
+  const patient = await db.prepare(
+    'SELECT id, first_name, last_name FROM patients WHERE id = $1'
+  ).get(req.patientId);
+  if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+  const id = uuidv4();
+  const patientName = `${patient.first_name} ${patient.last_name}`;
+  await db.prepare(`
+    INSERT INTO assessments (id, patient_id, tool, score, interpretation, date, administered_by, answers)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+  `).run(
+    id, req.patientId, tool, score,
+    interpretation || '',
+    date || new Date().toISOString().split('T')[0],
+    `${patientName} (Self-administered — Patient Portal)`,
+    JSON.stringify(answers || [])
+  );
+  res.status(201).json({ ok: true, id });
+});
+
+// ── 9. Portal Refill Request ──────────────────────────────────────────────────
+// Patient requests a refill for one of their active medications.
+// Inserts into the `refills` table so it surfaces in the provider's Refill Queue.
+router.post('/refill-request', authenticatePortal, validate(PortalRefillRequestSchema), async (req, res) => {
+  const { medicationId, medicationName, dose, frequency, pharmacy } = req.body;
+  if (!medicationName) return res.status(400).json({ error: 'medicationName required' });
+
+  const patient = await db.prepare(
+    'SELECT id, first_name, last_name FROM patients WHERE id = $1'
+  ).get(req.patientId);
+  if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+  const patientName = `${patient.first_name} ${patient.last_name}`;
+  const id = uuidv4();
+  const now = new Date();
+
+  // Insert into refills table (surfaces in RefillQueue for the provider)
+  await db.prepare(`
+    INSERT INTO refills
+      (id, patient_id, medication_id, medication_name, dose, frequency, created_by, status, priority, notes, created_at, updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,'pending','normal',$8,NOW(),NOW())
+  `).run(
+    id, req.patientId, medicationId || null, medicationName,
+    dose || '', frequency || '',
+    `patient-portal:${patientName}`,
+    pharmacy ? `Preferred pharmacy: ${pharmacy}` : null
+  );
+
+  // Also send an inbox notification to the care team
+  const msgId = uuidv4();
+  await db.prepare(`
+    INSERT INTO inbox_messages
+      (id, type, from_name, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,'Normal','Unread',0)
+  `).run(
+    msgId, 'Rx Refill Request',
+    `${patientName} (Patient Portal)`,
+    req.patientId, patientName,
+    `Refill Request: ${medicationName}${dose ? ' ' + dose : ''}`,
+    `Patient has requested a refill via the Patient Portal.\n\nMedication: ${medicationName}${dose ? ' ' + dose : ''}${frequency ? ' — ' + frequency : ''}${pharmacy ? '\nPreferred pharmacy: ' + pharmacy : ''}`,
+    now.toISOString().split('T')[0],
+    now.toTimeString().slice(0, 5)
+  );
+
+  res.status(201).json({ ok: true, refillId: id });
+});
+
+// ── 10. Portal Appointment Booking ───────────────────────────────────────────
+// Patient books a slot from the live scheduling grid.
+router.post('/book-appointment', authenticatePortal, validate(PortalBookAppointmentSchema), async (req, res) => {
+  const { providerId, providerName, date, time, duration, visitType, reason, notes } = req.body;
+  if (!providerId || !date || !time) {
+    return res.status(400).json({ error: 'providerId, date, and time are required' });
+  }
+
+  const patient = await db.prepare(
+    'SELECT id, first_name, last_name, mrn FROM patients WHERE id = $1'
+  ).get(req.patientId);
+  if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+  const patientName = `${patient.first_name} ${patient.last_name}`;
+  const id = uuidv4();
+  const now = new Date();
+
+  await db.prepare(`
+    INSERT INTO appointments
+      (id, patient_id, patient_name, provider, provider_name, date, time, duration, type, status, reason, visit_type, room, location_id, created_at, updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'loc1',NOW(),NOW())
+  `).run(
+    id, req.patientId, patientName,
+    providerId, providerName || '',
+    date, time, duration || 30,
+    reason || 'Follow-Up', 'Scheduled',
+    `Patient self-scheduled: ${reason || 'Follow-Up'}${notes ? ' — ' + notes : ''}`,
+    visitType || 'In-Person',
+    visitType === 'Telehealth' ? 'Virtual' : 'TBD'
+  );
+
+  // Inbox notification for care team
+  const msgId = uuidv4();
+  await db.prepare(`
+    INSERT INTO inbox_messages
+      (id, type, from_name, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,'Normal','Unread',0)
+  `).run(
+    msgId, 'Staff Message',
+    `${patientName} (Patient Portal)`,
+    req.patientId, patientName,
+    `New Appointment Booked — ${patientName}`,
+    `Patient has booked an appointment via the Patient Portal.\n\nPatient: ${patientName} (MRN: ${patient.mrn})\nProvider: ${providerName}\nDate: ${date}\nTime: ${time}\nDuration: ${duration || 30} min\nType: ${reason || 'Follow-Up'}\nVisit: ${visitType || 'In-Person'}${notes ? '\nNotes: ' + notes : ''}`,
+    now.toISOString().split('T')[0],
+    now.toTimeString().slice(0, 5)
+  );
+
+  res.status(201).json({ ok: true, appointmentId: id });
+});
+
+// ── Telehealth token (portal patient joins a LiveKit room) ────────────────────
+router.post('/telehealth/token', authenticatePortal, validate(PortalTelehealthTokenSchema), portalTelehealthToken);
+
 // ── 4. Logout ─────────────────────────────────────────────────────────────────
 
-router.post('/logout', authenticatePortal, async (req, res) => { await db.prepare(
-    `INSERT INTO patient_portal_access_log (patient_id, action, ip, user_agent, created_at)
-     VALUES ($1, 'LOGOUT', $2, $3, NOW())`
-  ).run(req.patientId, req.ip || '', req.get('User-Agent') || '');
-
+router.post('/logout', authenticatePortal, async (req, res) => {
   res.clearCookie('portal_token', { httpOnly: true, secure: true, sameSite: 'none', domain: '.clarity-ehr.com', path: '/' });
   res.json({ ok: true });
 });

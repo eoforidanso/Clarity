@@ -1,79 +1,235 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { AnyResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
+router.use(validateResponse(AnyResponseSchema));
 
 // ── NPPES Pharmacy Search (CMS — free, no key, proxied for CORS) ─────────────
 // Public route — no auth needed (NPPES is a public registry)
 // Docs: https://npiregistry.cms.hhs.gov/api-page
-// Supports: ?search=<name|zip|npi>  &city=<city>  &state=<2-letter>  &skip=<offset>
+// Taxonomy codes: 3336C0003X=Pharmacy  3336C0002X=Clinic  3336C0004X=Compounding  3336M0002X=Mail Order
+
+// Taxonomy code → pharmacy subtype
+// 333600000X  = Pharmacy (generic catch-all)
+// 3336C0003X  = Community/Retail Pharmacy
+// 3336C0002X  = Clinic Pharmacy
+// 3336C0004X  = Compounding Pharmacy
+// 3336M0002X  = Mail Order Pharmacy
+const TAXONOMY_TYPE = {
+  '333600000X': 'retail',
+  '3336C0003X': 'retail',
+  '3336C0002X': 'clinic',
+  '3336C0004X': 'compounding',
+  '3336M0002X': 'mail',
+};
+const PHARMACY_CODES = new Set(Object.keys(TAXONOMY_TYPE));
+
+// Subtype codes exposed to the frontend filter
+const SUBTYPE_CODES = {
+  '3336C0003X': 'retail',
+  '3336C0002X': 'clinic',
+  '3336C0004X': 'compounding',
+  '3336M0002X': 'mail',
+};
+
+function titleCase(s) {
+  return s ? String(s).toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : '';
+}
+
+function npiToRecord(r) {
+  const addr = r.addresses?.find(a => a.address_purpose === 'LOCATION') || r.addresses?.[0] || {};
+  const dbaName = r.other_names?.find(n => n.code === '3')?.organization_name;
+  const displayName = dbaName || r.basic?.organization_name || '';
+  if (!displayName) return null;
+
+  const taxList = r.taxonomies || [];
+  // Use the primary taxonomy first; fall back to any pharmacy code present
+  const primaryTax = taxList.find(t => t.primary && PHARMACY_CODES.has(t.code))
+    || taxList.find(t => PHARMACY_CODES.has(t.code));
+  if (!primaryTax) return null; // not a pharmacy NPI
+
+  return {
+    id:           `npi-${r.number}`,
+    npi:          r.number,
+    name:         titleCase(displayName),
+    address:      titleCase([addr.address_1, addr.address_2].filter(Boolean).join(' ')),
+    city:         titleCase(addr.city || ''),
+    state:        (addr.state || '').toUpperCase(),
+    zip:          (addr.postal_code || '').slice(0, 5),
+    phone:        addr.telephone_number || '',
+    fax:          addr.fax_number || '',
+    pharmacyType: TAXONOMY_TYPE[primaryTax.code] || 'retail',
+    taxonomyCode: primaryTax.code,
+  };
+}
+
+async function nppesQuery(params) {
+  const p = { version: '2.1', enumeration_type: 'NPI-2', limit: '200', taxonomy_description: 'Pharmacy', ...params };
+  const url = `https://npiregistry.cms.hhs.gov/api/?${new URLSearchParams(p)}`;
+  const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!r.ok) return [];
+  const data = await r.json();
+  return Array.isArray(data.results) ? data.results : [];
+}
+
 router.get('/nppes/pharmacies', async (req, res) => { try {
-    const { search, city, state, skip } = req.query;
-    const raw = String(search || '').trim();
-    const cityRaw = String(city || '').trim();
+    const { search, city, state, skip, subtype } = req.query;
+    const raw       = String(search || '').trim();
+    const cityRaw   = String(city   || '').trim();
     const stateCode = state ? String(state).trim().toUpperCase().slice(0, 2) : '';
+    const skipN     = Math.min(Math.max(parseInt(skip, 10) || 0, 0), 1000);
+
+    // Subtype filter — optional comma-separated taxonomy codes from the frontend
+    const subtypeFilter = subtype
+      ? new Set(String(subtype).split(',').map(s => s.trim()).filter(s => SUBTYPE_CODES[s]).map(s => SUBTYPE_CODES[s]))
+      : null;
+
     if (!raw && !cityRaw && !stateCode) return res.json({ results: [], total: 0 });
-    if (raw && raw.length < 2 && !cityRaw && !stateCode) return res.json({ results: [], total: 0 });
-    if (cityRaw && cityRaw.length < 2 && !raw && !stateCode) return res.json({ results: [], total: 0 });
+    if (raw.length === 1 && !cityRaw && !stateCode) return res.json({ results: [], total: 0 });
+
+    const base = { skip: String(skipN) };
+    if (stateCode) base.state = stateCode;
+    if (cityRaw)   base.city  = cityRaw;
 
     const digits = raw.replace(/\D/g, '');
-    const isAllDigits = raw && /^\d+$/.test(raw);
-    const skipN = Math.min(Math.max(parseInt(skip, 10) || 0, 0), 1000);
-
-    const base = () => { const p = {
-        version: '2.1', enumeration_type: 'NPI-2', taxonomy_description: 'Pharmacy', limit: '200', skip: String(skipN),  };
-      if (stateCode) p.state = stateCode;
-      if (cityRaw) p.city = cityRaw;
-      return p;
-    };
-
     const queries = [];
-    if (digits.length === 10) { queries.push({ ...base(), number: digits });
-    } else if (isAllDigits && raw.length === 5) { queries.push({ ...base(), postal_code: raw });
-    } else if (isAllDigits && raw.length >= 3 && raw.length < 5) { queries.push({ ...base(), postal_code: raw + '*' });
-    } else if (raw) { // Name search — wildcard match on organization_name, narrowed by city/state if present
-      queries.push({ ...base(), organization_name: raw + '*' });
-      // If no city specified, also try the search term as a city (loose match)
-      if (!cityRaw) queries.push({ ...base(), city: raw });
-    } else { // No name — city and/or state are enough
-      queries.push({ ...base() });
+
+    if (digits.length === 10) {
+      // Exact NPI lookup
+      queries.push({ ...base, number: digits });
+    } else if (digits.length === 5) {
+      queries.push({ ...base, postal_code: digits });
+    } else if (digits.length >= 3) {
+      queries.push({ ...base, postal_code: digits + '*' });
+    } else if (raw) {
+      // Name search with wildcard
+      queries.push({ ...base, organization_name: raw + '*' });
+      // Also try the term as a city when no city param provided
+      if (!cityRaw) queries.push({ ...base, city: raw });
+    } else {
+      // City/state only
+      queries.push({ ...base });
     }
 
-    const responses = await Promise.all(
-      queries.map(q =>
-        fetch(`https://npiregistry.cms.hhs.gov/api/?${ new URLSearchParams(q) }`)
-          .then(r => r.json())
-          .catch(() => ({ results: [] }))
-      )
-    );
+    const rawBatches = await Promise.all(queries.map(q => nppesQuery(q).catch(() => [])));
 
     const seen = new Set();
-    const merged = [];
-    const titleCase = (s) => s ? String(s).toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : '';
-
-    responses.forEach(data => { (data.results || []).forEach(r => {
-        if (seen.has(r.number)) return;
+    const records = [];
+    for (const batch of rawBatches) {
+      for (const r of batch) {
+        if (seen.has(r.number)) continue;
         seen.add(r.number);
-        const addr = r.addresses?.find(a => a.address_purpose === 'LOCATION') || r.addresses?.[0] || { };
-        const dbaName = r.other_names?.find(n => n.code === '3')?.organization_name;
-        const displayName = dbaName || r.basic?.organization_name || r.basic?.name || 'Unknown Pharmacy';
-        merged.push({ id: `nppes-${r.number }`,
-          name: titleCase(displayName),
-          chain: 'NPPES',
-          address: titleCase([addr.address_1, addr.address_2].filter(Boolean).join(' ')),
-          city: titleCase(addr.city || ''),
-          state: addr.state || '',
-          zip: addr.postal_code?.slice(0, 5) || '',
-          phone: addr.telephone_number || '',
-          fax: addr.fax_number || '',
-          npi: r.number,
-        });
-      });
-    });
+        const rec = npiToRecord(r);
+        if (!rec || !rec.address || !rec.city) continue;
+        if (subtypeFilter && !subtypeFilter.has(rec.pharmacyType)) continue;
+        records.push(rec);
+      }
+    }
 
-    const filtered = merged.filter(r => r.address && r.city);
-    res.json({ results: filtered.slice(0, 200), total: filtered.length, skip: skipN, hasMore: filtered.length >= 200 });
-  } catch (err) { console.error('NPPES search error:', err.message);
+    res.json({ results: records.slice(0, 200), total: records.length, skip: skipN, hasMore: records.length >= 200 });
+  } catch (err) {
+    console.error('[NPPES] pharmacy search error:', err.message);
+    res.status(502).json({ error: 'NPPES API unavailable' });
+  }
+});
+
+// ── NPPES Lab Facility Search (CMS — free, no key, proxied for CORS) ─────────
+// Public route — no auth needed
+// Taxonomy codes: 291U00000X=Clinical Medical Lab  261QH0100X=Hospital Lab  261QR0200X=Radiology
+const LAB_TAXONOMY_TYPE = {
+  '291U00000X': 'clinical',
+  '291900000X': 'military',
+  '261QH0100X': 'hospital',
+  '261QR0200X': 'radiology',
+  '269900000X': 'clinical',
+};
+const LAB_CODES = new Set(Object.keys(LAB_TAXONOMY_TYPE));
+
+function npiToLabRecord(r) {
+  const addr = r.addresses?.find(a => a.address_purpose === 'LOCATION') || r.addresses?.[0] || {};
+  const dbaName = r.other_names?.find(n => n.code === '3')?.organization_name;
+  const displayName = dbaName || r.basic?.organization_name || '';
+  if (!displayName) return null;
+
+  const taxList = r.taxonomies || [];
+  const primaryTax = taxList.find(t => t.primary && LAB_CODES.has(t.code))
+    || taxList.find(t => LAB_CODES.has(t.code));
+  if (!primaryTax) return null;
+
+  return {
+    id:           `npi-${r.number}`,
+    npi:          r.number,
+    name:         titleCase(displayName),
+    address:      titleCase([addr.address_1, addr.address_2].filter(Boolean).join(' ')),
+    city:         titleCase(addr.city || ''),
+    state:        (addr.state || '').toUpperCase(),
+    zip:          (addr.postal_code || '').slice(0, 5),
+    phone:        addr.telephone_number || '',
+    fax:          addr.fax_number || '',
+    labType:      LAB_TAXONOMY_TYPE[primaryTax.code] || 'clinical',
+    taxonomyCode: primaryTax.code,
+    cliaNumber:   '',
+  };
+}
+
+async function nppesLabQuery(params) {
+  const p = { version: '2.1', enumeration_type: 'NPI-2', limit: '200', taxonomy_description: 'Laboratory', ...params };
+  const url = `https://npiregistry.cms.hhs.gov/api/?${new URLSearchParams(p)}`;
+  const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!r.ok) return [];
+  const data = await r.json();
+  return Array.isArray(data.results) ? data.results : [];
+}
+
+router.get('/nppes/labs', async (req, res) => { try {
+    const { search, city, state, skip } = req.query;
+    const raw       = String(search || '').trim();
+    const cityRaw   = String(city   || '').trim();
+    const stateCode = state ? String(state).trim().toUpperCase().slice(0, 2) : '';
+    const skipN     = Math.min(Math.max(parseInt(skip, 10) || 0, 0), 1000);
+
+    if (!raw && !cityRaw && !stateCode) return res.json({ results: [], total: 0 });
+    if (raw.length === 1 && !cityRaw && !stateCode) return res.json({ results: [], total: 0 });
+
+    const base = { skip: String(skipN) };
+    if (stateCode) base.state = stateCode;
+    if (cityRaw)   base.city  = cityRaw;
+
+    const digits = raw.replace(/\D/g, '');
+    const queries = [];
+
+    if (digits.length === 10) {
+      queries.push({ ...base, number: digits });
+    } else if (digits.length === 5) {
+      queries.push({ ...base, postal_code: digits });
+    } else if (digits.length >= 3) {
+      queries.push({ ...base, postal_code: digits + '*' });
+    } else if (raw) {
+      queries.push({ ...base, organization_name: raw + '*' });
+      if (!cityRaw) queries.push({ ...base, city: raw });
+    } else {
+      queries.push({ ...base });
+    }
+
+    const rawBatches = await Promise.all(queries.map(q => nppesLabQuery(q).catch(() => [])));
+
+    const seen = new Set();
+    const records = [];
+    for (const batch of rawBatches) {
+      for (const r of batch) {
+        if (seen.has(r.number)) continue;
+        seen.add(r.number);
+        const rec = npiToLabRecord(r);
+        if (!rec || !rec.address || !rec.city) continue;
+        records.push(rec);
+      }
+    }
+
+    res.json({ results: records.slice(0, 200), total: records.length, skip: skipN, hasMore: records.length >= 200 });
+  } catch (err) {
+    console.error('[NPPES] lab search error:', err.message);
     res.status(502).json({ error: 'NPPES API unavailable' });
   }
 });

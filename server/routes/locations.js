@@ -2,8 +2,12 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate, authorize, requireElevated } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
 import { logAuditEvent } from '../middleware/auditLog.js';
 import { softDeleteLocation, ensureLocationHasNoDependencies, logAudit, activeScope } from '../db/softDelete.js';
+import { CreateLocationSchema, UpdateLocationSchema } from '../schemas/locationSchema.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { LocationResponseSchema, LocationListResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate); // RBAC: all routes require authentication
@@ -17,7 +21,7 @@ function rowToObj(r) { return {
 
 // ── GET /api/locations ──────────────────────────────────────────────────
 // Public to authenticated users (all roles need to see the location list)
-router.get('/', authenticate, async (_req, res) => { const rows = await db.prepare(
+router.get('/', authenticate, validateResponse(LocationListResponseSchema), async (_req, res) => { const rows = await db.prepare(
     `SELECT * FROM locations WHERE ${activeScope } ORDER BY sort_order ASC, name ASC`
   ).all();
   res.json(rows.map(rowToObj));
@@ -25,7 +29,7 @@ router.get('/', authenticate, async (_req, res) => { const rows = await db.prepa
 
 // ── POST /api/locations ─────────────────────────────────────────────────
 // Admin/front_desk only
-router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => { const { name, shortName, address, phone, fax, hours, type, status, npi, taxId, placeOfService, rooms, telehealth, sortOrder } = req.body;
+router.post('/', authenticate, authorize(...ADMIN_ROLES), validate(CreateLocationSchema), validateResponse(LocationResponseSchema), async (req, res) => { const { name, shortName, address, phone, fax, hours, type, status, npi, taxId, placeOfService, rooms, telehealth, sortOrder } = req.body;
 
   if (!name || typeof name !== 'string' || name.trim().length < 1) { return res.status(400).json({ error: 'Location name is required' });
   }
@@ -69,7 +73,7 @@ router.post('/', authenticate, authorize(...ADMIN_ROLES), async (req, res) => { 
 });
 
 // ── PUT /api/locations/:id ──────────────────────────────────────────────
-router.put('/:id', authenticate, authorize(...ADMIN_ROLES), async (req, res) => { const { id } = req.params;
+router.put('/:id', authenticate, authorize(...ADMIN_ROLES), validate(UpdateLocationSchema), validateResponse(LocationResponseSchema), async (req, res) => { const { id } = req.params;
   const loc = await db.prepare('SELECT id FROM locations WHERE id = ?').get(id);
   if (!loc) return res.status(404).json({ error: 'Location not found' });
 

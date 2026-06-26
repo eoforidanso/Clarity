@@ -4,7 +4,9 @@ import db from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { routeError } from '../utils/routeError.js';
 import { validate } from '../middleware/validate.js';
-import { InboxMessageSchema } from '../schemas/messagingSchema.js';
+import { InboxMessageSchema, InboxUpdateSchema, InboxStatusUpdateSchema } from '../schemas/messagingSchema.js';
+import { validateResponse } from '../middleware/validateResponse.js';
+import { InboxMessageResponseSchema, InboxListResponseSchema } from '../schemas/responseSchemas.js';
 
 const router = Router();
 router.use(authenticate);
@@ -14,7 +16,7 @@ function formatMsg(r) { return {
 }
 
 // GET /api/inbox
-router.get('/', async (req, res) => {
+router.get('/', validateResponse(InboxListResponseSchema), async (req, res) => {
   try {
     const { userId, type, status, priority } = req.query;
     const facilityId = req.user.facility_id;
@@ -43,7 +45,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/inbox
-router.post('/', validate(InboxMessageSchema), async (req, res) => {
+router.post('/', validate(InboxMessageSchema), validateResponse(InboxMessageResponseSchema), async (req, res) => {
   try {
     const b = req.body;
     const id = uuidv4();
@@ -59,7 +61,7 @@ router.post('/', validate(InboxMessageSchema), async (req, res) => {
 });
 
 // PUT /api/inbox/:id
-router.put('/:id', async (req, res) => {
+router.put('/:id', validate(InboxUpdateSchema), validateResponse(InboxMessageResponseSchema), async (req, res) => {
   try {
     const existing = await db.prepare('SELECT * FROM inbox_messages WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Message not found' });
@@ -80,7 +82,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // PUT /api/inbox/:id/status  (convenience endpoint)
-router.put('/:id/status', async (req, res) => {
+router.put('/:id/status', validate(InboxStatusUpdateSchema), async (req, res) => {
   try {
     const { status } = req.body;
     if (!status) return res.status(400).json({ error: 'Status is required' });
