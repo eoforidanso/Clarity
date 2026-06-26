@@ -207,6 +207,23 @@ router.get('/me', authenticatePortal, async (req, res) => { const patient = awai
       .filter(Boolean).join(', '), assignedProvider: patient.assigned_provider, photo: patient.photo, lastLogin: patient.portal_last_login,  });
 });
 
+// ── 4b. Providers list (for patient to select who to message) ────────────────
+router.get('/providers', authenticatePortal, async (req, res) => {
+  const rows = await db.prepare(`
+    SELECT id, first_name, last_name, role, location_id
+    FROM users
+    WHERE role IN ('provider','physician','nurse_practitioner','attending','admin')
+      AND is_active = true
+    ORDER BY last_name, first_name
+  `).all();
+  res.json(rows.map(r => ({
+    id: r.id,
+    name: `${r.first_name} ${r.last_name}`.trim(),
+    role: r.role,
+    locationId: r.location_id,
+  })));
+});
+
 // ── 5. Appointments ───────────────────────────────────────────────────────────
 router.get('/appointments', authenticatePortal, async (req, res) => { const rows = await db.prepare(`
     SELECT id, date, time, reason, status, provider_name, location_name, appointment_type
@@ -250,7 +267,7 @@ router.get('/messages', authenticatePortal, async (req, res) => {
 });
 
 router.post('/messages', authenticatePortal, validate(PortalMessageSchema), async (req, res) => {
-  const { text } = req.body;
+  const { text, providerId } = req.body;
   if (!text || typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'Message text is required' });
   }
@@ -258,6 +275,9 @@ router.post('/messages', authenticatePortal, validate(PortalMessageSchema), asyn
     'SELECT id, first_name, last_name, assigned_provider FROM patients WHERE id = $1'
   ).get(req.patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+  // Use explicitly selected provider, fall back to assigned_provider
+  const toUser = providerId || patient.assigned_provider || null;
 
   const id = uuidv4();
   const now = new Date();
@@ -269,7 +289,7 @@ router.post('/messages', authenticatePortal, validate(PortalMessageSchema), asyn
   `).run(
     id, 'Patient Message',
     `${patientName} (Patient Portal)`,
-    patient.assigned_provider || null,
+    toUser,
     req.patientId, patientName,
     `Message from ${patientName}`,
     text.trim(),

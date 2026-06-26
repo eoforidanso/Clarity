@@ -595,6 +595,17 @@ function usePortalData(patientId) {
   return { portalMe, portalAppts, portalMeds, portalMessages };
 }
 
+function usePortalProviders() {
+  const [portalProviders, setPortalProviders] = useState([]);
+  useEffect(() => {
+    fetch(`${PORTAL_API}/patient-portal/providers`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(setPortalProviders)
+      .catch(() => {});
+  }, []);
+  return portalProviders;
+}
+
 /* ─── Patient-side LiveKit video room ──────────────────────────────────── */
 function PatientVideoRoom({ token, onLeave }) {
   return (
@@ -874,6 +885,7 @@ export default function PatientPortal() {
   const { currentUser, logout } = useAuth();
   const { patients, meds, appointments, assessmentScores, addInboxMessage, inboxMessages, updateAppointmentStatus, addAppointment } = usePatient();
   const { portalMe, portalAppts, portalMeds, portalMessages } = usePortalData(currentUser?.patientId);
+  const portalProviders = usePortalProviders();
 
   /* Allow page scrolling — clinical layout locks body overflow */
   useEffect(() => {
@@ -1189,6 +1201,7 @@ export default function PatientPortal() {
   /* ── Messaging ───────────────────────────────────────────── */
   const [messages, setMessages] = useState([]);
   const [msgInput, setMsgInput] = useState('');
+  const [selectedProviderId, setSelectedProviderId] = useState('');
   const msgEndRef = useRef(null);
 
   // Seed messages from API once loaded; fall back to a welcome note if none
@@ -1226,7 +1239,7 @@ export default function PatientPortal() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, providerId: selectedProviderId || undefined }),
     }).catch(() => {});
     setMsgInput('');
   };
@@ -1714,7 +1727,21 @@ export default function PatientPortal() {
               </div>
 
               {/* Compose */}
-              <div style={{ padding: '12px 16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 10, background: '#fff' }}>
+              <div style={{ padding: '10px 16px 0', background: '#fff' }}>
+                {portalProviders.length > 0 && (
+                  <select
+                    value={selectedProviderId}
+                    onChange={e => setSelectedProviderId(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, marginBottom: 8, background: '#f8fafc', color: '#374151' }}
+                  >
+                    <option value="">Select provider to message…</option>
+                    {portalProviders.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div style={{ padding: '8px 16px 12px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 10, background: '#fff' }}>
                 <input
                   type="text"
                   value={msgInput}
