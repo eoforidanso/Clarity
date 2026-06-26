@@ -7,18 +7,31 @@ jobs:
   patch:
     runs-on: ubuntu-latest
     steps:
-      - name: Update RESEND_API_KEY on server
+      - name: Set up SSH
+        env:
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          DO_HOST: ${{ secrets.DO_HOST }}
         run: |
-          ssh -o StrictHostKeyChecking=no -i <(echo "$SSH_PRIVATE_KEY") root@$SERVER_IP bash << EOF
+          mkdir -p ~/.ssh
+          echo "$DO_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H $DO_HOST >> ~/.ssh/known_hosts
+
+      - name: Update RESEND_API_KEY on server
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          RESEND_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          ssh $DO_USER@$DO_HOST bash << EOF
           set -e
           ENV_FILE=/var/www/ehr/server/.env
-          NEW_KEY="$RESEND_KEY"
 
           if grep -q '^RESEND_API_KEY=' "\$ENV_FILE"; then
-            sed -i "s|^RESEND_API_KEY=.*|RESEND_API_KEY=\$NEW_KEY|" "\$ENV_FILE"
+            sed -i "s|^RESEND_API_KEY=.*|RESEND_API_KEY=$RESEND_KEY|" "\$ENV_FILE"
             echo "Updated existing RESEND_API_KEY"
           else
-            echo "RESEND_API_KEY=\$NEW_KEY" >> "\$ENV_FILE"
+            echo "RESEND_API_KEY=$RESEND_KEY" >> "\$ENV_FILE"
             echo "Appended RESEND_API_KEY"
           fi
 
@@ -26,9 +39,5 @@ jobs:
           echo "PM2 restarted"
 
           KEY_VAL=\$(grep '^RESEND_API_KEY=' "\$ENV_FILE" | cut -d= -f2)
-          echo "Key in .env now starts with: \${KEY_VAL:0:10}..."
+          echo "Key now starts with: \${KEY_VAL:0:10}..."
           EOF
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SERVER_IP: ${{ secrets.SERVER_IP }}
-          RESEND_KEY: ${{ secrets.RESEND_API_KEY }}
