@@ -425,7 +425,7 @@ export async function initializeDatabase() {
       id TEXT PRIMARY KEY,
       type TEXT NOT NULL,
       from_name TEXT NOT NULL,
-      to_user TEXT NOT NULL,
+      to_user TEXT,
       patient_id TEXT,
       patient_name TEXT DEFAULT '',
       subject TEXT DEFAULT '',
