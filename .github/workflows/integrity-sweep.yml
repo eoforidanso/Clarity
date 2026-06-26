@@ -1,0 +1,172 @@
+name: Integrity Sweep
+on: workflow_dispatch
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run full facility + appointment integrity audit
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DO_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H $DO_HOST >> ~/.ssh/known_hosts
+
+          cat << 'REMOTE_SCRIPT' | ssh $DO_USER@$DO_HOST bash
+            export $(grep -v '^#' /var/www/ehr/server/.env | grep DATABASE_URL)
+
+            run_check() {
+              local label=$1
+              local sql=$2
+              echo ""
+              echo "=== $label ==="
+              result=$(psql "$DATABASE_URL" -t -A -c "$sql" 2>&1)
+              if [ -z "$result" ] || [ "$result" = "" ]; then
+                echo "✅ CLEAN"
+              else
+                echo "⚠️  ISSUES FOUND:"
+                echo "$result"
+              fi
+            }
+
+            echo "======================================================"
+            echo "  FACILITY + APPOINTMENT INTEGRITY SWEEP"
+            echo "  $(date -u)"
+            echo "======================================================"
+
+            # ── LOCATIONS ─────────────────────────────────────────────
+            run_check "Locations table: all rows" \
+              "SELECT id, name, status FROM locations ORDER BY sort_order"
+
+            # ── USERS ─────────────────────────────────────────────────
+            run_check "Users with location_id not in locations" \
+              "SELECT u.id, u.username, u.role, u.location_id
+               FROM users u
+               LEFT JOIN locations l ON l.id = u.location_id
+               WHERE u.location_id IS NOT NULL
+                 AND u.location_id != ''
+                 AND l.id IS NULL
+                 AND u.deleted_at IS NULL"
+
+            run_check "Users with null or empty location_id (non-patient)" \
+              "SELECT id, username, role, location_id
+               FROM users
+               WHERE role NOT IN ('patient')
+                 AND (location_id IS NULL OR location_id = '')
+                 AND deleted_at IS NULL"
+
+            run_check "Duplicate usernames" \
+              "SELECT username, COUNT(*) AS cnt
+               FROM users
+               GROUP BY username
+               HAVING COUNT(*) > 1"
+
+            # ── APPOINTMENTS ──────────────────────────────────────────
+            run_check "Appointments with null location_id" \
+              "SELECT id, provider, patient_name, date, time, status
+               FROM appointments
+               WHERE location_id IS NULL
+               ORDER BY date DESC
+               LIMIT 20"
+
+            run_check "Appointments with location_id not in locations" \
+              "SELECT a.id, a.provider, a.patient_name, a.date, a.location_id
+               FROM appointments a
+               LEFT JOIN locations l ON l.id = a.location_id
+               WHERE a.location_id IS NOT NULL
+                 AND l.id IS NULL
+               ORDER BY a.date DESC
+               LIMIT 20"
+
+            run_check "Appointments referencing non-existent provider (user)" \
+              "SELECT a.id, a.provider, a.patient_name, a.date, a.status
+               FROM appointments a
+               LEFT JOIN users u ON u.id = a.provider
+               WHERE a.provider IS NOT NULL
+                 AND a.provider != ''
+                 AND u.id IS NULL
+               LIMIT 20"
+
+            run_check "Appointments referencing non-existent patient" \
+              "SELECT a.id, a.patient_id, a.patient_name, a.date, a.status
+               FROM appointments a
+               LEFT JOIN patients p ON p.id = a.patient_id
+               WHERE a.patient_id IS NOT NULL
+                 AND a.patient_id != ''
+                 AND p.id IS NULL
+               LIMIT 20"
+
+            run_check "Appointments at wrong location (provider's location differs)" \
+              "SELECT a.id, a.date, a.time,
+                      a.provider, u.location_id AS provider_loc,
+                      a.location_id AS appt_loc,
+                      a.status
+               FROM appointments a
+               JOIN users u ON u.id = a.provider
+               WHERE a.location_id IS NOT NULL
+                 AND u.location_id IS NOT NULL
+                 AND a.location_id != u.location_id
+               ORDER BY a.date DESC
+               LIMIT 20"
+
+            run_check "Duplicate appointments (same patient + provider + date + time)" \
+              "SELECT patient_id, provider, date, time, COUNT(*) AS cnt
+               FROM appointments
+               WHERE status != 'Cancelled'
+               GROUP BY patient_id, provider, date, time
+               HAVING COUNT(*) > 1"
+
+            run_check "Appointments with invalid status" \
+              "SELECT id, status, date, provider
+               FROM appointments
+               WHERE status NOT IN ('Scheduled','Confirmed','Checked In','In Progress','Completed','Cancelled','No Show')
+               LIMIT 20"
+
+            run_check "Appointments with missing date or time" \
+              "SELECT id, provider, patient_name, date, time, status
+               FROM appointments
+               WHERE date IS NULL OR date = '' OR time IS NULL OR time = ''
+               LIMIT 20"
+
+            # ── PATIENTS ──────────────────────────────────────────────
+            run_check "Patients with no linked appointments (active patients only)" \
+              "SELECT p.id, p.first_name, p.last_name, p.created_at
+               FROM patients p
+               LEFT JOIN appointments a ON a.patient_id = p.id
+               WHERE a.id IS NULL
+                 AND p.is_active = true
+               ORDER BY p.created_at DESC
+               LIMIT 10"
+
+            run_check "Patients with is_btg = true (break-the-glass)" \
+              "SELECT id, first_name, last_name, is_btg FROM patients WHERE is_btg = true"
+
+            # ── BLOCKED DAYS ──────────────────────────────────────────
+            run_check "Blocked days with appointments scheduled on same day+provider" \
+              "SELECT bd.provider, bd.date, bd.block_type,
+                      COUNT(a.id) AS conflicting_apts
+               FROM blocked_days bd
+               JOIN appointments a
+                 ON a.provider = bd.provider
+                 AND a.date = bd.date
+                 AND a.status NOT IN ('Cancelled', 'No Show')
+               GROUP BY bd.provider, bd.date, bd.block_type"
+
+            # ── SUMMARY ───────────────────────────────────────────────
+            echo ""
+            echo "=== Summary counts ==="
+            psql "$DATABASE_URL" -c "
+              SELECT
+                (SELECT COUNT(*) FROM locations)                                  AS locations,
+                (SELECT COUNT(*) FROM users WHERE deleted_at IS NULL)             AS active_users,
+                (SELECT COUNT(*) FROM patients WHERE is_active = true)            AS active_patients,
+                (SELECT COUNT(*) FROM appointments)                               AS total_appointments,
+                (SELECT COUNT(*) FROM appointments WHERE location_id IS NULL)     AS apts_null_location,
+                (SELECT COUNT(*) FROM appointments WHERE status = 'Scheduled')    AS apts_scheduled,
+                (SELECT COUNT(*) FROM appointments WHERE status = 'Completed')    AS apts_completed,
+                (SELECT COUNT(*) FROM appointments WHERE status = 'Cancelled')    AS apts_cancelled
+            "
+          REMOTE_SCRIPT
