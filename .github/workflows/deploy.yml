@@ -58,7 +58,9 @@ jobs:
             npm ci --omit=dev
             cd ..
 
-            pm2 restart ehr-api || pm2 start server/index.js --name ehr-api
+            pm2 delete ehr-api 2>/dev/null || true
+            pm2 start /var/www/ehr/server/index.js --name ehr-api
+            pm2 save
             echo "✅ Production deployment complete"
           EOF
 
