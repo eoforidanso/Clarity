@@ -504,7 +504,7 @@ const getSlotStatus = (count, capacity = DEFAULT_CAPACITY) => {
   return "";
 };
 
-function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, onUpdateStatus, onReschedule, isMobile }) {
+function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, onUpdateStatus, onReschedule, onSlotClick, isMobile }) {
   const now = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
 
@@ -618,8 +618,20 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
                 ))}
               </div>
             ) : (
-              <div style={{ padding: isHalfHour ? "4px 0" : "6px 0", color: "var(--text-dim)", fontSize: 10, fontStyle: "italic", borderBottom: `1px dashed ${isHalfHour ? "#f8fafc" : "#f1f5f9"}` }}>
-                — open —
+              <div
+                onClick={() => onSlotClick?.(slotKey)}
+                style={{
+                  padding: isHalfHour ? "4px 0" : "6px 0",
+                  color: onSlotClick ? "#16a34a" : "var(--text-dim)",
+                  fontSize: 10, fontStyle: "italic",
+                  borderBottom: `1px dashed ${isHalfHour ? "#f8fafc" : "#f1f5f9"}`,
+                  cursor: onSlotClick ? "pointer" : "default",
+                  borderRadius: 4, transition: "background 0.12s",
+                }}
+                onMouseEnter={e => { if (onSlotClick) { e.currentTarget.style.background = "#f0fdf4"; e.currentTarget.style.color = "#15803d"; } }}
+                onMouseLeave={e => { e.currentTarget.style.background = ""; e.currentTarget.style.color = onSlotClick ? "#16a34a" : ""; }}
+              >
+                {onSlotClick ? "＋ open" : "— open —"}
               </div>
             )}
           </div>
@@ -3515,25 +3527,54 @@ export default function Schedule() {
                 />
               )}
 
-              {/* Multi-Provider Grid */}
-              <div key={activeDate} style={{ animation:"fade-slide-in 0.18s ease both" }}>
-                <MultiProviderGrid
-                  activeDate={activeDate}
-                  siteProviders={siteProviders}
-                  allAppts={allAppts}
-                  patients={patients}
-                  todayKey={todayKey}
-                  isToday={activeDate === todayKey}
-                  onCellClick={(providerId, date, time) => {
-                    if (!canCreateAppointment) return;
-                    setModalDate(date);
-                    setModalTime(time);
-                    setModalProvider(providerId);
-                    setModalVisitType('In-Person');
-                    setShowModal(true);
-                  }}
-                  onAptClick={apt => setRescheduleAptSchedule(apt)}
-                />
+              {/* Schedule view — Timeline when a provider is selected, Grid for all providers */}
+              <div key={`${activeDate}-${providerFilter}`} style={{ animation:"fade-slide-in 0.18s ease both" }}>
+                {providerFilter !== 'all' ? (
+                  <div style={{ background:'#fff', border:'1px solid var(--border)', borderRadius:12, padding:'20px 24px 24px' }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:14 }}>
+                      Day Schedule
+                    </div>
+                    <ScheduleTimeline
+                      appts={dateAppts}
+                      todayKey={todayKey}
+                      isToday={activeDate === todayKey}
+                      patients={patients}
+                      allAppointments={allAppts}
+                      onOpenChart={handleOpenChart}
+                      onCheckIn={handleCheckIn}
+                      onGoToSession={handleGoToSession}
+                      onToggleVisitType={handleToggleVisitType}
+                      onUpdateStatus={(id, status) => handleUpdateStatusWithFeed(id, status)}
+                      onReschedule={apt => setRescheduleAptSchedule(apt)}
+                      onSlotClick={canCreateAppointment ? slotKey => {
+                        setModalDate(activeDate);
+                        setModalTime(slotKey);
+                        setModalProvider(providerFilter);
+                        setModalVisitType('In-Person');
+                        setShowModal(true);
+                      } : undefined}
+                      isMobile={isMobile}
+                    />
+                  </div>
+                ) : (
+                  <MultiProviderGrid
+                    activeDate={activeDate}
+                    siteProviders={siteProviders}
+                    allAppts={allAppts}
+                    patients={patients}
+                    todayKey={todayKey}
+                    isToday={activeDate === todayKey}
+                    onCellClick={(providerId, date, time) => {
+                      if (!canCreateAppointment) return;
+                      setModalDate(date);
+                      setModalTime(time);
+                      setModalProvider(providerId);
+                      setModalVisitType('In-Person');
+                      setShowModal(true);
+                    }}
+                    onAptClick={apt => setRescheduleAptSchedule(apt)}
+                  />
+                )}
               </div>
 
               {/* Activity Feed */}
