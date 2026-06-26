@@ -20,6 +20,15 @@ const fmtTime12 = t => {
   const h = hh % 12 === 0 ? 12 : hh % 12;
   return `${h}:${String(mm).padStart(2, "0")} ${ap}`;
 };
+function getWeekRange(dateKey) {
+  const d = new Date(dateKey + 'T00:00:00');
+  const day = d.getDay(); // 0=Sun
+  const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const fmt = dt => dt.toLocaleDateString("en-US", { month:"short", day:"numeric" });
+  const yr  = sun.getFullYear();
+  return `${fmt(mon)} – ${fmt(sun)}, ${yr}`;
+}
 function getDaysInMonth(year, month) { return new Date(year, month + 1, 0).getDate(); }
 function getCalendarWeeks(year, month) {
   const startDay = new Date(year, month, 1).getDay();
@@ -620,15 +629,198 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
 }
 
 /* ══════════════════════════════════════════════
+   MULTI-PROVIDER GRID  (AthenaOne-style)
+   Rows = 30-min time slots · Columns = providers
+══════════════════════════════════════════════ */
+const VISIT_COLORS = {
+  'New Patient':      '#f59e0b',
+  'Follow-Up':        '#3b82f6',
+  'Urgent':           '#ef4444',
+  'Telehealth':       '#8b5cf6',
+  'Medication Review':'#22c55e',
+  'Office Visit':     '#06b6d4',
+  'Phone Consult':    '#6b7280',
+  'Procedure':        '#ec4899',
+};
+
+function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, todayKey, isToday, onCellClick, onAptClick }) {
+  const SLOTS = [];
+  for (let h = 7; h <= 20; h++) {
+    SLOTS.push(`${String(h).padStart(2,'0')}:00`);
+    SLOTS.push(`${String(h).padStart(2,'0')}:30`);
+  }
+
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+
+  // Map: providerId → slotKey → appointments[]
+  const grid = useMemo(() => {
+    const map = {};
+    siteProviders.forEach(p => {
+      map[p.id] = {};
+      SLOTS.forEach(s => { map[p.id][s] = []; });
+    });
+    allAppts.filter(a => a.date === activeDate).forEach(apt => {
+      if (!apt.provider || !apt.time) return;
+      const [h, m] = apt.time.split(':').map(Number);
+      if (h < 7 || h > 20) return;
+      const slot = `${String(h).padStart(2,'0')}:${m >= 30 ? '30' : '00'}`;
+      if (map[apt.provider]?.[slot]) map[apt.provider][slot].push(apt);
+    });
+    return map;
+  }, [siteProviders, allAppts, activeDate]); // eslint-disable-line
+
+  const COL = 190;   // px per provider column
+  const TIME_W = 64; // px for time-label gutter
+  const ROW_H = 54;  // px per 30-min slot
+
+  if (siteProviders.length === 0) {
+    return (
+      <div style={{ padding:'40px 20px', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>
+        No providers to display. Adjust the site filter or provider list.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ overflowX:'auto', background:'#fff', border:'1px solid var(--border)', borderRadius:12 }}>
+      <div style={{ minWidth: TIME_W + siteProviders.length * COL, position:'relative' }}>
+
+        {/* ── Sticky provider header ── */}
+        <div style={{
+          display:'grid',
+          gridTemplateColumns:`${TIME_W}px repeat(${siteProviders.length}, ${COL}px)`,
+          position:'sticky', top:0, zIndex:20,
+          background:'#fff', borderBottom:'2px solid #e2e8f0',
+          boxShadow:'0 2px 8px rgba(0,0,0,0.06)',
+        }}>
+          <div style={{ borderRight:'2px solid #e2e8f0' }} />
+          {siteProviders.map(p => {
+            const pc = provColor(p.id);
+            const aptCount = Object.values(grid[p.id] || {}).flat().length;
+            return (
+              <div key={p.id} style={{ padding:'10px 8px', borderLeft:'1px solid #e2e8f0', display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
+                <div style={{ width:36, height:36, borderRadius:'50%', background:pc, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:13, flexShrink:0, marginBottom:2 }}>
+                  {p.firstName?.[0]}{p.lastName?.[0]||''}
+                </div>
+                <div style={{ fontWeight:700, fontSize:11.5, textAlign:'center', color:'var(--text-primary)', lineHeight:1.2 }}>
+                  {p.firstName} {p.lastName}
+                </div>
+                {(p.credentials || p.specialty) && (
+                  <div style={{ fontSize:9.5, color:'var(--text-muted)', textAlign:'center' }}>{p.credentials || p.specialty}</div>
+                )}
+                <div style={{ fontSize:10, color: aptCount > 0 ? '#10b981' : '#94a3b8', fontWeight:600 }}>
+                  {aptCount} appt{aptCount !== 1 ? 's' : ''}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Time rows ── */}
+        {SLOTS.map(slot => {
+          const [sh, sm] = slot.split(':').map(Number);
+          const slotMins  = sh * 60 + sm;
+          const isHalf    = sm === 30;
+          const isCurrent = isToday && nowMins >= slotMins && nowMins < slotMins + 30;
+          const pct       = isCurrent ? ((nowMins - slotMins) / 30 * 100).toFixed(1) : null;
+
+          return (
+            <div key={slot} style={{
+              display:'grid',
+              gridTemplateColumns:`${TIME_W}px repeat(${siteProviders.length}, ${COL}px)`,
+              borderBottom:`1px ${isHalf ? 'dashed' : 'solid'} ${isHalf ? '#f4f4f5' : '#e4e4e7'}`,
+              minHeight:ROW_H,
+              background: isCurrent ? 'rgba(239,68,68,0.03)' : 'transparent',
+              position:'relative',
+            }}>
+              {/* Current-time indicator */}
+              {isCurrent && (
+                <div style={{ position:'absolute', left:TIME_W, right:0, height:2, background:'#ef4444', zIndex:5, top:`${pct}%`, pointerEvents:'none' }}>
+                  <div style={{ position:'absolute', left:-5, top:-4, width:10, height:10, borderRadius:'50%', background:'#ef4444' }} />
+                </div>
+              )}
+
+              {/* Time label */}
+              <div style={{ padding:'6px 10px 0 0', textAlign:'right', fontSize:isHalf?9.5:11, fontWeight:isHalf?400:700, color:isHalf?'#d1d5db':'#6b7280', borderRight:'2px solid #e2e8f0', userSelect:'none' }}>
+                {isHalf ? fmtTime12(slot) : fmtTime12(slot).replace(':00','')}
+              </div>
+
+              {/* Provider cells */}
+              {siteProviders.map(p => {
+                const cellAppts = grid[p.id]?.[slot] || [];
+                return (
+                  <div key={p.id}
+                    onClick={() => cellAppts.length === 0 && onCellClick?.(p.id, activeDate, slot)}
+                    style={{ borderLeft:'1px solid #f4f4f5', padding:'2px 3px', minHeight:ROW_H, position:'relative', cursor: cellAppts.length === 0 ? 'pointer' : 'default' }}
+                    title={cellAppts.length === 0 ? `Book ${p.firstName} at ${fmtTime12(slot)}` : undefined}
+                  >
+                    {/* Hover ＋ for empty cells */}
+                    {cellAppts.length === 0 && (
+                      <div className="cell-add-hint" style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', opacity:0, transition:'opacity 0.12s' }}
+                        onMouseEnter={e=>e.currentTarget.style.opacity='1'}
+                        onMouseLeave={e=>e.currentTarget.style.opacity='0'}
+                      >
+                        <span style={{ fontSize:18, color:'#cbd5e1', fontWeight:400 }}>＋</span>
+                      </div>
+                    )}
+
+                    {/* Appointment blocks */}
+                    {cellAppts.map(apt => {
+                      const color = VISIT_COLORS[apt.type] || '#6366f1';
+                      const isActive = apt.status === 'In Progress' || apt.status === 'Checked In';
+                      return (
+                        <div key={apt.id}
+                          onClick={e => { e.stopPropagation(); onAptClick?.(apt); }}
+                          style={{
+                            background:`${color}15`,
+                            border:`1.5px solid ${color}60`,
+                            borderLeft:`4px solid ${color}`,
+                            borderRadius:5,
+                            padding:'3px 6px',
+                            marginBottom:2,
+                            cursor:'pointer',
+                            boxShadow: isActive ? `0 0 0 2px ${color}40` : 'none',
+                            transition:'box-shadow 0.15s',
+                          }}
+                          title={`${apt.patientName} · ${apt.type} · ${apt.status}`}
+                        >
+                          <div style={{ fontSize:9.5, fontWeight:800, color, lineHeight:1 }}>
+                            {fmtTime12(apt.time || slot)} {apt.visitType==='Telehealth'?'📹':''}
+                          </div>
+                          <div style={{ fontSize:10.5, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:1 }}>
+                            {apt.patientName || 'Patient'}
+                          </div>
+                          <div style={{ fontSize:9.5, color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            {apt.type}
+                          </div>
+                          {apt.status !== 'Scheduled' && apt.status !== 'Confirmed' && (
+                            <div style={{ fontSize:8.5, fontWeight:700, color, marginTop:1, textTransform:'uppercase', letterSpacing:'0.3px' }}>{apt.status}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
    SCHEDULE MODAL
 ══════════════════════════════════════════════ */
-function ScheduleModal({ show, onClose, initialDate, initialVisitType, patients, onSave, defaultProvider, providers = [] }) {
+function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitType, patients, onSave, defaultProvider, providers = [] }) {
   const defaultProviderId = defaultProvider || providers[0]?.id || "";
   const EMPTY = { isNewPatient:false, patientId:"", newPatientName:"", provider:defaultProviderId,
     date:"", time:"09:00", duration:30, type:"Follow-Up", visitType:"In-Person", reason:"", room:"" };
   const [form, setForm] = useState(EMPTY);
   const [saved, setSaved] = useState(false);
-  useEffect(() => { if (show) { setForm({ ...EMPTY, provider:defaultProvider||providers[0]?.id||"", date:initialDate||"", ...(initialVisitType ? { visitType:initialVisitType, type:initialVisitType==="Telehealth"?"Telehealth":"Follow-Up", room:initialVisitType==="Telehealth"?"Virtual":"" } : {}) }); setSaved(false); } }, [show, initialDate, initialVisitType, defaultProvider]); // eslint-disable-line
+  useEffect(() => { if (show) { setForm({ ...EMPTY, provider:defaultProvider||providers[0]?.id||"", date:initialDate||"", time:initialTime||"09:00", ...(initialVisitType ? { visitType:initialVisitType, type:initialVisitType==="Telehealth"?"Telehealth":"Follow-Up", room:initialVisitType==="Telehealth"?"Virtual":"" } : {}) }); setSaved(false); } }, [show, initialDate, initialTime, initialVisitType, defaultProvider]); // eslint-disable-line
   // If providers load after the modal opens, auto-fill the provider field if it's still empty
   useEffect(() => { if (show && !form.provider && providers[0]?.id) setForm(f => ({ ...f, provider: defaultProvider || providers[0].id })); }, [show, providers]); // eslint-disable-line
   const upd = (k, v) => setForm(f => ({ ...f, [k]:v }));
@@ -2192,6 +2384,8 @@ export default function Schedule() {
   }, []);
   const [modalVisitType, setModalVisitType] = useState('In-Person');
   const [modalDate, setModalDate] = useState("");
+  const [modalTime, setModalTime] = useState("");
+  const [modalProvider, setModalProvider] = useState("");
   const [rescheduleAptSchedule, setRescheduleAptSchedule] = useState(null);
   const [batchMode, setBatchMode]       = useState(false);
   const [batchSelected, setBatchSelected] = useState([]);
@@ -2394,7 +2588,9 @@ export default function Schedule() {
   const selDateLabel = selDateObj.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
   const isSelToday   = activeDate===todayKey;
   const dayBlocks    = blockedByDate[activeDate]||[];
-  const shiftDay = delta => { const d=new Date(activeDate+"T00:00:00"); d.setDate(d.getDate()+delta); setSelectedDate(toKey(d)); };
+  const shiftDay  = delta => { const d=new Date(activeDate+"T00:00:00"); d.setDate(d.getDate()+delta);   setSelectedDate(toKey(d)); };
+  const shiftWeek = delta => { const d=new Date(activeDate+"T00:00:00"); d.setDate(d.getDate()+delta*7); setSelectedDate(toKey(d)); };
+  const weekRange = getWeekRange(activeDate);
 
   const TABS = [
     { key:"schedule",        label:"📅 Schedule" },
@@ -2632,25 +2828,27 @@ export default function Schedule() {
 
             {/* RIGHT PANEL */}
             <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", gap:14 }}>
-              {/* Date Header */}
-              <div style={{ ...card({ padding:"16px 20px" }) }}>
-                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
-                  <button onClick={() => shiftDay(-1)} style={{ background:"none", border:"1px solid var(--border)", borderRadius:7, padding:"4px 12px", cursor:"pointer", fontSize:14, fontWeight:700, color:"var(--text-secondary)" }}>◀</button>
-                  <div>
-                    <div style={{ fontWeight:800, fontSize:17, color:"var(--text-primary)", display:"flex", alignItems:"center", gap:8 }}>
+              {/* Date Header + Week Range */}
+              <div style={{ ...card({ padding:"14px 20px" }) }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                  {/* Week navigation */}
+                  <button onClick={() => shiftWeek(-1)} style={{ background:"none", border:"1px solid var(--border)", borderRadius:7, padding:"4px 10px", cursor:"pointer", fontSize:13, fontWeight:700, color:"var(--text-secondary)" }} title="Previous week">«</button>
+                  <button onClick={() => shiftDay(-1)} style={{ background:"none", border:"1px solid var(--border)", borderRadius:7, padding:"4px 10px", cursor:"pointer", fontSize:13, fontWeight:700, color:"var(--text-secondary)" }} title="Previous day">‹</button>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:800, fontSize:16, color:"var(--text-primary)", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                       {selDateLabel}
                       {isSelToday && <span style={{ fontSize:11, padding:"2px 10px", borderRadius:20, background:"#dbeafe", color:"#1e40af", fontWeight:700 }}>Today</span>}
                     </div>
-                    {dayBlocks.length>0 && (
-                      <div style={{ fontSize:11, color:"#c92b2b", fontWeight:600, marginTop:2 }}>
-                        ⛔ {dayBlocks.map(b=>`${b.providerName}: ${b.type==="full"?"Full Day":b.type==="am"?"AM":"PM"} blocked`).join(" · ")}
-                      </div>
-                    )}
+                    <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:1 }}>
+                      Week of {weekRange}
+                      {dayBlocks.length>0 && <span style={{ color:"#c92b2b", fontWeight:600, marginLeft:10 }}>⛔ {dayBlocks.map(b=>`${b.providerName}: ${b.type==="full"?"Full Day":b.type==="am"?"AM":"PM"} blocked`).join(" · ")}</span>}
+                    </div>
                   </div>
-                  <button onClick={() => shiftDay(1)} style={{ background:"none", border:"1px solid var(--border)", borderRadius:7, padding:"4px 12px", cursor:"pointer", fontSize:14, fontWeight:700, color:"var(--text-secondary)" }}>▶</button>
+                  <button onClick={() => shiftDay(1)} style={{ background:"none", border:"1px solid var(--border)", borderRadius:7, padding:"4px 10px", cursor:"pointer", fontSize:13, fontWeight:700, color:"var(--text-secondary)" }} title="Next day">›</button>
+                  <button onClick={() => shiftWeek(1)} style={{ background:"none", border:"1px solid var(--border)", borderRadius:7, padding:"4px 10px", cursor:"pointer", fontSize:13, fontWeight:700, color:"var(--text-secondary)" }} title="Next week">»</button>
                   {canCreateAppointment && (
-                    <button className="btn btn-primary btn-sm" onClick={() => { setModalDate(activeDate); setModalVisitType('In-Person'); setShowModal(true); }}
-                      style={{ marginLeft:"auto", fontSize:12, fontWeight:700 }}>＋ Schedule Patient</button>
+                    <button className="btn btn-primary btn-sm" onClick={() => { setModalDate(activeDate); setModalTime(""); setModalProvider(""); setModalVisitType('In-Person'); setShowModal(true); }}
+                      style={{ fontSize:12, fontWeight:700 }}>＋ Schedule Patient</button>
                   )}
                 </div>
                 {/* Stat filter chips — grouped */}
@@ -2777,98 +2975,25 @@ export default function Schedule() {
                 />
               )}
 
-              {/* Appointment List */}
-              <div style={{ ...card({ overflow:"hidden" }) }}>
-                <div style={{ padding:"12px 16px", borderBottom:"1px solid var(--border)", background:"#f8fafc",
-                  display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                  <div style={{ fontWeight:700, fontSize:13 }}>
-                    Appointments
-                    {providerFilter!=="all" && (()=>{ const pv=providers.find(p=>p.id===providerFilter); return pv?<span style={{ marginLeft:8, fontSize:11, color:"var(--text-muted)", fontWeight:500 }}>· {pv.firstName} {pv.lastName}</span>:null; })()}
-                  </div>
-                  <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                    <span style={{ fontSize:11, color:"var(--text-muted)" }}>{dateAppts.length} appointment{dateAppts.length!==1?"s":""}</span>
-                    {providerFilter!=="all" && <button onClick={() => setProviderFilter("all")} style={{ background:"none", border:"1px solid var(--border)", borderRadius:6, padding:"2px 8px", cursor:"pointer", fontSize:10, color:"var(--text-secondary)" }}>All providers ×</button>}
-                    {canCreateAppointment && dateAppts.length > 0 && (
-                      <button onClick={() => { setModalDate(activeDate); setModalVisitType('In-Person'); setShowModal(true); }}
-                        style={{ background:"#4f46e5", color:"#fff", border:"none", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer" }}>＋ Add</button>
-                    )}
-                  </div>
-                </div>
-                <div style={{ padding:"14px 16px", minHeight:100 }}>
-                  {dateAppts.length===0 ? (
-                    <div style={{ padding:"32px 16px" }}>
-                      {statusFilter!=="All" ? (
-                        <div style={{ textAlign:"center" }}>
-                          <div style={{ fontSize:44, marginBottom:12 }}>🔍</div>
-                          <div style={{ fontWeight:800, fontSize:15, marginBottom:6, color:"var(--text-secondary)" }}>
-                            No &ldquo;{statusFilter}&rdquo; appointments
-                          </div>
-                          <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:16, lineHeight:1.5 }}>
-                            Try a different status filter or clear to see all appointments.
-                          </div>
-                          <button className="btn btn-secondary btn-sm" onClick={() => setStatusFilter("All")}>Clear Filter</button>
-                        </div>
-                      ) : (
-                        <div>
-                          <div style={{ textAlign:"center", marginBottom:24 }}>
-                            <div style={{ fontSize:44, marginBottom:10 }}>📅</div>
-                            <div style={{ fontWeight:800, fontSize:16, color:"var(--text-primary)", marginBottom:6 }}>Schedule is clear</div>
-                            <div style={{ fontSize:12, color:"var(--text-muted)", maxWidth:300, margin:"0 auto", lineHeight:1.6 }}>
-                              No appointments for {selDateLabel.split(",").slice(0,2).join(",")}. Use the quick actions below.
-                            </div>
-                          </div>
-                          {canCreateAppointment && (
-                            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:8, maxWidth:460, margin:"0 auto 20px" }}>
-                              {[
-                                { icon:"＋", label:"Schedule Patient", sub:"New in-person visit", color:"#4f46e5", border:"#4f46e5", bg:"#f5f3ff",
-                                  action:() => { setModalDate(activeDate); setModalVisitType("In-Person"); setShowModal(true); } },
-                                { icon:"📹", label:"New Telehealth", sub:"Schedule video visit", color:"#7c3aed", border:"#7c3aed", bg:"#f5f3ff",
-                                  action:() => { setModalDate(activeDate); setModalVisitType("Telehealth"); setShowModal(true); } },
-                                { icon:"📆", label:"Browse Days", sub:"View another date", color:"var(--text-secondary)", border:"var(--border)", bg:"#f8fafc",
-                                  action:() => setSelectedDate(toKey(getToday())) },
-                              ].map(item => (
-                                <button key={item.label} onClick={item.action}
-                                  style={{ padding:"16px 12px", borderRadius:10, border:`1.5px solid ${item.border}`, background:item.bg, cursor:"pointer", textAlign:"center", transition:"all 0.15s" }}
-                                  onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="var(--shadow-md)"; }}
-                                  onMouseLeave={e => { e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="none"; }}>
-                                  <div style={{ fontSize:22, marginBottom:6 }}>{item.icon}</div>
-                                  <div style={{ fontSize:12, fontWeight:700, color:item.color, marginBottom:2 }}>{item.label}</div>
-                                  <div style={{ fontSize:10, color:"var(--text-muted)" }}>{item.sub}</div>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                          <div style={{ background:"#f8fafc", border:"1px solid var(--border)", borderRadius:8, padding:"10px 14px", maxWidth:440, margin:"0 auto", display:"flex", alignItems:"flex-start", gap:10 }}>
-                            <span style={{ fontSize:14, lineHeight:1.5 }}>💡</span>
-                            <div style={{ fontSize:11, color:"var(--text-muted)", lineHeight:1.6 }}>
-                              <strong style={{ color:"var(--text-secondary)" }}>Tip: </strong>
-                              {isSelToday
-                                ? "Use the Front Desk tab for walk-ins and same-day check-ins."
-                                : "Pre-schedule recurring visits by booking on future dates."}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div key={activeDate} style={{ animation:"fade-slide-in 0.22s ease both" }}>
-                      <ScheduleTimeline
-                        appts={dateAppts}
-                        todayKey={todayKey}
-                        isToday={activeDate === todayKey}
-                        patients={patients}
-                        allAppointments={allAppts}
-                        isMobile={isMobile}
-                        onOpenChart={handleOpenChart}
-                        onCheckIn={handleCheckIn}
-                        onGoToSession={handleGoToSession}
-                        onToggleVisitType={handleToggleVisitType}
-                        onUpdateStatus={handleUpdateStatusWithFeed}
-                        onReschedule={apt => setRescheduleAptSchedule(apt)}
-                      />
-                    </div>
-                  )}
-                </div>
+              {/* Multi-Provider Grid */}
+              <div key={activeDate} style={{ animation:"fade-slide-in 0.18s ease both" }}>
+                <MultiProviderGrid
+                  activeDate={activeDate}
+                  siteProviders={siteProviders}
+                  allAppts={allAppts}
+                  patients={patients}
+                  todayKey={todayKey}
+                  isToday={activeDate === todayKey}
+                  onCellClick={(providerId, date, time) => {
+                    if (!canCreateAppointment) return;
+                    setModalDate(date);
+                    setModalTime(time);
+                    setModalProvider(providerId);
+                    setModalVisitType('In-Person');
+                    setShowModal(true);
+                  }}
+                  onAptClick={apt => setRescheduleAptSchedule(apt)}
+                />
               </div>
 
               {/* Activity Feed */}
@@ -2982,13 +3107,14 @@ export default function Schedule() {
       {/* Schedule Modal */}
       <ScheduleModal
         show={showModal}
-        onClose={() => { setShowModal(false); setModalVisitType('In-Person'); }}
+        onClose={() => { setShowModal(false); setModalVisitType('In-Person'); setModalTime(''); setModalProvider(''); }}
         initialDate={modalDate}
+        initialTime={modalTime}
         initialVisitType={modalVisitType}
         patients={patients}
-        defaultProvider={isProvider ? currentUser?.id : undefined}
+        defaultProvider={modalProvider || (isProvider ? currentUser?.id : undefined)}
         providers={siteProviders}
-        onSave={apt => { addAppointment({ ...apt, locationId: activeSiteId !== 'all' ? activeSiteId : undefined }); setShowModal(false); setModalVisitType('In-Person'); }}
+        onSave={apt => { addAppointment({ ...apt, locationId: activeSiteId !== 'all' ? activeSiteId : undefined }); setShowModal(false); setModalVisitType('In-Person'); setModalTime(''); setModalProvider(''); }}
       />
     </div>
   );
