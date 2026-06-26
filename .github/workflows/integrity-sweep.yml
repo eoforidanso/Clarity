@@ -81,13 +81,14 @@ jobs:
                ORDER BY a.date DESC
                LIMIT 20"
 
-            run_check "Appointments referencing non-existent provider (user)" \
+            run_check "Appointments referencing non-existent provider" \
               "SELECT a.id, a.provider, a.patient_name, a.date, a.status
                FROM appointments a
                LEFT JOIN users u ON u.id = a.provider
                WHERE a.provider IS NOT NULL
                  AND a.provider != ''
                  AND u.id IS NULL
+               ORDER BY a.date DESC
                LIMIT 20"
 
             run_check "Appointments referencing non-existent patient" \
@@ -132,12 +133,13 @@ jobs:
                LIMIT 20"
 
             # ── PATIENTS ──────────────────────────────────────────────
-            run_check "Patients with no linked appointments (active patients only)" \
+            # patients.is_active is INTEGER (1/0) until the boolean migration runs
+            run_check "Active patients with no linked appointments" \
               "SELECT p.id, p.first_name, p.last_name, p.created_at
                FROM patients p
                LEFT JOIN appointments a ON a.patient_id = p.id
                WHERE a.id IS NULL
-                 AND p.is_active = true
+                 AND p.is_active::int = 1
                ORDER BY p.created_at DESC
                LIMIT 10"
 
@@ -155,18 +157,27 @@ jobs:
                  AND a.status NOT IN ('Cancelled', 'No Show')
                GROUP BY bd.provider, bd.date, bd.block_type"
 
+            # ── COLUMN TYPE CHECK ─────────────────────────────────────
+            run_check "Boolean column types (should all be 'boolean')" \
+              "SELECT table_name, column_name, data_type
+               FROM information_schema.columns
+               WHERE table_schema = 'public'
+                 AND column_name IN ('two_factor_enabled','must_change_password','is_btg','is_active','urgent')
+               ORDER BY table_name, column_name"
+
             # ── SUMMARY ───────────────────────────────────────────────
             echo ""
             echo "=== Summary counts ==="
             psql "$DATABASE_URL" -c "
               SELECT
-                (SELECT COUNT(*) FROM locations)                                  AS locations,
-                (SELECT COUNT(*) FROM users WHERE deleted_at IS NULL)             AS active_users,
-                (SELECT COUNT(*) FROM patients WHERE is_active = true)            AS active_patients,
-                (SELECT COUNT(*) FROM appointments)                               AS total_appointments,
-                (SELECT COUNT(*) FROM appointments WHERE location_id IS NULL)     AS apts_null_location,
-                (SELECT COUNT(*) FROM appointments WHERE status = 'Scheduled')    AS apts_scheduled,
-                (SELECT COUNT(*) FROM appointments WHERE status = 'Completed')    AS apts_completed,
-                (SELECT COUNT(*) FROM appointments WHERE status = 'Cancelled')    AS apts_cancelled
+                (SELECT COUNT(*) FROM locations)                                         AS locations,
+                (SELECT COUNT(*) FROM users WHERE deleted_at IS NULL)                    AS active_users,
+                (SELECT COUNT(*) FROM patients WHERE is_active::int = 1)                 AS active_patients,
+                (SELECT COUNT(*) FROM appointments)                                      AS total_appointments,
+                (SELECT COUNT(*) FROM appointments WHERE location_id IS NULL)            AS apts_null_location,
+                (SELECT COUNT(*) FROM appointments WHERE provider NOT IN (SELECT id FROM users)) AS apts_orphan_provider,
+                (SELECT COUNT(*) FROM appointments WHERE status = 'Scheduled')           AS apts_scheduled,
+                (SELECT COUNT(*) FROM appointments WHERE status = 'Completed')           AS apts_completed,
+                (SELECT COUNT(*) FROM appointments WHERE status = 'Cancelled')           AS apts_cancelled
             "
           REMOTE_SCRIPT

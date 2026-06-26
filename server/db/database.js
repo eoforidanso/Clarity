@@ -1053,6 +1053,8 @@ export async function initializeDatabase() {
     { table: 'users', col: 'two_factor_enabled' },
     { table: 'users', col: 'must_change_password' },
     { table: 'patients', col: 'is_btg' },
+    { table: 'patients', col: 'is_active' },
+    { table: 'sessions', col: 'is_active' },
     { table: 'inbox_messages', col: 'urgent' },
   ];
   for (const { table, col } of boolFixes) {
