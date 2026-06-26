@@ -96,8 +96,8 @@ router.get('/dm/:userId/messages', validateResponse(DmListResponseSchema), async
     ).all(me, other, other, me);
     // Mark unread messages sent to current user as read
     await db.prepare(
-      `UPDATE direct_messages SET read = 1
-       WHERE recipient_id = ? AND sender_id = ? AND read = 0`
+      `UPDATE direct_messages SET read = true
+       WHERE recipient_id = ? AND sender_id = ? AND read = false`
     ).run(me, other);
     res.json(rows.map(mapDm));
   } catch (err) {
@@ -121,7 +121,7 @@ router.post('/dm/:userId/messages', validate(DmMessageSchema), async (req, res) 
     const senderName = `${ req.user.first_name } ${ req.user.last_name }`.trim() || req.user.username;
     await db.prepare(
       `INSERT INTO direct_messages (id, sender_id, recipient_id, sender_name, content, reactions, read)
-       VALUES (?,?,?,?,?,?,0)`
+       VALUES (?,?,?,?,?,?,false)`
     ).run(id, me, other, senderName, content.trim(), '{}');
 
     const row = await db.prepare('SELECT * FROM direct_messages WHERE id = ?').get(id);
@@ -155,7 +155,7 @@ router.get('/dm/unread-counts', async (req, res) => {
   try {
     const rows = await db.prepare(
       `SELECT sender_id, COUNT(*) as count FROM direct_messages
-       WHERE recipient_id = ? AND read = 0
+       WHERE recipient_id = ? AND read = false
        GROUP BY sender_id`
     ).all(req.user.id);
     const counts = {};

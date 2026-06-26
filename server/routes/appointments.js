@@ -202,8 +202,8 @@ router.post('/telehealth-session/join', async (req, res) => {
   // Deactivate any prior active entry for this user + appointment
   await db.prepare(`
     UPDATE telehealth_session_participants
-    SET is_active = 0, left_at = NOW()
-    WHERE appointment_id = $1 AND user_id = $2 AND is_active = 1
+    SET is_active = false, left_at = NOW()
+    WHERE appointment_id = $1 AND user_id = $2 AND is_active = true
   `).run(appointmentId, req.user.id);
 
   const id = uuidv4();
@@ -211,7 +211,7 @@ router.post('/telehealth-session/join', async (req, res) => {
   await db.prepare(`
     INSERT INTO telehealth_session_participants
       (id, appointment_id, user_id, user_name, user_role, join_mode, is_active)
-    VALUES ($1,$2,$3,$4,$5,$6,1)
+    VALUES ($1,$2,$3,$4,$5,$6,true)
   `).run(id, appointmentId, req.user.id, userName, req.user.role, mode || 'provider');
 
   res.status(201).json({ ok: true, participantId: id });
@@ -224,8 +224,8 @@ router.post('/telehealth-session/leave', async (req, res) => {
 
   await db.prepare(`
     UPDATE telehealth_session_participants
-    SET is_active = 0, left_at = NOW()
-    WHERE appointment_id = $1 AND user_id = $2 AND is_active = 1
+    SET is_active = false, left_at = NOW()
+    WHERE appointment_id = $1 AND user_id = $2 AND is_active = true
   `).run(appointmentId, req.user.id);
 
   res.json({ ok: true });
@@ -243,7 +243,7 @@ router.post('/telehealth-session/checkin', async (req, res) => {
 
   const existing = await db.prepare(`
     SELECT id FROM telehealth_session_participants
-    WHERE appointment_id = $1 AND user_id = $2 AND is_active = 1
+    WHERE appointment_id = $1 AND user_id = $2 AND is_active = true
   `).get(appointmentId, req.user.id);
 
   if (existing) {

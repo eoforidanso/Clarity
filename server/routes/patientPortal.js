@@ -101,7 +101,7 @@ router.post('/request-access', validate(PortalRequestAccessSchema), async (req, 
   // Always respond the same way to prevent email enumeration
   const patient = await db.prepare(
     `SELECT id, first_name, last_name, email, portal_locked_until, portal_otp_attempts
-     FROM patients WHERE LOWER(email) = $1 AND is_active = 1`
+     FROM patients WHERE LOWER(email) = $1 AND is_active = true`
   ).get(normalised);
 
   if (!patient) { // Don't reveal whether email exists
@@ -137,7 +137,7 @@ router.post('/verify-otp', async (req, res) => { const { email, otp } = req.body
   const patient = await db.prepare(
     `SELECT id, first_name, last_name, email, portal_otp, portal_otp_expires,
             portal_otp_attempts, portal_locked_until
-     FROM patients WHERE LOWER(email) = $1 AND is_active = 1`
+     FROM patients WHERE LOWER(email) = $1 AND is_active = true`
   ).get(normalised);
 
   if (!patient) return res.status(401).json({ error: 'Invalid code' });
@@ -197,7 +197,7 @@ router.post('/verify-otp', async (req, res) => { const { email, otp } = req.body
 
 router.get('/me', authenticatePortal, async (req, res) => { const patient = await db.prepare(
     `SELECT id, first_name, last_name, email, dob, gender, phone, cell_phone, address_street, address_city, address_state, address_zip, assigned_provider, photo, portal_last_login
-     FROM patients WHERE id = $1 AND is_active = 1`
+     FROM patients WHERE id = $1 AND is_active = true`
   ).get(req.patientId);
 
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
@@ -264,7 +264,7 @@ router.post('/messages', authenticatePortal, validate(PortalMessageSchema), asyn
   await db.prepare(`
     INSERT INTO inbox_messages
       (id, type, from_name, to_user, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent)
-    VALUES ($1,$2,$3,NULL,$4,$5,$6,$7,$8,$9,0,'Normal','Unread',0)
+    VALUES ($1,$2,$3,NULL,$4,$5,$6,$7,$8,$9,false,'Normal','Unread',false)
   `).run(
     id, 'Patient Message',
     `${patientName} (Patient Portal)`,
@@ -337,7 +337,7 @@ router.post('/refill-request', authenticatePortal, validate(PortalRefillRequestS
   await db.prepare(`
     INSERT INTO inbox_messages
       (id, type, from_name, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,'Normal','Unread',0)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false,'Normal','Unread',false)
   `).run(
     msgId, 'Rx Refill Request',
     `${patientName} (Patient Portal)`,
@@ -392,7 +392,7 @@ router.post('/book-appointment', authenticatePortal, validate(PortalBookAppointm
   await db.prepare(`
     INSERT INTO inbox_messages
       (id, type, from_name, patient_id, patient_name, subject, body, date, time, read, priority, status, urgent)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,'Normal','Unread',0)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false,'Normal','Unread',false)
   `).run(
     msgId, 'Staff Message',
     `${patientName} (Patient Portal)`,

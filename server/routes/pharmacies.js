@@ -132,7 +132,7 @@ async function upsertFromDoseSpot(dsPharmacy) {
       UPDATE pharmacies SET
         npi=?, name=?, chain=?, address_street=?, address_city=?, address_state=?, address_zip=?,
         phone=?, fax=?, pharmacy_type=?, is_24h=?, surescripts_capable=?, epcs_capable=?,
-        source='dosespot', cached_at=NOW(), is_active=1
+        source='dosespot', cached_at=NOW(), is_active=true
       WHERE ncpdp_id=?
     `).run(
       row.npi, row.name, row.chain, row.address_street, row.address_city,
@@ -163,7 +163,7 @@ async function upsertFromDoseSpot(dsPharmacy) {
 router.get('/', async (req, res) => {
   const { q = '', city = '', state = '', zip = '', type = '', epcs = '' } = req.query;
 
-  const conditions = ['is_active = 1'];
+  const conditions = ['is_active = true'];
   const params = [];
 
   if (q.trim()) {
@@ -259,7 +259,7 @@ router.get('/recent', async (req, res) => {
     SELECT p.*, MAX(o.created_at) AS last_used
     FROM pharmacies p
     JOIN orders o ON o.pharmacy_ncpdp_id = p.ncpdp_id
-    WHERE p.is_active = 1
+    WHERE p.is_active = true
     GROUP BY p.id
     ORDER BY last_used DESC
     LIMIT 10
@@ -282,7 +282,7 @@ async function upsertFromNpi(rec) {
       UPDATE pharmacies SET
         name=$2, address_street=$3, address_city=$4, address_state=$5, address_zip=$6,
         phone=$7, fax=$8, pharmacy_type=$9, taxonomy_code=$10,
-        lat=$11, lon=$12, source='npi', cached_at=NOW(), is_active=1
+        lat=$11, lon=$12, source='npi', cached_at=NOW(), is_active=true
       WHERE npi=$1
     `).run(rec.npi, rec.name, rec.address, rec.city, rec.state, rec.zip,
            rec.phone, rec.fax, rec.pharmacyType || 'retail', rec.taxonomyCode || '',
@@ -318,7 +318,7 @@ router.get('/near/:zip', async (req, res) => {
   // Pull local cached pharmacies with coordinates (search by state for broader pool)
   const localRows = await db.prepare(`
     SELECT * FROM pharmacies
-    WHERE is_active = 1 AND lat IS NOT NULL AND lon IS NOT NULL
+    WHERE is_active = true AND lat IS NOT NULL AND lon IS NOT NULL
       AND (address_zip = $1 OR address_state = (
             SELECT state FROM zip_geocache WHERE zip = $1 LIMIT 1
           ))
