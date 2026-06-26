@@ -1027,6 +1027,75 @@ export async function initializeDatabase() {
     ON CONFLICT (id) DO NOTHING;
   `);
 
+  // ── Portal System Tables (idempotent) ──────────────────────────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS portal_users (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT,
+      first_name TEXT NOT NULL DEFAULT '',
+      last_name TEXT NOT NULL DEFAULT '',
+      date_of_birth TEXT,
+      phone TEXT DEFAULT '',
+      address_line1 TEXT DEFAULT '',
+      address_line2 TEXT DEFAULT '',
+      city TEXT DEFAULT '',
+      state TEXT DEFAULT '',
+      zip TEXT DEFAULT '',
+      linked_patient_id TEXT REFERENCES patients(id),
+      status TEXT NOT NULL DEFAULT 'pending_verification'
+        CHECK(status IN ('pending_verification','linked','disabled')),
+      otp_code TEXT,
+      otp_expires TIMESTAMPTZ,
+      otp_attempts INTEGER DEFAULT 0,
+      locked_until TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS portal_sessions (
+      id TEXT PRIMARY KEY,
+      portal_user_id TEXT NOT NULL REFERENCES portal_users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      ip_address TEXT DEFAULT '',
+      user_agent TEXT DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS portal_invitations (
+      id TEXT PRIMARY KEY,
+      patient_id TEXT NOT NULL REFERENCES patients(id),
+      invite_code TEXT NOT NULL UNIQUE,
+      sent_to_email TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      expires_at TIMESTAMPTZ NOT NULL,
+      used_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS portal_audit_log (
+      id TEXT PRIMARY KEY,
+      portal_user_id TEXT REFERENCES portal_users(id),
+      patient_id TEXT REFERENCES patients(id),
+      event_type TEXT NOT NULL,
+      metadata JSONB DEFAULT '{}',
+      ip_address TEXT DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_portal_users_email    ON portal_users(LOWER(email));
+    CREATE INDEX IF NOT EXISTS idx_portal_users_patient  ON portal_users(linked_patient_id);
+    CREATE INDEX IF NOT EXISTS idx_portal_users_status   ON portal_users(status);
+    CREATE INDEX IF NOT EXISTS idx_portal_sessions_token ON portal_sessions(token_hash);
+    CREATE INDEX IF NOT EXISTS idx_portal_sessions_user  ON portal_sessions(portal_user_id);
+    CREATE INDEX IF NOT EXISTS idx_portal_invites_code   ON portal_invitations(invite_code);
+    CREATE INDEX IF NOT EXISTS idx_portal_invites_patient ON portal_invitations(patient_id);
+    CREATE INDEX IF NOT EXISTS idx_portal_audit_user     ON portal_audit_log(portal_user_id);
+    CREATE INDEX IF NOT EXISTS idx_portal_audit_patient  ON portal_audit_log(patient_id);
+    CREATE INDEX IF NOT EXISTS idx_portal_audit_event    ON portal_audit_log(event_type);
+  `);
+
   // Safe column additions (idempotent — ignored if column already exists)
   const columnMigrations = [
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE`,
@@ -1043,6 +1112,11 @@ export async function initializeDatabase() {
     `ALTER TABLE encounters ADD COLUMN IF NOT EXISTS signed_at TEXT DEFAULT NULL`,
     // Appointment location tracking for multi-site scheduling
     `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS location_id TEXT DEFAULT 'loc1'`,
+    // Portal-aware inbox_messages fields
+    `ALTER TABLE inbox_messages ADD COLUMN IF NOT EXISTS provider_id TEXT`,
+    `ALTER TABLE inbox_messages ADD COLUMN IF NOT EXISTS from_user_type TEXT DEFAULT 'system'`,
+    `ALTER TABLE inbox_messages ADD COLUMN IF NOT EXISTS to_user_type TEXT DEFAULT 'provider'`,
+    `ALTER TABLE inbox_messages ADD COLUMN IF NOT EXISTS thread_id TEXT`,
   ];
   for (const m of columnMigrations) {
     await pool.query(m);
