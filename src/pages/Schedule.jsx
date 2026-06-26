@@ -815,9 +815,9 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
 /* ══════════════════════════════════════════════
    SCHEDULE MODAL
 ══════════════════════════════════════════════ */
-function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitType, patients, onSave, defaultProvider, providers = [] }) {
+function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitType, patients, onSave, defaultProvider, providers = [], existingAppts = [] }) {
   const defaultProviderId = defaultProvider || providers[0]?.id || "";
-  const DURATION_BY_TYPE = { 'New Patient':60, 'Follow-Up':30, 'Urgent':30, 'Medication Review':30, 'Telehealth':60, 'Office Visit':30, 'Phone Consult':15, 'Procedure':60 };
+  const DURATION_BY_TYPE = { 'New Patient':60, 'Follow-Up':30, 'Urgent':30, 'Medication Review':30, 'Telehealth':30, 'Office Visit':30, 'Phone Consult':15, 'Procedure':60 };
   const EMPTY = { isNewPatient:false, patientId:"", newPatientName:"", provider:defaultProviderId,
     date:"", time:"09:00", duration:30, type:"Follow-Up", visitType:"In-Person", reason:"", room:"" };
   const [form, setForm] = useState(EMPTY);
@@ -826,7 +826,35 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
   // If providers load after the modal opens, auto-fill the provider field if it's still empty
   useEffect(() => { if (show && !form.provider && providers[0]?.id) setForm(f => ({ ...f, provider: defaultProvider || providers[0].id })); }, [show, providers]); // eslint-disable-line
   const upd = (k, v) => setForm(f => ({ ...f, [k]:v }));
-  const canSubmit = form.date && form.time && form.provider && (form.isNewPatient ? form.newPatientName.trim() : form.patientId);
+
+  // Convert HH:MM to total minutes
+  const toMins = t => { if (!t) return 0; const [h,m] = t.split(':').map(Number); return h*60+m; };
+
+  // Provider double-booking check: does any existing (non-cancelled) appt for this provider overlap?
+  const providerConflict = useMemo(() => {
+    if (!form.provider || !form.date || !form.time) return null;
+    const newStart = toMins(form.time);
+    const newEnd   = newStart + Number(form.duration || 30);
+    return existingAppts.find(a => {
+      if (a.provider !== form.provider || a.date !== form.date) return false;
+      if (a.status === 'Cancelled' || a.status === 'No Show') return false;
+      const s = toMins(a.time); const e = s + (a.duration || 30);
+      return s < newEnd && e > newStart;
+    }) || null;
+  }, [form.provider, form.date, form.time, form.duration, existingAppts]); // eslint-disable-line
+
+  // Patient same-day check: patient already has a non-cancelled appt this day
+  const patientConflict = useMemo(() => {
+    if (form.isNewPatient || !form.patientId || !form.date) return null;
+    return existingAppts.find(a =>
+      a.patientId === form.patientId && a.date === form.date &&
+      a.status !== 'Cancelled' && a.status !== 'No Show'
+    ) || null;
+  }, [form.isNewPatient, form.patientId, form.date, existingAppts]); // eslint-disable-line
+
+  const canSubmit = form.date && form.time && form.provider &&
+    (form.isNewPatient ? form.newPatientName.trim() : form.patientId) &&
+    !providerConflict && !patientConflict;
   const handleSubmit = () => {
     if (!canSubmit) return;
     const prov = providers.find(p => p.id===form.provider);
@@ -916,6 +944,16 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
             <LBL c="Reason for Visit" />
             <input type="text" className="form-input" placeholder="Chief complaint or reason..." value={form.reason} onChange={e=>upd("reason",e.target.value)} />
           </div>
+          {providerConflict && (
+            <div style={{ background:"#fef2f2", border:"1.5px solid #fca5a5", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#991b1b", fontWeight:600 }}>
+              ⚠️ Provider already has an appointment at {fmtTime12(providerConflict.time)} ({providerConflict.duration||30} min) — select a different time or provider.
+            </div>
+          )}
+          {patientConflict && (
+            <div style={{ background:"#fef2f2", border:"1.5px solid #fca5a5", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#991b1b", fontWeight:600 }}>
+              ⚠️ This patient already has an appointment on this date at {fmtTime12(patientConflict.time)}. Patients can only be scheduled once per day.
+            </div>
+          )}
         </div>
         <div style={{ padding:"14px 22px", borderTop:"1px solid #e2e8f0", background:"#f8fafc",
           display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -3116,6 +3154,7 @@ export default function Schedule() {
         patients={patients}
         defaultProvider={modalProvider || (isProvider ? currentUser?.id : undefined)}
         providers={siteProviders}
+        existingAppts={allAppts}
         onSave={apt => { addAppointment({ ...apt, locationId: activeSiteId !== 'all' ? activeSiteId : undefined }); setShowModal(false); setModalVisitType('In-Person'); setModalTime(''); setModalProvider(''); }}
       />
     </div>
