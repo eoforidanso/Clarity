@@ -1,16 +1,40 @@
-import React, { useState, useMemo } from 'react';
-import { smartPhrases } from '../data/mockData';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { smartPhrases as api } from '../services/api';
+import ApiErrorState from '../components/ApiErrorState';
+
+// Normalize API shape → UI shape
+function normalize(item) {
+  return {
+    id:       item.id,
+    shortcut: item.triggerText || item.name || '',
+    name:     item.name || '',
+    category: item.category || 'General',
+    content:  item.content || '',
+    isCustom: !!item.userId,
+  };
+}
 
 export default function SmartPhrases() {
+  const [phrases, setPhrases] = useState([]);
+  const [loadError, setLoadError] = useState(null);
   const [search, setSearch] = useState('');
   const [selectedPhrase, setSelectedPhrase] = useState(null);
   const [copySuccess, setCopySuccess] = useState(null);
   const [filterCategory, setFilterCategory] = useState('All');
-  const [customPhrases, setCustomPhrases] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newPhrase, setNewPhrase] = useState({ shortcut: '', category: 'Custom', content: '' });
+  const [saving, setSaving] = useState(false);
 
-  const allPhrases = [...smartPhrases, ...customPhrases];
+  const load = useCallback(() => {
+    setLoadError(null);
+    api.list()
+      .then(data => setPhrases(Array.isArray(data) ? data.map(normalize) : []))
+      .catch(() => setLoadError('Could not load smart phrases.'));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const allPhrases = phrases;
   const categories = ['All', ...new Set(allPhrases.map(p => p.category))];
 
   const filtered = useMemo(() => {
@@ -32,33 +56,51 @@ export default function SmartPhrases() {
   const handleCopy = async (phrase) => {
     try {
       await navigator.clipboard.writeText(phrase.content);
-      setCopySuccess(phrase.shortcut);
+      setCopySuccess(phrase.id);
       setTimeout(() => setCopySuccess(null), 2000);
     } catch {
-      // Fallback
       const el = document.createElement('textarea');
       el.value = phrase.content;
       document.body.appendChild(el);
       el.select();
       document.execCommand('copy');
       document.body.removeChild(el);
-      setCopySuccess(phrase.shortcut);
+      setCopySuccess(phrase.id);
       setTimeout(() => setCopySuccess(null), 2000);
     }
   };
 
-  const handleAddPhrase = () => {
+  const handleDeletePhrase = async (id) => {
+    setPhrases(prev => prev.filter(p => p.id !== id));
+    try { await api.remove(id); } catch { load(); }
+  };
+
+  const handleAddPhrase = async () => {
     if (!newPhrase.shortcut.trim() || !newPhrase.content.trim()) return;
 
     const shortcut = newPhrase.shortcut.startsWith('.')
       ? newPhrase.shortcut
       : '.' + newPhrase.shortcut;
 
-    setCustomPhrases(prev => [...prev, {
-      shortcut,
-      category: newPhrase.category || 'Custom',
-      content: newPhrase.content,
-    }]);
+    setSaving(true);
+    try {
+      const created = await api.create({
+        name: shortcut,
+        triggerText: shortcut,
+        category: newPhrase.category || 'Custom',
+        content: newPhrase.content,
+      });
+      setPhrases(prev => [...prev, normalize(created)]);
+    } catch {
+      setPhrases(prev => [...prev, {
+        id: `local-${Date.now()}`, shortcut,
+        category: newPhrase.category || 'Custom',
+        content: newPhrase.content,
+        isCustom: true,
+      }]);
+    } finally {
+      setSaving(false);
+    }
     setNewPhrase({ shortcut: '', category: 'Custom', content: '' });
     setShowAddForm(false);
   };
@@ -74,6 +116,8 @@ export default function SmartPhrases() {
           ➕ New Phrase
         </button>
       </div>
+
+      {loadError && <ApiErrorState message={loadError} onRetry={load} style={{ marginBottom: 16 }} />}
 
       {/* Usage Hint */}
       <div className="alert alert-info mb-4">
@@ -118,7 +162,9 @@ export default function SmartPhrases() {
               />
             </div>
             <div className="flex gap-2">
-              <button className="btn btn-primary" onClick={handleAddPhrase}>Save Phrase</button>
+              <button className="btn btn-primary" onClick={handleAddPhrase} disabled={saving}>
+                {saving ? 'Saving…' : 'Save Phrase'}
+              </button>
               <button className="btn btn-outline" onClick={() => { setShowAddForm(false); setNewPhrase({ shortcut: '', category: 'Custom', content: '' }); }}>Cancel</button>
             </div>
           </div>
@@ -147,10 +193,10 @@ export default function SmartPhrases() {
       <div style={{ display: 'grid', gap: 12 }}>
         {filtered.map((phrase) => (
           <div
-            key={phrase.shortcut}
-            className={`card ${selectedPhrase === phrase.shortcut ? 'ring' : ''}`}
+            key={phrase.id || phrase.shortcut}
+            className={`card ${selectedPhrase === phrase.id ? 'ring' : ''}`}
             style={{ cursor: 'pointer', transition: 'box-shadow 0.15s' }}
-            onClick={() => setSelectedPhrase(selectedPhrase === phrase.shortcut ? null : phrase.shortcut)}
+            onClick={() => setSelectedPhrase(selectedPhrase === phrase.id ? null : phrase.id)}
           >
             <div className="card-body" style={{ padding: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -160,15 +206,25 @@ export default function SmartPhrases() {
                   </code>
                   <span className="badge badge-info">{phrase.category}</span>
                 </div>
-                <button
-                  className={`btn btn-sm ${copySuccess === phrase.shortcut ? 'btn-primary' : 'btn-outline'}`}
-                  onClick={(e) => { e.stopPropagation(); handleCopy(phrase); }}
-                >
-                  {copySuccess === phrase.shortcut ? '✅ Copied!' : '📋 Copy'}
-                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className={`btn btn-sm ${copySuccess === phrase.id ? 'btn-primary' : 'btn-outline'}`}
+                    onClick={(e) => { e.stopPropagation(); handleCopy(phrase); }}
+                  >
+                    {copySuccess === phrase.id ? '✅ Copied!' : '📋 Copy'}
+                  </button>
+                  {phrase.isCustom && (
+                    <button
+                      className="btn btn-sm btn-ghost"
+                      style={{ color: 'var(--danger, #dc2626)', opacity: 0.7 }}
+                      onClick={(e) => { e.stopPropagation(); handleDeletePhrase(phrase.id); }}
+                      title="Delete phrase"
+                    >✕</button>
+                  )}
+                </div>
               </div>
 
-              {selectedPhrase === phrase.shortcut && (
+              {selectedPhrase === phrase.id && (
                 <div style={{
                   marginTop: 12,
                   padding: 16,

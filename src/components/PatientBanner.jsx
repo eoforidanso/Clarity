@@ -169,6 +169,7 @@ export default function PatientBanner() {
               <>
                 <div className="athena-snapshot-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
                   <span style={{ fontWeight: 600, fontSize: 12 }}>{p.preferredPharmacy}</span>
+                  {p.preferredPharmacyAddress && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>📍 {p.preferredPharmacyAddress}</span>}
                   {p.preferredPharmacyPhone && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>📞 {p.preferredPharmacyPhone}</span>}
                   {p.preferredPharmacyFax && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>📠 Fax: {p.preferredPharmacyFax}</span>}
                 </div>

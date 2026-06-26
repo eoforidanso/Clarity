@@ -21,24 +21,6 @@ const ACTIVITY_TYPES = {
   setting_change: { icon: '⚙️', label: 'Setting Changed', color: 'var(--text-secondary)', bg: 'var(--bg-hover)' },
 };
 
-const MOCK_ACTIVITIES = [
-  { id: 'a1', type: 'login', user: 'Dr. Chris L.', userId: 'u1', detail: 'Logged in from 192.168.1.42', timestamp: '2026-04-15T08:02:00', ip: '192.168.1.42' },
-  { id: 'a2', type: 'chart_open', user: 'Dr. Chris L.', userId: 'u1', detail: 'Opened chart: James Anderson (MRN-00001)', patient: 'James Anderson', timestamp: '2026-04-15T08:05:00' },
-  { id: 'a3', type: 'chart_edit', user: 'Dr. Chris L.', userId: 'u1', detail: 'Updated problem list for James Anderson', patient: 'James Anderson', timestamp: '2026-04-15T08:12:00' },
-  { id: 'a4', type: 'rx_sent', user: 'Dr. Chris L.', userId: 'u1', detail: 'Prescribed Sertraline 100mg → CVS Pharmacy', patient: 'James Anderson', timestamp: '2026-04-15T08:15:00' },
-  { id: 'a5', type: 'note_signed', user: 'Dr. Chris L.', userId: 'u1', detail: 'Signed progress note for encounter #E-1234', patient: 'James Anderson', timestamp: '2026-04-15T08:22:00' },
-  { id: 'a6', type: 'chart_open', user: 'Kelly Chen', userId: 'u4', detail: 'Opened chart: Maria Garcia (MRN-00002)', patient: 'Maria Garcia', timestamp: '2026-04-15T08:30:00' },
-  { id: 'a7', type: 'appt_change', user: 'Kelly Chen', userId: 'u4', detail: 'Checked in Maria Garcia for 9:00 AM appointment', patient: 'Maria Garcia', timestamp: '2026-04-15T08:32:00' },
-  { id: 'a8', type: 'message_sent', user: 'Kelly Chen', userId: 'u4', detail: 'Sent message to Dr. Chris L. re: lab results', timestamp: '2026-04-15T08:35:00' },
-  { id: 'a9', type: 'order_placed', user: 'Dr. Chris L.', userId: 'u1', detail: 'Ordered CBC, CMP for David Thompson', patient: 'David Thompson', timestamp: '2026-04-15T09:00:00' },
-  { id: 'a10', type: 'btg_access', user: 'Dr. Chris L.', userId: 'u1', detail: 'BTG access to Dorothy Wilson - Reason: Emergency psychiatric evaluation', patient: 'Dorothy Wilson', timestamp: '2026-04-15T09:15:00' },
-  { id: 'a11', type: 'doc_upload', user: 'Kelly Chen', userId: 'u4', detail: 'Uploaded insurance card for Ashley Kim', patient: 'Ashley Kim', timestamp: '2026-04-15T09:20:00' },
-  { id: 'a12', type: 'export', user: 'Front Desk Staff', userId: 'u5', detail: 'Exported analytics report: March 2026 Summary', timestamp: '2026-04-15T09:30:00' },
-  { id: 'a13', type: 'setting_change', user: 'Front Desk Staff', userId: 'u5', detail: 'Changed system theme to Teal Calm', timestamp: '2026-04-15T09:32:00' },
-  { id: 'a14', type: 'chart_open', user: 'April T.', userId: 'u8', detail: 'Opened chart: Marcus Brown (MRN-00006)', patient: 'Marcus Brown', timestamp: '2026-04-15T09:45:00' },
-  { id: 'a15', type: 'note_signed', user: 'April T.', userId: 'u8', detail: 'Signed therapy note for Marcus Brown', patient: 'Marcus Brown', timestamp: '2026-04-15T10:30:00' },
-  { id: 'a16', type: 'login', user: 'Nurse Kelly', userId: 'u4', detail: 'Logged in from 192.168.1.55', ip: '192.168.1.55', timestamp: '2026-04-15T07:55:00' },
-].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
 function AuditTrail_Inner() {
   const { currentUser } = useAuth();
@@ -58,7 +40,7 @@ function AuditTrail_Inner() {
   const [filter, setFilter]       = useState('all');
   const [userFilter, setUserFilter] = useState('all');
   const [search, setSearch]       = useState('');
-  const [activities, setActivities] = useState(MOCK_ACTIVITIES);
+  const [activities, setActivities] = useState([]);
   const [loading, setLoading]     = useState(false);
   const [lastRefresh, setLastRefresh] = useState(null);
   const [dateFrom, setDateFrom]   = useState('');
@@ -84,9 +66,9 @@ function AuditTrail_Inner() {
           ip:        r.ipAddress || r.ip || '',
           timestamp: r.createdAt || r.created_at,
         }));
-        if (normalised.length > 0) setActivities(normalised);
+        setActivities(normalised);
       }
-    } catch { /* offline — keep mock data */ }
+    } catch { /* offline */ }
     setLoading(false);
     setLastRefresh(new Date());
   }, [dateFrom, dateTo]);

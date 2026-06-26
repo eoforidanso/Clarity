@@ -10,6 +10,7 @@ import { TrainingProvider } from './contexts/TrainingContext';
 import { SiteProvider } from './contexts/SiteContext';
 import { TelehealthProvider } from './contexts/TelehealthContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import RequirePatient from './components/RequirePatient';
 import { applyTheme } from './pages/Settings';
 
 // Eagerly loaded — always needed at startup
@@ -21,6 +22,8 @@ import Settings from './pages/Settings';
 import AdminRoute from './components/AdminRoute';
 
 // Lazy-loaded routes — split into separate chunks
+const FinancialPresentation = lazy(() => import('./components/FinancialPresentation'));
+const PresentationPrint = lazy(() => import('./components/PresentationPrint'));
 const Schedule = lazy(() => import('./pages/Schedule'));
 const PatientSearch = lazy(() => import('./pages/PatientSearch'));
 const PatientRegistration = lazy(() => import('./pages/PatientRegistration'));
@@ -63,6 +66,7 @@ const SecurityConsole = lazy(() => import('./pages/SecurityConsole'));
 const ReferralManagement = lazy(() => import('./pages/ReferralManagement'));
 const PriorAuthTracking = lazy(() => import('./pages/PriorAuthTracking'));
 const TreatmentPlans = lazy(() => import('./pages/TreatmentPlans'));
+const GoalsObjectives = lazy(() => import('./pages/GoalsObjectives'));
 const IntakeForms = lazy(() => import('./pages/IntakeForms'));
 const SuperbillCapture = lazy(() => import('./pages/SuperbillCapture'));
 const EFaxCenter = lazy(() => import('./pages/EFaxCenter'));
@@ -104,6 +108,8 @@ const PracticeMarketing = lazy(() => import('./pages/PracticeMarketing'));
 const CareEverywhere = lazy(() => import('./pages/CareEverywhere'));
 const UserManagement = lazy(() => import('./pages/UserManagement'));
 const ProviderManagement = lazy(() => import('./pages/ProviderManagement'));
+const SetupWizard = lazy(() => import('./pages/SetupWizard'));
+import NotFoundPage from './pages/NotFoundPage';
 
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -116,6 +122,7 @@ import KeyboardShortcuts from './components/KeyboardShortcuts';
 import AIClinicalAssistant from './components/AIClinicalAssistant';
 import VoiceAssistant from './components/VoiceAssistant';
 import ForcePasswordChange from './components/ForcePasswordChange';
+import RoleAwareLayout from './components/RoleAwareLayout';
 
 function ProtectedLayout() {
   const { isAuthenticated, sessionChecking, currentUser } = useAuth();
@@ -242,10 +249,25 @@ function PatientPortalLoginRoute() {
   return <Navigate to="/dashboard" replace />;
 }
 
+const PORTAL_API = import.meta.env.VITE_API_URL || '/api';
+
 function PatientPortalRoute() {
-  const { isAuthenticated, currentUser } = useAuth();
-  if (!isAuthenticated) return <Navigate to="/patient-portal-login" replace />;
-  if (currentUser?.role !== 'patient') return <Navigate to="/dashboard" replace />;
+  const [status, setStatus] = React.useState('checking'); // 'checking' | 'ok' | 'unauth'
+
+  React.useEffect(() => {
+    fetch(`${PORTAL_API}/patient-portal/me`, { credentials: 'include' })
+      .then(r => r.ok ? setStatus('ok') : setStatus('unauth'))
+      .catch(() => setStatus('unauth'));
+  }, []);
+
+  if (status === 'checking') {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="route-loading-bar" />
+      </div>
+    );
+  }
+  if (status === 'unauth') return <PatientPortalLogin />;
   return (
     <PatientProvider>
       <PatientPortal />
@@ -269,11 +291,13 @@ export default function App() {
       <TrainingProvider>
       <AuthProvider>
         <Routes>
+          <Route path="/presentation" element={<FinancialPresentation />} />
+          <Route path="/presentation-print" element={<PresentationPrint />} />
           <Route path="/login" element={<LoginRoute />} />
           <Route path="/patient-portal-login" element={<PatientPortalLoginRoute />} />
           <Route path="/patient-portal" element={<PatientPortalRoute />} />
 
-          <Route element={<ProtectedLayout />}>
+          <Route element={<RoleAwareLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/schedule" element={<Schedule />} />
             <Route path="/patients" element={<PatientSearch />} />
@@ -281,7 +305,7 @@ export default function App() {
             <Route path="/refill-queue" element={<RefillQueue />} />
             <Route path="/chart/:patientId/:tab" element={<ChartPage />} />
             <Route path="/chart/:patientId" element={<Navigate to="summary" replace />} />
-            <Route path="/prescribe" element={<EPrescribe />} />
+            <Route path="/prescribe" element={<RequirePatient><EPrescribe /></RequirePatient>} />
             <Route path="/telehealth" element={<Telehealth />} />
             <Route path="/inbox" element={<Inbox />} />
             <Route path="/smart-phrases" element={<SmartPhrases />} />
@@ -321,6 +345,7 @@ export default function App() {
             <Route path="/referrals" element={<ReferralManagement />} />
             <Route path="/prior-auth" element={<PriorAuthTracking />} />
             <Route path="/treatment-plans" element={<TreatmentPlans />} />
+            <Route path="/goals" element={<GoalsObjectives />} />
             <Route path="/intake-forms" element={<IntakeForms />} />
             <Route path="/superbills" element={<SuperbillCapture />} />
             <Route path="/efax" element={<EFaxCenter />} />
@@ -363,8 +388,10 @@ export default function App() {
             <Route path="/user-management" element={<UserManagement />} />
             <Route path="/provider-management" element={<ProviderManagement />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
 
+          <Route path="/setup" element={<SetupWizard />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </AuthProvider>

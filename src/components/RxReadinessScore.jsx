@@ -39,6 +39,7 @@ export default function RxReadinessScore({ provider, onFixSignature }) {
   };
 
   const color = getColor();
+  const summaryTextColor = percentage === 100 ? '#166534' : percentage >= 66 ? '#854d0e' : '#991b1b';
 
   return (
     <div style={{
@@ -121,7 +122,7 @@ export default function RxReadinessScore({ provider, onFixSignature }) {
           padding: '8px 10px',
           borderTop: `1px solid ${color}`,
           fontSize: 11,
-          color: textColor = percentage === 100 ? '#166534' : percentage >= 66 ? '#854d0e' : '#991b1b',
+          color: summaryTextColor,
         }}>
           {percentage === 0 && '⚠ Complete all items before prescribing.'}
           {percentage > 0 && percentage < 100 && '⚠ Some prescribing features are unavailable.'}

@@ -25,12 +25,12 @@
 
 const STORAGE_KEY = 'clarity_signature';
 
-// Lazy-loaded to avoid circular imports
+// Lazy-loaded via dynamic import to avoid circular imports
 let providerSignaturesApi = null;
-function getSignaturesApi() {
+async function getSignaturesApi() {
   if (!providerSignaturesApi) {
-    const api = require('../services/api');
-    providerSignaturesApi = api.providerSignatures;
+    const api = await import('../services/api');
+    providerSignaturesApi = api.default?.providerSignatures ?? api.providerSignatures;
   }
   return providerSignaturesApi;
 }
@@ -49,7 +49,7 @@ function getSignaturesApi() {
  */
 export async function fetchProviderSignatureFromBackend(providerId) {
   try {
-    const api = getSignaturesApi();
+    const api = await getSignaturesApi();
     const result = await api.get(providerId);
     const sig = result?.signature || null;
     // Cache in localStorage for offline access
@@ -75,7 +75,7 @@ export async function fetchProviderSignatureFromBackend(providerId) {
  */
 export async function saveProviderSignatureToBackend(providerId, dataUrl) {
   try {
-    const api = getSignaturesApi();
+    const api = await getSignaturesApi();
     await api.update(providerId, dataUrl);
     // Also update localStorage for offline cache
     saveProviderSignatureLocal(providerId, dataUrl);

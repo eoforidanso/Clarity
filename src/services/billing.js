@@ -4,7 +4,6 @@ export async function autoGenerateClaim(encounterId, patientId, providerId) {
   try {
     const token = localStorage.getItem('token');
     if (!token) {
-      console.warn('No authentication token found for auto-billing');
       return null;
     }
 
@@ -23,8 +22,6 @@ export async function autoGenerateClaim(encounterId, patientId, providerId) {
 
     if (response.ok) {
       const claim = await response.json();
-      console.log('Auto-generated claim:', claim.claimNumber);
-      
       // Show success notification
       if (typeof window !== 'undefined' && window.showBillingNotification) {
         window.showBillingNotification(`Claim ${claim.claimNumber} generated automatically`);
@@ -82,7 +79,6 @@ export function setupAutoBilling() {
       
       // If encounter was just completed and has billing codes, auto-generate claim
       if (updates.status === 'Completed' && updates.cptCodes && updates.cptCodes.length > 0) {
-        console.log('Encounter completed, auto-generating claim...');
         autoGenerateClaim(encounterId, patientId, updates.provider || updates.providerId);
       }
       

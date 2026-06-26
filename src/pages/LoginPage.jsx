@@ -166,11 +166,11 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const result = await login(username, password);
-      if (!result?.ok && !result?.requiresTwoFactor) {
+      if (!result?.ok && !result?.requiresMfa) {
         setLoginAttempts(a => a + 1);
         triggerErrorShake();
       }
-      if (result?.requiresTwoFactor) {
+      if (result?.requiresMfa) {
         setPendingTempToken(result.tempToken);
         setEmailHint(result.emailHint || '');
         setMockCode(result.mockCode || null);

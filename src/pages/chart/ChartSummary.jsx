@@ -49,7 +49,7 @@ export default function ChartSummary({ patientId }) {
   if (pendingOrders.length > 0) aiSummary.push(`${pendingOrders.length} pending order(s) awaiting action`);
 
   return (
-    <div className="athena-summary">
+    <div className="athena-summary" style={{ marginTop: '24px' }}>
 
       {/* ── AI Chart Prep Banner (Athena-style) ─────────── */}
       {!aiPrepDismissed && aiSummary.length > 0 && (

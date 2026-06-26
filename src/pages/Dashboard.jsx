@@ -24,12 +24,7 @@ export default function Dashboard() {
   const { appointments, inboxMessages, patients, selectPatient, updateAppointmentStatus } = usePatient();
   const navigate = useNavigate();
   const [hoveredAction, setHoveredAction] = useState(null);
-  const [tasks, setTasks] = useState([
-    { id: 1, text: 'Prior auth — M. Johnson', priority: 'high', done: false },
-    { id: 2, text: 'Review labs — T. Williams', priority: 'high', done: false },
-    { id: 3, text: 'Cosign nurse notes', priority: 'medium', done: false },
-    { id: 4, text: 'Refill request — D. Thompson', priority: 'low', done: false },
-  ]);
+  const [tasks, setTasks] = useState([]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -455,34 +450,65 @@ export default function Dashboard() {
               <h2 style={{ fontSize: 13 }}>⚡ Quick Actions</h2>
             </div>
             <div className="card-body">
-              {/* + New row */}
+              {/* + New row — role aware */}
               <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-                {[
-                  { label: '+ Encounter', path: '/encounters' },
-                  { label: '+ Message',   path: '/staff-messaging' },
-                  { label: '+ Document',  path: '/documents' },
-                ].map((n) => (
-                  <button
-                    key={n.path}
-                    className="btn btn-sm btn-primary"
+                {(currentUser?.role === 'therapist'
+                  ? [{ label: '+ Note', path: '/secure-notes' }, { label: '+ Goal', path: '/goals' }, { label: '+ Message', path: '/staff-messaging' }]
+                  : currentUser?.role === 'biller'
+                  ? [{ label: '+ Claim', path: '/claims-management' }, { label: '+ Statement', path: '/patient-statements' }, { label: '+ Batch', path: '/batch-claims' }]
+                  : [{ label: '+ Encounter', path: '/encounters' }, { label: '+ Message', path: '/staff-messaging' }, { label: '+ Document', path: '/documents' }]
+                ).map((n) => (
+                  <button key={n.path} className="btn btn-sm btn-primary"
                     style={{ flex: 1, fontSize: 11, padding: '5px 4px', fontWeight: 700 }}
                     onClick={() => navigate(n.path)}
-                  >
-                    {n.label}
-                  </button>
+                  >{n.label}</button>
                 ))}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {[
-                  { icon: '🔍', label: 'Find Patient',     path: '/patients' },
-                  { icon: '📬', label: 'Inbox',             path: '/inbox' },
-                  { icon: '📹', label: 'Telehealth',        path: '/telehealth' },
-                  { icon: '💊', label: 'E-Prescribe',       path: '/prescribe' },
-                  { icon: '⚡', label: 'Smart Phrases',     path: '/smart-phrases' },
-                  { icon: '📄', label: 'Documents',         path: '/documents' },
-                  { icon: '📊', label: 'Quality Measures',  path: '/quality-measures' },
-                  { icon: '🗂️', label: 'Admin Tools',       path: '/admin-toolkit' },
-                ].map((a) => {
+                {(currentUser?.role === 'therapist'
+                  ? [
+                      { icon: '🔍', label: 'Find Client',      path: '/patients' },
+                      { icon: '💬', label: 'Messaging',         path: '/staff-messaging' },
+                      { icon: '📹', label: 'Telehealth',        path: '/telehealth' },
+                      { icon: '📋', label: 'Treatment Plans',   path: '/treatment-plans' },
+                      { icon: '🎯', label: 'Goals',             path: '/goals' },
+                      { icon: '📄', label: 'Documents',         path: '/documents' },
+                      { icon: '💳', label: 'Billing',           path: '/billing-dashboard' },
+                      { icon: '⚙️', label: 'Settings',          path: '/settings' },
+                    ]
+                  : currentUser?.role === 'biller'
+                  ? [
+                      { icon: '💰', label: 'Billing Dashboard', path: '/billing-dashboard' },
+                      { icon: '📋', label: 'Claims',            path: '/claims-management' },
+                      { icon: '⚠️', label: 'Denials',           path: '/denial-management' },
+                      { icon: '✅', label: 'Eligibility',       path: '/eligibility' },
+                      { icon: '📦', label: 'Batch Claims',      path: '/batch-claims' },
+                      { icon: '💳', label: 'Remittance',        path: '/remittance-posting' },
+                      { icon: '📊', label: 'Analytics',         path: '/analytics' },
+                      { icon: '⚙️', label: 'Settings',          path: '/settings' },
+                    ]
+                  : currentUser?.role === 'admin' || currentUser?.role === 'front_desk'
+                  ? [
+                      { icon: '🔍', label: 'Find Patient',     path: '/patients' },
+                      { icon: '📝', label: 'Registration',     path: '/patient-registration' },
+                      { icon: '✅', label: 'Check-In',         path: '/patient-checkin' },
+                      { icon: '📬', label: 'Messaging',        path: '/staff-messaging' },
+                      { icon: '📄', label: 'Documents',        path: '/documents' },
+                      { icon: '📊', label: 'Analytics',        path: '/analytics' },
+                      { icon: '🛠️', label: 'Admin Tools',      path: '/admin-toolkit' },
+                      { icon: '⚙️', label: 'Settings',         path: '/settings' },
+                    ]
+                  : [
+                      { icon: '🔍', label: 'Find Patient',     path: '/patients' },
+                      { icon: '📬', label: 'Inbox',            path: '/inbox' },
+                      { icon: '📹', label: 'Telehealth',       path: '/telehealth' },
+                      { icon: '💊', label: 'E-Prescribe',      path: '/prescribe' },
+                      { icon: '⚡', label: 'Smart Phrases',    path: '/smart-phrases' },
+                      { icon: '📄', label: 'Documents',        path: '/documents' },
+                      { icon: '📊', label: 'Quality Measures', path: '/quality-measures' },
+                      { icon: '🗂️', label: 'Admin Tools',      path: '/admin-toolkit' },
+                    ]
+                ).map((a) => {
                   const hovered = hoveredAction === a.path;
                   return (
                     <button
@@ -547,6 +573,34 @@ export default function Dashboard() {
               )}
             </div>
           </div>
+
+          {/* Therapist: Goals & Treatment Plans widget */}
+          {currentUser?.role === 'therapist' && (
+            <div className="card">
+              <div className="card-header">
+                <h2 style={{ fontSize: 13 }}>🎯 Goals Overview</h2>
+                <button className="btn btn-sm btn-ghost" onClick={() => navigate('/goals')}>View All →</button>
+              </div>
+              <div className="card-body">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+                  {[
+                    { label: 'Active Goals',    value: '—', color: '#3b82f6' },
+                    { label: 'Overdue',         value: '—', color: '#ef4444' },
+                    { label: 'Met This Month',  value: '—', color: '#10b981' },
+                    { label: 'Active Plans',    value: '—', color: '#8b5cf6' },
+                  ].map(stat => (
+                    <div key={stat.label} style={{ textAlign: 'center', padding: '10px 8px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: 20, fontWeight: 900, color: stat.color }}>{stat.value}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 }}>{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <button className="btn btn-primary btn-sm" style={{ width: '100%' }} onClick={() => navigate('/treatment-plans')}>
+                  📋 View Treatment Plans
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Staff Chat Preview */}
           <div className="card card-hover" style={{ cursor: 'pointer' }} onClick={() => navigate('/staff-messaging')}>

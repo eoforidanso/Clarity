@@ -120,7 +120,7 @@ function ProgressNoteDocument({ doc }) {
           <SectionHeader title="Assessment Scores" />
           <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
             <thead><tr style={{ background: '#f3f4f6' }}><th style={{ padding: '4px 8px', textAlign: 'left' }}>Tool</th><th style={{ padding: '4px 8px', textAlign: 'left' }}>Score</th><th style={{ padding: '4px 8px', textAlign: 'left' }}>Interpretation</th></tr></thead>
-            <tbody>{doc.assessmentScores.map((a, i) => <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px' }}>{a.tool}</td><td style={{ padding: '4px 8px' }}>{a.score}</td><td style={{ padding: '4px 8px' }}>{a.interpretation}</td></tr>)}</tbody>
+            <tbody>{doc.assessmentScores.map((a, i) => <tr key={`${a.tool}-${i}`} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px' }}>{a.tool}</td><td style={{ padding: '4px 8px' }}>{a.score}</td><td style={{ padding: '4px 8px' }}>{a.interpretation}</td></tr>)}</tbody>
           </table>
         </>
       )}
@@ -145,7 +145,7 @@ function ProgressNoteDocument({ doc }) {
           <SectionHeader title="Active Medications" />
           <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
             <thead><tr style={{ background: '#f3f4f6' }}><th style={{ padding: '4px 8px', textAlign: 'left' }}>Medication</th><th style={{ padding: '4px 8px', textAlign: 'left' }}>Dose</th><th style={{ padding: '4px 8px', textAlign: 'left' }}>Frequency</th></tr></thead>
-            <tbody>{doc.activeMedications.map((m, i) => <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px' }}>{m.name}</td><td style={{ padding: '4px 8px' }}>{m.dose}</td><td style={{ padding: '4px 8px' }}>{m.frequency}</td></tr>)}</tbody>
+            <tbody>{doc.activeMedications.map((m, i) => <tr key={m.id ?? `${m.name}-${i}`} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px' }}>{m.name}</td><td style={{ padding: '4px 8px' }}>{m.dose}</td><td style={{ padding: '4px 8px' }}>{m.frequency}</td></tr>)}</tbody>
           </table>
         </>
       )}
@@ -154,7 +154,7 @@ function ProgressNoteDocument({ doc }) {
         <>
           <SectionHeader title="Allergies" />
           <ul style={{ fontSize: 11, margin: 0, paddingLeft: 20 }}>
-            {doc.allergies.map((a, i) => <li key={i}><strong>{a.allergen}</strong> — {a.reaction} ({a.severity})</li>)}
+            {doc.allergies.map((a, i) => <li key={a.allergen ?? i}><strong>{a.allergen}</strong> — {a.reaction} ({a.severity})</li>)}
           </ul>
         </>
       )}
@@ -208,7 +208,7 @@ function PatientSummaryDocument({ doc }) {
           <SectionHeader title="Active Problems" />
           <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
             <thead><tr style={{ background: '#f3f4f6' }}><th style={{ padding: '4px 8px', textAlign: 'left' }}>ICD-10</th><th style={{ padding: '4px 8px', textAlign: 'left' }}>Description</th><th style={{ padding: '4px 8px', textAlign: 'left' }}>Onset</th></tr></thead>
-            <tbody>{doc.activeProblems.map((p, i) => <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px', fontFamily: 'monospace' }}>{p.code}</td><td style={{ padding: '4px 8px' }}>{p.description}</td><td style={{ padding: '4px 8px' }}>{p.onset}</td></tr>)}</tbody>
+            <tbody>{doc.activeProblems.map((p, i) => <tr key={p.code ?? i} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px', fontFamily: 'monospace' }}>{p.code}</td><td style={{ padding: '4px 8px' }}>{p.description}</td><td style={{ padding: '4px 8px' }}>{p.onset}</td></tr>)}</tbody>
           </table>
         </>
       )}
@@ -218,7 +218,7 @@ function PatientSummaryDocument({ doc }) {
           <SectionHeader title="Active Medications" />
           <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
             <thead><tr style={{ background: '#f3f4f6' }}><th style={{ padding: '4px 8px', textAlign: 'left' }}>Medication</th><th style={{ padding: '4px 8px', textAlign: 'left' }}>Dose</th><th style={{ padding: '4px 8px', textAlign: 'left' }}>Frequency</th><th style={{ padding: '4px 8px', textAlign: 'left' }}>Prescriber</th></tr></thead>
-            <tbody>{doc.activeMedications.map((m, i) => <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px' }}>{m.name}</td><td style={{ padding: '4px 8px' }}>{m.dose}</td><td style={{ padding: '4px 8px' }}>{m.frequency}</td><td style={{ padding: '4px 8px' }}>{m.prescriber}</td></tr>)}</tbody>
+            <tbody>{doc.activeMedications.map((m, i) => <tr key={m.id ?? `${m.name}-${i}`} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px' }}>{m.name}</td><td style={{ padding: '4px 8px' }}>{m.dose}</td><td style={{ padding: '4px 8px' }}>{m.frequency}</td><td style={{ padding: '4px 8px' }}>{m.prescriber}</td></tr>)}</tbody>
           </table>
         </>
       )}
@@ -227,7 +227,7 @@ function PatientSummaryDocument({ doc }) {
         <>
           <SectionHeader title="Allergies" />
           <ul style={{ fontSize: 11, margin: 0, paddingLeft: 20 }}>
-            {doc.allergies.map((a, i) => <li key={i}><strong>{a.allergen}</strong> ({a.type}) — {a.reaction}, {a.severity}</li>)}
+            {doc.allergies.map((a, i) => <li key={a.allergen ?? i}><strong>{a.allergen}</strong> ({a.type}) — {a.reaction}, {a.severity}</li>)}
           </ul>
         </>
       )}
@@ -237,7 +237,7 @@ function PatientSummaryDocument({ doc }) {
           <SectionHeader title="Recent Vitals" />
           <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
             <thead><tr style={{ background: '#f3f4f6' }}><th style={{ padding: '4px 8px' }}>Date</th><th style={{ padding: '4px 8px' }}>BP</th><th style={{ padding: '4px 8px' }}>HR</th><th style={{ padding: '4px 8px' }}>Weight</th><th style={{ padding: '4px 8px' }}>BMI</th></tr></thead>
-            <tbody>{doc.recentVitals.map((v, i) => <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px' }}>{v.date}</td><td style={{ padding: '4px 8px' }}>{v.bp}</td><td style={{ padding: '4px 8px' }}>{v.hr}</td><td style={{ padding: '4px 8px' }}>{v.weight}</td><td style={{ padding: '4px 8px' }}>{v.bmi}</td></tr>)}</tbody>
+            <tbody>{doc.recentVitals.map((v, i) => <tr key={v.date ?? i} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px' }}>{v.date}</td><td style={{ padding: '4px 8px' }}>{v.bp}</td><td style={{ padding: '4px 8px' }}>{v.hr}</td><td style={{ padding: '4px 8px' }}>{v.weight}</td><td style={{ padding: '4px 8px' }}>{v.bmi}</td></tr>)}</tbody>
           </table>
         </>
       )}
@@ -247,7 +247,7 @@ function PatientSummaryDocument({ doc }) {
           <SectionHeader title="Assessment Scores" />
           <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
             <thead><tr style={{ background: '#f3f4f6' }}><th style={{ padding: '4px 8px' }}>Date</th><th style={{ padding: '4px 8px' }}>Tool</th><th style={{ padding: '4px 8px' }}>Score</th><th style={{ padding: '4px 8px' }}>Interpretation</th></tr></thead>
-            <tbody>{doc.assessmentScores.map((a, i) => <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px' }}>{a.date}</td><td style={{ padding: '4px 8px' }}>{a.tool}</td><td style={{ padding: '4px 8px' }}>{a.score}</td><td style={{ padding: '4px 8px' }}>{a.interpretation}</td></tr>)}</tbody>
+            <tbody>{doc.assessmentScores.map((a, i) => <tr key={`${a.date}-${a.tool}-${i}`} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px' }}>{a.date}</td><td style={{ padding: '4px 8px' }}>{a.tool}</td><td style={{ padding: '4px 8px' }}>{a.score}</td><td style={{ padding: '4px 8px' }}>{a.interpretation}</td></tr>)}</tbody>
           </table>
         </>
       )}
@@ -257,7 +257,7 @@ function PatientSummaryDocument({ doc }) {
           <SectionHeader title="Immunizations" />
           <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
             <thead><tr style={{ background: '#f3f4f6' }}><th style={{ padding: '4px 8px' }}>Vaccine</th><th style={{ padding: '4px 8px' }}>Date</th><th style={{ padding: '4px 8px' }}>Next Due</th></tr></thead>
-            <tbody>{doc.immunizations.map((i, idx) => <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px' }}>{i.vaccine}</td><td style={{ padding: '4px 8px' }}>{i.date}</td><td style={{ padding: '4px 8px' }}>{i.nextDue}</td></tr>)}</tbody>
+            <tbody>{doc.immunizations.map((imm, idx) => <tr key={`${imm.vaccine}-${imm.date ?? idx}`} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px' }}>{imm.vaccine}</td><td style={{ padding: '4px 8px' }}>{imm.date}</td><td style={{ padding: '4px 8px' }}>{imm.nextDue}</td></tr>)}</tbody>
           </table>
         </>
       )}
@@ -267,7 +267,7 @@ function PatientSummaryDocument({ doc }) {
           <SectionHeader title="Recent Encounters" />
           <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
             <thead><tr style={{ background: '#f3f4f6' }}><th style={{ padding: '4px 8px' }}>Date</th><th style={{ padding: '4px 8px' }}>Type</th><th style={{ padding: '4px 8px' }}>Provider</th><th style={{ padding: '4px 8px' }}>Assessment</th></tr></thead>
-            <tbody>{doc.recentEncounters.map((e, i) => <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px' }}>{e.date}</td><td style={{ padding: '4px 8px' }}>{e.visitType}</td><td style={{ padding: '4px 8px' }}>{e.provider}</td><td style={{ padding: '4px 8px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.assessment}</td></tr>)}</tbody>
+            <tbody>{doc.recentEncounters.map((enc, i) => <tr key={enc.id ?? `${enc.date}-${i}`} style={{ borderBottom: '1px solid #e5e7eb' }}><td style={{ padding: '4px 8px' }}>{enc.date}</td><td style={{ padding: '4px 8px' }}>{enc.visitType}</td><td style={{ padding: '4px 8px' }}>{enc.provider}</td><td style={{ padding: '4px 8px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{enc.assessment}</td></tr>)}</tbody>
           </table>
         </>
       )}

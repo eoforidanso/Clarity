@@ -286,7 +286,7 @@ export default function PDMPDrawer({
           {/* Alerts */}
           {alerts.length > 0 && (
             <div style={{ margin: '12px 20px 0', display: 'flex', flexDirection: 'column', gap: 7 }}>
-              {alerts.map((a, i) => <AlertCard key={i} alert={a} />)}
+              {alerts.map((a, i) => <AlertCard key={a.type ?? i} alert={a} />)}
             </div>
           )}
 
@@ -337,7 +337,7 @@ export default function PDMPDrawer({
               borderTop: 'none',
               overflow: 'hidden',
             }}>
-              {visibleFills.map((fill, i) => <FillRow key={i} fill={fill} />)}
+              {visibleFills.map((fill, i) => <FillRow key={fill.id ?? `${fill.drug}-${fill.fillDate}-${i}`} fill={fill} />)}
 
               {!showAllFills && hiddenCount > 0 && (
                 <button

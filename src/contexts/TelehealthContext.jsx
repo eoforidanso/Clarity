@@ -58,35 +58,50 @@ export function TelehealthProvider({ children }) {
       return;
     }
 
-    const videoConstraints = videoDeviceId
-      ? { deviceId: { exact: videoDeviceId } }
-      : { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } };
-
     const audioConstraints = audioDeviceId
       ? { deviceId: { exact: audioDeviceId }, echoCancellation: true, noiseSuppression: true }
       : { echoCancellation: true, noiseSuppression: true };
 
-    try {
-      // Attempt full video + audio
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraints,
-        audio: audioConstraints,
-      });
-      localStreamRef.current = stream;
+    // Check permission state upfront so we can show a useful error immediately
+    if (navigator.permissions) {
+      try {
+        const perm = await navigator.permissions.query({ name: 'camera' });
+        if (perm.state === 'denied') {
+          setCamError('denied');
+          acquiringRef.current = false;
+          return;
+        }
+      } catch { /* permissions API not fully supported on this browser */ }
+    }
 
-      // Listen for physical device disconnect
+    const attachStream = (stream) => {
+      localStreamRef.current = stream;
       stream.getTracks().forEach(track => {
         track.addEventListener('ended', () => {
-          // Only fire if session is still active
           if (localStreamRef.current) {
-            setCamError(track.kind === 'video' ? 'unavailable' : 'unavailable');
             setStreamReady(false);
+            setCamError('unavailable');
           }
         });
       });
+    };
 
+    // Three-tier video constraint fallback:
+    // 1. Preferred — specific device or ideal HD resolution
+    // 2. Minimal  — just request any video
+    // 3. Audio-only
+    const preferredVideo = videoDeviceId
+      ? { deviceId: { exact: videoDeviceId } }
+      : { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } };
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: preferredVideo,
+        audio: audioConstraints,
+      });
+      attachStream(stream);
       setStreamReady(true);
-      await enumerateDevices(); // refresh device list now that permission is granted
+      await enumerateDevices();
     } catch (err) {
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setCamError('denied');
@@ -94,17 +109,37 @@ export function TelehealthProvider({ children }) {
         return;
       }
 
+      // Constraints too strict or that specific device failed — try minimal video
+      if (err.name !== 'NotFoundError' && err.name !== 'DevicesNotFoundError') {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: audioConstraints,
+          });
+          attachStream(stream);
+          setStreamReady(true);
+          await enumerateDevices();
+          acquiringRef.current = false;
+          return;
+        } catch (err2) {
+          if (err2.name === 'NotAllowedError' || err2.name === 'PermissionDeniedError') {
+            setCamError('denied');
+            acquiringRef.current = false;
+            return;
+          }
+        }
+      }
+
       // Video unavailable — try audio-only fallback
       try {
         const audioStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
-        localStreamRef.current = audioStream;
+        attachStream(audioStream);
         setAudioOnly(true);
         setCamError('audio-only');
         setIsVideoOff(true);
         setStreamReady(true);
         await enumerateDevices();
       } catch {
-        // Both video and audio failed
         setCamError('unavailable');
       }
     } finally {

@@ -4,6 +4,15 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePatient } from '../contexts/PatientContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useSite } from '../contexts/SiteContext';
+import {
+  Cog6ToothIcon,
+  ChatBubbleLeftRightIcon,
+  BellIcon,
+  EnvelopeIcon,
+  ExclamationTriangleIcon,
+  CheckCircleIcon,
+  HomeIcon,
+} from '@heroicons/react/24/outline';
 
 export default function Header() {
   const { currentUser } = useAuth();
@@ -154,24 +163,22 @@ export default function Header() {
   const clinic = availableSites?.find(s => s.id === activeSiteId) || availableSites?.[0];
 
   return (
-    <header className="header" style={{
-      height: 64,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '0 24px',
-      background: '#ffffff',
-      borderBottom: '1px solid #e5e8ef',
-    }}>
+    <header className="header">
 
-      {/* ── LEFT: Location Capsule ── */}
+      {/* ── LEFT: Location Capsule + Mobile Home ── */}
       <div className="topbar-left">
+        <button
+          className="header-btn header-mobile-home"
+          title="Dashboard"
+          onClick={() => navigate('/dashboard')}>
+          <HomeIcon style={{ width: 20, height: 20 }} />
+        </button>
         {clinic && (
           <div className="location-capsule"
             onClick={() => currentUser?.is_global && navigate('/multi-location')}
-            style={{ cursor: currentUser?.is_global ? 'pointer' : 'default', opacity: currentUser?.is_global ? 1 : 0.6 }}
-            title={currentUser?.is_global ? `${clinic.name} · Click to manage locations · API ${apiStatus}` : `${clinic.name} · API ${apiStatus}`}>
-            <div className="loc-left">
+            style={{ cursor: currentUser?.is_global ? 'pointer' : 'default' }}
+            title={`${clinic.name} · API ${apiStatus}`}>
+            <div className="loc-left header-location-text">
               <div className="loc-name">{clinic.shortName || clinic.name}</div>
               <div className="loc-sub">{clinic.city ? `${clinic.city}, ${clinic.state}` : 'Clarity EHR'}</div>
             </div>
@@ -297,48 +304,65 @@ export default function Header() {
 
       {/* ── RIGHT: Icon Cluster + User Identity ── */}
       <div className="topbar-right">
-        <button className="header-btn" title="Settings" onClick={() => navigate('/settings')}>⚙️</button>
 
-        {/* ── Signature Status Indicator ── */}
-        <button
-          className="header-btn"
-          title={currentUser?.signature ? 'Signature on file' : 'No signature on file — click to set up'}
-          onClick={() => navigate('/settings#signature')}
-          style={{
-            position: 'relative',
-            color: currentUser?.signature ? '#16a34a' : '#dc2626',
-            fontSize: 14,
-            fontWeight: 700,
-          }}>
-          {currentUser?.signature ? '✓' : '⚠'}
-        </button>
+        {/* Secondary actions — hidden on mobile */}
+        <div className="header-secondary-actions">
+          <button
+            className="header-btn"
+            title={currentUser?.signature ? 'Signature on file' : 'No signature — click to set up'}
+            onClick={() => navigate('/settings#signature')}
+            style={{ color: currentUser?.signature ? '#16a34a' : '#dc2626' }}>
+            {currentUser?.signature
+              ? <CheckCircleIcon style={{ width: 18, height: 18 }} />
+              : <ExclamationTriangleIcon style={{ width: 18, height: 18 }} />}
+          </button>
+          <button className="header-btn" title="Staff Messaging" onClick={() => navigate('/staff-messaging')}>
+            <ChatBubbleLeftRightIcon style={{ width: 18, height: 18 }} />
+          </button>
+        </div>
 
-        <button className="header-btn" title="Staff Messaging" onClick={() => navigate('/staff-messaging')}>💬</button>
+        {/* Primary actions — always visible */}
         <button className="header-btn notif-bell-btn" title="Notifications" onClick={togglePanel}>
-          🔔{notifUnread > 0 && <span className="badge-count">{notifUnread}</span>}
+          <BellIcon style={{ width: 18, height: 18 }} />
+          {notifUnread > 0 && <span className="badge-count">{notifUnread}</span>}
         </button>
         <button className="header-btn" title="Inbox" onClick={() => navigate('/inbox')}>
-          📨{unreadCount > 0 && <span className="badge-count">{unreadCount}</span>}
+          <EnvelopeIcon style={{ width: 18, height: 18 }} />
+          {unreadCount > 0 && <span className="badge-count">{unreadCount}</span>}
         </button>
+        <button className="header-btn header-settings-btn" title="Settings" onClick={() => navigate('/settings')}>
+          <Cog6ToothIcon style={{ width: 18, height: 18 }} />
+        </button>
+
         <div className="header-divider" />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 10, fontWeight: 800, flexShrink: 0 }}>
+
+        {/* User identity */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'default' }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'white', fontSize: 11, fontWeight: 800, flexShrink: 0, letterSpacing: '-0.5px',
+          }}>
             {currentUser?.firstName?.[0]}{currentUser?.lastName?.[0]}
           </div>
-          <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-              {currentUser?.firstName} {currentUser?.lastName?.[0]}.
+          <div className="header-user-text" style={{ lineHeight: 1.25 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+              {currentUser?.firstName} {currentUser?.lastName}
             </div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500 }}>
               {currentUser?.credentials || currentUser?.role}
             </div>
           </div>
         </div>
-        <div className="header-divider" />
+
+        <div className="header-divider header-clock-divider" />
+
         <div className="header-clock" style={{ textAlign: 'right', userSelect: 'none' }}>
           <div className="header-clock-time">{timeStr}</div>
           <div className="header-clock-date">{dateStr}</div>
         </div>
+
       </div>
 
     </header>

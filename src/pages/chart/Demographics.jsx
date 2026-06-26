@@ -213,9 +213,9 @@ export default function Demographics({ patientId }) {
             {p.photo ? '📷 Update Photo' : '📷 Upload Photo'}
           </button>
           {p.photo && (
-            <button onClick={() => { const { updatePatientPhoto } = require('../../contexts/PatientContext'); }}
-              style={{ marginLeft: 6, padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 600, border: '1px solid #fca5a5', background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}
-              onClick={() => setShowPhotoModal(true)}>
+            <button
+              onClick={() => updatePatient(p.id, { photo: null })}
+              style={{ marginLeft: 6, padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 600, border: '1px solid #fca5a5', background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}>
               Remove
             </button>
           )}
@@ -475,8 +475,8 @@ export default function Demographics({ patientId }) {
               <div className="athena-section-divider">
                 <div className="athena-section-label">Patient Flags</div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {p.flags.map((f, i) => (
-                    <span key={i} className={
+                  {p.flags.map((f) => (
+                    <span key={f} className={
                       f.includes('Suicide') ? 'athena-flag-critical' :
                       f.includes('Substance') ? 'athena-flag-warning' :
                       f === 'VIP' ? 'athena-flag-vip' :

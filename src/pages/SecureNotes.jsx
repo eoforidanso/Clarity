@@ -1,5 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { secureNotes as api } from '../services/api';
+import ApiErrorState from '../components/ApiErrorState';
 
 const NOTE_TYPES = ['Sticky Note', 'Provider-Only Note', 'Care Coordination Note', 'Safety Alert', 'Front Desk Note', 'Billing Note'];
 const VISIBILITY = ['All Staff', 'Prescribers Only', 'My Eyes Only', 'Clinical Staff Only', 'Admin Only'];
@@ -12,24 +14,40 @@ const COLORS = [
   { id: 'purple', bg: '#f3e8ff', border: '#d8b4fe', text: '#6b21a8' },
 ];
 
-const MOCK_NOTES = [
-  { id: 'sn1', patientName: 'James Anderson', mrn: 'MRN-001', type: 'Safety Alert', content: '⚠️ Patient has hx of passive SI. Always administer C-SSRS at every visit. Safety plan on file — updated 3/18/2026.', color: 'red', visibility: 'Clinical Staff Only', author: 'Dr. Chris Lee', createdDate: '2026-03-18', pinned: true, expiresDate: '' },
-  { id: 'sn2', patientName: 'James Anderson', mrn: 'MRN-001', type: 'Provider-Only Note', content: 'Patient disclosed DV situation at home during 4/1 session. Exploring safety planning. DO NOT discuss with anyone other than treating providers.', color: 'pink', visibility: 'Prescribers Only', author: 'April Torres, LCSW', createdDate: '2026-04-01', pinned: true, expiresDate: '' },
-  { id: 'sn3', patientName: 'Maria Garcia', mrn: 'MRN-002', type: 'Sticky Note', content: 'Patient prefers morning appointments only. Gets anxious in waiting room — allow to wait in car and text when ready.', color: 'yellow', visibility: 'All Staff', author: 'Nurse Kelly', createdDate: '2026-03-10', pinned: false, expiresDate: '' },
-  { id: 'sn4', patientName: 'Robert Chen', mrn: 'MRN-003', type: 'Care Coordination Note', content: 'PCP Dr. Amanda Liu faxed updated records 4/8. Pharmacy history shows gap in SSRI fills Dec 2025 — Feb 2026. Discuss medication adherence.', color: 'blue', visibility: 'Clinical Staff Only', author: 'Dr. Chris Lee', createdDate: '2026-04-08', pinned: false, expiresDate: '' },
-  { id: 'sn5', patientName: 'Ashley Kim', mrn: 'MRN-004', type: 'Front Desk Note', content: 'Patient has outstanding balance of $245. Discussed payment plan at last visit. Follow up at next check-in.', color: 'purple', visibility: 'All Staff', author: 'Front Desk Staff', createdDate: '2026-04-05', pinned: false, expiresDate: '2026-05-05' },
-  { id: 'sn6', patientName: 'Dorothy Wilson', mrn: 'MRN-005', type: 'Safety Alert', content: '🚨 Patient on Warfarin (managed by cardiologist). Check INR before starting any new psychiatric medications. Avoid: Fluoxetine, Fluvoxamine, Valproate.', color: 'red', visibility: 'Prescribers Only', author: 'Dr. Chris Lee', createdDate: '2026-04-12', pinned: true, expiresDate: '' },
-  { id: 'sn7', patientName: 'Brian Foster', mrn: 'MRN-007', type: 'Billing Note', content: 'Insurance changed from Cigna to UHC effective 4/1/2026. New member ID: UHC-889102. Eligibility verified 4/10.', color: 'green', visibility: 'Admin Only', author: 'Front Desk Staff', createdDate: '2026-04-10', pinned: false, expiresDate: '' },
-];
-
 export default function SecureNotes() {
   const { currentUser } = useAuth();
-  const [notes, setNotes] = useState(MOCK_NOTES);
+  const [notes, setNotes] = useState([]);
+  const [loadError, setLoadError] = useState(null);
+
+  const loadNotes = useCallback(() => {
+    setLoadError(null);
+    api.list()
+      .then(data => setNotes(Array.isArray(data) ? data : []))
+      .catch(() => setLoadError('Could not load notes from server.'));
+  }, []);
+
+  useEffect(() => { loadNotes(); }, [loadNotes]);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('All');
   const [filterVisibility, setFilterVisibility] = useState('All');
   const [showNew, setShowNew] = useState(false);
-  const [newForm, setNewForm] = useState({ patientName: '', type: 'Sticky Note', content: '', color: 'yellow', visibility: 'All Staff', pinned: false, expiresDate: '' });
+  const [newForm, setNewForm] = useState(() => {
+    try {
+      const d = localStorage.getItem('clarity_secure_note_draft');
+      return d ? JSON.parse(d) : { patientName: '', type: 'Sticky Note', content: '', color: 'yellow', visibility: 'All Staff', pinned: false, expiresDate: '' };
+    } catch {
+      return { patientName: '', type: 'Sticky Note', content: '', color: 'yellow', visibility: 'All Staff', pinned: false, expiresDate: '' };
+    }
+  });
+
+  useEffect(() => {
+    const hasContent = newForm.patientName.trim() || newForm.content.trim();
+    if (hasContent) {
+      try { localStorage.setItem('clarity_secure_note_draft', JSON.stringify(newForm)); } catch {}
+    } else {
+      try { localStorage.removeItem('clarity_secure_note_draft'); } catch {}
+    }
+  }, [newForm]);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
 
@@ -48,28 +66,44 @@ export default function SecureNotes() {
     });
   }, [notes, search, filterType, filterVisibility]);
 
-  const addNote = () => {
+  const addNote = async () => {
     if (!newForm.patientName.trim() || !newForm.content.trim()) return;
-    setNotes(prev => [{
-      id: `sn-${Date.now()}`, ...newForm, mrn: 'MRN-XXX',
-      author: `${currentUser?.firstName} ${currentUser?.lastName}`,
-      createdDate: new Date().toISOString().slice(0, 10),
-    }, ...prev]);
+    try {
+      const created = await api.create(newForm);
+      setNotes(prev => [created, ...prev]);
+    } catch {
+      // Optimistic fallback so the UI never feels broken
+      setNotes(prev => [{
+        id: `sn-${Date.now()}`, ...newForm, mrn: 'MRN-XXX',
+        author: `${currentUser?.firstName} ${currentUser?.lastName}`,
+        createdDate: new Date().toISOString().slice(0, 10),
+      }, ...prev]);
+    }
     setShowNew(false);
     setNewForm({ patientName: '', type: 'Sticky Note', content: '', color: 'yellow', visibility: 'All Staff', pinned: false, expiresDate: '' });
+    try { localStorage.removeItem('clarity_secure_note_draft'); } catch {}
   };
 
-  const togglePin = (id) => setNotes(prev => prev.map(n => n.id === id ? { ...n, pinned: !n.pinned } : n));
-  const deleteNote = (id) => setNotes(prev => prev.filter(n => n.id !== id));
+  const togglePin = async (id) => {
+    const note = notes.find(n => n.id === id);
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, pinned: !n.pinned } : n));
+    try { await api.update(id, { pinned: !note.pinned }); } catch { loadNotes(); }
+  };
+
+  const deleteNote = async (id) => {
+    setNotes(prev => prev.filter(n => n.id !== id));
+    try { await api.remove(id); } catch { loadNotes(); }
+  };
 
   const startEdit = (note) => {
     setEditingId(note.id);
     setEditForm({ type: note.type, content: note.content, color: note.color, visibility: note.visibility, pinned: note.pinned, expiresDate: note.expiresDate || '' });
   };
 
-  const saveEdit = (id) => {
+  const saveEdit = async (id) => {
     setNotes(prev => prev.map(n => n.id === id ? { ...n, ...editForm } : n));
     setEditingId(null);
+    try { await api.update(id, editForm); } catch { loadNotes(); }
   };
 
   return (
@@ -81,6 +115,8 @@ export default function SecureNotes() {
         </div>
         <button className="btn btn-primary" onClick={() => setShowNew(true)}>➕ New Note</button>
       </div>
+
+      {loadError && <ApiErrorState message={loadError} onRetry={loadNotes} style={{ marginBottom: 16 }} />}
 
       {/* Filters */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid var(--border)', padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>

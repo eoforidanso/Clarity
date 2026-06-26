@@ -3,8 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTelehealth } from '../contexts/TelehealthContext';
+import { telehealth as telehealthApi } from '../services/api';
+import {
+  LiveKitRoom,
+  VideoTrack,
+  RoomAudioRenderer,
+  useLocalParticipant,
+  useRemoteParticipants,
+  useTracks,
+  useRoomContext,
+} from '@livekit/components-react';
+import { Track, ParticipantEvent, RoomEvent } from 'livekit-client';
+
+const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL;
 
 /* ─── Helpers ──────────────────────────────────────────────────────────── */
+const API           = import.meta.env.VITE_API_URL || '/api';
 const getVideoLink  = (apt) => `https://telehealth.clarity.health/room/${apt.id}`;
 const nowTime       = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 const isoNow        = () => new Date().toISOString();
@@ -124,7 +138,58 @@ const QUICK_NOTE_TEMPLATES = [
     label: 'Informed Consent — New Medication',
     text: `Patient seen via telehealth. New medication [name, dose, frequency] discussed at length. Informed consent obtained:\n\n✓ Indication: [diagnosis/clinical rationale]\n✓ Expected benefits: [symptom improvement timeline]\n✓ Common side effects reviewed: [list]\n✓ Serious/rare side effects reviewed: [list — e.g., serotonin syndrome, tardive dyskinesia, metabolic effects]\n✓ Alternatives discussed: [other medication options, therapy, watchful waiting]\n✓ Consequences of no treatment discussed\n✓ Patient's questions answered\n✓ Pregnancy/breastfeeding considerations discussed (if applicable)\n✓ Drug-drug interactions reviewed\n\nPatient verbalized understanding and consented to proceed with medication. Prescription sent to [pharmacy]. Follow up in [timeframe] to assess initial response.`,
   },
+
+  // ── Additional Condition-Specific ─────────────────────────────────────────
+  {
+    label: 'OCD Follow-Up',
+    text: `Patient seen via telehealth for OCD follow-up. Y-BOCS score today: [score] (baseline: [score]). Patient reports obsessions: [contamination/harm/symmetry/intrusive thoughts — describe]. Compulsions: [washing/checking/counting/reassurance-seeking — describe]. Time consumed per day: [hours]. Functional impairment: [work/school/relationships/daily tasks].\n\nERP/CBT progress: [therapist name/agency] — patient reports [engagement level, difficulty with exposures, avoided hierarchies]. Accommodation behaviors: [identified/decreased/eliminated].\n\nMedication adherence: [100%/partial]. Side effects: [none/describe].\n\nDenies SI/HI. MSE: Thought process [linear/ego-dystonic intrusive thoughts described]. Insight [intact — recognizes thoughts as OCD-driven / partial / absent].\n\nPlan: [Continue/increase SSRI — note: OCD typically requires higher doses than depression]. [Augmentation with clomipramine/antipsychotic if partial response]. Encourage ERP engagement. Psychoeducation on habituation and response prevention. Follow up in [timeframe].`,
+  },
+  {
+    label: 'Eating Disorder Follow-Up',
+    text: `Patient seen via telehealth for eating disorder follow-up. Diagnosis: [Anorexia Nervosa/Bulimia Nervosa/BED/ARFID/Other]. Current weight: [___] lbs/kg (BMI: [___]). Weight change since last visit: [+/- ___]. Lowest adult weight: [___]. Medically stable: [Yes/No — see below].\n\nEDE-Q / EDE score today: [score]. Dietary restriction: [describe meal plan adherence]. Binge episodes: [frequency/week]. Purge behaviors: [vomiting/laxatives/exercise — frequency]. Compensatory behaviors: [describe]. Cognitions: [fear of weight gain, body dysmorphia, food rules described].\n\nMedical status: Vitals reviewed — HR [___], BP [___]. Labs reviewed: [BMP, phosphorus, magnesium, albumin — results]. Dental/esophageal concerns: [yes/no].\n\nDenies SI/HI.\n\nMSE: Affect [restricted/labile/appropriate]. Thought content [preoccupied with food/weight/body image]. Insight [intact/limited].\n\nLevel of care determination: [Outpatient appropriate / Step up to IOP/PHP/residential indicated — rationale].\n\nPlan: [Medication: SSRI/fluoxetine — note: contraindicated in low-weight AN]. Coordination with dietitian [name]. Medical monitoring with PCP/internist. Family involvement [if appropriate]. Follow up in [timeframe].`,
+  },
+  {
+    label: 'Perinatal / Postpartum Psychiatric Evaluation',
+    text: `Patient seen via telehealth for perinatal/postpartum psychiatric evaluation. Patient is [pregnant — gestational age: ___ weeks / postpartum — ___ weeks/months since delivery]. Obstetric provider: [name/practice].\n\nPresenting concerns: [depression/anxiety/OCD/psychosis/bonding difficulties/describe]. Edinburgh Postnatal Depression Scale (EPDS) score: [score]. Onset: [during pregnancy / postpartum — specify week].\n\nRisk factors: [prior PPD, history of MDD/bipolar, inadequate support, sleep deprivation, traumatic delivery, NICU admission, prior loss].\n\nSafety: Denies SI/HI. [Postpartum psychosis screened — no symptoms of paranoia, command hallucinations, or thoughts of harming infant]. Infant safety: [no concerns / concerns — mandatory reporting obligations reviewed].\n\nMSE: Affect [dysphoric/anxious/flat]. Thought process linear. Insight intact.\n\nMedication considerations: Psychotropic risk/benefit discussed. [Sertraline/escitalopram — compatible with breastfeeding based on current evidence]. Lactation consultant coordination: [yes/no]. Patient preference: [breastfeeding/formula/weaning plan].\n\nPlan: [Medication selected — name, dose]. Therapy referral: [postpartum-specialized therapist/group]. Partner/support person psychoeducation. Crisis resources provided (988, Postpartum Support International: 1-800-944-4773). OB/CNM coordination note sent. Follow up in [1–2 weeks].`,
+  },
+  {
+    label: 'Geriatric Psychiatric Evaluation (65+)',
+    text: `Patient seen via telehealth for geriatric psychiatric evaluation. Age: [___]. Living situation: [independent/assisted living/with family/LTCF]. Support system: [describe]. Functional status: ADLs [independent/dependent — specify]. IADLs [intact/impaired — specify]. Recent falls: [yes/no].\n\nPresenting concerns: [depression/anxiety/cognitive decline/behavioral symptoms/psychosis/describe].\n\nCognitive screening: MMSE/MoCA performed: [score: ___/30]. [If impaired: referred to neuropsychological testing / neurology / memory care]. Delirium screened: [no evidence / CAM administered — result].\n\nMedication review: All current medications reviewed (Beers Criteria applied). High-risk medications identified: [benzodiazepines/anticholinergics/sedatives — discuss risks]. Polypharmacy: [___ total medications].\n\nMedical contributors reviewed: [thyroid, B12, folate, CBC, CMP, lipids, UA — ordered/reviewed]. Sensory impairments: [hearing/vision — addressed].\n\nSafety: Denies SI/HI. [Elder abuse screened — no evidence / concerns — mandatory reporting obligations reviewed]. Driving safety: [discussed].\n\nMSE: Oriented x [1/2/3/4]. Affect [appropriate/blunted]. Memory [intact/impaired — recent > remote or reverse]. Executive function [intact/impaired].\n\nPlan: [Medication — avoid high-risk agents; start low, go slow]. Therapy referral (if cognitively intact). Caregiver psychoeducation. Advance care planning discussed. PCP coordination. Follow up in [timeframe].`,
+  },
+  {
+    label: 'Borderline Personality Disorder / DBT',
+    text: `Patient seen via telehealth for BPD/DBT follow-up. Patient reports [stability/instability] in the following domains since last visit:\n\n• Emotional dysregulation: [describe — intensity, duration, triggers]\n• Impulsive behaviors: [self-harm/substance use/risky behavior/binge eating — present/absent, frequency]\n• Interpersonal functioning: [stability/chaos — describe current relationships, splitting patterns]\n• Identity/self-image: [stable/unstable sense of self, emptiness]\n• Dissociative symptoms: [present/absent — describe]\n\nDBT skills practiced: [mindfulness/distress tolerance/emotion regulation/interpersonal effectiveness — which skills used, with what success]. Diary card reviewed: [adherence to monitoring, trends noted].\n\nSelf-harm: [absent/present — describe method, medical treatment needed, antecedent, function]. SI: [denied / present — assess per C-SSRS]. No acute HI.\n\nMSE: Affect [labile/dysphoric/appropriate]. Mood [patient-reported]. Thought process linear. No psychosis.\n\nPlan: [Continue/adjust medication for symptom targets — e.g., mood instability, impulsivity, depression]. DBT individual therapy [therapist name] — coordination note. DBT skills group [if enrolled]. Crisis plan reviewed and updated. Interpersonal incident processed using DBT framework. Follow up in [timeframe].`,
+  },
+  {
+    label: 'Grief / Bereavement',
+    text: `Patient seen via telehealth for grief/bereavement follow-up. Loss: [relationship to deceased, date of death, circumstances — sudden/expected/traumatic/suicide]. Time since loss: [___].\n\nGrief presentation: Patient reports [yearning/longing/preoccupation with deceased, difficulty accepting loss, bitterness/anger, difficulty engaging in activities, sense of meaninglessness]. Complicated grief screened (ICG/PG-13 score: [___]). [Differentiate from MDD — note if grief has evolved into Major Depressive Episode].\n\nFunctional impact: Sleep [adequate/disrupted — nightmares/intrusive memories]. Appetite [intact/decreased]. Work/social engagement [maintained/withdrawn]. Self-care [maintained/impaired].\n\nSafety: Denies SI/HI. [If bereavement by suicide: survivor of suicide loss support discussed — AFSP resources provided].\n\nMSE: Affect [tearful/dysphoric/appropriate to context]. Thought content [preoccupied with loss]. Thought process linear.\n\nPlan: [Psychoeducation on grief — normalize, not pathologize]. [Grief-focused therapy referral — complicated grief treatment, IPT-G]. [Medication only if concurrent MDE or prolonged grief disorder criteria met — per DSM-5-TR, grief can be diagnosed as MDD after 2 weeks if criteria met]. Support group referral [e.g., hospice bereavement services, GriefShare, suicide loss support]. Follow up in [timeframe].`,
+  },
+  {
+    label: 'Opioid Overdose Prevention / Naloxone',
+    text: `Patient seen via telehealth. Opioid overdose risk assessment completed.\n\nRisk factors present: [current opioid use disorder/on chronic opioid therapy/recent release from incarceration or treatment/history of prior overdose/concurrent benzodiazepine use/high-dose opioid prescription/fentanyl exposure in drug supply].\n\nNaloxone (Narcan) prescribed: [dose/formulation — 4mg nasal spray / 0.4mg IM]. Quantity: [2 kits]. Sent to: [pharmacy / patient has on hand].\n\nOverdose education provided:\n✓ Signs of opioid overdose: unresponsive, slow/absent breathing, blue lips\n✓ Call 911 immediately\n✓ Administer naloxone nasally/IM, repeat in 2–3 minutes if no response\n✓ Rescue breathing if trained\n✓ Good Samaritan Law protections reviewed (state: [state])\n✓ Patient and [family member/support person] trained on administration\n\nPDMP reviewed: [findings]. Urine drug screen: [results]. Fentanyl test strips: [discussed/provided].\n\nMAT status: [On buprenorphine/methadone/naltrexone / Not on MAT — discussed options]. Follow up in [timeframe].`,
+  },
+  {
+    label: 'Metabolic Monitoring (Antipsychotic)',
+    text: `Patient seen via telehealth for metabolic monitoring on antipsychotic therapy. Current antipsychotic(s): [medication, dose, duration].\n\nMetabolic Review:\n• Weight: [___] lbs/kg | BMI: [___] | Change from baseline: [+/- ___]\n• Waist circumference: [___] (if available)\n• BP: [___/___] mmHg\n• Fasting glucose: [___] mg/dL | HbA1c: [___]%\n• Fasting lipids: Total [___] | LDL [___] | HDL [___] | TG [___]\n• Prolactin (if indicated): [___]\n\nExtrapyramidal Side Effects (AIMS assessment):\n• Tardive dyskinesia: [absent/present — describe movements, severity]\n• Akathisia: [absent/present — SAS score: ___]\n• Parkinsonism: [absent/present]\n\nMetabolic syndrome criteria met: [Yes / No — 3 of 5 criteria].\n\nIntervention:\n• Diet/exercise counseling provided\n• [Switch to metabolically favorable agent — aripiprazole/lurasidone/ziprasidone if appropriate]\n• [Metformin referral to PCP for metabolic syndrome]\n• [Statin referral if dyslipidemia]\n• Ophthalmology referral for [quetiapine — annual eye exam if indicated]\n\nNext monitoring: Labs in [3/6] months. Follow up [timeframe].`,
+  },
+  {
+    label: 'Therapy Progress Note (CBT/DBT/MI)',
+    text: `Patient seen via telehealth for individual therapy session. Session #[___]. Modality: [CBT / DBT / ACT / IPT / Motivational Interviewing / Supportive / Other].\n\nSession Focus: [agenda set collaboratively — topic/theme addressed]\n\nSubjective: Patient presented [on time/late], appeared [calm/distressed/guarded/engaged]. Reports [mood since last session, significant events, homework completion].\n\nIntervention:\n• [Cognitive restructuring: automatic thoughts identified, challenged — situation, thought, evidence for/against, balanced thought]\n• [Behavioral activation: activity scheduled, avoidance addressed]\n• [Exposure hierarchy: [step completed, SUDS pre: ___ post: ___]]\n• [DBT skill practiced: [skill name, chain analysis if applicable]]\n• [Motivational interviewing: change talk elicited, ambivalence explored, stage of change: ___]\n• [Psychoeducation provided on: ___]\n\nHomework assigned: [describe task, rationale given, patient agreement]\n\nResponse to intervention: [patient engagement level, insight demonstrated, barriers identified]\n\nSafety: Denies SI/HI. Safety plan reviewed [if indicated].\n\nProgress toward treatment goals:\n• Goal 1 [___]: [progressing/stalled/achieved]\n• Goal 2 [___]: [progressing/stalled/achieved]\n\nPlan: Continue [modality]. Next session focus: [topic]. Frequency: [weekly/biweekly]. Follow up [date].`,
+  },
+  {
+    label: 'Group Therapy Session Note',
+    text: `Group therapy session conducted via telehealth. Group type: [process/psychoeducation/DBT skills/addiction recovery/grief/other]. Session #[___]. Duration: [___] minutes. Members present: [___] of [___] enrolled.\n\nSession theme/topic: [agenda or emergent theme]\n\nGroup process:\n• Group cohesion: [forming/storming/norming/performing]\n• Participation level: [engaged/withdrawn members noted without identifying]\n• Significant group interactions: [universality demonstrated/altruism noted/interpersonal learning/other therapeutic factors]\n• Psychoeducation/skill content covered: [describe]\n\nIndividual member notes (de-identified as needed per consent):\n• [Member A]: [brief clinical observation — mood, participation, progress]\n• [Member B]: [brief clinical observation]\n\nSafety: No acute safety concerns expressed during session. [If applicable: individual follow-up arranged with member who disclosed crisis material].\n\nHomework/between-session task: [assigned to group]\n\nFacilitator's clinical impression: [group functioning, therapeutic progress, recommendations for group structure adjustment]\n\nNext session: [date/topic].`,
+  },
+  {
+    label: 'FMLA / Disability Documentation',
+    text: `Patient seen via telehealth. Patient requesting [FMLA leave / short-term disability / long-term disability / ADA accommodation / return-to-work clearance] documentation.\n\nClinical summary:\n• Diagnosis (DSM-5): [primary diagnosis with ICD-10 code]\n• Duration of treatment: [dates of care with this provider]\n• Current functional limitations: [describe impairments in concentration, attendance, social functioning, adaptation to stress, pace — directly related to diagnosis]\n• Treatment plan: [medications, therapy, frequency of visits]\n• Expected duration of impairment: [weeks/months/indefinite — with rationale]\n• Prognosis: [good/fair/guarded with appropriate treatment]\n\nDocumentation completed: [FMLA Form WH-380-E / Disability carrier form / Letter of support — as applicable].\n\nAccommodations recommended (ADA): [modified schedule / remote work / reduced workload / quiet workspace / other].\n\nPatient instructed to follow up with HR/employer. Provider available for follow-up questions from carrier with patient's written authorization. Patient signed ROI for [employer/disability carrier] on [date].\n\nNext clinical appointment: [date].`,
+  },
+  {
+    label: 'Pregnancy — Psychotropic Risk Counseling',
+    text: `Patient seen via telehealth for psychotropic medication risk/benefit counseling in pregnancy. Patient is [planning pregnancy / currently pregnant — gestational age: ___ weeks / recently learned of pregnancy].\n\nCurrent psychiatric diagnosis: [___]. Current medications: [list all psychotropics].\n\nRisk/benefit discussion documented:\n\nRisks of untreated psychiatric illness in pregnancy:\n• Maternal risks: [relapse, functional decline, self-neglect, SI, inadequate prenatal care]\n• Fetal/neonatal risks: [prematurity, low birth weight, impaired fetal development from maternal stress]\n\nMedication-specific risks reviewed:\n• [Medication 1]: [specific teratogenic data — FDA category removed in 2015; current evidence summarized — e.g., SSRI: neonatal adaptation syndrome, PPHN risk <1%]\n• [Medication 2]: [data — e.g., lithium: Ebstein's anomaly risk 0.05–0.1%; valproate: contraindicated in pregnancy due to NTD risk]\n\nDecision reached:\n• [Continue medication — risk of relapse outweighs teratogenic risk]\n• [Taper/discontinue — patient stable, low relapse risk, early first trimester]\n• [Switch to safer agent — name]\n• [Patient declines medication — risks of untreated illness documented, monitoring plan in place]\n\nOB/MFM coordination: [referral placed / OB already aware / note to be sent]. Genetic counseling: [offered/declined]. Patient verbalized understanding and participated in shared decision-making. Follow up in [2 weeks].`,
+  },
 ];
+
 
 
 const PROVIDER_REMINDERS = [
@@ -163,8 +228,6 @@ function Avatar({ patient, apt, size = 40 }) {
    QUICK-START / CONSENT MODAL
 ═══════════════════════════════════════════════════════════════════════ */
 function QuickStartModal({ apt, patient, onStart, onCancel }) {
-  const API = import.meta.env.VITE_API_URL || '/api';
-
   const [patientInIllinois, setPatientInIllinois] = useState(false);
   const [recordingConsent,  setRecordingConsent]  = useState('');
   const [consentMethod,     setConsentMethod]     = useState('verbal');
@@ -187,42 +250,17 @@ function QuickStartModal({ apt, patient, onStart, onCancel }) {
     const sessionId   = `sess-${apt.id}-${Date.now()}`;
     const patientName = patient ? `${patient.firstName} ${patient.lastName}` : apt.patientName;
     try {
-      const res = await fetch(`${API}/appointments/telehealth-consent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          sessionId, appointmentId: apt.id,
-          patientId: patient?.id || apt.patientId,
-          patientName, patientLocation: 'Illinois',
-          recordingConsent, recordingConsentMethod: consentMethod,
-          providerConfirmed: true, complianceChecklist: checklist,
-        }),
-      });
-
-      // Guard: if the response is HTML (auth redirect / 404 page) skip JSON parse
-      const ct = res.headers.get('content-type') || '';
-      if (!ct.includes('application/json')) {
-        // Backend unreachable or redirected to login — proceed locally
-        onStart({ timestamp: isoNow(), patientName, patientLocation: 'Illinois', aptId: apt.id, sessionId, consentId: null, recordingConsent });
-        return;
-      }
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save consent');
-      onStart({ timestamp: isoNow(), patientName, patientLocation: 'Illinois', aptId: apt.id, sessionId, consentId: data.consentId, recordingConsent });
+      // Consent save is best-effort — session is never blocked by a network failure
+      const data = await telehealthApi.consent({
+        sessionId, appointmentId: apt.id,
+        patientId: patient?.id || apt.patientId,
+        patientName, patientLocation: 'Illinois',
+        recordingConsent, recordingConsentMethod: consentMethod,
+        providerConfirmed: true, complianceChecklist: checklist,
+      }).catch(() => null);
+      onStart({ timestamp: isoNow(), patientName, patientLocation: 'Illinois', aptId: apt.id, sessionId, consentId: data?.consentId ?? null, recordingConsent });
     } catch (err) {
-      // Network failure or JSON parse error — proceed locally so session is never blocked
-      if (
-        err.message.includes('Failed to fetch') ||
-        err.message.includes('NetworkError') ||
-        err.message.includes('not valid JSON') ||
-        err.message.includes('Unexpected token')
-      ) {
-        onStart({ timestamp: isoNow(), patientName, patientLocation: 'Illinois', aptId: apt.id, sessionId, consentId: null, recordingConsent });
-      } else {
-        setError(err.message);
-      }
+      setError(err.message);
     } finally {
       setSaving(false);
     }
@@ -467,6 +505,101 @@ function SendLinkModal({ apt, patients, onClose, onSent }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   ADHOC PATIENT PICKER
+═══════════════════════════════════════════════════════════════════════ */
+function AdhocPatientModal({ patients, onSelect, onCancel }) {
+  const [query, setQuery] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const results = query.trim().length < 2
+    ? []
+    : (patients || []).filter(p => {
+        const q = query.toLowerCase();
+        const full = `${p.firstName} ${p.lastName}`.toLowerCase();
+        const rev  = `${p.lastName} ${p.firstName}`.toLowerCase();
+        return full.includes(q) || rev.includes(q) || (p.mrn && p.mrn.toLowerCase().includes(q));
+      }).slice(0, 10);
+
+  const handleKey = (e) => { if (e.key === 'Escape') onCancel(); };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:3000, padding:20 }}
+      onKeyDown={handleKey}>
+      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:480, boxShadow:'0 24px 64px rgba(0,0,0,0.3)', overflow:'hidden' }}>
+
+        {/* Header */}
+        <div style={{ background:'linear-gradient(135deg,#7c3aed,#6d28d9)', padding:'16px 22px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div>
+            <div style={{ fontWeight:900, color:'#fff', fontSize:15 }}>+ Ad-Hoc Telehealth Session</div>
+            <div style={{ fontSize:11, color:'#e9d5ff', marginTop:2 }}>Search by name or MRN</div>
+          </div>
+          <button onClick={onCancel} style={{ background:'rgba(255,255,255,0.15)', border:'none', borderRadius:8, color:'#fff', fontSize:18, width:32, height:32, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+        </div>
+
+        {/* Search */}
+        <div style={{ padding:'16px 22px 0' }}>
+          <div style={{ position:'relative' }}>
+            <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', fontSize:15, color:'#9ca3af', pointerEvents:'none' }}>🔍</span>
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Patient name or MRN…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              style={{ width:'100%', padding:'10px 10px 10px 34px', border:'2px solid #e5e7eb', borderRadius:9, fontSize:14, outline:'none', boxSizing:'border-box', transition:'border-color 0.15s' }}
+              onFocus={e => { e.target.style.borderColor = '#7c3aed'; }}
+              onBlur={e => { e.target.style.borderColor = '#e5e7eb'; }}
+            />
+          </div>
+        </div>
+
+        {/* Results */}
+        <div style={{ minHeight:80, maxHeight:340, overflowY:'auto', padding:'10px 22px 18px' }}>
+          {query.trim().length < 2 && (
+            <div style={{ textAlign:'center', padding:'28px 0', color:'#9ca3af', fontSize:13 }}>
+              Type at least 2 characters to search
+            </div>
+          )}
+          {query.trim().length >= 2 && results.length === 0 && (
+            <div style={{ textAlign:'center', padding:'28px 0', color:'#9ca3af', fontSize:13 }}>
+              No patients found for "{query}"
+            </div>
+          )}
+          {results.map(p => {
+            const age = calcAge(p.dob);
+            const initials = `${p.firstName?.[0] || ''}${p.lastName?.[0] || ''}`.toUpperCase();
+            const hue = initials.charCodeAt(0) * 7 % 360;
+            return (
+              <button
+                key={p.id}
+                onClick={() => onSelect(p)}
+                style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'10px 12px', borderRadius:9, border:'1px solid #e5e7eb', background:'#fff', cursor:'pointer', textAlign:'left', marginBottom:6, transition:'all 0.12s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#f5f3ff'; e.currentTarget.style.borderColor = '#c4b5fd'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#e5e7eb'; }}
+              >
+                {p.photo
+                  ? <img src={p.photo} alt={`${p.firstName}`} style={{ width:38, height:38, borderRadius:'50%', objectFit:'cover', flexShrink:0 }} />
+                  : <div style={{ width:38, height:38, borderRadius:'50%', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:15, color:'#fff', background:`hsl(${hue},55%,42%)` }}>{initials}</div>
+                }
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:700, fontSize:14, color:'#1e293b' }}>{p.firstName} {p.lastName}</div>
+                  <div style={{ fontSize:11, color:'#64748b', marginTop:1 }}>
+                    MRN {p.mrn || '—'}{age != null ? ` · ${age} y/o` : ''}{p.dob ? ` · DOB ${new Date(p.dob).toLocaleDateString()}` : ''}
+                  </div>
+                </div>
+                <span style={{ color:'#7c3aed', fontSize:13, fontWeight:700, flexShrink:0 }}>Select →</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    POST-SESSION SUMMARY MODAL
 ═══════════════════════════════════════════════════════════════════════ */
 function PostSessionModal({ apt, patient, sessionDuration, sessionNote, onClose }) {
@@ -570,6 +703,369 @@ function PostSessionModal({ apt, patient, sessionDuration, sessionNote, onClose 
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   LIVEKIT VIDEO CONTENT  (rendered inside <LiveKitRoom>)
+═══════════════════════════════════════════════════════════════════════ */
+function LiveKitVideoContent({ apt, patient, isRecording, toggleRecording, navigate }) {
+  const { localParticipant, isCameraEnabled, isMicrophoneEnabled } = useLocalParticipant();
+  const remoteParticipants = useRemoteParticipants();
+  const tracks = useTracks([Track.Source.Camera, Track.Source.ScreenShare]);
+  const room = useRoomContext();
+  const [admitting, setAdmitting] = useState(null);
+  const [guestModal, setGuestModal] = useState(false);
+  const [guestName, setGuestName] = useState('');
+  const [guestLink, setGuestLink] = useState('');
+  const [guestCopied, setGuestCopied] = useState(false);
+
+  // ── Breakout room state ──────────────────────────────────────────────────
+  const [breakoutModal,   setBreakoutModal]   = useState(false);
+  const [breakoutSelected, setBreakoutSelected] = useState([]); // identities selected
+  const [breakoutStarting, setBreakoutStarting] = useState(false);
+  const [breakoutToken,   setBreakoutToken]   = useState(null);
+  const [breakoutRoom,    setBreakoutRoom]    = useState(null);
+
+  const getMeta = (p) => { try { return JSON.parse(p.metadata || '{}'); } catch { return {}; } };
+
+  const startBreakout = async () => {
+    if (breakoutSelected.length === 0) return;
+    setBreakoutStarting(true);
+    try {
+      const invited = remoteParticipants
+        .filter(p => breakoutSelected.includes(p.identity))
+        .map(p => ({ identity: p.identity, name: p.name, role: getMeta(p).role || 'participant' }));
+
+      const d = await telehealthApi.breakout(apt.id, invited);
+      if (!d.ok) throw new Error(d.error);
+
+      // Send each invited participant their token via LiveKit data message
+      const enc = new TextEncoder();
+      for (const pt of d.participantTokens) {
+        const msg = JSON.stringify({ type: 'breakout_invite', token: pt.token, room: d.breakoutRoom });
+        await localParticipant.publishData(enc.encode(msg), {
+          reliable: true,
+          destinationIdentities: [pt.identity],
+        });
+      }
+
+      setBreakoutToken(d.providerToken);
+      setBreakoutRoom(d.breakoutRoom);
+      setBreakoutModal(false);
+      setBreakoutSelected([]);
+    } catch { /* ignore */ } finally { setBreakoutStarting(false); }
+  };
+
+  const endBreakout = async () => {
+    // Notify breakout participants to return to main room
+    const enc = new TextEncoder();
+    const msg = JSON.stringify({ type: 'breakout_ended' });
+    await localParticipant.publishData(enc.encode(msg), { reliable: true }).catch(() => {});
+    setBreakoutToken(null);
+    setBreakoutRoom(null);
+  };
+
+  const toggleBreakoutSelect = (identity) =>
+    setBreakoutSelected(prev =>
+      prev.includes(identity) ? prev.filter(i => i !== identity) : [...prev, identity]
+    );
+
+  const localVideoTrack   = tracks.find(t => t.participant.isLocal && t.source === Track.Source.Camera);
+  const remoteVideoTrack  = tracks.find(t => !t.participant.isLocal && t.source === Track.Source.Camera);
+  const remoteScreenTrack = tracks.find(t => !t.participant.isLocal && t.source === Track.Source.ScreenShare);
+  const mainTrack = remoteScreenTrack || remoteVideoTrack;
+
+  // Split participants: waiting room (canPublish=false) vs active
+  const waitingParticipants = remoteParticipants.filter(p => p.permissions?.canPublish === false);
+  const activeParticipants  = remoteParticipants.filter(p => p.permissions?.canPublish !== false);
+
+  const getRoleIcon = (p) => {
+    const meta = getMeta(p);
+    if (meta.role === 'patient') return '🧑‍⚕️';
+    if (meta.role === 'guest')   return '🌐';
+    if (meta.role === 'front_desk') return '🏥';
+    return '👤';
+  };
+
+  const admit = async (identity) => {
+    setAdmitting(identity);
+    try {
+      await telehealthApi.admit(apt.id, identity);
+    } catch { /* ignore */ } finally { setAdmitting(null); }
+  };
+
+  const generateGuestLink = async () => {
+    if (!guestName.trim()) return;
+    try {
+      const d = await telehealthApi.guestInvite(apt.id, guestName.trim());
+      if (d.joinUrl) setGuestLink(d.joinUrl);
+    } catch { /* ignore */ }
+  };
+
+  const copyGuestLink = () => {
+    navigator.clipboard?.writeText(guestLink).catch(() => {});
+    setGuestCopied(true);
+    setTimeout(() => setGuestCopied(false), 2500);
+  };
+
+  return (
+    <>
+      {/* ── Waiting room banner (shown when someone is waiting) ── */}
+      {waitingParticipants.length > 0 && (
+        <div style={{ flexShrink:0, background:'#1e293b', borderRadius:10, padding:'10px 14px', border:'1px solid #fbbf24' }}>
+          <div style={{ fontSize:11, fontWeight:700, color:'#fbbf24', marginBottom:8 }}>
+            ⏳ Waiting Room · {waitingParticipants.length} waiting
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {waitingParticipants.map(p => (
+              <div key={p.identity} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(255,255,255,0.05)', borderRadius:7, padding:'7px 10px' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:16 }}>{getRoleIcon(p)}</span>
+                  <div>
+                    <div style={{ color:'#e2e8f0', fontSize:13, fontWeight:600 }}>{p.name || p.identity}</div>
+                    <div style={{ color:'#64748b', fontSize:10 }}>{getMeta(p).role || 'participant'} · waiting</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => admit(p.identity)}
+                  disabled={admitting === p.identity}
+                  style={{ background: admitting === p.identity ? '#166534' : '#16a34a', color:'#fff', border:'none', borderRadius:7, padding:'6px 16px', fontWeight:700, fontSize:12, cursor:'pointer' }}>
+                  {admitting === p.identity ? '✓ Admitted' : 'Admit →'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Main video view ── */}
+      <div style={{ flex:1, background:'#1e293b', borderRadius:12, position:'relative', minHeight:0, overflow:'hidden' }}>
+        {mainTrack ? (
+          <VideoTrack trackRef={mainTrack} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', gap:8 }}>
+            <Avatar apt={apt} patient={patient} size={90} />
+            <div style={{ color:'#e2e8f0', fontSize:15, fontWeight:700, marginTop:6 }}>{apt.patientName}</div>
+            <div style={{ color:'#64748b', fontSize:12 }}>
+              {activeParticipants.length === 0
+                ? waitingParticipants.length > 0
+                  ? 'Patient is in the waiting room — admit them above'
+                  : 'Waiting for patient to join…'
+                : 'Patient connected · camera off'}
+            </div>
+            {activeParticipants.length === 0 && waitingParticipants.length === 0 && (
+              <div style={{ padding:'4px 14px', borderRadius:99, background:'#fbbf2420', color:'#fbbf24', fontSize:11, fontWeight:700 }}>
+                ⏳ Patient not yet in room
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Self-view PiP */}
+        <div style={{ position:'absolute', top:16, right:16, width:160, height:110, borderRadius:10, overflow:'hidden', border:'2px solid #3b82f6', boxShadow:'0 4px 12px rgba(0,0,0,0.45)', background:'#0f172a', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          {localVideoTrack && isCameraEnabled ? (
+            <VideoTrack trackRef={localVideoTrack} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+              <span style={{ fontSize:20 }}>{isCameraEnabled ? '📷' : '📵'}</span>
+              <span style={{ color:'#94a3b8', fontSize:9 }}>Camera {isCameraEnabled ? 'starting…' : 'off'}</span>
+            </div>
+          )}
+          <div style={{ position:'absolute', bottom:5, left:6, fontSize:9, color:'#cbd5e1', background:'rgba(0,0,0,0.55)', borderRadius:4, padding:'1px 6px' }}>
+            You {isMicrophoneEnabled ? '🎤' : '🔇'}
+          </div>
+        </div>
+
+        {/* Reason overlay */}
+        {apt.reason && (
+          <span style={{ position:'absolute', top:10, left:12, background:'#6366f130', color:'#a5b4fc', padding:'2px 9px', borderRadius:99, fontSize:10, fontWeight:700, backdropFilter:'blur(4px)' }}>
+            {apt.reason}
+          </span>
+        )}
+        {activeParticipants.length > 0 && (
+          <div style={{ position:'absolute', bottom:10, left:12 }}>
+            <span style={{ background:'#10b98130', color:'#10b981', padding:'2px 10px', borderRadius:99, fontSize:10, fontWeight:700 }}>CONNECTED</span>
+          </div>
+        )}
+        {/* Observer badge */}
+        {remoteParticipants.some(p => getMeta(p).role === 'front_desk') && (
+          <div style={{ position:'absolute', bottom:10, right:12 }}>
+            <span style={{ background:'#7c3aed30', color:'#c4b5fd', padding:'2px 10px', borderRadius:99, fontSize:10, fontWeight:700 }}>👁 Front Desk observing</span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Controls ── */}
+      <div style={{ display:'flex', gap:8, justifyContent:'center', padding:'6px 0', flexShrink:0, flexWrap:'wrap' }}>
+        {[
+          { icon: isMicrophoneEnabled ? '🎤' : '🔇', label: isMicrophoneEnabled ? 'Mute' : 'Unmute',   active: !isMicrophoneEnabled, onClick: () => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled) },
+          { icon: isCameraEnabled     ? '📹' : '📵', label: isCameraEnabled     ? 'Cam Off' : 'Cam On', active: !isCameraEnabled,     onClick: () => localParticipant.setCameraEnabled(!isCameraEnabled) },
+          { icon: '🖥️', label: 'Share',  active: false,       onClick: () => localParticipant.setScreenShareEnabled(true) },
+          { icon: '⏺️', label: isRecording ? 'Stop Rec' : 'Record', active: isRecording, onClick: toggleRecording },
+          { icon: '🔗', label: '+ Guest',  active: false,        onClick: () => setGuestModal(true) },
+          { icon: '⊕',  label: 'Breakout', active: !!breakoutToken, onClick: () => breakoutToken ? endBreakout() : setBreakoutModal(true) },
+        ].map(ctrl => (
+          <button key={ctrl.label} onClick={ctrl.onClick} title={ctrl.label}
+            style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2, background: ctrl.active ? '#dc2626' : 'rgba(255,255,255,0.1)', border:'none', borderRadius:9, padding:'7px 14px', cursor:'pointer', color:'#fff', fontSize:17, minWidth:54, transition:'background 0.15s' }}>
+            <span>{ctrl.icon}</span>
+            <span style={{ fontSize:8, fontWeight:600, opacity:0.8 }}>{ctrl.label}</span>
+          </button>
+        ))}
+        {apt?.patientId && (
+          <button onClick={() => navigate(`/chart/${apt.patientId}`)}
+            style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2, background:'rgba(99,102,241,0.3)', border:'1px solid #6366f1', borderRadius:9, padding:'7px 14px', cursor:'pointer', color:'#a5b4fc', fontSize:17, minWidth:54 }}>
+            <span>📋</span>
+            <span style={{ fontSize:8, fontWeight:600, opacity:0.9 }}>Chart</span>
+          </button>
+        )}
+      </div>
+
+      {/* ── Guest invite modal ── */}
+      {guestModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:5000, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div style={{ background:'#1e293b', borderRadius:14, width:440, padding:24, border:'1px solid #334155' }}>
+            <div style={{ fontWeight:800, color:'#fff', fontSize:15, marginBottom:16 }}>🔗 Invite Guest to Session</div>
+            <div style={{ fontSize:12, color:'#94a3b8', marginBottom:12 }}>
+              Generate a 15-minute link for an interpreter, family member, or specialist. They'll join the waiting room and you admit them.
+            </div>
+            {!guestLink ? (
+              <>
+                <input
+                  value={guestName}
+                  onChange={e => setGuestName(e.target.value)}
+                  placeholder="Guest name (e.g. Maria R. — Interpreter)"
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid #334155', background:'#0f172a', color:'#e2e8f0', fontSize:13, marginBottom:12, boxSizing:'border-box' }}
+                />
+                <div style={{ display:'flex', gap:8 }}>
+                  <button onClick={() => { setGuestModal(false); setGuestName(''); }}
+                    style={{ flex:1, padding:'9px 0', borderRadius:8, border:'1px solid #334155', background:'transparent', color:'#94a3b8', fontSize:13, cursor:'pointer' }}>
+                    Cancel
+                  </button>
+                  <button onClick={generateGuestLink} disabled={!guestName.trim()}
+                    style={{ flex:2, padding:'9px 0', borderRadius:8, border:'none', background: guestName.trim() ? '#4f46e5' : '#334155', color:'#fff', fontWeight:700, fontSize:13, cursor: guestName.trim() ? 'pointer' : 'not-allowed' }}>
+                    Generate Link
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize:12, color:'#4ade80', marginBottom:8, fontWeight:600 }}>✅ Link ready for {guestName}</div>
+                <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+                  <input readOnly value={guestLink} style={{ flex:1, padding:'8px 10px', borderRadius:7, border:'1px solid #334155', background:'#0f172a', color:'#6366f1', fontSize:11 }} />
+                  <button onClick={copyGuestLink}
+                    style={{ padding:'8px 14px', borderRadius:7, border:'none', background: guestCopied ? '#059669' : '#4f46e5', color:'#fff', fontWeight:700, fontSize:12, cursor:'pointer', whiteSpace:'nowrap' }}>
+                    {guestCopied ? '✅ Copied' : '📋 Copy'}
+                  </button>
+                </div>
+                <div style={{ fontSize:11, color:'#64748b', marginBottom:12 }}>Expires in 15 minutes. Guest joins the waiting room — you admit them like any other participant.</div>
+                <button onClick={() => { setGuestModal(false); setGuestLink(''); setGuestName(''); }}
+                  style={{ width:'100%', padding:'9px 0', borderRadius:8, border:'none', background:'#334155', color:'#e2e8f0', fontWeight:700, fontSize:13, cursor:'pointer' }}>
+                  Done
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Breakout participant selection modal ── */}
+      {breakoutModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:5000, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div style={{ background:'#1e293b', borderRadius:14, width:440, padding:24, border:'1px solid #334155' }}>
+            <div style={{ fontWeight:800, color:'#fff', fontSize:15, marginBottom:8 }}>⊕ Start Breakout Room</div>
+            <div style={{ fontSize:12, color:'#94a3b8', marginBottom:16 }}>
+              Select participants to move into a private breakout room. They'll receive an invitation and can join independently.
+            </div>
+            {activeParticipants.length === 0 ? (
+              <div style={{ fontSize:12, color:'#64748b', textAlign:'center', padding:'20px 0' }}>No active participants to invite.</div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:16 }}>
+                {activeParticipants.map(p => {
+                  const meta = getMeta(p);
+                  const selected = breakoutSelected.includes(p.identity);
+                  return (
+                    <label key={p.identity} style={{ display:'flex', alignItems:'center', gap:10, background: selected ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)', borderRadius:8, padding:'10px 12px', cursor:'pointer', border: `1px solid ${selected ? '#6366f1' : '#334155'}`, transition:'all 0.15s' }}>
+                      <input type="checkbox" checked={selected} onChange={() => toggleBreakoutSelect(p.identity)} style={{ accentColor:'#6366f1', width:16, height:16 }} />
+                      <span style={{ fontSize:16 }}>{getRoleIcon(p)}</span>
+                      <span style={{ fontSize:13, color:'#e2e8f0', fontWeight:500 }}>{p.name || p.identity}</span>
+                      {meta.role && <span style={{ marginLeft:'auto', fontSize:10, color:'#64748b', background:'#0f172a', padding:'2px 7px', borderRadius:99 }}>{meta.role}</span>}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={() => { setBreakoutModal(false); setBreakoutSelected([]); }}
+                style={{ flex:1, padding:'9px 0', borderRadius:8, border:'1px solid #334155', background:'transparent', color:'#94a3b8', fontSize:13, cursor:'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={startBreakout} disabled={breakoutSelected.length === 0 || breakoutStarting}
+                style={{ flex:2, padding:'9px 0', borderRadius:8, border:'none', background: breakoutSelected.length > 0 ? '#4f46e5' : '#334155', color:'#fff', fontWeight:700, fontSize:13, cursor: breakoutSelected.length > 0 ? 'pointer' : 'not-allowed' }}>
+                {breakoutStarting ? 'Starting…' : `Start Breakout (${breakoutSelected.length} selected)`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Breakout room overlay (provider joins the sub-room) ── */}
+      {breakoutToken && (
+        <div style={{ position:'fixed', inset:0, zIndex:6000, background:'#0a0f1e', display:'flex', flexDirection:'column' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'rgba(99,102,241,0.15)', borderBottom:'1px solid #6366f1' }}>
+            <span style={{ color:'#a5b4fc', fontWeight:700, fontSize:13 }}>⊕ Breakout Room — {breakoutRoom}</span>
+            <button onClick={endBreakout}
+              style={{ padding:'6px 16px', borderRadius:8, border:'none', background:'#dc2626', color:'#fff', fontWeight:700, fontSize:12, cursor:'pointer' }}>
+              End Breakout
+            </button>
+          </div>
+          <div style={{ flex:1 }}>
+            <LiveKitRoom serverUrl={LIVEKIT_URL} token={breakoutToken} connect>
+              <BreakoutVideoContent onEnd={endBreakout} />
+            </LiveKitRoom>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function BreakoutVideoContent({ onEnd }) {
+  const { localParticipant, isCameraEnabled, isMicrophoneEnabled } = useLocalParticipant();
+  const remoteParticipants = useRemoteParticipants();
+  const tracks = useTracks([Track.Source.Camera]);
+  const remoteVideoTrack = tracks.find(t => !t.participant.isLocal && t.source === Track.Source.Camera);
+  const localVideoTrack  = tracks.find(t =>  t.participant.isLocal && t.source === Track.Source.Camera);
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', padding:12, gap:8 }}>
+      <RoomAudioRenderer />
+      <div style={{ flex:1, background:'#0f172a', borderRadius:10, overflow:'hidden', position:'relative', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        {remoteVideoTrack ? (
+          <VideoTrack trackRef={remoteVideoTrack} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+        ) : (
+          <div style={{ color:'#475569', fontSize:13 }}>
+            {remoteParticipants.length === 0 ? 'Waiting for participants…' : 'No video from participants'}
+          </div>
+        )}
+        {localVideoTrack && (
+          <div style={{ position:'absolute', bottom:10, right:10, width:120, height:80, borderRadius:8, overflow:'hidden', border:'2px solid #6366f1' }}>
+            <VideoTrack trackRef={localVideoTrack} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+          </div>
+        )}
+      </div>
+      <div style={{ display:'flex', gap:8, justifyContent:'center' }}>
+        {[
+          { icon: isMicrophoneEnabled ? '🎤' : '🔇', label: isMicrophoneEnabled ? 'Mute' : 'Unmute', active: !isMicrophoneEnabled, onClick: () => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled) },
+          { icon: isCameraEnabled ? '📹' : '📵',     label: isCameraEnabled ? 'Cam Off' : 'Cam On',   active: !isCameraEnabled,     onClick: () => localParticipant.setCameraEnabled(!isCameraEnabled) },
+        ].map(ctrl => (
+          <button key={ctrl.label} onClick={ctrl.onClick}
+            style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2, background: ctrl.active ? '#dc2626' : 'rgba(255,255,255,0.1)', border:'none', borderRadius:9, padding:'7px 14px', cursor:'pointer', color:'#fff', fontSize:17, minWidth:54 }}>
+            <span>{ctrl.icon}</span>
+            <span style={{ fontSize:8, fontWeight:600, opacity:0.8 }}>{ctrl.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    ACTIVE SESSION VIEW
 ═══════════════════════════════════════════════════════════════════════ */
 function ActiveSession({ apt, patient, patients, consentRecord, patientMeds, patientProblems, patientAllergies, patientVitals }) {
@@ -587,6 +1083,39 @@ function ActiveSession({ apt, patient, patients, consentRecord, patientMeds, pat
   const [patientMicMuted,  setPatientMicMuted]  = useState(false);
   const [sidePanel,        setSidePanel]        = useState('notes');
   const [notes,            setNotes]            = useState('');
+  const [participants,     setParticipants]     = useState([]);
+  const [lkToken,          setLkToken]          = useState(null);
+
+  // Join session on mount, populate notes from check-in, leave on unmount
+  useEffect(() => {
+    if (LIVEKIT_URL) {
+      telehealthApi.token(apt.id)
+        .then(d => { if (d?.token) setLkToken(d.token); })
+        .catch(() => {});
+    }
+
+    telehealthApi.join(apt.id, 'provider').catch(() => {});
+
+    telehealthApi.participants(apt.id)
+      .then(data => {
+        if (!Array.isArray(data)) return;
+        setParticipants(data);
+        const checkin = data.find(p => p.checkinData && p.joinMode === 'checkin');
+        if (checkin?.checkinData) {
+          const cd = checkin.checkinData;
+          const lines = [
+            `[Pre-Visit Check-In by ${cd.completedBy || 'Front Desk'}]`,
+            cd.chiefComplaint ? `Chief Complaint: ${cd.chiefComplaint}` : '',
+            cd.copayCollected ? `Copay Collected: $${cd.copayAmount || '0'}` : '',
+            cd.notes ? `Notes: ${cd.notes}` : '',
+          ].filter(Boolean);
+          if (lines.length > 1) setNotes(lines.join('\n'));
+        }
+      })
+      .catch(() => {});
+
+    return () => { telehealthApi.leave(apt.id).catch(() => {}); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [noteTemplate,     setNoteTemplate]     = useState('');
   const [chatInput,        setChatInput]        = useState('');
   const [chatMessages,     setChatMessages]     = useState([{
@@ -735,73 +1264,58 @@ function ActiveSession({ apt, patient, patients, consentRecord, patientMeds, pat
 
         {/* ── Video area ── */}
         <div style={{ flex:1, display:'flex', flexDirection:'column', background:'#0f172a', padding:'14px 14px 10px', gap:10, position:'relative', minWidth:0 }}>
-
-          {/* Patient (main view) */}
-          <div style={{ flex:1, background:'#1e293b', borderRadius:12, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', position:'relative', minHeight:0 }}>
-            <div style={{ width:90, height:90, borderRadius:'50%', overflow:'hidden', flexShrink:0, border:'3px solid #10b981' }}>
-              <Avatar apt={apt} patient={patient} size={90} />
-            </div>
-            <div style={{ color:'#e2e8f0', fontSize:15, fontWeight:700, marginTop:10 }}>{apt.patientName}</div>
-            <div style={{ color:'#64748b', fontSize:12, marginTop:3 }}>
-              {patientMicMuted ? '🔇 Muted' : '🎤 Active'} · 📷 Camera on
-            </div>
-            {/* Patient info overlay */}
-            <div style={{ position:'absolute', top:10, left:12, display:'flex', flexDirection:'column', gap:4 }}>
-              {apt.reason && <span style={{ background:'#6366f130', color:'#a5b4fc', padding:'2px 9px', borderRadius:99, fontSize:10, fontWeight:700, backdropFilter:'blur(4px)' }}>{apt.reason}</span>}
-              {patient?.dob && <span style={{ background:'rgba(0,0,0,0.5)', color:'#94a3b8', padding:'2px 9px', borderRadius:99, fontSize:10 }}>Age {calcAge(patient.dob)}</span>}
-            </div>
-            <div style={{ position:'absolute', bottom:10, left:12, display:'flex', gap:6 }}>
-              <span style={{ background:'#10b98130', color:'#10b981', padding:'2px 10px', borderRadius:99, fontSize:10, fontWeight:700 }}>CONNECTED</span>
-            </div>
-            <button onClick={() => setPatientMicMuted(m => !m)}
-              style={{ position:'absolute', bottom:10, right:12, background:'rgba(255,255,255,0.1)', border:'none', color:'#fff', borderRadius:7, padding:'4px 10px', fontSize:11, cursor:'pointer' }}>
-              {patientMicMuted ? '🔈 Unmute Pt' : '🔇 Mute Pt'}
-            </button>
-          </div>
-
-          {/* Provider self-view (PiP box) */}
-          <div style={{ position:'absolute', top:24, right:24, width:156, height:108, background:'#1e293b', borderRadius:10, overflow:'hidden', border:`2px solid ${isPiP ? '#f59e0b' : '#3b82f6'}`, boxShadow:'0 4px 12px rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            {!camError && !isVideoOff && (
-              <video ref={setVideoRef} autoPlay playsInline muted style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-            )}
-            {(isVideoOff || camError) && (
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'center' }}>
-                <span style={{ fontSize:24 }}>{camError ? '⚠️' : '📵'}</span>
-                <span style={{ color:'#94a3b8', fontSize:9, marginTop:4 }}>{camError ? 'No access' : 'Camera off'}</span>
+          {lkToken && LIVEKIT_URL ? (
+            <LiveKitRoom
+              serverUrl={LIVEKIT_URL}
+              token={lkToken}
+              connect={true}
+              audio={true}
+              video={true}
+              style={{ display:'contents' }}
+            >
+              <RoomAudioRenderer />
+              <LiveKitVideoContent
+                apt={apt}
+                patient={patient}
+                isRecording={isRecording}
+                toggleRecording={toggleRecording}
+                navigate={navigate}
+              />
+            </LiveKitRoom>
+          ) : (
+            <>
+              {/* Fallback: avatar placeholder while LiveKit token loads */}
+              <div style={{ flex:1, background:'#1e293b', borderRadius:12, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', position:'relative', minHeight:0 }}>
+                <div style={{ width:90, height:90, borderRadius:'50%', overflow:'hidden', flexShrink:0, border:'3px solid #10b981' }}>
+                  <Avatar apt={apt} patient={patient} size={90} />
+                </div>
+                <div style={{ color:'#e2e8f0', fontSize:15, fontWeight:700, marginTop:10 }}>{apt.patientName}</div>
+                <div style={{ color:'#64748b', fontSize:12, marginTop:3 }}>
+                  {lkToken === null && LIVEKIT_URL ? '⏳ Connecting to video…' : '📡 Video unavailable — audio-only mode'}
+                </div>
               </div>
-            )}
-            <div style={{ position:'absolute', bottom:5, left:6, fontSize:9, color:'#cbd5e1', background:'rgba(0,0,0,0.55)', borderRadius:4, padding:'1px 6px' }}>You {isMuted ? '🔇' : '🎤'}</div>
-            {!camError && !isVideoOff && (
-              <button onClick={enterPiP} title={isPiP ? 'Exit PiP' : 'Picture-in-Picture'}
-                style={{ position:'absolute', top:5, right:5, background:isPiP ? '#f59e0b' : 'rgba(0,0,0,0.55)', border:'none', borderRadius:5, padding:'3px 6px', cursor:'pointer', fontSize:10, color:'#fff', fontWeight:700, lineHeight:1 }}>
-                {isPiP ? '✕' : '⊡'}
-              </button>
-            )}
-          </div>
-
-          {/* Controls */}
-          <div style={{ display:'flex', gap:8, justifyContent:'center', padding:'6px 0', flexShrink:0, flexWrap:'wrap' }}>
-            {[
-              { icon: isMuted    ? '🔇' : '🎤', label: isMuted    ? 'Unmute' : 'Mute',       active: isMuted,       onClick: toggleMute },
-              { icon: isVideoOff ? '📵' : '📹', label: isVideoOff ? 'Cam On' : 'Cam Off',     active: isVideoOff,    onClick: toggleCamera },
-              { icon: '🖥️',                     label: isScreenShare ? 'Stop Share' : 'Share', active: isScreenShare, onClick: () => setIsScreenShare(s => !s) },
-              { icon: '⏺️',                     label: isRecording   ? 'Stop Rec'  : 'Record', active: isRecording,   onClick: toggleRecording },
-              { icon: '✋',                     label: handRaised    ? 'Lower Hand': 'Raise',   active: handRaised,    onClick: () => setHandRaised(h => !h) },
-            ].map(ctrl => (
-              <button key={ctrl.label} onClick={ctrl.onClick} title={ctrl.label}
-                style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2, background:ctrl.active ? '#dc2626' : 'rgba(255,255,255,0.1)', border:'none', borderRadius:9, padding:'7px 14px', cursor:'pointer', color:'#fff', fontSize:17, minWidth:54, transition:'background 0.15s' }}>
-                <span>{ctrl.icon}</span>
-                <span style={{ fontSize:8, fontWeight:600, opacity:0.8 }}>{ctrl.label}</span>
-              </button>
-            ))}
-            {apt?.patientId && (
-              <button onClick={() => navigate(`/chart/${apt.patientId}`)} title="View patient chart — video floats as PiP"
-                style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2, background:'rgba(99,102,241,0.3)', border:'1px solid #6366f1', borderRadius:9, padding:'7px 14px', cursor:'pointer', color:'#a5b4fc', fontSize:17, minWidth:54 }}>
-                <span>📋</span>
-                <span style={{ fontSize:8, fontWeight:600, opacity:0.9 }}>Chart</span>
-              </button>
-            )}
-          </div>
+              {/* Minimal controls for fallback */}
+              <div style={{ display:'flex', gap:8, justifyContent:'center', padding:'6px 0', flexShrink:0 }}>
+                <button onClick={toggleMute}
+                  style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2, background:isMuted ? '#dc2626' : 'rgba(255,255,255,0.1)', border:'none', borderRadius:9, padding:'7px 14px', cursor:'pointer', color:'#fff', fontSize:17, minWidth:54 }}>
+                  <span>{isMuted ? '🔇' : '🎤'}</span>
+                  <span style={{ fontSize:8, fontWeight:600, opacity:0.8 }}>{isMuted ? 'Unmute' : 'Mute'}</span>
+                </button>
+                <button onClick={toggleRecording}
+                  style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2, background:isRecording ? '#dc2626' : 'rgba(255,255,255,0.1)', border:'none', borderRadius:9, padding:'7px 14px', cursor:'pointer', color:'#fff', fontSize:17, minWidth:54 }}>
+                  <span>⏺️</span>
+                  <span style={{ fontSize:8, fontWeight:600, opacity:0.8 }}>{isRecording ? 'Stop Rec' : 'Record'}</span>
+                </button>
+                {apt?.patientId && (
+                  <button onClick={() => navigate(`/chart/${apt.patientId}`)}
+                    style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2, background:'rgba(99,102,241,0.3)', border:'1px solid #6366f1', borderRadius:9, padding:'7px 14px', cursor:'pointer', color:'#a5b4fc', fontSize:17, minWidth:54 }}>
+                    <span>📋</span>
+                    <span style={{ fontSize:8, fontWeight:600, opacity:0.9 }}>Chart</span>
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* ── Sidebar ── */}
@@ -811,10 +1325,11 @@ function ActiveSession({ apt, patient, patients, consentRecord, patientMeds, pat
             {[
               { k:'notes',  label:'📝 Notes' },
               { k:'chart',  label:'📋 Chart' },
+              { k:'team',   label:`👥 Team${participants.filter(p => p.isActive).length > 0 ? ` (${participants.filter(p => p.isActive).length})` : ''}` },
               { k:'chat',   label:'💬 Chat'  },
             ].map(t => (
               <button key={t.k} onClick={() => setSidePanel(t.k)}
-                style={{ flex:1, padding:'9px 0', border:'none', cursor:'pointer', fontSize:12, fontWeight:700, background:sidePanel===t.k ? '#fff' : '#f8fafc', color:sidePanel===t.k ? '#4f46e5' : '#64748b', borderBottom:`2px solid ${sidePanel===t.k ? '#4f46e5' : 'transparent'}` }}>
+                style={{ flex:1, padding:'9px 0', border:'none', cursor:'pointer', fontSize:11, fontWeight:700, background:sidePanel===t.k ? '#fff' : '#f8fafc', color:sidePanel===t.k ? '#4f46e5' : '#64748b', borderBottom:`2px solid ${sidePanel===t.k ? '#4f46e5' : 'transparent'}` }}>
                 {t.label}
               </button>
             ))}
@@ -996,6 +1511,76 @@ function ActiveSession({ apt, patient, patients, consentRecord, patientMeds, pat
             </div>
           )}
 
+          {/* ── Team / Participants panel ── */}
+          {sidePanel === 'team' && (
+            <div style={{ flex:1, overflowY:'auto', padding:14 }}>
+              {/* Check-in data from front desk */}
+              {(() => {
+                const checkin = participants.find(p => p.checkinData && p.joinMode === 'checkin');
+                if (!checkin) return (
+                  <div style={{ background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:10, padding:'12px 14px', fontSize:12, color:'#92400e', marginBottom:12 }}>
+                    ⏳ No pre-visit check-in completed yet. Front desk can use the <strong>Check-In Patient</strong> button from the appointment list.
+                  </div>
+                );
+                const cd = checkin.checkinData;
+                return (
+                  <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:10, padding:'12px 14px', marginBottom:14 }}>
+                    <div style={{ fontWeight:800, fontSize:13, color:'#166534', marginBottom:10 }}>✅ Pre-Visit Check-In Complete</div>
+                    <div style={{ fontSize:11, color:'#16a34a', marginBottom:8 }}>Completed by {cd.completedBy} · {cd.completedAt ? new Date(cd.completedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : ''}</div>
+                    {[
+                      { label:'Identity Verified', val: cd.identityVerified ? `✅ Yes${cd.dobConfirmed ? ` (DOB: ${cd.dobConfirmed})` : ''}` : '❌ No' },
+                      { label:'Insurance Active', val: cd.insuranceVerified ? '✅ Verified' : '❌ Not verified' },
+                      { label:'Copay', val: cd.copayCollected ? `✅ $${cd.copayAmount || '0'} collected` : 'Not collected' },
+                      { label:'Chief Complaint', val: cd.chiefComplaint || '—' },
+                      { label:'Medications', val: cd.medsConfirmed ? '✅ Confirmed current' : 'Not reviewed' },
+                      { label:'Allergies', val: cd.allergiesConfirmed ? '✅ Confirmed' : 'Not reviewed' },
+                      { label:'Tech Tested', val: cd.techTested ? '✅ Yes' : '⚠️ No' },
+                    ].map(({ label, val }) => (
+                      <div key={label} style={{ display:'flex', justifyContent:'space-between', fontSize:12, padding:'4px 0', borderBottom:'1px solid #bbf7d0' }}>
+                        <span style={{ color:'#374151', fontWeight:600 }}>{label}</span>
+                        <span style={{ color:'#1e293b', textAlign:'right', maxWidth:'55%' }}>{val}</span>
+                      </div>
+                    ))}
+                    {cd.notes && (
+                      <div style={{ marginTop:10, padding:'8px 10px', background:'#fff', border:'1px solid #bbf7d0', borderRadius:7, fontSize:12, color:'#374151' }}>
+                        <strong>Notes:</strong> {cd.notes}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Active session participants */}
+              <div style={{ fontSize:12, fontWeight:700, color:'#374151', marginBottom:8 }}>Session Participants</div>
+              {participants.length === 0 ? (
+                <div style={{ fontSize:12, color:'#94a3b8', textAlign:'center', padding:'20px 0' }}>No participation records yet</div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {participants.map(p => (
+                    <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:8, background:p.isActive ? '#f0f9ff' : '#f9fafb', border:`1px solid ${p.isActive ? '#bae6fd' : '#e5e7eb'}` }}>
+                      <div style={{ width:28, height:28, borderRadius:'50%', background:p.isActive ? '#0ea5e9' : '#94a3b8', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:12, fontWeight:800, flexShrink:0 }}>
+                        {p.userName.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontWeight:700, fontSize:13, color:'#1e293b' }}>{p.userName}</div>
+                        <div style={{ fontSize:11, color:'#64748b' }}>
+                          {p.userRole.replace('_',' ')} · {p.joinMode === 'checkin' ? '🏥 Check-in' : p.joinMode === 'provider' ? '📹 Provider' : '👁 Observer'}
+                        </div>
+                      </div>
+                      <div style={{ textAlign:'right', flexShrink:0 }}>
+                        {p.isActive
+                          ? <span style={{ fontSize:10, fontWeight:700, color:'#16a34a', background:'#dcfce7', padding:'2px 7px', borderRadius:99 }}>● Active</span>
+                          : <span style={{ fontSize:10, color:'#94a3b8' }}>Left {p.leftAt ? new Date(p.leftAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : ''}</span>
+                        }
+                        {p.checkinData && <div style={{ fontSize:10, color:'#0d9488', marginTop:2 }}>✅ Checked in pt</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── Chat panel ── */}
           {sidePanel === 'chat' && (
             <div style={{ flex:1, display:'flex', flexDirection:'column', minHeight:0 }}>
@@ -1038,14 +1623,151 @@ function ActiveSession({ apt, patient, patients, consentRecord, patientMeds, pat
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   WAITING ROOM / PRE-VISIT CHECK-IN (Front Desk)
+═══════════════════════════════════════════════════════════════════════ */
+function WaitingRoomCheckin({ apt, patient, onClose, onComplete }) {
+  const [form, setForm] = useState({
+    identityVerified: false, dobConfirmed: '',
+    insuranceVerified: false, copayCollected: false,
+    copayAmount: patient?.insurance?.primary?.copay ? String(patient.insurance.primary.copay) : '',
+    chiefComplaint: apt.reason || '',
+    medsConfirmed: false, allergiesConfirmed: false, techTested: false, notes: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState('');
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const isComplete = form.identityVerified && form.insuranceVerified && form.chiefComplaint.trim() && form.techTested;
+
+  const handleSubmit = async () => {
+    if (!isComplete) return;
+    setSaving(true); setError('');
+    try {
+      await telehealthApi.checkin(apt.id, form);
+      onComplete(form);
+    } catch (e) {
+      if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+        onComplete(form);
+      } else {
+        setError(e.message);
+      }
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:3000, padding:20 }}>
+      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:540, boxShadow:'0 24px 64px rgba(0,0,0,0.3)', overflow:'hidden', maxHeight:'92vh', display:'flex', flexDirection:'column' }}>
+
+        <div style={{ background:'linear-gradient(135deg,#0f766e,#0d9488)', padding:'18px 24px', flexShrink:0 }}>
+          <div style={{ fontWeight:900, color:'#fff', fontSize:16 }}>🏥 Pre-Visit Check-In</div>
+          <div style={{ fontSize:11, color:'#99f6e4', marginTop:3 }}>Complete before provider joins · Front Desk Workflow</div>
+        </div>
+
+        <div style={{ background:'#f0fdfa', borderBottom:'1px solid #99f6e4', padding:'10px 24px', display:'flex', gap:14, alignItems:'center', flexShrink:0 }}>
+          <Avatar apt={apt} patient={patient} size={36} />
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:800, fontSize:14, color:'#134e4a' }}>{apt.patientName}</div>
+            <div style={{ fontSize:11, color:'#64748b' }}>🕐 {apt.time}{apt.reason ? ` · ${apt.reason}` : ''}</div>
+          </div>
+          {patient?.insurance?.primary?.name && (
+            <div style={{ textAlign:'right', flexShrink:0 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'#0f766e' }}>{patient.insurance.primary.name}</div>
+              {patient.insurance.primary.copay && <div style={{ fontSize:11, color:'#64748b' }}>Copay: ${patient.insurance.primary.copay}</div>}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding:'16px 24px', overflowY:'auto', flex:1, display:'flex', flexDirection:'column', gap:12 }}>
+          {error && <div style={{ background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:8, padding:'10px 14px', fontSize:12, color:'#dc2626' }}>⚠️ {error}</div>}
+
+          {/* Identity */}
+          <div style={{ background:form.identityVerified ? '#f0fdf4' : '#f9fafb', border:`1.5px solid ${form.identityVerified ? '#86efac' : '#e5e7eb'}`, borderRadius:10, padding:14 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:'#374151', marginBottom:8 }}>🪪 Identity Verification <span style={{ color:'#ef4444' }}>*</span></div>
+            <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginBottom:8 }}>
+              <input type="checkbox" checked={form.identityVerified} onChange={e => set('identityVerified', e.target.checked)} style={{ width:16, height:16, accentColor:'#16a34a' }} />
+              <span style={{ fontSize:13, fontWeight:600, color:form.identityVerified ? '#166534' : '#374151' }}>Patient identity confirmed (name + DOB)</span>
+            </label>
+            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+              <span style={{ fontSize:12, color:'#6b7280', whiteSpace:'nowrap' }}>DOB entered by patient:</span>
+              <input type="text" placeholder={patient?.dob ? new Date(patient.dob + 'T12:00').toLocaleDateString() : 'mm/dd/yyyy'} value={form.dobConfirmed} onChange={e => set('dobConfirmed', e.target.value)}
+                style={{ flex:1, padding:'5px 8px', border:'1px solid #d1d5db', borderRadius:6, fontSize:12 }} />
+            </div>
+          </div>
+
+          {/* Insurance & Copay */}
+          <div style={{ background:form.insuranceVerified ? '#f0fdf4' : '#f9fafb', border:`1.5px solid ${form.insuranceVerified ? '#86efac' : '#e5e7eb'}`, borderRadius:10, padding:14 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:'#374151', marginBottom:8 }}>🏥 Insurance & Copay <span style={{ color:'#ef4444' }}>*</span></div>
+            <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginBottom:8 }}>
+              <input type="checkbox" checked={form.insuranceVerified} onChange={e => set('insuranceVerified', e.target.checked)} style={{ width:16, height:16, accentColor:'#16a34a' }} />
+              <span style={{ fontSize:13, fontWeight:600, color:form.insuranceVerified ? '#166534' : '#374151' }}>Insurance verified and active</span>
+            </label>
+            <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+              <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:12, color:'#374151', whiteSpace:'nowrap' }}>
+                <input type="checkbox" checked={form.copayCollected} onChange={e => set('copayCollected', e.target.checked)} style={{ accentColor:'#16a34a' }} />
+                Copay collected:
+              </label>
+              <input type="text" placeholder="$0.00" value={form.copayAmount} onChange={e => set('copayAmount', e.target.value)}
+                style={{ width:80, padding:'5px 8px', border:'1px solid #d1d5db', borderRadius:6, fontSize:12 }} />
+            </div>
+          </div>
+
+          {/* Chief Complaint */}
+          <div>
+            <label style={{ fontSize:12, fontWeight:700, color:'#374151', display:'block', marginBottom:5 }}>📋 Chief Complaint / Reason for Visit <span style={{ color:'#ef4444' }}>*</span></label>
+            <textarea rows={2} placeholder="Patient's reason for today's visit…" value={form.chiefComplaint} onChange={e => set('chiefComplaint', e.target.value)}
+              style={{ width:'100%', padding:'8px 10px', border:`1.5px solid ${form.chiefComplaint.trim() ? '#86efac' : '#e5e7eb'}`, borderRadius:8, fontSize:13, resize:'none', boxSizing:'border-box', background:form.chiefComplaint.trim() ? '#f0fdf4' : '#fff' }} />
+          </div>
+
+          {/* Clinical confirmations */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+            {[
+              { k:'medsConfirmed',     label:'💊 Medication list reviewed',  required:false },
+              { k:'allergiesConfirmed',label:'⚠️ Allergies confirmed',        required:false },
+              { k:'techTested',        label:'📡 Telehealth tech tested',     required:true  },
+            ].map(({ k, label, required }) => (
+              <label key={k} style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, border:`1.5px solid ${form[k] ? '#86efac' : '#e5e7eb'}`, background:form[k] ? '#f0fdf4' : '#f9fafb', cursor:'pointer', fontSize:12, fontWeight:600, color:form[k] ? '#166534' : '#374151' }}>
+                <input type="checkbox" checked={form[k]} onChange={e => set(k, e.target.checked)} style={{ width:14, height:14, accentColor:'#16a34a' }} />
+                {label} {required && <span style={{ color:'#ef4444' }}>*</span>}
+              </label>
+            ))}
+          </div>
+
+          {/* Notes for provider */}
+          <div>
+            <label style={{ fontSize:12, fontWeight:700, color:'#374151', display:'block', marginBottom:5 }}>📝 Notes for Provider</label>
+            <textarea rows={2} placeholder="Vitals, concerns, or anything the provider should know…" value={form.notes} onChange={e => set('notes', e.target.value)}
+              style={{ width:'100%', padding:'8px 10px', border:'1.5px solid #e5e7eb', borderRadius:8, fontSize:13, resize:'none', boxSizing:'border-box' }} />
+          </div>
+
+          {!isComplete && (
+            <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'8px 12px', fontSize:11, color:'#92400e' }}>
+              ⚠️ Required:{!form.identityVerified && ' • Verify identity'}{!form.insuranceVerified && ' • Verify insurance'}{!form.chiefComplaint.trim() && ' • Chief complaint'}{!form.techTested && ' • Test connection'}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', display:'flex', justifyContent:'space-between', background:'#f8fafc', flexShrink:0 }}>
+          <button onClick={onClose} disabled={saving} style={{ padding:'8px 18px', borderRadius:8, border:'1px solid #d1d5db', background:'#fff', fontSize:13, cursor:'pointer', color:'#374151' }}>Cancel</button>
+          <button onClick={handleSubmit} disabled={!isComplete || saving}
+            style={{ padding:'9px 22px', borderRadius:8, fontWeight:800, fontSize:13, border:'none', background:isComplete && !saving ? 'linear-gradient(135deg,#0f766e,#0d9488)' : '#d1d5db', color:isComplete && !saving ? '#fff' : '#9ca3af', cursor:isComplete && !saving ? 'pointer' : 'not-allowed', boxShadow:isComplete ? '0 2px 8px rgba(13,148,136,0.3)' : 'none' }}>
+            {saving ? '⏳ Checking In…' : '✅ Complete Check-In → Notify Provider'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    APPOINTMENT CARD (pre-session waiting room)
 ═══════════════════════════════════════════════════════════════════════ */
-function AppointmentCard({ apt, patient, hasConsent, linkSent, patientMeds, patientProblems, onSendLink, onStartSession }) {
+function AppointmentCard({ apt, patient, hasConsent, linkSent, patientMeds, patientProblems, onSendLink, onStartSession, onCheckin, participants }) {
   const [expanded, setExpanded] = useState(false);
   const sc = getStatus(apt.status);
   const activeMeds    = (patientMeds    || []).filter(m => m.status === 'Active' || !m.status).slice(0, 3);
   const activeProbs   = (patientProblems|| []).filter(p => p.status === 'Active' || !p.status).slice(0, 2);
   const isReady       = apt.status === 'Checked In' || apt.status === 'Confirmed';
+  const activeParticipants = (participants || []).filter(p => p.isActive);
+  const checkinDone = (participants || []).some(p => p.checkinData && p.joinMode === 'checkin');
 
   return (
     <div style={{ borderBottom:'1px solid var(--border)', background: isReady ? '#fafffe' : '#fff' }}>
@@ -1066,6 +1788,8 @@ function AppointmentCard({ apt, patient, hasConsent, linkSent, patientMeds, pati
               {apt.patientName}
               {hasConsent && <span style={{ fontSize:10, fontWeight:700, color:'#16a34a', background:'#dcfce7', padding:'1px 7px', borderRadius:99 }}>✅ Consent</span>}
               {linkSent && <span style={{ fontSize:10, fontWeight:700, color:'#7c3aed', background:'#ede9fe', padding:'1px 7px', borderRadius:99 }}>📤 Link Sent</span>}
+              {checkinDone && <span style={{ fontSize:10, fontWeight:700, color:'#0f766e', background:'#ccfbf1', padding:'1px 7px', borderRadius:99 }}>🏥 Checked In</span>}
+              {activeParticipants.length > 0 && <span style={{ fontSize:10, fontWeight:700, color:'#1e40af', background:'#dbeafe', padding:'1px 7px', borderRadius:99 }}>👥 {activeParticipants.length} in session</span>}
             </div>
             <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2, display:'flex', gap:10, flexWrap:'wrap' }}>
               {apt.reason && <span>📍 {apt.reason}</span>}
@@ -1091,10 +1815,14 @@ function AppointmentCard({ apt, patient, hasConsent, linkSent, patientMeds, pati
         </div>
 
         {/* Actions */}
-        <div style={{ display:'flex', gap:7, flexShrink:0, alignItems:'center' }}>
+        <div style={{ display:'flex', gap:6, flexShrink:0, alignItems:'center', flexWrap:'wrap' }}>
           <button onClick={() => setExpanded(e => !e)}
             style={{ padding:'5px 10px', borderRadius:7, border:'1px solid #e2e8f0', background:'#f8fafc', fontSize:11, cursor:'pointer', color:'#64748b' }}>
             {expanded ? '▲' : '▼'}
+          </button>
+          <button onClick={onCheckin}
+            style={{ padding:'6px 11px', borderRadius:7, border:`1.5px solid ${checkinDone ? '#99f6e4' : '#d1fae5'}`, background:checkinDone ? '#f0fdfa' : '#f0fdf4', fontSize:11, cursor:'pointer', color:checkinDone ? '#0f766e' : '#166534', fontWeight:700 }}>
+            {checkinDone ? '🏥 Re-Check-In' : '🏥 Check-In Patient'}
           </button>
           <button onClick={onSendLink}
             style={{ padding:'6px 12px', borderRadius:7, border:'1px solid #e2e8f0', background:'#f8fafc', fontSize:12, cursor:'pointer', color:'#374151', fontWeight:600 }}>
@@ -1206,11 +1934,14 @@ export default function Telehealth() {
     loadPatientClinical, selectPatient, openChart,
   } = usePatient();
   const { activeSession, startSession } = useTelehealth();
-  const [sendModal,       setSendModal]       = useState(null);
-  const [linkSentFor,     setLinkSentFor]     = useState({});
-  const [consentModal,    setConsentModal]    = useState(null);
-  const [consentRecords,  setConsentRecords]  = useState({});
-  const [filter,          setFilter]          = useState('all'); // 'all' | 'ready' | 'today'
+  const [sendModal,           setSendModal]           = useState(null);
+  const [linkSentFor,         setLinkSentFor]         = useState({});
+  const [consentModal,        setConsentModal]        = useState(null);
+  const [consentRecords,      setConsentRecords]      = useState({});
+  const [adhocModal,          setAdhocModal]          = useState(false);
+  const [filter,              setFilter]              = useState('all');
+  const [checkinModal,        setCheckinModal]        = useState(null);
+  const [sessionParticipants, setSessionParticipants] = useState({});
 
   /* ── Filter to telehealth-only, not completed/cancelled ── */
   const telehealthAppts = appointments.filter(a =>
@@ -1235,6 +1966,18 @@ export default function Telehealth() {
   const readyCount   = telehealthAppts.filter(a => a.status === 'Checked In').length;
   const sentCount    = Object.keys(linkSentFor).length;
   const activeCount  = Object.keys(consentRecords).length;
+
+  /* ── Load participants for visible appointments ── */
+  const loadParticipants = useCallback(async (aptId) => {
+    try {
+      const data = await telehealthApi.participants(aptId);
+      setSessionParticipants(prev => ({ ...prev, [aptId]: data }));
+    } catch { /* offline */ }
+  }, []);
+
+  useEffect(() => {
+    filtered.forEach(apt => loadParticipants(apt.id));
+  }, [filtered.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Session handlers ── */
   const launchSession = (apt, consentRecord) => {
@@ -1298,7 +2041,7 @@ export default function Telehealth() {
           <p style={{ margin:'4px 0 0', fontSize:13, color:'var(--text-muted)' }}>HIPAA-compliant video visits · Illinois Telehealth Act (410 ILCS 151) compliant</p>
         </div>
         <button
-          onClick={() => setConsentModal({ id:'adhoc-' + Date.now(), patientName:'Patient', time:nowTime(), date:new Date().toLocaleDateString(), reason:'Ad-Hoc Visit' })}
+          onClick={() => setAdhocModal(true)}
           style={{ padding:'9px 18px', borderRadius:9, background:'linear-gradient(135deg,#7c3aed,#6d28d9)', color:'#fff', border:'none', fontWeight:700, fontSize:13, cursor:'pointer', boxShadow:'0 2px 8px rgba(109,40,217,0.25)', flexShrink:0 }}>
           + Ad-Hoc Session
         </button>
@@ -1395,8 +2138,10 @@ export default function Telehealth() {
                 linkSent={linkSentFor[apt.id]}
                 patientMeds={meds?.[apt.patientId]}
                 patientProblems={problemList?.[apt.patientId]}
+                participants={sessionParticipants[apt.id] || []}
                 onSendLink={() => setSendModal(apt)}
                 onStartSession={() => handleStartSession(apt)}
+                onCheckin={() => setCheckinModal(apt)}
               />
             );
           })
@@ -1404,8 +2149,37 @@ export default function Telehealth() {
       </div>
 
       {/* ── Modals ── */}
+      {checkinModal && (
+        <WaitingRoomCheckin
+          apt={checkinModal}
+          patient={patients?.find(p => p.id === checkinModal.patientId)}
+          onClose={() => setCheckinModal(null)}
+          onComplete={(checkinData) => {
+            setCheckinModal(null);
+            loadParticipants(checkinModal.id);
+          }}
+        />
+      )}
       {sendModal && (
         <SendLinkModal apt={sendModal} patients={patients} onClose={() => setSendModal(null)} onSent={handleLinkSent} />
+      )}
+      {adhocModal && (
+        <AdhocPatientModal
+          patients={patients}
+          onSelect={(patient) => {
+            setAdhocModal(false);
+            const aptId = 'adhoc-' + Date.now();
+            setConsentModal({
+              id: aptId,
+              patientId: patient.id,
+              patientName: `${patient.firstName} ${patient.lastName}`,
+              time: nowTime(),
+              date: new Date().toLocaleDateString(),
+              reason: 'Ad-Hoc Visit',
+            });
+          }}
+          onCancel={() => setAdhocModal(false)}
+        />
       )}
       {consentModal && (
         <QuickStartModal

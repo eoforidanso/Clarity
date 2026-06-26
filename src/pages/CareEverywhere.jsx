@@ -213,7 +213,7 @@ export default function CareEverywhere() {
                         <div style={{ marginTop: 12, marginBottom: 12 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>📋 Key Highlights:</div>
                           <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: '#334155', lineHeight: 1.8 }}>
-                            {rec.highlights.map((h, i) => <li key={i}>{h}</li>)}
+                            {rec.highlights.map((h, i) => <li key={`${h}-${i}`}>{h}</li>)}
                           </ul>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>

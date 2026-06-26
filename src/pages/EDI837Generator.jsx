@@ -164,7 +164,7 @@ export default function EDI837Generator() {
                   </div>
                   {claim.errors.length > 0 && (
                     <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 7, background: '#fef2f2', border: '1px solid #fca5a5' }}>
-                      {claim.errors.map((e, i) => <div key={i} style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>⛔ {e}</div>)}
+                      {claim.errors.map((e, i) => <div key={`${e}-${i}`} style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>⛔ {e}</div>)}
                     </div>
                   )}
                 </div>

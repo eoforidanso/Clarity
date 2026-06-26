@@ -156,7 +156,7 @@ function hexToMid(hex, alpha) {
 
 /* ─── Component ──────────────────────────────────────────── */
 export default function Settings() {
-  const { currentUser } = useAuth();
+  const { currentUser, updateUserSignature } = useAuth();
   const { isTraining, enableTraining, disableTraining, resetTrainingData } = useTraining();
   const [activeSection, setActiveSection] = useState('theme');
   const [trainingConfirmReset, setTrainingConfirmReset] = useState(false);
@@ -180,6 +180,8 @@ export default function Settings() {
   const [typedSig, setTypedSig] = useState('');
   const [savedSig, setSavedSig] = useState(null);
   const [uploadPreview, setUploadPreview] = useState(null);
+  const [sigSaving, setSigSaving] = useState(false);
+  const [sigSaveStatus, setSigSaveStatus] = useState(null); // 'saved' | 'error' | null
   const lastPoint = useRef(null);
 
   /* Navigation prefs state */
@@ -298,14 +300,13 @@ export default function Settings() {
   };
 
   /* Save signature */
-  const handleSaveSignature = () => {
+  const handleSaveSignature = async () => {
     let dataUrl = null;
     if (sigMode === 'upload' && uploadPreview) {
       dataUrl = uploadPreview;
     } else if (sigMode === 'draw' && canvasRef.current) {
       dataUrl = canvasRef.current.toDataURL('image/png');
     } else if (sigMode === 'type' && typedSig.trim()) {
-      // Render typed text to a hidden canvas
       const offscreen = document.createElement('canvas');
       offscreen.width = 400;
       offscreen.height = 120;
@@ -317,18 +318,37 @@ export default function Settings() {
       ctx.fillText(typedSig.trim(), 16, 60);
       dataUrl = offscreen.toDataURL('image/png');
     }
-    if (dataUrl) {
-      saveSignature(currentUser.id, dataUrl);
+    if (!dataUrl) return;
+    setSigSaving(true);
+    setSigSaveStatus(null);
+    try {
+      await updateUserSignature(dataUrl);
       setSavedSig(dataUrl);
+      setSigSaveStatus('saved');
+      setTimeout(() => setSigSaveStatus(null), 3000);
+    } catch {
+      setSigSaveStatus('error');
+    } finally {
+      setSigSaving(false);
     }
   };
 
-  const handleDeleteSignature = () => {
-    saveSignature(currentUser.id, null);
-    setSavedSig(null);
-    clearCanvas();
-    setTypedSig('');
-    setUploadPreview(null);
+  const handleDeleteSignature = async () => {
+    setSigSaving(true);
+    setSigSaveStatus(null);
+    try {
+      await updateUserSignature(null);
+      setSavedSig(null);
+      clearCanvas();
+      setTypedSig('');
+      setUploadPreview(null);
+      setSigSaveStatus('deleted');
+      setTimeout(() => setSigSaveStatus(null), 2000);
+    } catch {
+      setSigSaveStatus('error');
+    } finally {
+      setSigSaving(false);
+    }
   };
 
   const { isDemo } = useDemo();
@@ -828,13 +848,21 @@ export default function Settings() {
                     </button>
                     <button
                       onClick={handleSaveSignature}
+                      disabled={sigSaving}
                       style={{
                         padding: '7px 16px', borderRadius: 6, border: 'none',
-                        background: 'var(--primary)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        background: sigSaveStatus === 'saved' ? '#16a34a' : 'var(--primary)',
+                        color: 'white', fontSize: 12, fontWeight: 600,
+                        cursor: sigSaving ? 'not-allowed' : 'pointer',
+                        opacity: sigSaving ? 0.7 : 1,
+                        transition: 'background 0.2s',
                       }}
                     >
-                      Save Signature
+                      {sigSaving ? 'Saving…' : sigSaveStatus === 'saved' ? '✓ Saved' : 'Save Signature'}
                     </button>
+                    {sigSaveStatus === 'error' && (
+                      <span style={{ fontSize: 11, color: 'var(--danger)', alignSelf: 'center' }}>Save failed — try again</span>
+                    )}
                   </div>
                 </div>
               )}
@@ -896,12 +924,16 @@ export default function Settings() {
                         </button>
                         <button
                           onClick={handleSaveSignature}
+                          disabled={sigSaving}
                           style={{
                             padding: '7px 16px', borderRadius: 6, border: 'none',
-                            background: 'var(--primary)', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            background: sigSaveStatus === 'saved' ? '#16a34a' : 'var(--primary)',
+                            color: 'white', fontSize: 12, fontWeight: 600,
+                            cursor: sigSaving ? 'not-allowed' : 'pointer',
+                            opacity: sigSaving ? 0.7 : 1,
                           }}
                         >
-                          Save Signature
+                          {sigSaving ? 'Saving…' : sigSaveStatus === 'saved' ? '✓ Saved' : 'Save Signature'}
                         </button>
                       </div>
                     </div>
@@ -945,16 +977,21 @@ export default function Settings() {
                   <div style={{ marginTop: 12 }}>
                     <button
                       onClick={handleSaveSignature}
-                      disabled={!typedSig.trim()}
+                      disabled={!typedSig.trim() || sigSaving}
                       style={{
                         padding: '7px 16px', borderRadius: 6, border: 'none',
-                        background: typedSig.trim() ? 'var(--primary)' : 'var(--border)',
+                        background: sigSaveStatus === 'saved' ? '#16a34a' : typedSig.trim() ? 'var(--primary)' : 'var(--border)',
                         color: typedSig.trim() ? 'white' : 'var(--text-muted)',
-                        fontSize: 12, fontWeight: 600, cursor: typedSig.trim() ? 'pointer' : 'default',
+                        fontSize: 12, fontWeight: 600,
+                        cursor: typedSig.trim() && !sigSaving ? 'pointer' : 'default',
+                        opacity: sigSaving ? 0.7 : 1,
                       }}
                     >
-                      Save Signature
+                      {sigSaving ? 'Saving…' : sigSaveStatus === 'saved' ? '✓ Saved' : 'Save Signature'}
                     </button>
+                    {sigSaveStatus === 'error' && (
+                      <span style={{ fontSize: 11, color: 'var(--danger)', marginLeft: 8 }}>Save failed — try again</span>
+                    )}
                   </div>
                 </div>
               )}

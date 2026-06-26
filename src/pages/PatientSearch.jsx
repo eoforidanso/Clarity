@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PatientHoverCard from '../components/PatientHoverCard';
+import PharmacySearch from '../components/PharmacySearch';
 import { useNavigate } from 'react-router-dom';
 import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -85,7 +86,7 @@ export default function PatientSearch() {
     address: { street: '', city: '', state: '', zip: '' },
     emergencyContact: { name: '', relationship: '', phone: '' },
     insurance: { primary: { name: '', memberId: '', groupNumber: '', copay: '' } },
-    pcp: '', assignedProvider: '', preferredPharmacy: '', preferredPharmacyPhone: '', preferredPharmacyFax: '',
+    pcp: '', assignedProvider: '', preferredPharmacy: '', preferredPharmacyAddress: '', preferredPharmacyPhone: '', preferredPharmacyFax: '',
     language: 'English',
     race: 'Not Specified',
     ethnicity: 'Not Hispanic or Latino',
@@ -93,6 +94,7 @@ export default function PatientSearch() {
   };
   const [addModal, setAddModal] = useState(false);
   const [ptForm, setPtForm] = useState(DEFAULT_PT);
+  const [selectedPharmacyObj, setSelectedPharmacyObj] = useState(null);
   const [ptSaving, setPtSaving] = useState(false);
   const [ptError, setPtError] = useState('');
   const [dlPasted, setDlPasted] = useState(false); // shows banner when DL parsed
@@ -528,6 +530,7 @@ export default function PatientSearch() {
       });
       setAddModal(false);
       setPtForm(DEFAULT_PT);
+      setSelectedPharmacyObj(null);
       selectPatient(created.id);
       navigate(`/chart/${created.id}/summary`);
     } catch (err) {
@@ -537,7 +540,7 @@ export default function PatientSearch() {
     }
   };
 
-  const cancelAddPatient = () => { setAddModal(false); setPtForm(DEFAULT_PT); setPtError(''); };
+  const cancelAddPatient = () => { setAddModal(false); setPtForm(DEFAULT_PT); setSelectedPharmacyObj(null); setPtError(''); };
 
   const modal = (
     <div role="dialog" aria-modal="true" aria-labelledby="ap-title" style={{
@@ -928,19 +931,23 @@ export default function PatientSearch() {
                   </div>
                   <div style={{ marginTop: 12 }}>
                     <label className="form-label">💊 Preferred Pharmacy</label>
-                    <input className="form-input" placeholder="e.g., CVS Pharmacy — 123 Main St"
-                      value={ptForm.preferredPharmacy}
-                      onChange={e => setPtForm(p => ({ ...p, preferredPharmacy: e.target.value }))} />
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 10 }}>
-                    <div><label className="form-label">Pharmacy Phone</label>
-                      <input className="form-input" placeholder="(555) 000-0000"
-                        value={ptForm.preferredPharmacyPhone}
-                        onChange={e => setPtForm(p => ({ ...p, preferredPharmacyPhone: e.target.value }))} /></div>
-                    <div><label className="form-label">Pharmacy Fax</label>
-                      <input className="form-input" placeholder="(555) 000-0001"
-                        value={ptForm.preferredPharmacyFax}
-                        onChange={e => setPtForm(p => ({ ...p, preferredPharmacyFax: e.target.value }))} /></div>
+                    <PharmacySearch
+                      compact
+                      value={selectedPharmacyObj}
+                      onChange={ph => {
+                        setSelectedPharmacyObj(ph);
+                        setPtForm(p => ({
+                          ...p,
+                          preferredPharmacy:        ph?.name    || '',
+                          preferredPharmacyAddress: ph?.address || '',
+                          preferredPharmacyPhone:   ph?.phone   || '',
+                          preferredPharmacyFax:     ph?.fax     || '',
+                          preferredPharmacyId:      ph?.id      || null,
+                        }));
+                      }}
+                      defaultCity={ptForm.address?.city || ''}
+                      defaultZip={ptForm.address?.zip || ''}
+                    />
                   </div>
                 </div>
               </div>

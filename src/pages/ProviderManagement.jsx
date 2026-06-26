@@ -135,7 +135,13 @@ export default function ProviderManagement() {
       await load();
       setTimeout(() => setSuccess(''), 4000);
     } catch (e) {
-      setError(e.message || 'Save failed');
+      if (e.details?.length) {
+        const fieldErrs = {};
+        e.details.forEach(({ field, message }) => { fieldErrs[field] = message; });
+        setFormErrors(fieldErrs);
+      } else {
+        setError(e.message || 'Save failed');
+      }
     } finally {
       setSaving(false);
     }

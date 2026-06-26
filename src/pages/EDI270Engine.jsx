@@ -362,7 +362,7 @@ export default function EDI270Engine() {
                       <div style={{ fontSize: 28, marginBottom: 8 }}>⛔</div>
                       <div style={{ fontWeight: 800, fontSize: 15, color: '#dc2626', marginBottom: 6 }}>Coverage Inactive</div>
                       {selected.response.termDate && <div style={{ color: '#7f1d1d', fontSize: 12 }}>Plan terminated: {selected.response.termDate}</div>}
-                      {selected.response.aaMessages?.map((m, i) => <div key={i} style={{ color: '#7f1d1d', fontSize: 12, marginTop: 4 }}>{m}</div>)}
+                      {selected.response.aaMessages?.map((m, i) => <div key={`aa-${i}-${m}`} style={{ color: '#7f1d1d', fontSize: 12, marginTop: 4 }}>{m}</div>)}
                     </div>
                   ) : (
                     <div>
@@ -421,7 +421,7 @@ export default function EDI270Engine() {
                       {selected.response.aaMessages?.length > 0 && (
                         <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fde68a' }}>
                           <div style={{ fontWeight: 700, fontSize: 11, color: '#92400e', marginBottom: 6 }}>⚠️ Payer Notes / AAA Messages</div>
-                          {selected.response.aaMessages.map((m, i) => <div key={i} style={{ fontSize: 12, color: '#78350f', marginBottom: 3 }}>• {m}</div>)}
+                          {selected.response.aaMessages.map((m, i) => <div key={`note-${i}-${m}`} style={{ fontSize: 12, color: '#78350f', marginBottom: 3 }}>• {m}</div>)}
                         </div>
                       )}
                     </div>

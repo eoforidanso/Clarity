@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import DemoGuard from '../demo/DemoGuard';
 import { useAuth } from '../contexts/AuthContext';
 import { useSite, SITES_FALLBACK } from '../contexts/SiteContext';
-import { admin, auth } from '../services/api';
+import { admin, auth, dosespot as dosespotApi } from '../services/api';
 
 
 const ROLES = ['prescriber', 'nurse', 'front_desk', 'therapist', 'biller', 'admin'];
@@ -26,8 +26,8 @@ const ROLE_COLORS = {
 const EMPTY_FORM = {
   firstName: '', lastName: '', username: '', email: '',
   password: '', role: 'front_desk', credentials: '',
-  specialty: '', npi: '', deaNumber: '', twoFactorEnabled: true,
-  mustChangePassword: false, locationId: '',
+  specialty: '', npi: '', deaNumber: '', dosespotUserId: '',
+  twoFactorEnabled: true, mustChangePassword: false, locationId: '',
 };
 
 function RoleBadge({ role }) {
@@ -185,14 +185,27 @@ function UserForm({ initial, onSave, onCancel, loading, error, locationOptions, 
       </div>
 
       {form.role === 'prescriber' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
-          <Field label="NPI *" required>
-            <input style={inputStyle} value={form.npi} onChange={e => set('npi', e.target.value)} placeholder="10-digit NPI" maxLength={10} required />
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
+            <Field label="NPI *" required>
+              <input style={inputStyle} value={form.npi} onChange={e => set('npi', e.target.value)} placeholder="10-digit NPI" maxLength={10} required />
+            </Field>
+            <Field label="DEA Number">
+              <input style={inputStyle} value={form.deaNumber} onChange={e => set('deaNumber', e.target.value)} placeholder="e.g. AB1234563" />
+            </Field>
+          </div>
+          <Field label="DoseSpot User ID">
+            <input
+              style={inputStyle}
+              value={form.dosespotUserId || ''}
+              onChange={e => set('dosespotUserId', e.target.value)}
+              placeholder="From DoseSpot portal (or leave blank to auto-create)"
+            />
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+              Required for e-prescribing. Find in DoseSpot portal under Clinicians, or leave blank and save to auto-enroll via API.
+            </div>
           </Field>
-          <Field label="DEA Number">
-            <input style={inputStyle} value={form.deaNumber} onChange={e => set('deaNumber', e.target.value)} placeholder="e.g. AB1234563" />
-          </Field>
-        </div>
+        </>
       )}
 
       <Field label="Primary Location">
@@ -602,6 +615,18 @@ function UserManagement_Inner() {
     setFormError('');
     try {
       await admin.users.update(selectedUser.id, form);
+
+      // Sync DoseSpot enrollment only when the DoseSpot user ID actually changed
+      const isPrescriber = form.role === 'prescriber' || form.role === 'nurse_practitioner';
+      if (isPrescriber) {
+        const prevDsId = selectedUser.dosespotUserId || '';
+        const newDsId  = (form.dosespotUserId || '').trim();
+        if (newDsId && newDsId !== prevDsId) {
+          await dosespotApi.enrollPrescriber(selectedUser.id, { dosespotUserId: newDsId });
+        } else if (!newDsId && prevDsId) {
+          await dosespotApi.unenrollPrescriber(selectedUser.id);
+        }
+      }
     } catch (err) {
       setFormError(err?.message || 'Failed to update user. Please try again.');
       setFormLoading(false);
@@ -862,6 +887,7 @@ function UserManagement_Inner() {
               specialty: selectedUser.specialty || '',
               npi: selectedUser.npi || '',
               deaNumber: selectedUser.deaNumber || '',
+              dosespotUserId: selectedUser.dosespotUserId || '',
               twoFactorEnabled: selectedUser.twoFactorEnabled,
               locationId: selectedUser.locationId || currentUser?.facility_id || locationOptions[0]?.id || '',
             }}

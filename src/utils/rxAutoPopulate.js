@@ -1,27 +1,21 @@
 /**
  * rxAutoPopulate — Smart Prescription Auto-Population
  *
- * Priority chains:
- *   Pharmacy:  patient.defaultPharmacy  →  patient.lastUsedPharmacy  →  provider.defaultPharmacy
- *   Sig:       patient.previousSig      →  provider.favoriteSig      →  clinicDefault (PSYCH_MED_DEFAULTS)
+ * Pharmacy priority:
+ *   1. patient.preferredPharmacy      (explicitly saved)
+ *   2. last-used pharmacy from meds   (most recently filled)
+ *   3. nearest by ZIP                 (async — use resolvePharmacyAsync)
+ *   4. provider.defaultPharmacy
  *
- * All functions are pure / side-effect-free so they can be called from any
- * entry point (Order Group, Encounters SOAP, Assessment & Plan, etc.).
+ * Sig priority: patient history → provider favorite → clinic default
  */
 
-// ─── PHARMACY ─────────────────────────────────────────────────────────────────
+import { nearbyPharmacies } from '../services/api';
 
-/**
- * Resolve the best pharmacy to pre-fill for a new prescription.
- * Returns a filled pharmacy object, or null when nothing can be resolved.
- *
- * @param {object}  patient     - selectedPatient from PatientContext
- * @param {object}  provider    - currentUser from AuthContext
- * @param {Array}   patientMeds - active medications array for this patient
- * @returns {{ name, address, phone, fax, source, sourceLabel } | null}
- */
+// ─── PHARMACY (sync — priorities 1, 2, 4) ────────────────────────────────────
+
 export function resolvePharmacy(patient, provider, patientMeds = []) {
-  // ── Priority 1: patient's explicitly set default / preferred pharmacy ──────
+  // Priority 1: patient's saved preferred pharmacy
   if (patient?.preferredPharmacy) {
     return {
       name:        patient.preferredPharmacy,
@@ -33,7 +27,7 @@ export function resolvePharmacy(patient, provider, patientMeds = []) {
     };
   }
 
-  // ── Priority 2: most recently filled pharmacy from active med history ──────
+  // Priority 2: most recently filled pharmacy from active med history
   const lastUsed = [...(patientMeds || [])]
     .filter(m => (m.status || '').toLowerCase() === 'active' && m.pharmacy)
     .sort((a, b) => {
@@ -53,7 +47,7 @@ export function resolvePharmacy(patient, provider, patientMeds = []) {
     };
   }
 
-  // ── Priority 3: provider's default pharmacy ───────────────────────────────
+  // Priority 4: provider's default pharmacy
   if (provider?.defaultPharmacy) {
     return {
       name:        provider.defaultPharmacy,
@@ -63,6 +57,46 @@ export function resolvePharmacy(patient, provider, patientMeds = []) {
       source:      'provider_default',
       sourceLabel: "Auto-selected: provider's default pharmacy",
     };
+  }
+
+  return null;
+}
+
+/**
+ * Async version — also tries Priority 3 (nearest by patient ZIP via NPI Registry).
+ * Use this in effects where awaiting is safe (e.g. on component mount).
+ *
+ * @returns {{ name, address, city, state, zip, phone, fax, npi, distanceMiles, source, sourceLabel } | null}
+ */
+export async function resolvePharmacyAsync(patient, provider, patientMeds = []) {
+  const sync = resolvePharmacy(patient, provider, patientMeds);
+  if (sync) return sync;
+
+  // Priority 3: nearest retail pharmacy by patient ZIP
+  const zip = patient?.address?.zip;
+  if (zip && /^\d{5}$/.test(zip)) {
+    try {
+      const data = await nearbyPharmacies(zip);
+      const nearest = (data.results || [])[0];
+      if (nearest) {
+        const addrParts = [nearest.address, nearest.city, nearest.state, nearest.zip].filter(Boolean);
+        return {
+          name:          nearest.name,
+          address:       nearest.address || '',
+          city:          nearest.city    || '',
+          state:         nearest.state   || '',
+          zip:           nearest.zip     || '',
+          phone:         nearest.phone   || '',
+          fax:           nearest.fax     || '',
+          npi:           nearest.npi     || '',
+          distanceMiles: nearest.distanceMiles,
+          pharmacyType:  nearest.pharmacyType || 'retail',
+          source:        'nearest_zip',
+          sourceLabel:   `Auto-selected: nearest pharmacy (${nearest.distanceMiles} mi)`,
+          fullAddress:   addrParts.join(', '),
+        };
+      }
+    } catch { /* fail silently — manual search always available */ }
   }
 
   return null;
