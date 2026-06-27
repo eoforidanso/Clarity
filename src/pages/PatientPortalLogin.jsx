@@ -91,9 +91,10 @@ export default function PatientPortalLogin() {
   const [loading, setLoading] = useState(false);
 
   // Email / OTP step
-  const [email, setEmail]     = useState('');
-  const [otp, setOtp]         = useState('');
-  const [hint, setHint]       = useState('');
+  const [email, setEmail]           = useState('');
+  const [loginPassword, setLoginPw] = useState('');
+  const [otp, setOtp]               = useState('');
+  const [hint, setHint]             = useState('');
 
   // Self-registration step
   const [reg, setReg] = useState({
@@ -133,18 +134,29 @@ export default function PatientPortalLogin() {
     if (!email.trim()) return;
     setError(''); setLoading(true);
     try {
-      const res  = await fetch(`${API}/patient-portal/request-access`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', body: JSON.stringify({ email: email.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Something went wrong');
-      if (data.needsVerification) {
-        // Start self-registration
-        setStep('register');
+      if (loginPassword) {
+        // Password-based login
+        const res  = await fetch(`${API}/patient-portal/login`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', body: JSON.stringify({ email: email.trim(), password: loginPassword }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Invalid email or password');
+        navigate('/patient-portal', { replace: true });
       } else {
-        setHint(data.hint || email);
-        setStep('otp');
+        // Passwordless — send OTP
+        const res  = await fetch(`${API}/patient-portal/request-access`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', body: JSON.stringify({ email: email.trim() }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Something went wrong');
+        if (data.needsVerification) {
+          setStep('register');
+        } else {
+          setHint(data.hint || email);
+          setStep('otp');
+        }
       }
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
@@ -287,11 +299,15 @@ export default function PatientPortalLogin() {
           {step === 'email' && (
             <>
               <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0e1e30', marginBottom: 6 }}>Sign in to your account</h1>
-              <p style={{ color: '#6b7ea0', fontSize: 13, marginBottom: 24 }}>Enter your email to receive a one-time sign-in code.</p>
+              <p style={{ color: '#6b7ea0', fontSize: 13, marginBottom: 24 }}>Enter your email and password, or leave the password blank to receive a one-time code.</p>
               <form onSubmit={handleEmail}>
                 <Input label="Email address" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required autoFocus />
+                <Input
+                  label={<>Password <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: '#94a3b8', fontSize: 10 }}>(leave blank to receive a sign-in code)</span></>}
+                  type="password" value={loginPassword} onChange={e => setLoginPw(e.target.value)} placeholder="Optional"
+                />
                 <button type="submit" disabled={loading || !email.trim()} style={S.btnPrimary(loading || !email.trim())}>
-                  {loading ? 'Checking…' : '→ Sign In'}
+                  {loading ? 'Signing in…' : loginPassword ? '→ Sign In' : '→ Send Code'}
                 </button>
               </form>
 
@@ -302,7 +318,7 @@ export default function PatientPortalLogin() {
               </div>
 
               <button
-                onClick={() => { setError(''); setStep('register'); }}
+                onClick={() => { setError(''); setLoginPw(''); setStep('register'); }}
                 style={{ width: '100%', padding: '12px', borderRadius: 7, fontWeight: 700, fontSize: 14, background: '#fff', color: '#0060b6', border: '2px solid #0060b6', cursor: 'pointer' }}
               >
                 Create a new account
