@@ -673,9 +673,221 @@ router.post('/login', async (req, res) => {
   });
 });
 
-// ── F. Staff portal account management ───────────────────────────────────────
+// ── F. Staff Verification Queue ───────────────────────────────────────────────
+//
+// Handles all portal_users that couldn't be auto-linked:
+//   - Self-registration with no chart match
+//   - Multiple possible matches (ambiguous)
+//   - Demographic mismatches
+//
+// Lifecycle: pending_verification → linked (approve) | disabled (deny)
+// Every action is logged to portal_audit_log.
 
-// GET /api/patient-portal/admin/accounts — list portal users with status
+async function sendQueueNotification(toEmail, patientName, approved, reason) {
+  if (!process.env.RESEND_API_KEY) return;
+  const subject = approved
+    ? 'Your Clarity Patient Portal account is ready'
+    : 'Update on your Clarity Patient Portal request';
+  const html = approved
+    ? `<div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <h2 style="color:#0d2444">Your portal account is verified ✓</h2>
+        <p>Hi ${patientName},</p>
+        <p>Your patient portal account has been verified by our team. You can now sign in at
+           <a href="${process.env.PORTAL_URL || 'https://app.clarity-ehr.com'}/patient-portal/login">the portal</a>.</p>
+        <p style="color:#6b7280;font-size:13px">Clarity EHR · HIPAA-compliant</p>
+       </div>`
+    : `<div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <h2 style="color:#0d2444">Portal account update</h2>
+        <p>Hi ${patientName},</p>
+        <p>We were unable to verify your portal account request at this time.</p>
+        ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+        <p>Please contact our office if you need assistance.</p>
+        <p style="color:#6b7280;font-size:13px">Clarity EHR · HIPAA-compliant</p>
+       </div>`;
+
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: process.env.RESEND_FROM || 'noreply@clarity-ehr.com', to: toEmail, subject, html }),
+  }).catch(e => console.error('[portal queue] email failed:', e.message));
+}
+
+// Returns a match confidence score 0-6 for a patient row against portal_user demographics
+function matchScore(patient, pu) {
+  let score = 0;
+  if (pu.first_name && patient.first_name?.toLowerCase() === pu.first_name.toLowerCase()) score += 2;
+  if (pu.last_name  && patient.last_name?.toLowerCase()  === pu.last_name.toLowerCase())  score += 2;
+  if (pu.date_of_birth && patient.dob === pu.date_of_birth) score += 2;
+  if (pu.phone && (patient.phone === pu.phone || patient.cell_phone === pu.phone)) score += 1;
+  if (pu.email && patient.email?.toLowerCase() === pu.email.toLowerCase()) score += 1;
+  if (pu.zip && patient.address_zip === pu.zip) score += 1;
+  return score;
+}
+
+// GET /admin/queue — pending accounts with ranked patient suggestions
+router.get('/admin/queue', authenticate, async (req, res) => {
+  const pending = await db.prepare(`
+    SELECT id, email, first_name, last_name, date_of_birth, phone, zip,
+           status, created_at
+    FROM portal_users
+    WHERE status = 'pending_verification'
+    ORDER BY created_at ASC
+    LIMIT 200
+  `).all();
+
+  const results = await Promise.all(pending.map(async pu => {
+    // Find candidate patients matching on any of: name, DOB, phone, email, zip
+    const phone = normalizePhone(pu.phone);
+    const candidates = await db.prepare(`
+      SELECT id, mrn, first_name, last_name, dob, phone, cell_phone,
+             email, address_zip, assigned_provider
+      FROM patients
+      WHERE is_active = true AND (
+        (LOWER(first_name) = LOWER($1) AND LOWER(last_name) = LOWER($2))
+        OR dob = $3
+        OR LOWER(email) = LOWER($4)
+        OR ($5 <> '' AND (phone = $5 OR cell_phone = $5))
+        OR ($6 <> '' AND address_zip = $6)
+      )
+      LIMIT 10
+    `).all(
+      pu.first_name || '', pu.last_name || '',
+      pu.date_of_birth || '',
+      pu.email || '',
+      phone,
+      pu.zip || ''
+    );
+
+    const suggestions = candidates
+      .map(p => ({ ...p, score: matchScore(p, pu) }))
+      .sort((a, b) => b.score - a.score)
+      .map(p => ({
+        id:         p.id,
+        mrn:        p.mrn,
+        name:       `${p.first_name} ${p.last_name}`,
+        dob:        p.dob,
+        phone:      p.phone || p.cell_phone,
+        email:      p.email,
+        zip:        p.address_zip,
+        score:      p.score,
+        confidence: p.score >= 6 ? 'high' : p.score >= 4 ? 'medium' : 'low',
+      }));
+
+    // Recent audit events for context
+    const events = await db.prepare(`
+      SELECT event_type, metadata, created_at
+      FROM portal_audit_log
+      WHERE portal_user_id = $1
+      ORDER BY created_at DESC LIMIT 5
+    `).all(pu.id);
+
+    const waitDays = Math.floor((Date.now() - new Date(pu.created_at).getTime()) / 86400000);
+
+    return {
+      id:          pu.id,
+      email:       pu.email,
+      firstName:   pu.first_name,
+      lastName:    pu.last_name,
+      dob:         pu.date_of_birth,
+      phone:       pu.phone,
+      zip:         pu.zip,
+      submittedAt: pu.created_at,
+      waitDays,
+      suggestions,
+      events: events.map(e => ({ type: e.event_type, meta: e.metadata, at: e.created_at })),
+    };
+  }));
+
+  res.json(results);
+});
+
+// GET /admin/queue/patients/search — search patients for manual linking
+router.get('/admin/queue/patients/search', authenticate, async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return res.json([]);
+
+  const like = `%${q.toLowerCase()}%`;
+  const rows = await db.prepare(`
+    SELECT id, mrn, first_name, last_name, dob, phone, email, address_zip
+    FROM patients
+    WHERE is_active = true AND (
+      LOWER(first_name) LIKE $1 OR LOWER(last_name) LIKE $1
+      OR mrn LIKE $2 OR LOWER(email) LIKE $1
+    )
+    ORDER BY last_name, first_name
+    LIMIT 20
+  `).all(like, `%${q}%`);
+
+  res.json(rows.map(p => ({
+    id:    p.id,
+    mrn:   p.mrn,
+    name:  `${p.first_name} ${p.last_name}`,
+    dob:   p.dob,
+    phone: p.phone,
+    email: p.email,
+    zip:   p.address_zip,
+  })));
+});
+
+// POST /admin/queue/:id/approve — link portal account to patient and notify
+router.post('/admin/queue/:id/approve', authenticate, async (req, res) => {
+  const { patientId, note } = req.body;
+  if (!patientId) return res.status(400).json({ error: 'patientId is required' });
+
+  const [portalUser, patient] = await Promise.all([
+    db.prepare(`SELECT id, email, first_name, last_name, status FROM portal_users WHERE id = $1`).get(req.params.id),
+    db.prepare(`SELECT id, first_name, last_name FROM patients WHERE id = $1 AND is_active = true`).get(patientId),
+  ]);
+
+  if (!portalUser) return res.status(404).json({ error: 'Portal account not found' });
+  if (!patient)    return res.status(404).json({ error: 'Patient not found' });
+  if (portalUser.status === 'linked') return res.status(409).json({ error: 'Account already linked' });
+
+  await db.prepare(`
+    UPDATE portal_users
+    SET linked_patient_id = $1, status = 'linked',
+        first_name = COALESCE(NULLIF(first_name,''), $2),
+        last_name  = COALESCE(NULLIF(last_name,''),  $3),
+        updated_at = NOW()
+    WHERE id = $4
+  `).run(patientId, patient.first_name, patient.last_name, portalUser.id);
+
+  await portalAudit(portalUser.id, patientId, 'staff_approved', {
+    staffId: req.user.id, staffName: req.user.username, note: note || null,
+  }, req.ip);
+
+  const name = `${portalUser.first_name || patient.first_name} ${portalUser.last_name || patient.last_name}`.trim();
+  sendQueueNotification(portalUser.email, name, true, null)
+    .catch(() => {});
+
+  res.json({ ok: true });
+});
+
+// POST /admin/queue/:id/deny — disable portal account and notify
+router.post('/admin/queue/:id/deny', authenticate, async (req, res) => {
+  const { reason } = req.body;
+
+  const portalUser = await db.prepare(
+    `SELECT id, email, first_name, last_name FROM portal_users WHERE id = $1`
+  ).get(req.params.id);
+  if (!portalUser) return res.status(404).json({ error: 'Portal account not found' });
+
+  await db.prepare(
+    `UPDATE portal_users SET status = 'disabled', updated_at = NOW() WHERE id = $1`
+  ).run(portalUser.id);
+
+  await portalAudit(portalUser.id, null, 'staff_denied', {
+    staffId: req.user.id, staffName: req.user.username, reason: reason || null,
+  }, req.ip);
+
+  const name = `${portalUser.first_name} ${portalUser.last_name}`.trim() || 'Patient';
+  sendQueueNotification(portalUser.email, name, false, reason || null)
+    .catch(() => {});
+
+  res.json({ ok: true });
+});
+
+// Keep the original /admin/accounts for any existing callers
 router.get('/admin/accounts', authenticate, async (req, res) => {
   const { status } = req.query;
   const rows = await db.prepare(`
@@ -685,47 +897,15 @@ router.get('/admin/accounts', authenticate, async (req, res) => {
     FROM portal_users pu
     LEFT JOIN patients p ON pu.linked_patient_id = p.id
     ${status ? 'WHERE pu.status = $1' : ''}
-    ORDER BY pu.created_at DESC
-    LIMIT 200
+    ORDER BY pu.created_at DESC LIMIT 200
   `).all(...(status ? [status] : []));
 
   res.json(rows.map(r => ({
-    id:        r.id,
-    email:     r.email,
-    name:      `${r.first_name} ${r.last_name}`.trim(),
-    status:    r.status,
-    patientId: r.linked_patient_id,
-    patient:   r.mrn ? `${r.pt_first} ${r.pt_last} (${r.mrn})` : null,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
+    id: r.id, email: r.email, name: `${r.first_name} ${r.last_name}`.trim(),
+    status: r.status, patientId: r.linked_patient_id,
+    patient: r.mrn ? `${r.pt_first} ${r.pt_last} (${r.mrn})` : null,
+    createdAt: r.created_at, updatedAt: r.updated_at,
   })));
-});
-
-// POST /api/patient-portal/admin/accounts/:id/link — staff manually links pending account
-router.post('/admin/accounts/:id/link', authenticate, async (req, res) => {
-  const { patientId } = req.body;
-  if (!patientId) return res.status(400).json({ error: 'patientId is required' });
-
-  const patient = await db.prepare('SELECT id FROM patients WHERE id = $1').get(patientId);
-  if (!patient) return res.status(404).json({ error: 'Patient not found' });
-
-  await db.prepare(`
-    UPDATE portal_users
-    SET linked_patient_id = $1, status = 'linked', updated_at = NOW()
-    WHERE id = $2
-  `).run(patientId, req.params.id);
-
-  await portalAudit(req.params.id, patientId, 'manually_linked', { staffId: req.user.id }, req.ip);
-  res.json({ ok: true });
-});
-
-// POST /api/patient-portal/admin/accounts/:id/disable
-router.post('/admin/accounts/:id/disable', authenticate, async (req, res) => {
-  await db.prepare(
-    `UPDATE portal_users SET status = 'disabled', updated_at = NOW() WHERE id = $1`
-  ).run(req.params.id);
-  await portalAudit(req.params.id, null, 'account_disabled', { staffId: req.user.id }, req.ip);
-  res.json({ ok: true });
 });
 
 // ── Authenticated patient routes ──────────────────────────────────────────────

@@ -59,6 +59,7 @@ const ClinicalOutcomes = lazy(() => import('./pages/ClinicalOutcomes'));
 const RolePermissions = lazy(() => import('./pages/RolePermissions'));
 const TelehealthBilling = lazy(() => import('./pages/TelehealthBilling'));
 const PatientPortalBilling = lazy(() => import('./pages/PatientPortalBilling'));
+const StaffPortalQueue     = lazy(() => import('./pages/StaffPortalQueue'));
 const QualityMeasures = lazy(() => import('./pages/QualityMeasures'));
 const DocumentManagement = lazy(() => import('./pages/DocumentManagement'));
 const AuditTrail = lazy(() => import('./pages/AuditTrail'));
@@ -322,6 +323,7 @@ export default function App() {
             <Route path="/denial-management" element={<DenialManagement />} />
             <Route path="/telehealth-billing" element={<TelehealthBilling />} />
             <Route path="/patient-portal-billing" element={<PatientPortalBilling />} />
+            <Route path="/portal-queue" element={<StaffPortalQueue />} />
             <Route path="/billing" element={<BillingDashboard />} />
             <Route path="/billing/claims" element={<ClaimsManagement />} />
             <Route path="/payer-profiles" element={<PayerProfiles />} />
