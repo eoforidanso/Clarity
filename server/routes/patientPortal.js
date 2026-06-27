@@ -1091,7 +1091,7 @@ router.post('/messages', authenticatePortal, validate(PortalMessageSchema), asyn
   ).get(req.patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-  const toUser      = providerId || patient.assigned_provider || null;
+  const toUser      = providerId || patient.assigned_provider || '';
   const patientName = `${patient.first_name} ${patient.last_name}`;
   const id          = uuidv4();
   const now         = new Date();
@@ -1100,8 +1100,8 @@ router.post('/messages', authenticatePortal, validate(PortalMessageSchema), asyn
     INSERT INTO inbox_messages
       (id, type, from_name, to_user, provider_id, patient_id, patient_name,
        subject, body, date, time, read, priority, status, urgent,
-       from_user_type, to_user_type)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,'Normal','Unread',false,'patient','provider')
+       from_user_type, to_user_type, is_active)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,'Normal','Unread',false,'patient','provider',true)
   `).run(
     id, 'Patient Message',
     `${patientName} (Patient Portal)`,
@@ -1156,7 +1156,7 @@ router.post('/refill-request', authenticatePortal, validate(PortalRefillRequestS
   const id          = uuidv4();
   const msgId       = uuidv4();
   const now         = new Date();
-  const toUser      = patient.assigned_provider || null;
+  const toUser      = patient.assigned_provider || '';
 
   await db.prepare(`
     INSERT INTO refills
@@ -1173,8 +1173,8 @@ router.post('/refill-request', authenticatePortal, validate(PortalRefillRequestS
     INSERT INTO inbox_messages
       (id, type, from_name, to_user, provider_id, patient_id, patient_name,
        subject, body, date, time, read, priority, status, urgent,
-       from_user_type, to_user_type)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,'Normal','Unread',false,'patient','provider')
+       from_user_type, to_user_type, is_active)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,'Normal','Unread',false,'patient','provider',true)
   `).run(
     msgId, 'Rx Refill Request',
     `${patientName} (Patient Portal)`,
@@ -1229,8 +1229,8 @@ router.post('/book-appointment', authenticatePortal, validate(PortalBookAppointm
     INSERT INTO inbox_messages
       (id, type, from_name, to_user, provider_id, patient_id, patient_name,
        subject, body, date, time, read, priority, status, urgent,
-       from_user_type, to_user_type)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,'Normal','Unread',false,'patient','provider')
+       from_user_type, to_user_type, is_active)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,'Normal','Unread',false,'patient','provider',true)
   `).run(
     msgId, 'Staff Message',
     `${patientName} (Patient Portal)`,
@@ -1263,8 +1263,8 @@ router.post('/staff-reply', authenticate, async (req, res) => {
     INSERT INTO inbox_messages
       (id, type, from_name, to_user, provider_id, patient_id, patient_name,
        subject, body, date, time, read, priority, status, urgent,
-       from_user_type, to_user_type)
-    VALUES ($1,$2,$3,NULL,$4,$5,$6,$7,$8,$9,$10,false,'Normal','Unread',false,'provider','patient')
+       from_user_type, to_user_type, is_active)
+    VALUES ($1,$2,$3,NULL,$4,$5,$6,$7,$8,$9,$10,false,'Normal','Unread',false,'provider','patient',true)
   `).run(
     id, 'Provider Reply',
     providerName,
