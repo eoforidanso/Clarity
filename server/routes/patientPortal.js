@@ -1061,5 +1061,4 @@ router.post('/logout', authenticatePortal, async (req, res) => {
   res.json({ ok: true });
 });
 
-export { authenticatePortal };
 export default router;
