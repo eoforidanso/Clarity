@@ -74,10 +74,21 @@ function normalizePhone(p) {
   return (p || '').replace(/\D/g, '');
 }
 
-function issuePortalSession(res, portalUserId, linkedPatientId) {
+function parseDeviceName(ua = '') {
+  if (/iPhone/i.test(ua))  return 'iPhone';
+  if (/iPad/i.test(ua))    return 'iPad';
+  if (/Android/i.test(ua)) return 'Android';
+  if (/Mac/i.test(ua))     return 'Mac';
+  if (/Windows/i.test(ua)) return 'Windows';
+  if (/Linux/i.test(ua))   return 'Linux';
+  return 'Unknown device';
+}
+
+async function issuePortalSession(res, portalUserId, linkedPatientId, req) {
+  const jti    = uuidv4();
   const secret = process.env.PORTAL_JWT_SECRET || process.env.JWT_SECRET;
   const token  = jwt.sign(
-    { portal_user_id: portalUserId, linked_patient_id: linkedPatientId, roles: ['patient'] },
+    { portal_user_id: portalUserId, linked_patient_id: linkedPatientId, roles: ['patient'], jti },
     secret,
     { expiresIn: '8h' }
   );
@@ -90,6 +101,20 @@ function issuePortalSession(res, portalUserId, linkedPatientId) {
     maxAge:   SESSION_TTL,
     path:     '/',
   });
+
+  // Record session row for device history + revocation
+  const ua         = req?.headers?.['user-agent'] || '';
+  const deviceName = parseDeviceName(ua);
+  await db.prepare(`
+    INSERT INTO portal_sessions
+      (id, portal_user_id, token_hash, expires_at, ip_address, user_agent, jti, last_seen_at, device_name)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)
+    ON CONFLICT (token_hash) DO NOTHING
+  `).run(
+    uuidv4(), portalUserId, jti,
+    new Date(Date.now() + SESSION_TTL).toISOString(),
+    req?.ip || '', ua, jti, deviceName
+  );
 }
 
 async function portalAudit(portalUserId, patientId, eventType, metadata = {}, ip = '') {
@@ -195,6 +220,22 @@ export async function authenticatePortal(req, res, next) {
   } catch {
     res.clearCookie(COOKIE_NAME);
     return res.status(401).json({ error: 'Session expired — please sign in again' });
+  }
+
+  // Check jti revocation (only for sessions issued after migration 000005)
+  if (payload.jti) {
+    const sessionRow = await db.prepare(
+      `SELECT revoked_at, last_seen_at FROM portal_sessions WHERE jti = $1`
+    ).get(payload.jti);
+    if (sessionRow?.revoked_at) {
+      res.clearCookie(COOKIE_NAME);
+      return res.status(401).json({ error: 'Session has been revoked — please sign in again' });
+    }
+    // Throttle last_seen_at writes to every 5 minutes
+    const lastSeen = sessionRow?.last_seen_at ? new Date(sessionRow.last_seen_at).getTime() : 0;
+    if (Date.now() - lastSeen > 300_000) {
+      db.prepare(`UPDATE portal_sessions SET last_seen_at = NOW() WHERE jti = $1`).run(payload.jti);
+    }
   }
 
   const portalUser = await db.prepare(`
@@ -590,7 +631,7 @@ router.post('/verify-otp', async (req, res) => {
     ).run(portalUser.linked_patient_id);
   }
 
-  issuePortalSession(res, portalUser.id, portalUser.linked_patient_id);
+  await issuePortalSession(res, portalUser.id, portalUser.linked_patient_id, req);
   await portalAudit(portalUser.id, portalUser.linked_patient_id, 'login', {}, req.ip);
 
   res.json({
@@ -668,7 +709,7 @@ router.post('/login', async (req, res) => {
     `UPDATE patients SET portal_last_login = NOW() WHERE id = $1`
   ).run(portalUser.linked_patient_id);
 
-  issuePortalSession(res, portalUser.id, portalUser.linked_patient_id);
+  await issuePortalSession(res, portalUser.id, portalUser.linked_patient_id, req);
   await portalAudit(portalUser.id, portalUser.linked_patient_id, 'login_password', {}, req.ip);
 
   res.json({
@@ -1075,7 +1116,7 @@ router.get('/medications', authenticatePortal, async (req, res) => {
 router.get('/messages', authenticatePortal, async (req, res) => {
   const rows = await db.prepare(`
     SELECT id, from_name, subject, body, date, time, type, urgent,
-           from_user_type, to_user_type, provider_id
+           from_user_type, to_user_type, provider_id, thread_key, category
     FROM inbox_messages
     WHERE patient_id = $1
       AND (from_user_type = 'patient' OR to_user_type = 'patient')
@@ -1095,6 +1136,8 @@ router.get('/messages', authenticatePortal, async (req, res) => {
     fromUserType: r.from_user_type || 'system',
     toUserType:   r.to_user_type   || 'provider',
     providerId:   r.provider_id,
+    threadKey:    r.thread_key   || '',
+    category:     r.category     || 'General',
   })));
 });
 
@@ -1113,12 +1156,14 @@ router.post('/messages', authenticatePortal, validate(PortalMessageSchema), asyn
   const id          = uuidv4();
   const now         = new Date();
 
+  const threadKey = `${req.patientId}:${toUser || 'unassigned'}`;
+
   await db.prepare(`
     INSERT INTO inbox_messages
       (id, type, from_name, to_user, provider_id, patient_id, patient_name,
        subject, body, date, time, read, priority, status, urgent,
-       from_user_type, to_user_type, is_active)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,'Normal','Unread',false,'patient','provider',true)
+       from_user_type, to_user_type, is_active, thread_key, category)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,'Normal','Unread',false,'patient','provider',true,$12,'General')
   `).run(
     id, 'Patient Message',
     `${patientName} (Patient Portal)`,
@@ -1127,7 +1172,8 @@ router.post('/messages', authenticatePortal, validate(PortalMessageSchema), asyn
     `Message from ${patientName}`,
     text.trim(),
     now.toISOString().split('T')[0],
-    now.toTimeString().slice(0, 5)
+    now.toTimeString().slice(0, 5),
+    threadKey
   );
 
   await portalAudit(req.portalUser.id, req.patientId, 'message_sent', { messageId: id }, req.ip);
@@ -1186,12 +1232,14 @@ router.post('/refill-request', authenticatePortal, validate(PortalRefillRequestS
     pharmacy ? `Preferred pharmacy: ${pharmacy}` : null
   );
 
+  const refillThreadKey = `${req.patientId}:${toUser || 'unassigned'}`;
+
   await db.prepare(`
     INSERT INTO inbox_messages
       (id, type, from_name, to_user, provider_id, patient_id, patient_name,
        subject, body, date, time, read, priority, status, urgent,
-       from_user_type, to_user_type, is_active)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,'Normal','Unread',false,'patient','provider',true)
+       from_user_type, to_user_type, is_active, thread_key, category)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,'Normal','Unread',false,'patient','provider',true,$12,'Refill')
   `).run(
     msgId, 'Rx Refill Request',
     `${patientName} (Patient Portal)`,
@@ -1200,7 +1248,8 @@ router.post('/refill-request', authenticatePortal, validate(PortalRefillRequestS
     `Refill Request: ${medicationName}${dose ? ' ' + dose : ''}`,
     `Patient has requested a refill via the Patient Portal.\n\nMedication: ${medicationName}${dose ? ' ' + dose : ''}${frequency ? ' — ' + frequency : ''}${pharmacy ? '\nPreferred pharmacy: ' + pharmacy : ''}`,
     now.toISOString().split('T')[0],
-    now.toTimeString().slice(0, 5)
+    now.toTimeString().slice(0, 5),
+    refillThreadKey
   );
 
   await portalAudit(req.portalUser.id, req.patientId, 'refill_requested', { medicationName }, req.ip);
@@ -1242,12 +1291,14 @@ router.post('/book-appointment', authenticatePortal, validate(PortalBookAppointm
     locationId
   );
 
+  const apptThreadKey = `${req.patientId}:${providerId || 'unassigned'}`;
+
   await db.prepare(`
     INSERT INTO inbox_messages
       (id, type, from_name, to_user, provider_id, patient_id, patient_name,
        subject, body, date, time, read, priority, status, urgent,
-       from_user_type, to_user_type, is_active)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,'Normal','Unread',false,'patient','provider',true)
+       from_user_type, to_user_type, is_active, thread_key, category)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,'Normal','Unread',false,'patient','provider',true,$12,'Appointment')
   `).run(
     msgId, 'Staff Message',
     `${patientName} (Patient Portal)`,
@@ -1256,7 +1307,8 @@ router.post('/book-appointment', authenticatePortal, validate(PortalBookAppointm
     `New Appointment Booked — ${patientName}`,
     `Patient has booked an appointment via the Patient Portal.\n\nPatient: ${patientName} (MRN: ${patient.mrn})\nProvider: ${providerName}\nDate: ${date}\nTime: ${time}\nDuration: ${duration || 30} min\nVisit: ${visitType || 'In-Person'}${notes ? '\nNotes: ' + notes : ''}`,
     now.toISOString().split('T')[0],
-    now.toTimeString().slice(0, 5)
+    now.toTimeString().slice(0, 5),
+    apptThreadKey
   );
 
   await portalAudit(req.portalUser.id, req.patientId, 'appointment_booked', { date, time, providerId }, req.ip);
@@ -1276,12 +1328,14 @@ router.post('/staff-reply', authenticate, async (req, res) => {
   const providerName = `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() || req.user.username;
   const patientName  = `${patient.first_name} ${patient.last_name}`;
 
+  const replyThreadKey = `${patientId}:${req.user.id || 'unassigned'}`;
+
   await db.prepare(`
     INSERT INTO inbox_messages
       (id, type, from_name, to_user, provider_id, patient_id, patient_name,
        subject, body, date, time, read, priority, status, urgent,
-       from_user_type, to_user_type, is_active)
-    VALUES ($1,$2,$3,NULL,$4,$5,$6,$7,$8,$9,$10,false,'Normal','Unread',false,'provider','patient',true)
+       from_user_type, to_user_type, is_active, thread_key, category)
+    VALUES ($1,$2,$3,NULL,$4,$5,$6,$7,$8,$9,$10,false,'Normal','Unread',false,'provider','patient',true,$11,'General')
   `).run(
     id, 'Provider Reply',
     providerName,
@@ -1290,10 +1344,77 @@ router.post('/staff-reply', authenticate, async (req, res) => {
     `Message from ${providerName}`,
     text.trim(),
     now.toISOString().split('T')[0],
-    now.toTimeString().slice(0, 5)
+    now.toTimeString().slice(0, 5),
+    replyThreadKey
   );
 
   res.status(201).json({ ok: true, id });
+});
+
+// GET /sessions — list this user's active portal sessions (device history)
+router.get('/sessions', authenticatePortal, async (req, res) => {
+  const rows = await db.prepare(`
+    SELECT jti, ip_address, user_agent, device_name, last_seen_at, created_at, revoked_at
+    FROM portal_sessions
+    WHERE portal_user_id = $1
+      AND expires_at > NOW()
+    ORDER BY created_at DESC
+    LIMIT 20
+  `).all(req.portalUser.id);
+
+  res.json(rows.map(r => ({
+    jti:       r.jti,
+    ip:        r.ip_address || '',
+    device:    r.device_name || 'Unknown device',
+    userAgent: r.user_agent  || '',
+    lastSeen:  r.last_seen_at,
+    createdAt: r.created_at,
+    revoked:   !!r.revoked_at,
+  })));
+});
+
+// POST /sessions/:jti/revoke — revoke a specific session
+router.post('/sessions/:jti/revoke', authenticatePortal, async (req, res) => {
+  const { jti } = req.params;
+  const session = await db.prepare(
+    `SELECT id FROM portal_sessions WHERE jti = $1 AND portal_user_id = $2`
+  ).get(jti, req.portalUser.id);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  await db.prepare(`UPDATE portal_sessions SET revoked_at = NOW() WHERE jti = $1`).run(jti);
+  await portalAudit(req.portalUser.id, req.patientId, 'session_revoked', { jti }, req.ip);
+  res.json({ ok: true });
+});
+
+// GET /admin/patient/:patientId/messages — staff reads a patient's portal thread
+router.get('/admin/patient/:patientId/messages', authenticate, async (req, res) => {
+  const { patientId } = req.params;
+  const rows = await db.prepare(`
+    SELECT id, from_name, subject, body, date, time, type, urgent,
+           from_user_type, to_user_type, provider_id, thread_key, category
+    FROM inbox_messages
+    WHERE patient_id = $1
+      AND (from_user_type = 'patient' OR to_user_type = 'patient')
+      AND is_active = true
+    ORDER BY date ASC, time ASC
+    LIMIT 500
+  `).all(patientId);
+
+  res.json(rows.map(r => ({
+    id:           r.id,
+    from:         r.from_name,
+    subject:      r.subject,
+    body:         r.body,
+    date:         r.date,
+    time:         r.time,
+    type:         r.type,
+    urgent:       !!r.urgent,
+    fromUserType: r.from_user_type || 'system',
+    toUserType:   r.to_user_type   || 'provider',
+    providerId:   r.provider_id,
+    threadKey:    r.thread_key  || '',
+    category:     r.category    || 'General',
+  })));
 });
 
 // POST /telehealth/token

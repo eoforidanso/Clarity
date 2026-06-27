@@ -79,6 +79,7 @@ export default function Inbox() {
   const [selectedPatientId, setSelectedPatientId] = useState(null);
   const [filterType, setFilterType] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [filterUrgent, setFilterUrgent] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [showReply, setShowReply] = useState(false);
 
@@ -149,6 +150,9 @@ export default function Inbox() {
       msgs = msgs.filter(m => m.patient === selectedPatientId);
     }
 
+    if (filterUrgent) {
+      msgs = msgs.filter(m => m.urgent);
+    }
     if (filterType !== 'All') {
       msgs = msgs.filter(m => m.type === filterType);
     }
@@ -163,7 +167,7 @@ export default function Inbox() {
       if (a.status !== 'Unread' && b.status === 'Unread') return 1;
       return new Date(b.date) - new Date(a.date);
     });
-  }, [inboxMessages, filterType, filterStatus, currentUser, selectedPatientId, accessiblePatientIds]);
+  }, [inboxMessages, filterType, filterStatus, filterUrgent, currentUser, selectedPatientId, accessiblePatientIds]);
 
   const selectedMessage = (inboxMessages || []).find(m => m.id === selectedId);
 
@@ -308,12 +312,15 @@ export default function Inbox() {
             {(() => {
               const urgentCount = scopedMessages.filter(m => m.urgent).length;
               return [
-                { label: 'Total', value: scopedMessages.length, bg: '#f8fafc', color: '#475569', dot: '#94a3b8', border: '1.5px solid #e2e8f0' },
-                { label: 'Unread', value: unreadCount, bg: unreadCount > 0 ? '#eff6ff' : '#f8fafc', color: unreadCount > 0 ? '#1e40af' : '#94a3b8', dot: '#3b82f6', border: `1.5px solid ${unreadCount > 0 ? '#93c5fd' : '#e2e8f0'}` },
-                { label: 'Urgent', value: urgentCount, bg: urgentCount > 0 ? '#fef2f2' : '#f8fafc', color: urgentCount > 0 ? '#991b1b' : '#94a3b8', dot: '#ef4444', border: `1.5px solid ${urgentCount > 0 ? '#fca5a5' : '#e2e8f0'}` },
+                { label: 'Total',  value: scopedMessages.length, bg: '#f8fafc', color: '#475569', dot: '#94a3b8', border: '1.5px solid #e2e8f0', onClick: null },
+                { label: 'Unread', value: unreadCount, bg: unreadCount > 0 ? '#eff6ff' : '#f8fafc', color: unreadCount > 0 ? '#1e40af' : '#94a3b8', dot: '#3b82f6', border: `1.5px solid ${unreadCount > 0 ? '#93c5fd' : '#e2e8f0'}`, onClick: () => setFilterStatus(s => s === 'Unread' ? 'All' : 'Unread') },
+                { label: 'Urgent', value: urgentCount, bg: filterUrgent ? '#fef2f2' : (urgentCount > 0 ? '#fef2f2' : '#f8fafc'), color: urgentCount > 0 ? '#991b1b' : '#94a3b8', dot: '#ef4444', border: `1.5px solid ${filterUrgent ? '#dc2626' : urgentCount > 0 ? '#fca5a5' : '#e2e8f0'}`, onClick: () => setFilterUrgent(f => !f) },
               ];
             })().map(s => (
-              <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', height: 26, borderRadius: 'var(--radius-chip)', background: s.bg, border: s.border, boxShadow: 'var(--shadow-sm)' }}>
+              <div key={s.label}
+                onClick={s.onClick || undefined}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', height: 26, borderRadius: 'var(--radius-chip)', background: s.bg, border: s.border, boxShadow: 'var(--shadow-sm)', cursor: s.onClick ? 'pointer' : 'default', userSelect: 'none' }}
+                title={s.onClick ? `Click to filter by ${s.label.toLowerCase()}` : undefined}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
                 <span style={{ fontSize: 14, fontWeight: 800, color: s.color }}>{s.value}</span>
                 <span style={{ fontSize: 11, color: s.color, opacity: 0.75 }}>{s.label}</span>
