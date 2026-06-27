@@ -355,33 +355,40 @@ router.post('/register-invite', async (req, res) => {
 // ── B. Self-registration ──────────────────────────────────────────────────────
 
 // POST /api/patient-portal/register — step 1: submit email
+// POST /register — step 1 of self-registration
+// Creates a portal_users row with status = 'pending_verification' and
+// linked_patient_id = NULL. Identity matching (step 2) sets status = 'linked'
+// and linked_patient_id once the patient chart is confirmed.
 router.post('/register', async (req, res) => {
   const { email } = req.body;
   if (!email?.trim()) return res.status(400).json({ error: 'Email is required' });
 
   const normalEmail = email.trim().toLowerCase();
-  const existing = await db.prepare(
-    'SELECT id, status FROM portal_users WHERE LOWER(email) = $1'
+  const existing    = await db.prepare(
+    `SELECT id, status FROM portal_users WHERE LOWER(email) = $1`
   ).get(normalEmail);
 
-  if (existing?.status === 'linked') {
-    // Already registered — route to login (send OTP)
-    return res.json({ ok: true, exists: true });
-  }
-  if (existing?.status === 'pending_verification') {
+  if (existing) {
+    if (existing.status === 'disabled') {
+      return res.status(403).json({ error: 'This account has been disabled. Contact your clinic.' });
+    }
+    if (existing.status === 'linked') {
+      // Already registered — tell the frontend to switch to the login flow
+      return res.json({ ok: true, exists: true });
+    }
+    // pending_verification — let them continue identity matching
     return res.json({ ok: true, pending: true, userId: existing.id });
   }
-  if (existing?.status === 'disabled') {
-    return res.status(403).json({ error: 'This account has been disabled. Contact your clinic.' });
-  }
 
-  // New email — create record
+  // New email — create row; linked_patient_id stays NULL until chart match
   const userId = uuidv4();
   await db.prepare(`
-    INSERT INTO portal_users (id, email, status) VALUES ($1, $2, 'pending_verification')
+    INSERT INTO portal_users (id, email, status, linked_patient_id)
+    VALUES ($1, $2, 'pending_verification', NULL)
   `).run(userId, normalEmail);
 
-  res.json({ ok: true, needsRegistration: true, userId });
+  await portalAudit(userId, null, 'register_started', { email: normalEmail }, req.ip);
+  res.json({ ok: true, userId });
 });
 
 // POST /api/patient-portal/verify-identity — step 2: self-registration demographics
@@ -588,28 +595,64 @@ router.post('/verify-otp', async (req, res) => {
 
 // ── E. Password-based login ───────────────────────────────────────────────────
 
+// POST /login — password-based login
+// Requirements:
+//   status MUST be 'linked'         — pending/disabled accounts cannot log in
+//   linked_patient_id MUST be set   — a linked account without a chart is invalid
+//   password_hash MUST be set       — account must have a password configured
+//   failed attempts tracked via login_attempts; locked after MAX_LOGIN_ATTEMPTS
 router.post('/login', async (req, res) => {
+  const MAX_LOGIN_ATTEMPTS = 5;
+
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
   const normalEmail = email.trim().toLowerCase();
   const portalUser  = await db.prepare(`
-    SELECT id, first_name, last_name, status, linked_patient_id, password_hash, locked_until
+    SELECT id, first_name, last_name, status, linked_patient_id,
+           password_hash, login_attempts, locked_until
     FROM portal_users WHERE LOWER(email) = $1
   `).get(normalEmail);
 
-  if (!portalUser || !portalUser.password_hash) {
-    return res.status(401).json({ error: 'Invalid email or password' });
+  // Generic error — don't reveal whether the email exists
+  const deny = () => res.status(401).json({ error: 'Invalid email or password' });
+
+  if (!portalUser || !portalUser.password_hash) return deny();
+
+  if (portalUser.status === 'disabled') {
+    return res.status(403).json({ error: 'Account disabled. Contact your clinic.' });
   }
-  if (portalUser.status !== 'linked') {
-    return res.status(403).json({ error: 'Account not verified' });
+  if (portalUser.status !== 'linked' || !portalUser.linked_patient_id) {
+    // pending_verification or invalid linked state — cannot log in with password
+    return res.status(403).json({ error: 'Account not yet verified. Complete registration first.' });
   }
   if (portalUser.locked_until && new Date(portalUser.locked_until) > new Date()) {
     return res.status(429).json({ error: 'Account locked. Try again in 10 minutes.' });
   }
 
   const valid = await bcrypt.compare(password, portalUser.password_hash);
-  if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
+
+  if (!valid) {
+    const attempts = (portalUser.login_attempts || 0) + 1;
+    if (attempts >= MAX_LOGIN_ATTEMPTS) {
+      const lockUntil = new Date(Date.now() + LOCK_DURATION).toISOString();
+      await db.prepare(
+        `UPDATE portal_users SET login_attempts = $1, locked_until = $2 WHERE id = $3`
+      ).run(attempts, lockUntil, portalUser.id);
+      await portalAudit(portalUser.id, portalUser.linked_patient_id, 'login_locked', { attempts }, req.ip);
+      return res.status(429).json({ error: 'Too many incorrect attempts. Account locked for 10 minutes.' });
+    }
+    await db.prepare(
+      `UPDATE portal_users SET login_attempts = $1 WHERE id = $2`
+    ).run(attempts, portalUser.id);
+    const left = MAX_LOGIN_ATTEMPTS - attempts;
+    return res.status(401).json({ error: `Invalid email or password. ${left} attempt${left === 1 ? '' : 's'} remaining.` });
+  }
+
+  // Success — reset attempt counter
+  await db.prepare(
+    `UPDATE portal_users SET login_attempts = 0, locked_until = NULL, updated_at = NOW() WHERE id = $1`
+  ).run(portalUser.id);
 
   issuePortalSession(res, portalUser.id, portalUser.linked_patient_id);
   await portalAudit(portalUser.id, portalUser.linked_patient_id, 'login_password', {}, req.ip);
