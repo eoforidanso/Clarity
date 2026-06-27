@@ -16,6 +16,7 @@ export default function Sidebar() {
   const navPrefs = getNavPrefs();
   const aiPrefs = getAIFeatures();
   const [chartExpanded, setChartExpanded] = useState(true);
+  const [portalQueueCount, setPortalQueueCount] = useState(0);
 
   // ── Collapsible section state ────────────────────────────
   const [expanded, setExpanded] = useState(() => {
@@ -54,6 +55,19 @@ export default function Sidebar() {
   const isBiller = currentUser?.role === 'biller';
   const isAdminOrFrontDesk = isFrontDesk || isAdmin;
   const isTherapist = currentUser?.role === 'therapist';
+
+  useEffect(() => {
+    if (!isAdminOrFrontDesk) return;
+    const API = import.meta.env.VITE_API_URL || '/api';
+    const load = () =>
+      fetch(`${API}/patient-portal/admin/queue/count`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d?.count != null) setPortalQueueCount(d.count); })
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 60_000);
+    return () => clearInterval(id);
+  }, [isAdminOrFrontDesk]);
 
   const isClinical = ['prescriber', 'nurse', 'therapist'].includes(currentUser?.role);
   const isNonClinical = ['admin', 'front_desk', 'biller'].includes(currentUser?.role);
@@ -194,6 +208,7 @@ export default function Sidebar() {
           {navItem('/patient-registration', '📝', 'Patient Registration')}
           {navItem('/refill-queue', '💊', 'Refill Queue')}
           {navItem('/staff-messaging', '💬', 'Staff Messaging')}
+          {isAdminOrFrontDesk && navItem('/portal-queue', '🪪', 'Portal Verify Queue', portalQueueCount)}
         </ul>
         )}
       </div>

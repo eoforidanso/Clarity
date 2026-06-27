@@ -584,6 +584,12 @@ router.post('/verify-otp', async (req, res) => {
     WHERE id = $1
   `).run(portalUser.id);
 
+  if (portalUser.linked_patient_id) {
+    await db.prepare(
+      `UPDATE patients SET portal_last_login = NOW() WHERE id = $1`
+    ).run(portalUser.linked_patient_id);
+  }
+
   issuePortalSession(res, portalUser.id, portalUser.linked_patient_id);
   await portalAudit(portalUser.id, portalUser.linked_patient_id, 'login', {}, req.ip);
 
@@ -654,10 +660,13 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ error: `Invalid email or password. ${left} attempt${left === 1 ? '' : 's'} remaining.` });
   }
 
-  // Success — reset attempt counter
+  // Success — reset attempt counter and stamp last login
   await db.prepare(
     `UPDATE portal_users SET login_attempts = 0, locked_until = NULL, updated_at = NOW() WHERE id = $1`
   ).run(portalUser.id);
+  await db.prepare(
+    `UPDATE patients SET portal_last_login = NOW() WHERE id = $1`
+  ).run(portalUser.linked_patient_id);
 
   issuePortalSession(res, portalUser.id, portalUser.linked_patient_id);
   await portalAudit(portalUser.id, portalUser.linked_patient_id, 'login_password', {}, req.ip);
@@ -799,6 +808,14 @@ router.get('/admin/queue', authenticate, async (req, res) => {
   }));
 
   res.json(results);
+});
+
+// GET /admin/queue/count — lightweight badge endpoint
+router.get('/admin/queue/count', authenticate, async (req, res) => {
+  const row = await db.prepare(
+    `SELECT COUNT(*) AS count FROM portal_users WHERE status = 'pending_verification'`
+  ).get();
+  res.json({ count: Number(row?.count ?? 0) });
 });
 
 // GET /admin/queue/patients/search — search patients for manual linking

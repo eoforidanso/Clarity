@@ -47,6 +47,66 @@ function toForm(p) {
   };
 }
 
+function PortalInviteButton({ patient }) {
+  const [status, setStatus] = useState('idle'); // idle | sending | sent | error
+  const [msg, setMsg]       = useState('');
+  const API = import.meta.env.VITE_API_URL || '/api';
+
+  const send = async () => {
+    if (!window.confirm(`Send portal invite to ${patient.email}?`)) return;
+    setStatus('sending');
+    try {
+      const res  = await fetch(`${API}/patient-portal/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ patientId: patient.id, email: patient.email }),
+      });
+      const data = await res.json();
+      if (res.status === 409) { setStatus('error'); setMsg('Already has an active portal account'); return; }
+      if (!res.ok)            { setStatus('error'); setMsg(data.error || 'Failed to send invite'); return; }
+      setStatus('sent');
+      setMsg(`Invite sent to ${patient.email}`);
+      setTimeout(() => setStatus('idle'), 5000);
+    } catch {
+      setStatus('error');
+      setMsg('Network error — try again');
+      setTimeout(() => setStatus('idle'), 4000);
+    }
+  };
+
+  if (status === 'sent') {
+    return (
+      <span style={{ marginTop: 18, fontSize: 11, color: '#059669', fontWeight: 700, flexShrink: 0 }}>
+        ✅ {msg}
+      </span>
+    );
+  }
+  if (status === 'error') {
+    return (
+      <span style={{ marginTop: 18, fontSize: 11, color: '#dc2626', fontWeight: 600, flexShrink: 0 }}>
+        ⚠️ {msg}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={send}
+      disabled={status === 'sending'}
+      style={{
+        marginTop: 18, padding: '5px 12px', borderRadius: 6, fontSize: 11,
+        fontWeight: 700, border: '1px solid #93c5fd',
+        background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer',
+        whiteSpace: 'nowrap', flexShrink: 0,
+        opacity: status === 'sending' ? 0.6 : 1,
+      }}
+    >
+      {status === 'sending' ? '⏳ Sending…' : '📧 Send portal invite'}
+    </button>
+  );
+}
+
 export default function Demographics({ patientId }) {
   const { selectedPatient, updatePatient } = usePatient();
   const { currentUser } = useAuth();
@@ -343,30 +403,7 @@ export default function Demographics({ patientId }) {
                     <Field label="Email" value={p.email} />
                   </div>
                   {p.email && (
-                    <button
-                      onClick={async () => {
-                        if (!window.confirm(`Send portal invite to ${p.email}?`)) return;
-                        try {
-                          const API = import.meta.env.VITE_API_URL || '/api';
-                          const res = await fetch(`${API}/patient-portal/request-access`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            credentials: 'include',
-                            body: JSON.stringify({ email: p.email }),
-                          });
-                          if (res.ok) alert(`✅ Portal invite sent to ${p.email}`);
-                          else alert('Failed to send invite');
-                        } catch { alert('Network error'); }
-                      }}
-                      style={{
-                        marginTop: 18, padding: '5px 12px', borderRadius: 6, fontSize: 11,
-                        fontWeight: 700, border: '1px solid #93c5fd',
-                        background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer',
-                        whiteSpace: 'nowrap', flexShrink: 0,
-                      }}
-                    >
-                      📧 Send portal invite
-                    </button>
+                    <PortalInviteButton patient={p} />
                   )}
                   {!p.email && (
                     <span style={{ marginTop: 18, fontSize: 11, color: '#ef4444', fontWeight: 600, flexShrink: 0 }}>
