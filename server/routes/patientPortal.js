@@ -212,9 +212,14 @@ export async function authenticatePortal(req, res, next) {
     res.clearCookie(COOKIE_NAME);
     return res.status(403).json({ error: 'Portal account is not verified' });
   }
+  if (!portalUser.linked_patient_id) {
+    // Defensive: status = linked but no chart — should never happen after /login guards
+    res.clearCookie(COOKIE_NAME);
+    return res.status(403).json({ error: 'Portal account has no linked patient chart. Contact your clinic.' });
+  }
 
   req.portalUser = portalUser;
-  req.patientId  = portalUser.linked_patient_id;
+  req.patientId  = portalUser.linked_patient_id; // always a real patient id past this point
   next();
 }
 
@@ -876,7 +881,7 @@ router.get('/messages', authenticatePortal, async (req, res) => {
            from_user_type, to_user_type, provider_id
     FROM inbox_messages
     WHERE patient_id = $1
-      AND (to_user_type = 'patient' OR from_user_type = 'patient' OR to_user_type IS NULL OR to_user_type = 'provider')
+      AND (from_user_type = 'patient' OR to_user_type = 'patient')
     ORDER BY date ASC, time ASC
     LIMIT 200
   `).all(req.patientId);
