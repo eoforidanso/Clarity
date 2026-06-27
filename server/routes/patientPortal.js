@@ -1,18 +1,23 @@
 /**
  * Clarity EHR — Patient Portal (v2)
  *
- * Auth model: portal_users + portal_sessions tables.
- * Session token stored as SHA-256 hash; raw token in httpOnly cookie.
+ * Auth model: signed JWT in httpOnly cookie.
+ * Cookie payload: { portal_user_id, linked_patient_id, roles: ['patient'], exp }
+ * authenticatePortal verifies signature, loads portal_users, enforces status = 'linked'.
+ *
+ * Login paths:
+ *   A. Passwordless: POST /request-access (email) → POST /verify-otp (email + code)
+ *   B. Password:     POST /login (email + password)
  *
  * Registration paths:
- *   A. Invite-based (gold path):  GET  /invite/:code → POST /register-invite
- *   B. Self-registration:         POST /register → POST /verify-identity → POST /verify-otp
- *   C. Returning login:           POST /send-otp → POST /verify-otp
+ *   C. Invite-based (gold path): GET /invite/:code → POST /register-invite
+ *   D. Self-registration:        POST /register → POST /verify-identity → POST /verify-otp
  */
 
 import { Router } from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db/database.js';
 import { portalTelehealthToken } from './telehealthToken.js';
@@ -69,16 +74,13 @@ function normalizePhone(p) {
   return (p || '').replace(/\D/g, '');
 }
 
-async function issuePortalSession(res, portalUserId, ip, ua) {
-  const token     = generateSessionToken();
-  const tokenHash = hashToken(token);
-  const sessionId = uuidv4();
-  const expiresAt = new Date(Date.now() + SESSION_TTL).toISOString();
-
-  await db.prepare(`
-    INSERT INTO portal_sessions (id, portal_user_id, token_hash, expires_at, ip_address, user_agent)
-    VALUES ($1, $2, $3, $4, $5, $6)
-  `).run(sessionId, portalUserId, tokenHash, expiresAt, ip || '', ua || '');
+function issuePortalSession(res, portalUserId, linkedPatientId) {
+  const secret = process.env.PORTAL_JWT_SECRET || process.env.JWT_SECRET;
+  const token  = jwt.sign(
+    { portal_user_id: portalUserId, linked_patient_id: linkedPatientId, roles: ['patient'] },
+    secret,
+    { expiresIn: '8h' }
+  );
 
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
@@ -88,8 +90,6 @@ async function issuePortalSession(res, portalUserId, ip, ua) {
     maxAge:   SESSION_TTL,
     path:     '/',
   });
-
-  return sessionId;
 }
 
 async function portalAudit(portalUserId, patientId, eventType, metadata = {}, ip = '') {
@@ -188,28 +188,33 @@ export async function authenticatePortal(req, res, next) {
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
 
-  const tokenHash = hashToken(token);
-  const row = await db.prepare(`
-    SELECT
-      ps.id AS session_id,
-      pu.id, pu.email, pu.first_name, pu.last_name, pu.date_of_birth,
-      pu.phone, pu.address_line1, pu.address_line2, pu.city, pu.state, pu.zip,
-      pu.linked_patient_id, pu.status, pu.password_hash
-    FROM portal_sessions ps
-    JOIN portal_users pu ON ps.portal_user_id = pu.id
-    WHERE ps.token_hash = $1 AND ps.expires_at > NOW()
-  `).get(tokenHash);
-
-  if (!row) {
+  const secret = process.env.PORTAL_JWT_SECRET || process.env.JWT_SECRET;
+  let payload;
+  try {
+    payload = jwt.verify(token, secret);
+  } catch {
     res.clearCookie(COOKIE_NAME);
     return res.status(401).json({ error: 'Session expired — please sign in again' });
   }
-  if (row.status !== 'linked') {
+
+  const portalUser = await db.prepare(`
+    SELECT id, email, first_name, last_name, date_of_birth,
+           phone, address_line1, address_line2, city, state, zip,
+           linked_patient_id, status
+    FROM portal_users WHERE id = $1
+  `).get(payload.portal_user_id);
+
+  if (!portalUser) {
+    res.clearCookie(COOKIE_NAME);
+    return res.status(401).json({ error: 'Session expired — please sign in again' });
+  }
+  if (portalUser.status !== 'linked') {
+    res.clearCookie(COOKIE_NAME);
     return res.status(403).json({ error: 'Portal account is not verified' });
   }
 
-  req.portalUser = row;
-  req.patientId  = row.linked_patient_id;
+  req.portalUser = portalUser;
+  req.patientId  = portalUser.linked_patient_id;
   next();
 }
 
@@ -469,7 +474,6 @@ router.post('/verify-identity', async (req, res) => {
 
 // ── C. Returning user — send OTP ──────────────────────────────────────────────
 
-// Kept as /request-access for backward compat with existing login page
 router.post('/request-access', async (req, res) => {
   const { email } = req.body;
   if (!email?.trim()) return res.status(400).json({ error: 'Email is required' });
@@ -480,7 +484,6 @@ router.post('/request-access', async (req, res) => {
   ).get(normalEmail);
 
   if (!portalUser) {
-    // Unknown email — begin self-registration
     return res.json({ ok: true, needsVerification: true });
   }
   if (portalUser.status === 'pending_verification') {
@@ -491,6 +494,11 @@ router.post('/request-access', async (req, res) => {
   }
   if (portalUser.locked_until && new Date(portalUser.locked_until) > new Date()) {
     return res.status(429).json({ error: 'Account locked. Try again in 10 minutes.' });
+  }
+
+  // Only linked accounts may receive an OTP
+  if (portalUser.status !== 'linked') {
+    return res.json({ ok: true, needsVerification: true });
   }
 
   const otp    = generateOtp();
@@ -564,7 +572,7 @@ router.post('/verify-otp', async (req, res) => {
     WHERE id = $1
   `).run(portalUser.id);
 
-  await issuePortalSession(res, portalUser.id, req.ip, req.get('User-Agent'));
+  issuePortalSession(res, portalUser.id, portalUser.linked_patient_id);
   await portalAudit(portalUser.id, portalUser.linked_patient_id, 'login', {}, req.ip);
 
   res.json({
@@ -603,7 +611,7 @@ router.post('/login', async (req, res) => {
   const valid = await bcrypt.compare(password, portalUser.password_hash);
   if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
-  await issuePortalSession(res, portalUser.id, req.ip, req.get('User-Agent'));
+  issuePortalSession(res, portalUser.id, portalUser.linked_patient_id);
   await portalAudit(portalUser.id, portalUser.linked_patient_id, 'login_password', {}, req.ip);
 
   res.json({
