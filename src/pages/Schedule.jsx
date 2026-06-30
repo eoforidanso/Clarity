@@ -69,6 +69,43 @@ const getStatusStyle = s => STATUS_STYLE[s] || STATUS_STYLE["Scheduled"];
 const PROV_COLORS = ["#4f46e5","#0891b2","#059669","#7c3aed","#dc2626","#d97706"];
 const provColor = (id, provs) => PROV_COLORS[(provs || []).findIndex(p => p.id === id) % PROV_COLORS.length] || "#4f46e5";
 
+// ── Slot availability ─────────────────────────────────────────────
+const ALL_SLOTS = [];
+for (let _h = 7; _h <= 20; _h++) {
+  for (const _m of [0, 30]) { ALL_SLOTS.push(`${String(_h).padStart(2,'0')}:${String(_m).padStart(2,'0')}`); }
+}
+
+function computeSlotStatuses(providerId, date, allAppts, blockedByDate) {
+  if (!providerId || !date) return {};
+  const now = new Date();
+  const todayStr = toKey(now);
+  const isToday = date === todayStr;
+  const isPastDate = date < todayStr;
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const dayBlocks = (blockedByDate[date] || []).filter(b => (b.providerId ?? b.provider) === providerId);
+  const isFullyBlocked = dayBlocks.some(b => { const t = b.type ?? b.blockType; return !t || t === 'full'; });
+  const provAppts = allAppts.filter(a =>
+    a.provider === providerId && a.date === date &&
+    a.status !== 'Cancelled' && a.status !== 'No Show' && a.time
+  );
+  const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const statuses = {};
+  ALL_SLOTS.forEach(time => {
+    const slotMins = toMin(time);
+    const slotEnd  = slotMins + 30;
+    let status = 'available';
+    if (isPastDate || (isToday && slotMins <= nowMins)) {
+      status = 'past';
+    } else if (isFullyBlocked) {
+      status = 'blocked';
+    } else if (provAppts.some(a => { const s=toMin(a.time); const e=s+Number(a.duration||30); return s<slotEnd&&e>slotMins; })) {
+      status = 'booked';
+    }
+    statuses[time] = status;
+  });
+  return statuses;
+}
+
 const card = (extra = {}) => ({
   background: "#fff", border: "1px solid var(--border)", borderRadius: 10,
   boxShadow: "var(--shadow-sm)", ...extra,
@@ -504,7 +541,7 @@ const getSlotStatus = (count, capacity = DEFAULT_CAPACITY) => {
   return "";
 };
 
-function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, onUpdateStatus, onReschedule, onSlotClick, isMobile }) {
+function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, onUpdateStatus, onReschedule, onSlotClick, isMobile, slotStatuses }) {
   const now = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
 
@@ -558,16 +595,22 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
         const slotCount       = slotAppts.length;
         const slotCapacity    = 1; // one appointment per 30-min slot
         const capacityClass   = getSlotStatus(slotCount, slotCapacity);
-        const dotColor  = capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : isHalfHour ? "#f1f5f9" : "#e2e8f0";
-        const dotBorder = capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : isHalfHour ? "#e2e8f0" : "#cbd5e1";
+        const slotStatus    = slotStatuses?.[slotKey] ?? 'available';
+        const isPastSlot    = slotStatus === 'past';
+        const isBlockedSlot = slotStatus === 'blocked';
+        const dotColor  = (isPastSlot || isBlockedSlot) ? "#e2e8f0" : capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : isHalfHour ? "#f1f5f9" : "#e2e8f0";
+        const dotBorder = (isPastSlot || isBlockedSlot) ? "#e2e8f0" : capacityClass === "full" ? "#dc3545" : capacityClass === "warning" ? "#ffc107" : isHalfHour ? "#e2e8f0" : "#cbd5e1";
         const isCurrentSlot   = isToday && nowSlotKey === slotKey;
         const posWithinSlot   = `${(((nowMins - slotStartMins) / 30) * 100).toFixed(0)}%`;
-        // Half-hour rows are smaller and lighter to visually de-emphasise them
-        const rowStyle = isHalfHour
+        const rowStyle = isPastSlot
+          ? { marginBottom: 2, borderRadius: isHalfHour ? 6 : 8, position: "relative", opacity: 0.45 }
+          : isBlockedSlot
+          ? { marginBottom: 2, borderRadius: isHalfHour ? 6 : 8, position: "relative", background: "repeating-linear-gradient(45deg, #f8fafc, #f8fafc 4px, #f1f5f9 4px, #f1f5f9 8px)" }
+          : isHalfHour
           ? { marginBottom: 2, borderRadius: 6, position: "relative", opacity: 0.85 }
           : { marginBottom: 2, borderRadius: 8, position: "relative" };
 
-        const isClickable = slotCount === 0 && !!onSlotClick;
+        const isClickable = slotCount === 0 && !!onSlotClick && slotStatus === 'available';
         return (
           <div key={slotKey} className={`calendar-slot ${capacityClass}`}
             style={{
@@ -633,6 +676,18 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
                   ＋ open
                 </div>
               )
+            ) : isPastSlot ? (
+              !isHalfHour && (
+                <div style={{ padding: "4px 8px 6px", color: "#94a3b8", fontSize: 10, fontStyle: "italic", pointerEvents: "none" }}>
+                  — past —
+                </div>
+              )
+            ) : isBlockedSlot ? (
+              !isHalfHour && (
+                <div style={{ padding: "4px 8px 6px", color: "#94a3b8", fontSize: 10, fontStyle: "italic", pointerEvents: "none" }}>
+                  ✕ blocked
+                </div>
+              )
             ) : (
               <div style={{ padding: isHalfHour ? "4px 0" : "6px 0", color: "var(--text-dim)", fontSize: 10, fontStyle: "italic", borderBottom: `1px dashed ${isHalfHour ? "#f8fafc" : "#f1f5f9"}` }}>
                 {!isHalfHour && "— open —"}
@@ -660,7 +715,7 @@ const VISIT_COLORS = {
   'Procedure':        '#ec4899',
 };
 
-function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, todayKey, isToday, onCellClick, onAptClick }) {
+function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, todayKey, isToday, onCellClick, onAptClick, availabilityByProvider }) {
   const DAY_START_MIN = 7 * 60;   // 7:00 AM
   const DAY_END_MIN   = 20 * 60;  // 8:00 PM
   const PX_PER_MIN    = 1.8;      // 30 min = 54px, 60 min = 108px, 15 min = 27px
@@ -776,6 +831,28 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
                   borderTop:`1px ${isHalf?'dashed':'solid'} ${isHalf?'#e2e8f0':'#cbd5e1'}`, pointerEvents:'none' }} />
               ))}
 
+              {/* Past / blocked slot overlays */}
+              {timeMarks.filter(({ mins }) => {
+                if (mins >= DAY_END_MIN) return false;
+                const h2=Math.floor(mins/60), m2=mins%60;
+                const t=`${String(h2).padStart(2,'0')}:${String(m2).padStart(2,'0')}`;
+                const st = availabilityByProvider?.[p.id]?.[t];
+                return st === 'past' || st === 'blocked';
+              }).map(({ top: ot, mins }) => {
+                const h2=Math.floor(mins/60), m2=mins%60;
+                const t=`${String(h2).padStart(2,'0')}:${String(m2).padStart(2,'0')}`;
+                const st = availabilityByProvider?.[p.id]?.[t];
+                return (
+                  <div key={`na-${t}`} style={{
+                    position:'absolute', top: ot, left:0, right:0, height: 54*PX_PER_MIN/PX_PER_MIN,
+                    background: st==='past'
+                      ? 'rgba(241,245,249,0.78)'
+                      : 'repeating-linear-gradient(45deg,rgba(241,245,249,0.6),rgba(241,245,249,0.6) 4px,rgba(226,232,240,0.6) 4px,rgba(226,232,240,0.6) 8px)',
+                    zIndex:0, pointerEvents:'none',
+                  }} />
+                );
+              })}
+
               {/* Current time indicator */}
               {nowTop !== null && (
                 <div style={{ position:'absolute', top:nowTop, left:0, right:0, height:2, background:'#ef4444', zIndex:5, pointerEvents:'none' }}>
@@ -824,8 +901,12 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
               })}
 
               {/* Open slots — always visible, click to book */}
-              {onCellClick && timeMarks.filter(({ mins }) => {
+              {onCellClick && timeMarks.filter(({ mins, key }) => {
                 if (mins >= DAY_END_MIN) return false;
+                const h2=Math.floor(mins/60), m2=mins%60;
+                const t=`${String(h2).padStart(2,'0')}:${String(m2).padStart(2,'0')}`;
+                const avStatus = availabilityByProvider?.[p.id]?.[t];
+                if (avStatus && avStatus !== 'available') return false;
                 const slotEnd = mins + 30;
                 return !(dayAppts[p.id] || []).some(a => {
                   const s = slotToMins(a.time);
@@ -863,7 +944,7 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
 /* ══════════════════════════════════════════════
    SCHEDULE MODAL
 ══════════════════════════════════════════════ */
-function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitType, patients, onSave, defaultProvider, providers = [], existingAppts = [] }) {
+function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitType, patients, onSave, defaultProvider, providers = [], existingAppts = [], blockedByDate = {} }) {
   const defaultProviderId = defaultProvider || providers[0]?.id || "";
   const DURATION_BY_TYPE = { 'New Patient':60, 'Follow-Up':30, 'Urgent':30, 'Medication Review':30, 'Telehealth':30, 'Office Visit':30, 'Phone Consult':15, 'Procedure':60 };
   const EMPTY = { isNewPatient:false, patientId:"", newPatientName:"", provider:defaultProviderId,
@@ -881,14 +962,29 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
   // Convert HH:MM to total minutes
   const toMins = t => { if (!t) return 0; const [h,m] = t.split(':').map(Number); return h*60+m; };
 
-  // First open slot for the given provider/date (walks 7am-8pm in 15-min steps)
+  // Slot availability for the currently selected provider + date
+  const modalSlotStatuses = useMemo(() =>
+    computeSlotStatuses(form.provider, form.date, existingAppts, blockedByDate),
+    [form.provider, form.date, existingAppts, blockedByDate] // eslint-disable-line
+  );
+
+  // First open slot for the given provider/date (walks 7am-8pm in 15-min steps, respects past/blocked)
   const computeFirstAvailable = (provider, date, dur) => {
     if (!provider || !date) return '07:00';
     const needed = Number(dur || 30);
+    const now2 = new Date();
+    const todayStr = toKey(now2);
+    if (date < todayStr) return '07:00';
+    const isToday2 = date === todayStr;
+    const nowMins2 = isToday2 ? now2.getHours() * 60 + now2.getMinutes() : -1;
+    const dayBlocks = (blockedByDate[date] || []).filter(b => (b.providerId ?? b.provider) === provider);
+    const isFullyBlocked = dayBlocks.some(b => { const t = b.type ?? b.blockType; return !t || t === 'full'; });
+    if (isFullyBlocked) return '07:00';
     const provAppts = existingAppts.filter(
       a => a.provider === provider && a.date === date && a.status !== 'Cancelled' && a.status !== 'No Show' && a.time
     );
     for (let mins = 7 * 60; mins <= 20 * 60 - needed; mins += 15) {
+      if (isToday2 && mins <= nowMins2) continue;
       const slotEnd = mins + needed;
       const blocked = provAppts.some(a => {
         const s = toMins(a.time); const e = s + Number(a.duration || 30);
@@ -1046,7 +1142,19 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:14 }}>
             <div><LBL c="Date" /><input type="date" className="form-input" value={form.date} onChange={e=>upd("date",e.target.value)} /></div>
-            <div><LBL c="Start Time" /><input type="time" className="form-input" value={form.time} onChange={e=>upd("time",e.target.value)} /></div>
+            <div>
+              <LBL c="Start Time" />
+              <select className="form-input" value={form.time} onChange={e=>upd("time",e.target.value)}>
+                {ALL_SLOTS.map(t => {
+                  const st = modalSlotStatuses[t] || 'available';
+                  return (
+                    <option key={t} value={t} disabled={st !== 'available'}>
+                      {fmtTime12(t)}{st !== 'available' ? ` — ${st}` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
             <div>
               <LBL c="End Time" />
               <div style={{ padding:"8px 12px", borderRadius:8, border:"1px solid #e2e8f0", background:"#f8fafc",
@@ -2994,6 +3102,7 @@ export default function Schedule() {
     if (!isFiltered) return base;
     return base.filter(a => appointmentSiteId(a) === activeSiteId);
   }, [appointments, activeSiteId, isFiltered]);
+
   const todayKey = toKey(getToday());
 
   const aptsByDate = useMemo(() => {
@@ -3102,6 +3211,18 @@ export default function Schedule() {
       provIdsWithAppts.has(p.id) || !p.locationId || p.locationId === activeSiteId
     );
   }, [isFiltered, allAppts, activeSiteId, currentUser, providers]);
+
+  // Availability matrices — computed client-side from appointments + blocked days
+  const availabilityByProvider = useMemo(() => {
+    const map = {};
+    siteProviders.forEach(p => { map[p.id] = computeSlotStatuses(p.id, activeDate, allAppts, blockedByDate); });
+    return map;
+  }, [siteProviders, activeDate, allAppts, blockedByDate]); // eslint-disable-line
+
+  const timelineSlotStatuses = useMemo(() =>
+    providerFilter !== 'all' ? computeSlotStatuses(providerFilter, activeDate, allAppts, blockedByDate) : {},
+    [providerFilter, activeDate, allAppts, blockedByDate] // eslint-disable-line
+  );
 
   const handleOpenChart  = useCallback(apt => { if(apt.patientId){selectPatient(apt.patientId);navigate(`/chart/${apt.patientId}/summary`);} }, [selectPatient,navigate]);
   const handleCheckIn    = useCallback(apt => {
@@ -3568,6 +3689,7 @@ export default function Schedule() {
                         setShowModal(true);
                       } : undefined}
                       isMobile={isMobile}
+                      slotStatuses={timelineSlotStatuses}
                     />
                   </div>
                 ) : (
@@ -3587,6 +3709,7 @@ export default function Schedule() {
                       setShowModal(true);
                     }}
                     onAptClick={apt => setRescheduleAptSchedule(apt)}
+                    availabilityByProvider={availabilityByProvider}
                   />
                 )}
               </div>
@@ -3710,6 +3833,7 @@ export default function Schedule() {
         defaultProvider={modalProvider || (isProvider ? currentUser?.id : undefined)}
         providers={siteProviders}
         existingAppts={allAppts}
+        blockedByDate={blockedByDate}
         onSave={apt => { addAppointment({ ...apt, locationId: activeSiteId !== 'all' ? activeSiteId : undefined }); setShowModal(false); setModalVisitType('In-Person'); setModalTime(''); setModalProvider(''); }}
       />
     </div>

@@ -289,4 +289,55 @@ router.get('/telehealth-session/:aptId/participants', async (req, res) => {
   })));
 });
 
+// GET /api/schedule/availability?providerId=xxx&date=YYYY-MM-DD
+// Returns a 30-minute slot availability matrix for a provider on a given date.
+router.get('/availability', async (req, res) => {
+  try {
+    const { providerId, date } = req.query;
+    if (!providerId || !date) return res.status(400).json({ error: 'providerId and date required' });
+
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const isToday   = date === todayStr;
+    const isPastDate = date < todayStr;
+    const nowMins   = now.getHours() * 60 + now.getMinutes();
+
+    const toMins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+
+    // Check for a full-day block
+    const blockedDay = await db.prepare(
+      `SELECT block_type FROM blocked_days WHERE provider = ? AND date = ? LIMIT 1`
+    ).get(providerId, date);
+    const isFullyBlocked = blockedDay?.block_type === 'full' || (!blockedDay?.block_type && !!blockedDay);
+
+    // Non-cancelled/no-show appointments for this provider on this date
+    const appts = await db.prepare(
+      `SELECT time, duration FROM appointments
+       WHERE provider = ? AND date = ? AND status NOT IN ('Cancelled','No Show')`
+    ).all(providerId, date);
+
+    const slots = [];
+    for (let h = 7; h <= 20; h++) {
+      for (const m of [0, 30]) {
+        const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        const slotMins = h * 60 + m;
+        const slotEnd  = slotMins + 30;
+        let status = 'available';
+        if (isPastDate || (isToday && slotMins <= nowMins)) {
+          status = 'past';
+        } else if (isFullyBlocked) {
+          status = 'blocked';
+        } else if (appts.some(a => { const s = toMins(a.time); const e = s + Number(a.duration || 30); return s < slotEnd && e > slotMins; })) {
+          status = 'booked';
+        }
+        slots.push({ time, status });
+      }
+    }
+    res.json({ providerId, date, slots });
+  } catch (err) {
+    routeError(req, '[appointments] GET /availability', err);
+    res.status(500).json({ error: 'Failed to compute availability' });
+  }
+});
+
 export default router;
