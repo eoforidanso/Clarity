@@ -214,6 +214,7 @@ export default function PatientSearch() {
   const [emailError, setEmailError]       = useState('');
   const [dupMatches, setDupMatches]       = useState([]);      // array of possible duplicates
   const [mrnDupWarning, setMrnDupWarning] = useState('');
+  const [serverConflict, setServerConflict] = useState(null); // { reason, matches } from 409
   const [ssnMasked, setSsnMasked]         = useState('');
   const [ecSameAddress, setEcSameAddress] = useState(false);
   const [openSections, setOpenSections]   = useState({ demographics: true, contact: true, emergency: true, insurance: true, care: true });
@@ -510,13 +511,14 @@ export default function PatientSearch() {
     setEncounterModal(null);
   };
 
-  const saveNewPatient = async () => {
+  const saveNewPatient = async (force = false) => {
     if (!ptForm.firstName.trim() || !ptForm.lastName.trim() || !ptForm.dob || !ptForm.gender) {
       setPtError('First name, last name, date of birth, and gender are required.');
       return;
     }
     setPtSaving(true);
     setPtError('');
+    if (!force) setServerConflict(null);
     try {
       const created = await addPatient({
         ...ptForm,
@@ -527,20 +529,26 @@ export default function PatientSearch() {
             copay: ptForm.insurance.primary.copay ? Number(ptForm.insurance.primary.copay) : 0,
           },
         },
+        ...(force ? { forceCreate: true } : {}),
       });
       setAddModal(false);
       setPtForm(DEFAULT_PT);
       setSelectedPharmacyObj(null);
+      setServerConflict(null);
       selectPatient(created.id);
       navigate(`/chart/${created.id}/summary`);
     } catch (err) {
-      setPtError(err?.message || 'Failed to create patient. Please try again.');
+      if (err?.status === 409 && err?.details?.type === 'PATIENT_CONFLICT') {
+        setServerConflict({ reason: err.message, matches: err.details.matches || [] });
+      } else {
+        setPtError(err?.message || 'Failed to create patient. Please try again.');
+      }
     } finally {
       setPtSaving(false);
     }
   };
 
-  const cancelAddPatient = () => { setAddModal(false); setPtForm(DEFAULT_PT); setSelectedPharmacyObj(null); setPtError(''); };
+  const cancelAddPatient = () => { setAddModal(false); setPtForm(DEFAULT_PT); setSelectedPharmacyObj(null); setPtError(''); setServerConflict(null); };
 
   const modal = (
     <div role="dialog" aria-modal="true" aria-labelledby="ap-title" style={{
@@ -651,6 +659,27 @@ export default function PatientSearch() {
                       <span style={{ fontSize: 11, color: '#7c3aed' }}>Compare →</span>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {serverConflict && (
+                <div className="ap-dup-banner" role="alert" style={{ borderColor: '#ef4444', background: '#fef2f2' }}>
+                  <div className="ap-dup-banner-title" style={{ color: '#b91c1c' }}>🚫 Possible duplicate chart detected — {serverConflict.reason}</div>
+                  {serverConflict.matches.map((m, i) => (
+                    <div key={i} className="ap-dup-match" onClick={() => setDupCompare(m)} title="Compare side by side">
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                        {m.firstName?.[0]}{m.lastName?.[0]}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700 }}>{m.lastName}, {m.firstName} — {m.mrn}</div>
+                        <div style={{ fontSize: 11, opacity: 0.7 }}>DOB {m.dob}</div>
+                      </div>
+                      <span style={{ fontSize: 11, color: '#7c3aed' }}>Compare →</span>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 10, fontSize: 12, color: '#7f1d1d' }}>
+                    Review the existing chart(s) above. If this is truly a new patient, click <strong>Save anyway</strong>.
+                  </div>
                 </div>
               )}
 
@@ -966,10 +995,21 @@ export default function PatientSearch() {
                   disabled={!isFormValid} title={!isFormValid ? 'Fill required fields first' : ''}>
                   Review →
                 </button>
+              ) : serverConflict ? (
+                <>
+                  <button className="btn" onClick={() => saveNewPatient(false)} disabled={ptSaving}>
+                    Re-check
+                  </button>
+                  <button className="btn btn-primary" onClick={() => saveNewPatient(true)}
+                    disabled={ptSaving}
+                    style={{ background: '#ef4444', borderColor: '#ef4444' }}>
+                    {ptSaving ? 'Saving…' : 'Save anyway'}
+                  </button>
+                </>
               ) : (
-                <button className="btn btn-primary" onClick={saveNewPatient}
+                <button className="btn btn-primary" onClick={() => saveNewPatient(false)}
                   disabled={ptSaving || !isFormValid}>
-                  {ptSaving ? 'Saving…' : '💾 Save Patient'}
+                  {ptSaving ? 'Checking…' : '💾 Save Patient'}
                 </button>
               )}
             </div>

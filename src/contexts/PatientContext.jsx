@@ -152,9 +152,14 @@ export function PatientProvider({ children, demoMode = false }) {
 
   /* ────── Add patient ────── */
   const addPatient = useCallback(async (data) => {
-    const created = await patientsApi.create(data);
-    setPatients((prev) => [...prev, created]);
-    return created;
+    try {
+      const created = await patientsApi.create(data);
+      setPatients((prev) => [...prev, created]);
+      return created;
+    } catch (err) {
+      if (err?.status === 409) throw err; // duplicate — let caller handle the conflict UI
+      throw err;
+    }
   }, []);
 
   /* ────── Update patient demographics ────── */

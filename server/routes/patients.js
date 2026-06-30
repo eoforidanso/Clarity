@@ -5,6 +5,7 @@ import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { CreatePatientSchema, UpdatePatientSchema } from '../schemas/patientSchema.js';
 import { logAudit } from '../db/softDelete.js';
+import { detectPatientConflicts } from '../utils/patientConflicts.js';
 import { logPhiRead } from '../middleware/phiAudit.js';
 import { validateResponse } from '../middleware/validateResponse.js';
 import { PatientResponseSchema, PatientListResponseSchema } from '../schemas/responseSchemas.js';
@@ -139,6 +140,30 @@ router.post('/', authorize('prescriber', 'nurse', 'front_desk', 'admin'), valida
 
   // Scope new patients to the creating user's facility unless a specific location is provided
   const primaryLocation = b.locationId || req.user.facility_id || null;
+
+  // Duplicate chart prevention — skip if staff explicitly acknowledged the warning
+  if (!b.forceCreate) {
+    const conflict = await detectPatientConflicts({
+      firstName: b.firstName, lastName: b.lastName, dob: b.dob,
+      email: b.email || '',
+      phone: b.phone || '', cellPhone: b.cellPhone || '',
+      street: b.address?.street || '', zip: b.address?.zip || '',
+      memberId: b.insurance?.primary?.memberId || '',
+      insuranceName: b.insurance?.primary?.name || '',
+      guardianName: b.emergencyContact?.name || '',
+      guardianPhone: b.emergencyContact?.phone || '',
+    });
+    if (conflict.hasConflict) {
+      return res.status(409).json({
+        error: conflict.reason,  // becomes err.message on the client
+        details: {               // becomes err.details on the client
+          type: 'PATIENT_CONFLICT',
+          conflicts: conflict.conflicts,
+          matches: conflict.matches,
+        },
+      });
+    }
+  }
 
   await db.prepare(`INSERT INTO patients (id, mrn, first_name, last_name, dob, gender, pronouns, ssn, race, ethnicity, language, marital_status, phone, cell_phone, email, address_street, address_city, address_state, address_zip, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, insurance_primary_name, insurance_primary_member_id, insurance_primary_group_number, insurance_primary_copay, pcp, assigned_provider, is_btg, flags, primary_location, preferred_pharmacy, preferred_pharmacy_address, preferred_pharmacy_phone, preferred_pharmacy_fax) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
     id, mrn, b.firstName, b.lastName, b.dob, b.gender, b.pronouns || '', b.ssn || '', b.race || '', b.ethnicity || '', b.language || 'English', b.maritalStatus || '', b.phone || '', b.cellPhone || '', b.email || '', b.address?.street || '', b.address?.city || '', b.address?.state || '', b.address?.zip || '', b.emergencyContact?.name || '', b.emergencyContact?.relationship || '', b.emergencyContact?.phone || '', b.insurance?.primary?.name || '', b.insurance?.primary?.memberId || '', b.insurance?.primary?.groupNumber || '', b.insurance?.primary?.copay || 0, b.pcp || '', b.assignedProvider || '', b.isBTG ? 1 : 0, JSON.stringify(b.flags || []), primaryLocation,

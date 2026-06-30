@@ -70,4 +70,5 @@ export const CreatePatientSchema = z.object({
   locationId:       z.string().min(1).max(100).optional().nullable(),
   isBTG:            z.boolean().optional().default(false),
   flags:            z.array(z.string().max(50)).optional().default([]),
+  forceCreate:      z.boolean().optional().default(false),
 });
