@@ -542,7 +542,7 @@ const getSlotStatus = (count, capacity = DEFAULT_CAPACITY) => {
   return "";
 };
 
-function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, onUpdateStatus, onReschedule, onSlotClick, isMobile, slotStatuses }) {
+function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments, onOpenChart, onCheckIn, onGoToSession, onToggleVisitType, onUpdateStatus, onReschedule, onSlotClick, isMobile, slotStatuses, highlightSlots }) {
   const now = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
 
@@ -612,16 +612,21 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
           : { marginBottom: 2, borderRadius: 8, position: "relative" };
 
         const isClickable = slotCount === 0 && !!onSlotClick && slotStatus === 'available';
+        const isSuggested = highlightSlots?.has(slotKey) && slotStatus === 'available';
         return (
           <div key={slotKey} className={`calendar-slot ${capacityClass}`}
             style={{
               ...rowStyle,
               cursor: isClickable ? "pointer" : "default",
               minHeight: isClickable ? (isHalfHour ? 28 : 36) : undefined,
+              outline: isSuggested ? '2px solid #3b82f6' : undefined,
+              outlineOffset: isSuggested ? '-2px' : undefined,
+              background: isSuggested ? 'rgba(59,130,246,0.07)' : undefined,
             }}
             onClick={isClickable ? () => onSlotClick(slotKey) : undefined}
-            onMouseEnter={isClickable ? e => { e.currentTarget.style.background = "#f0fdf4"; } : undefined}
-            onMouseLeave={isClickable ? e => { e.currentTarget.style.background = ""; } : undefined}
+            onMouseEnter={isClickable ? e => { e.currentTarget.style.background = isSuggested ? "rgba(59,130,246,0.14)" : "#f0fdf4"; } : undefined}
+            onMouseLeave={isClickable ? e => { e.currentTarget.style.background = isSuggested ? "rgba(59,130,246,0.07)" : ""; } : undefined}
+            title={isSuggested ? "Suggested alternative slot" : undefined}
           >
             {/* Current-time bar */}
             {isCurrentSlot && (
@@ -636,7 +641,8 @@ function ScheduleTimeline({ appts, todayKey, isToday, patients, allAppointments,
                 <span style={{ fontSize: isHalfHour ? 10 : 11, fontWeight: isHalfHour ? 500 : 700, color: isHalfHour ? "#94a3b8" : "#64748b", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
                   {isHalfHour ? fmtTime12(slotKey) : fmtTime12(slotKey).replace(":00", "")}
                 </span>
-                <div style={{ width: isHalfHour ? 6 : 10, height: isHalfHour ? 6 : 10, borderRadius: "50%", background: dotColor, border: `2px solid ${dotBorder}`, flexShrink: 0, zIndex: 1, transition: "background 0.25s ease" }} />
+                <div style={{ width: isHalfHour ? 6 : 10, height: isHalfHour ? 6 : 10, borderRadius: "50%", background: isSuggested ? "#3b82f6" : dotColor, border: `2px solid ${isSuggested ? "#2563eb" : dotBorder}`, flexShrink: 0, zIndex: 1, transition: "background 0.25s ease" }} />
+                {isSuggested && <span style={{ fontSize:8, fontWeight:800, color:"#2563eb", letterSpacing:"0.3px", lineHeight:1 }}>★</span>}
               </div>
               {/* capacity badge */}
               {slotCount > 0 && (
@@ -716,7 +722,7 @@ const VISIT_COLORS = {
   'Procedure':        '#ec4899',
 };
 
-function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, todayKey, isToday, onCellClick, onAptClick, availabilityByProvider }) {
+function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, todayKey, isToday, onCellClick, onAptClick, availabilityByProvider, suggestedByProvider }) {
   const DAY_START_MIN = 7 * 60;   // 7:00 AM
   const DAY_END_MIN   = 20 * 60;  // 8:00 PM
   const PX_PER_MIN    = 1.8;      // 30 min = 54px, 60 min = 108px, 15 min = 27px
@@ -854,6 +860,20 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
                 );
               })}
 
+              {/* Suggested slot highlights */}
+              {suggestedByProvider?.[p.id] && timeMarks.filter(({ mins, key }) => {
+                if (mins >= DAY_END_MIN) return false;
+                const st = availabilityByProvider?.[p.id]?.[key];
+                return suggestedByProvider[p.id].has(key) && (!st || st === 'available');
+              }).map(({ top: ot, key }) => (
+                <div key={`sug-${key}`} style={{
+                  position:'absolute', top: ot + 1, left:2, right:2, height: 54 - 2,
+                  border:'2px solid #3b82f6', borderRadius:5,
+                  background:'rgba(59,130,246,0.08)',
+                  zIndex:1, pointerEvents:'none',
+                }} title={`Suggested: ${fmtTime12(key)}`} />
+              ))}
+
               {/* Current time indicator */}
               {nowTop !== null && (
                 <div style={{ position:'absolute', top:nowTop, left:0, right:0, height:2, background:'#ef4444', zIndex:5, pointerEvents:'none' }}>
@@ -945,7 +965,7 @@ function MultiProviderGrid({ activeDate, siteProviders, allAppts, patients, toda
 /* ══════════════════════════════════════════════
    SCHEDULE MODAL
 ══════════════════════════════════════════════ */
-function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitType, patients, onSave, defaultProvider, providers = [], existingAppts = [], blockedByDate = {} }) {
+function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitType, patients, onSave, defaultProvider, providers = [], existingAppts = [], blockedByDate = {}, onSuggestions }) {
   const defaultProviderId = defaultProvider || providers[0]?.id || "";
   const DURATION_BY_TYPE = { 'New Patient':60, 'Follow-Up':30, 'Urgent':30, 'Medication Review':30, 'Telehealth':30, 'Office Visit':30, 'Phone Consult':15, 'Procedure':60 };
   const EMPTY = { isNewPatient:false, patientId:"", newPatientName:"", provider:defaultProviderId,
@@ -953,7 +973,7 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
   const [form, setForm] = useState(EMPTY);
   const [saved, setSaved] = useState(false);
   const [serverConflict, setServerConflict] = useState(null);
-  useEffect(() => { if (show) { const initType = initialVisitType==="Telehealth" ? "Telehealth" : "Follow-Up"; const initDur = DURATION_BY_TYPE[initType]??30; const initProvider = defaultProvider||providers[0]?.id||""; const initDate = initialDate||""; setForm({ ...EMPTY, provider:initProvider, date:initDate, time:initialTime||computeFirstAvailable(initProvider, initDate, initDur), type:initType, duration:initDur, ...(initialVisitType==="Telehealth" ? { visitType:"Telehealth", room:"Virtual" } : {}) }); setSaved(false); setServerConflict(null); } }, [show, initialDate, initialTime, initialVisitType, defaultProvider]); // eslint-disable-line
+  useEffect(() => { if (show) { const initType = initialVisitType==="Telehealth" ? "Telehealth" : "Follow-Up"; const initDur = DURATION_BY_TYPE[initType]??30; const initProvider = defaultProvider||providers[0]?.id||""; const initDate = initialDate||""; setForm({ ...EMPTY, provider:initProvider, date:initDate, time:initialTime||computeFirstAvailable(initProvider, initDate, initDur), type:initType, duration:initDur, ...(initialVisitType==="Telehealth" ? { visitType:"Telehealth", room:"Virtual" } : {}) }); setSaved(false); setServerConflict(null); onSuggestions?.([]); } }, [show, initialDate, initialTime, initialVisitType, defaultProvider]); // eslint-disable-line
   // If providers load after the modal opens, auto-fill the provider field if it's still empty
   useEffect(() => { if (show && !form.provider && providers[0]?.id) setForm(f => ({ ...f, provider: defaultProvider || providers[0].id })); }, [show, providers]); // eslint-disable-line
 
@@ -1082,7 +1102,9 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
         room:form.room.trim()||(form.visitType==="Telehealth"?"Virtual":"") });
       setSaved(true); setTimeout(() => onClose(), 1200);
     } catch (err) {
-      setServerConflict(err?.message || 'Could not create appointment — please try a different time.');
+      const suggestions = err?.details?.suggestions || [];
+      setServerConflict({ message: err?.message || 'Could not create appointment — please try a different time.', suggestions });
+      if (suggestions.length) onSuggestions?.(suggestions);
     } finally {
       setSubmitting(false);
     }
@@ -1103,12 +1125,41 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
             color:"#fff", fontWeight:800, fontSize:20, width:32, height:32, cursor:"pointer",
             display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
         </div>
-        {/* Server-side conflict banner (race condition / working hours / blocked day) */}
+        {/* Server-side conflict banner with smart suggestions */}
         {serverConflict && (
           <div style={{ padding:"12px 22px", borderBottom:"1px solid #fee2e2" }}>
-            <div style={{ background:"#fef2f2", border:"1.5px solid #fca5a5", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#991b1b", fontWeight:600, display:"flex", alignItems:"center", gap:10 }}>
-              <span style={{ fontSize:16 }}>🚫</span>
-              <span>{serverConflict}</span>
+            <div style={{ background:"#fef2f2", border:"1.5px solid #fca5a5", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#991b1b" }}>
+              <div style={{ fontWeight:600, display:"flex", alignItems:"center", gap:8, marginBottom: serverConflict.suggestions?.length ? 10 : 0 }}>
+                <span style={{ fontSize:16 }}>🚫</span>
+                <span>{serverConflict.message}</span>
+              </div>
+              {serverConflict.suggestions?.length > 0 && (
+                <div>
+                  <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.4px", color:"#7f1d1d", marginBottom:6 }}>Suggested times</div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {serverConflict.suggestions.map((s, i) => (
+                      <button key={i} type="button" onClick={() => {
+                        upd('time', s.time);
+                        if (s.date && s.date !== form.date) upd('date', s.date);
+                        setServerConflict(null);
+                        onSuggestions?.([]);
+                      }} style={{
+                        background:"#fff", border:"1.5px solid #ef4444", borderRadius:8,
+                        padding:"5px 11px", cursor:"pointer", textAlign:"left",
+                        transition:"all 0.12s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background="#fef2f2"; e.currentTarget.style.borderColor="#dc2626"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background="#fff"; e.currentTarget.style.borderColor="#ef4444"; }}
+                      >
+                        <div style={{ fontSize:12, fontWeight:800, color:"#991b1b" }}>
+                          {fmtTime12(s.time)}{s.date && s.date !== form.date ? ` · ${s.date}` : ''}
+                        </div>
+                        <div style={{ fontSize:9.5, color:"#b91c1c", fontWeight:600, marginTop:1 }}>{s.reason}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -3066,6 +3117,7 @@ export default function Schedule() {
   // Reset provider filter when site changes so a provider from another location isn't stuck
   useEffect(() => { setProviderFilter("all"); }, [activeSiteId]);
   const [showModal, setShowModal] = useState(false);
+  const [suggestedSlots, setSuggestedSlots] = useState([]); // { time, date, providerId }[] from conflict 409
   const [viewMode, setViewMode] = useState('day');
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const [showSidebarMobile, setShowSidebarMobile] = useState(false);
@@ -3246,6 +3298,22 @@ export default function Schedule() {
     providerFilter !== 'all' ? computeSlotStatuses(providerFilter, activeDate, allAppts, blockedByDate) : {},
     [providerFilter, activeDate, allAppts, blockedByDate] // eslint-disable-line
   );
+
+  // Highlight suggested slots in the timeline (single-provider view)
+  const timelineHighlightSlots = useMemo(() =>
+    new Set(suggestedSlots.filter(s => s.providerId === providerFilter && s.date === activeDate).map(s => s.time)),
+    [suggestedSlots, providerFilter, activeDate]
+  );
+
+  // Highlight suggested slots in the multi-provider grid
+  const suggestedByProvider = useMemo(() => {
+    const map = {};
+    suggestedSlots.filter(s => s.date === activeDate).forEach(s => {
+      if (!map[s.providerId]) map[s.providerId] = new Set();
+      map[s.providerId].add(s.time);
+    });
+    return map;
+  }, [suggestedSlots, activeDate]);
 
   const handleOpenChart  = useCallback(apt => { if(apt.patientId){selectPatient(apt.patientId);navigate(`/chart/${apt.patientId}/summary`);} }, [selectPatient,navigate]);
   const handleCheckIn    = useCallback(apt => {
@@ -3714,6 +3782,7 @@ export default function Schedule() {
                       } : undefined}
                       isMobile={isMobile}
                       slotStatuses={timelineSlotStatuses}
+                      highlightSlots={timelineHighlightSlots}
                     />
                   </div>
                 ) : (
@@ -3734,6 +3803,7 @@ export default function Schedule() {
                     }}
                     onAptClick={apt => setRescheduleAptSchedule(apt)}
                     availabilityByProvider={availabilityByProvider}
+                    suggestedByProvider={suggestedByProvider}
                   />
                 )}
               </div>
@@ -3849,7 +3919,7 @@ export default function Schedule() {
       {/* Schedule Modal */}
       <ScheduleModal
         show={showModal}
-        onClose={() => { setShowModal(false); setModalVisitType('In-Person'); setModalTime(''); setModalProvider(''); }}
+        onClose={() => { setShowModal(false); setModalVisitType('In-Person'); setModalTime(''); setModalProvider(''); setSuggestedSlots([]); }}
         initialDate={modalDate}
         initialTime={modalTime}
         initialVisitType={modalVisitType}
@@ -3858,7 +3928,8 @@ export default function Schedule() {
         providers={siteProviders}
         existingAppts={allAppts}
         blockedByDate={blockedByDate}
-        onSave={async apt => { await addAppointment({ ...apt, locationId: activeSiteId !== 'all' ? activeSiteId : undefined }); setShowModal(false); setModalVisitType('In-Person'); setModalTime(''); setModalProvider(''); }}
+        onSave={async apt => { await addAppointment({ ...apt, locationId: activeSiteId !== 'all' ? activeSiteId : undefined }); setShowModal(false); setModalVisitType('In-Person'); setModalTime(''); setModalProvider(''); setSuggestedSlots([]); }}
+        onSuggestions={setSuggestedSlots}
       />
     </div>
   );

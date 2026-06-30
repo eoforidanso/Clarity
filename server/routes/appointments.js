@@ -8,6 +8,7 @@ import { routeError } from '../utils/routeError.js';
 import { validateResponse } from '../middleware/validateResponse.js';
 import { AppointmentResponseSchema, AppointmentListResponseSchema } from '../schemas/responseSchemas.js';
 import { detectAllConflicts } from '../utils/conflicts.js';
+import { getSmartSuggestions } from '../utils/suggestions.js';
 
 const router = Router();
 router.use(authenticate);
@@ -57,10 +58,16 @@ router.post('/', validate(CreateAppointmentSchema), validateResponse(Appointment
       duration:    b.duration   || 30,
     });
     if (conflict.hasConflict) {
+      const suggestions = await getSmartSuggestions({
+        providerId: b.provider || null,
+        date: b.date, time: b.time,
+        duration: b.duration || 30,
+      }).catch(() => []);
       return res.status(409).json({
-        error:                  conflict.reason,
-        type:                   conflict.type,
+        error:   conflict.reason,
+        type:    conflict.type,
         conflictingAppointment: conflict.conflictingAppointment || null,
+        details: { suggestions },
       });
     }
 
@@ -100,10 +107,18 @@ router.put('/:id', validate(UpdateAppointmentSchema), validateResponse(Appointme
         excludeId:   req.params.id,  // don't conflict with itself
       });
       if (conflict.hasConflict) {
+        const suggestions = await getSmartSuggestions({
+          providerId: b.provider ?? existing.provider,
+          date: b.date ?? existing.date,
+          time: b.time ?? existing.time,
+          duration: b.duration ?? existing.duration ?? 30,
+          excludeId: req.params.id,
+        }).catch(() => []);
         return res.status(409).json({
-          error:                  conflict.reason,
-          type:                   conflict.type,
+          error:   conflict.reason,
+          type:    conflict.type,
           conflictingAppointment: conflict.conflictingAppointment || null,
+          details: { suggestions },
         });
       }
     }
