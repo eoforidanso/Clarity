@@ -84,9 +84,10 @@ function computeSlotStatuses(providerId, date, allAppts, blockedByDate) {
   const nowMins = now.getHours() * 60 + now.getMinutes();
   const dayBlocks = (blockedByDate[date] || []).filter(b => (b.providerId ?? b.provider) === providerId);
   const isFullyBlocked = dayBlocks.some(b => { const t = b.type ?? b.blockType; return !t || t === 'full'; });
+  const INACTIVE = new Set(['Cancelled', 'No Show', 'Rescheduled']);
   const provAppts = allAppts.filter(a =>
     a.provider === providerId && a.date === date &&
-    a.status !== 'Cancelled' && a.status !== 'No Show' && a.time
+    !INACTIVE.has(a.status) && a.time
   );
   const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
   const statuses = {};
@@ -1866,6 +1867,7 @@ function FrontDeskTab({ allAppts, patients, todayKey, updateAppointmentStatus, a
       date: newDate, time: newTime, duration: apt.duration||30,
       type: apt.type, status: "Scheduled", reason: apt.reason||"",
       visitType: apt.visitType||"In-Person", room: apt.room||"",
+      rescheduledFrom: apt.id,
     });
     showToast(`Rescheduled: ${apt.patientName} → ${newDate}`);
   }, [updateAppointmentStatus, addAppointment]);
@@ -3256,6 +3258,7 @@ export default function Schedule() {
       date: newDate, time: newTime, duration: apt.duration||30,
       type: apt.type, status:"Scheduled", reason: apt.reason||"",
       visitType: apt.visitType||"In-Person", room: apt.room||"",
+      rescheduledFrom: apt.id,
     });
     setRescheduleAptSchedule(null);
   }, [updateAppointmentStatus, addAppointment]);

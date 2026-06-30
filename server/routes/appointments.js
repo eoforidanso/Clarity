@@ -12,7 +12,7 @@ const router = Router();
 router.use(authenticate);
 
 function formatAppt(r) { return {
-    id: r.id, patientId: r.patient_id, patientName: r.patient_name, provider: r.provider, providerName: r.provider_name, date: r.date, time: r.time, duration: r.duration, type: r.type, status: r.status, reason: r.reason, visitType: r.visit_type, room: r.room, locationId: r.location_id || 'loc1',  };
+    id: r.id, patientId: r.patient_id, patientName: r.patient_name, provider: r.provider, providerName: r.provider_name, date: r.date, time: r.time, duration: r.duration, type: r.type, status: r.status, reason: r.reason, visitType: r.visit_type, room: r.room, locationId: r.location_id || 'loc1', rescheduledFrom: r.rescheduled_from || null,  };
 }
 
 // GET /api/appointments
@@ -45,8 +45,8 @@ router.post('/', validate(CreateAppointmentSchema), validateResponse(Appointment
     const b = req.body;
     const id = uuidv4();
     const locationId = b.locationId || req.user.facility_id || null;
-    await db.prepare('INSERT INTO appointments (id, patient_id, patient_name, provider, provider_name, date, time, duration, type, status, reason, visit_type, room, location_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)').run(
-      id, b.patientId || null, b.patientName || '', b.provider || '', b.providerName || '', b.date, b.time, b.duration || 30, b.type || 'Office Visit', b.status || 'Scheduled', b.reason || '', b.visitType || 'In-Person', b.room || '', locationId
+    await db.prepare('INSERT INTO appointments (id, patient_id, patient_name, provider, provider_name, date, time, duration, type, status, reason, visit_type, room, location_id, rescheduled_from) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)').run(
+      id, b.patientId || null, b.patientName || '', b.provider || '', b.providerName || '', b.date, b.time, b.duration || 30, b.type || 'Office Visit', b.status || 'Scheduled', b.reason || '', b.visitType || 'In-Person', b.room || '', locationId, b.rescheduledFrom || null
     );
     const row = await db.prepare('SELECT * FROM appointments WHERE id = ?').get(id);
     res.status(201).json(formatAppt(row));
@@ -310,10 +310,10 @@ router.get('/availability', async (req, res) => {
     ).get(providerId, date);
     const isFullyBlocked = blockedDay?.block_type === 'full' || (!blockedDay?.block_type && !!blockedDay);
 
-    // Non-cancelled/no-show appointments for this provider on this date
+    // Active appointments for this provider on this date (excludes terminal/inactive statuses)
     const appts = await db.prepare(
       `SELECT time, duration FROM appointments
-       WHERE provider = ? AND date = ? AND status NOT IN ('Cancelled','No Show')`
+       WHERE provider = ? AND date = ? AND status NOT IN ('Cancelled','No Show','Rescheduled')`
     ).all(providerId, date);
 
     const slots = [];
