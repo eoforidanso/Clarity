@@ -16,8 +16,8 @@ router.use(validateResponse(AnyResponseSchema));
 router.get('/medication-database', async (req, res) => { const { search } = req.query;
   let query = 'SELECT * FROM medication_database';
   const params = [];
-  if (search) { query += ' WHERE name LIKE ? OR class LIKE ?';
-    const s = `%${search }%`;
+  if (search) { query += ' WHERE name LIKE $1 OR class LIKE $2';
+    const s = `%${search}%`;
     params.push(s, s);
   }
   query += ' ORDER BY name';
@@ -26,31 +26,39 @@ router.get('/medication-database', async (req, res) => { const { search } = req.
 });
 
 // POST /api/eprescribe/prescribe
-router.post('/prescribe', requireElevated, validate(PrescribeSchema), async (req, res) => { const b = req.body;
+router.post('/prescribe', requireElevated, validate(PrescribeSchema), async (req, res) => {
+  const b = req.body;
   const medId = uuidv4();
-  const userName = `${req.user.first_name } ${ req.user.last_name }`.trim();
+  const userName = `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim();
+  const today = new Date().toISOString().split('T')[0];
+  const nowTime = new Date().toTimeString().slice(0, 5);
 
-  // Create the medication
-  await db.prepare(`INSERT INTO medications (id, patient_id, name, dose, route, frequency, start_date, prescriber, status, refills_left, is_controlled, schedule, pharmacy, last_filled, sig) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    medId, b.patientId, b.name, b.dose, b.route || 'Oral', b.frequency, new Date().toISOString().split('T')[0], userName, 'Active', b.refills || 0, b.isControlled ? 1 : 0, b.schedule || null, b.pharmacy || '', new Date().toISOString().split('T')[0], b.sig || ''
-  );
+  try {
+    // Create the medication
+    await db.prepare(`INSERT INTO medications (id, patient_id, name, dose, route, frequency, start_date, prescriber, status, refills_left, is_controlled, schedule, pharmacy, last_filled, sig) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      medId, b.patientId, b.name, b.dose, b.route || 'Oral', b.frequency, today, userName, 'Active', b.refills || 0, b.isControlled ? 1 : 0, b.schedule || null, b.pharmacy || '', today, b.sig || ''
+    );
 
-  // Create rx history entry
-  await db.prepare('INSERT INTO medication_rx_history (id, medication_id, date, prescribed_by, pharmacy, qty, refill_number, type, note) VALUES (?,?,?,?,?,?,?,?,?)').run(
-    uuidv4(), medId, new Date().toISOString().split('T')[0], userName, b.pharmacy || '', b.quantity || 0, 0, 'New Prescription', b.notes || ''
-  );
+    // Create rx history entry
+    await db.prepare('INSERT INTO medication_rx_history (id, medication_id, date, prescribed_by, pharmacy, qty, refill_number, type, note) VALUES (?,?,?,?,?,?,?,?,?)').run(
+      uuidv4(), medId, today, userName, b.pharmacy || '', b.quantity || 0, 0, 'New Prescription', b.notes || ''
+    );
 
-  // Create order record
-  await db.prepare('INSERT INTO orders (id, patient_id, type, description, status, ordered_date, ordered_by, priority, notes) VALUES (?,?,?,?,?,?,?,?,?)').run(
-    uuidv4(), b.patientId, 'Prescription', `${ b.name } ${ b.dose } - ${ b.frequency }`, b.isControlled ? 'Pending EPCS Auth' : 'Active', new Date().toISOString().split('T')[0], userName, 'Routine', b.notes || ''
-  );
+    // Create order record
+    await db.prepare('INSERT INTO orders (id, patient_id, type, description, status, ordered_date, ordered_by, priority, notes) VALUES (?,?,?,?,?,?,?,?,?)').run(
+      uuidv4(), b.patientId, 'Prescription', `${b.name} ${b.dose} - ${b.frequency}`, b.isControlled ? 'Pending EPCS Auth' : 'Active', today, userName, 'Routine', b.notes || ''
+    );
 
-  // Create inbox notification
-  await db.prepare('INSERT INTO inbox_messages (id, type, from_name, to_user, patient_id, patient_name, subject, body, date, time, priority, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(
-    uuidv4(), 'Prescription Sent', 'System', req.user.id, b.patientId, b.patientName || '', `New Rx: ${ b.name } ${ b.dose }`, `Prescription for ${ b.name } ${ b.dose } ${ b.frequency } sent to ${ b.pharmacy }`, new Date().toISOString().split('T')[0], new Date().toTimeString().slice(0, 5), 'Normal', 'Completed'
-  );
+    // Create inbox notification
+    await db.prepare('INSERT INTO inbox_messages (id, type, from_name, to_user, patient_id, patient_name, subject, body, date, time, priority, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(
+      uuidv4(), 'Prescription Sent', 'System', req.user.id, b.patientId, b.patientName || '', `New Rx: ${b.name} ${b.dose}`, `Prescription for ${b.name} ${b.dose} ${b.frequency} sent to ${b.pharmacy}`, today, nowTime, 'Normal', 'Completed'
+    );
 
-  res.status(201).json({ success: true, medicationId: medId });
+    res.status(201).json({ success: true, medicationId: medId });
+  } catch (err) {
+    console.error('[eprescribe] POST /prescribe error:', err);
+    res.status(500).json({ error: 'Failed to create prescription' });
+  }
 });
 
 export default router;

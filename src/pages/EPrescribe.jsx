@@ -56,7 +56,7 @@ function StaffRefillRequest() {
       setReqPatient(selectedPatient);
       setPatientSearch('');
     }
-  }, [selectedPatient?.id]);
+  }, [selectedPatient]);
 
   // Pending refill requests not yet assigned by staff
   const pendingRefills = (inboxMessages || []).filter(
@@ -2203,6 +2203,11 @@ ${buildSignatureBlockHtml({ provider: currentUser, sigDataUrl, timestamp: new Da
               clinicalNotes: rx.notes || null,
               sendDate: rx.sendDate,
               signedAt: null,
+              clinic: facilityInfo ? {
+                name:    facilityInfo.name,
+                address: facilityInfo.address,
+                phone:   facilityInfo.phone,
+              } : null,
             }} />
 
             {/* ── Medication History ──────────────────────────────── */}
