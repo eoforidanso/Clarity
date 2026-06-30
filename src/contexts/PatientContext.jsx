@@ -437,7 +437,10 @@ export function PatientProvider({ children, demoMode = false }) {
     try {
       const created = await appointmentsApi.create(appointment);
       setAppointments((prev) => [...prev, created]);
-    } catch {
+    } catch (err) {
+      // 409 Conflict — do NOT fall back to local state; re-throw so the UI can show the reason
+      if (err?.status === 409) throw err;
+      // Network / server errors — fall back to optimistic local state
       setAppointments((prev) => [
         ...prev,
         { ...appointment, id: `apt-${Date.now()}-${Math.random().toString(36).slice(2)}` },

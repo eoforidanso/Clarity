@@ -7,6 +7,7 @@ import { CreateAppointmentSchema, UpdateAppointmentSchema, BlockedDaySchema, Tel
 import { routeError } from '../utils/routeError.js';
 import { validateResponse } from '../middleware/validateResponse.js';
 import { AppointmentResponseSchema, AppointmentListResponseSchema } from '../schemas/responseSchemas.js';
+import { detectAllConflicts } from '../utils/conflicts.js';
 
 const router = Router();
 router.use(authenticate);
@@ -43,6 +44,26 @@ router.get('/', validateResponse(AppointmentListResponseSchema), async (req, res
 router.post('/', validate(CreateAppointmentSchema), validateResponse(AppointmentResponseSchema), async (req, res) => {
   try {
     const b = req.body;
+
+    // ── Conflict detection ─────────────────────────────────────────────────
+    const conflict = await detectAllConflicts({
+      providerId:  b.provider   || null,
+      patientId:   b.patientId  || null,
+      patientName: b.patientName || null,
+      room:        b.room       || null,
+      locationId:  b.locationId || req.user.facility_id || null,
+      date:        b.date,
+      time:        b.time,
+      duration:    b.duration   || 30,
+    });
+    if (conflict.hasConflict) {
+      return res.status(409).json({
+        error:                  conflict.reason,
+        type:                   conflict.type,
+        conflictingAppointment: conflict.conflictingAppointment || null,
+      });
+    }
+
     const id = uuidv4();
     const locationId = b.locationId || req.user.facility_id || null;
     await db.prepare('INSERT INTO appointments (id, patient_id, patient_name, provider, provider_name, date, time, duration, type, status, reason, visit_type, room, location_id, rescheduled_from) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)').run(
@@ -63,6 +84,30 @@ router.put('/:id', validate(UpdateAppointmentSchema), validateResponse(Appointme
     if (!existing) return res.status(404).json({ error: 'Appointment not found' });
 
     const b = req.body;
+
+    // Run conflict check only when time-sensitive fields are changing
+    const changingTime = b.date || b.time || b.duration || b.provider || b.room;
+    if (changingTime) {
+      const conflict = await detectAllConflicts({
+        providerId:  b.provider   ?? existing.provider,
+        patientId:   b.patientId  ?? existing.patient_id,
+        patientName: b.patientName ?? existing.patient_name,
+        room:        b.room       ?? existing.room,
+        locationId:  b.locationId ?? existing.location_id,
+        date:        b.date       ?? existing.date,
+        time:        b.time       ?? existing.time,
+        duration:    b.duration   ?? existing.duration,
+        excludeId:   req.params.id,  // don't conflict with itself
+      });
+      if (conflict.hasConflict) {
+        return res.status(409).json({
+          error:                  conflict.reason,
+          type:                   conflict.type,
+          conflictingAppointment: conflict.conflictingAppointment || null,
+        });
+      }
+    }
+
     await db.prepare(`UPDATE appointments SET patient_id=?, patient_name=?, provider=?, provider_name=?, date=?, time=?, duration=?, type=?, status=?, reason=?, visit_type=?, room=?, location_id=?, updated_at=NOW() WHERE id=?`).run(
       b.patientId ?? existing.patient_id, b.patientName ?? existing.patient_name, b.provider ?? existing.provider, b.providerName ?? existing.provider_name, b.date ?? existing.date, b.time ?? existing.time, b.duration ?? existing.duration, b.type ?? existing.type, b.status ?? existing.status, b.reason ?? existing.reason, b.visitType ?? existing.visit_type, b.room ?? existing.room, b.locationId ?? existing.location_id, req.params.id
     );

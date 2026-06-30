@@ -952,7 +952,8 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
     date:"", time:"09:00", duration:30, type:"Follow-Up", visitType:"In-Person", reason:"", room:"" };
   const [form, setForm] = useState(EMPTY);
   const [saved, setSaved] = useState(false);
-  useEffect(() => { if (show) { const initType = initialVisitType==="Telehealth" ? "Telehealth" : "Follow-Up"; const initDur = DURATION_BY_TYPE[initType]??30; const initProvider = defaultProvider||providers[0]?.id||""; const initDate = initialDate||""; setForm({ ...EMPTY, provider:initProvider, date:initDate, time:initialTime||computeFirstAvailable(initProvider, initDate, initDur), type:initType, duration:initDur, ...(initialVisitType==="Telehealth" ? { visitType:"Telehealth", room:"Virtual" } : {}) }); setSaved(false); } }, [show, initialDate, initialTime, initialVisitType, defaultProvider]); // eslint-disable-line
+  const [serverConflict, setServerConflict] = useState(null);
+  useEffect(() => { if (show) { const initType = initialVisitType==="Telehealth" ? "Telehealth" : "Follow-Up"; const initDur = DURATION_BY_TYPE[initType]??30; const initProvider = defaultProvider||providers[0]?.id||""; const initDate = initialDate||""; setForm({ ...EMPTY, provider:initProvider, date:initDate, time:initialTime||computeFirstAvailable(initProvider, initDate, initDur), type:initType, duration:initDur, ...(initialVisitType==="Telehealth" ? { visitType:"Telehealth", room:"Virtual" } : {}) }); setSaved(false); setServerConflict(null); } }, [show, initialDate, initialTime, initialVisitType, defaultProvider]); // eslint-disable-line
   // If providers load after the modal opens, auto-fill the provider field if it's still empty
   useEffect(() => { if (show && !form.provider && providers[0]?.id) setForm(f => ({ ...f, provider: defaultProvider || providers[0].id })); }, [show, providers]); // eslint-disable-line
 
@@ -1065,17 +1066,26 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
     return null;
   }, [providerConflict, form.provider, form.date, form.duration, existingAppts]); // eslint-disable-line
 
-  const handleSubmit = () => {
-    if (!canSubmit) return;
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = async () => {
+    if (!canSubmit || submitting) return;
     const prov = providers.find(p => p.id===form.provider);
     const pat = form.isNewPatient ? null : (patients||[]).find(p => p.id===form.patientId);
     const patientName = form.isNewPatient ? `New Patient - ${form.newPatientName.trim()}` : pat ? `${pat.firstName} ${pat.lastName}` : "";
-    onSave({ patientId: form.isNewPatient?null:form.patientId||null, patientName,
-      provider:form.provider, providerName:prov?`${prov.firstName} ${prov.lastName}`.trim():"",
-      date:form.date, time:form.time, duration:Number(form.duration), type:form.type,
-      status:"Scheduled", reason:form.reason.trim(), visitType:form.visitType,
-      room:form.room.trim()||(form.visitType==="Telehealth"?"Virtual":"") });
-    setSaved(true); setTimeout(() => onClose(), 1200);
+    setSubmitting(true);
+    setServerConflict(null);
+    try {
+      await onSave({ patientId: form.isNewPatient?null:form.patientId||null, patientName,
+        provider:form.provider, providerName:prov?`${prov.firstName} ${prov.lastName}`.trim():"",
+        date:form.date, time:form.time, duration:Number(form.duration), type:form.type,
+        status:"Scheduled", reason:form.reason.trim(), visitType:form.visitType,
+        room:form.room.trim()||(form.visitType==="Telehealth"?"Virtual":"") });
+      setSaved(true); setTimeout(() => onClose(), 1200);
+    } catch (err) {
+      setServerConflict(err?.message || 'Could not create appointment — please try a different time.');
+    } finally {
+      setSubmitting(false);
+    }
   };
   if (!show) return null;
   return (
@@ -1093,6 +1103,15 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
             color:"#fff", fontWeight:800, fontSize:20, width:32, height:32, cursor:"pointer",
             display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
         </div>
+        {/* Server-side conflict banner (race condition / working hours / blocked day) */}
+        {serverConflict && (
+          <div style={{ padding:"12px 22px", borderBottom:"1px solid #fee2e2" }}>
+            <div style={{ background:"#fef2f2", border:"1.5px solid #fca5a5", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#991b1b", fontWeight:600, display:"flex", alignItems:"center", gap:10 }}>
+              <span style={{ fontSize:16 }}>🚫</span>
+              <span>{serverConflict}</span>
+            </div>
+          </div>
+        )}
         {/* Conflict banners — pinned above the scrollable form so they're always visible */}
         {(providerConflict || patientConflict) && (
           <div style={{ padding:"0 22px 0", display:"flex", flexDirection:"column", gap:6, borderBottom:"1px solid #fee2e2" }}>
@@ -1201,9 +1220,11 @@ function ScheduleModal({ show, onClose, initialDate, initialTime, initialVisitTy
           {saved ? <span style={{ fontSize:13, color:"#166534", fontWeight:700 }}>✅ Appointment scheduled!</span> : <span />}
           <div style={{ display:"flex", gap:8 }}>
             <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
-            <button className="btn btn-primary btn-sm" disabled={!canSubmit||saved} onClick={handleSubmit}
+            <button className="btn btn-primary btn-sm" disabled={!canSubmit||saved||submitting} onClick={handleSubmit}
               title={providerConflict?"Provider already booked at this time":patientConflict?"Patient already scheduled today":!form.provider?"Select a provider":!form.date||!form.time?"Fill in date and time":!(form.isNewPatient?form.newPatientName.trim():form.patientId)?"Select a patient":""}
-              style={{ opacity:canSubmit&&!saved?1:0.5, cursor:canSubmit&&!saved?"pointer":"not-allowed" }}>📅 Confirm Appointment</button>
+              style={{ opacity:canSubmit&&!saved&&!submitting?1:0.5, cursor:canSubmit&&!saved&&!submitting?"pointer":"not-allowed" }}>
+              {submitting ? "⏳ Checking…" : "📅 Confirm Appointment"}
+            </button>
           </div>
         </div>
       </div>
@@ -3837,7 +3858,7 @@ export default function Schedule() {
         providers={siteProviders}
         existingAppts={allAppts}
         blockedByDate={blockedByDate}
-        onSave={apt => { addAppointment({ ...apt, locationId: activeSiteId !== 'all' ? activeSiteId : undefined }); setShowModal(false); setModalVisitType('In-Person'); setModalTime(''); setModalProvider(''); }}
+        onSave={async apt => { await addAppointment({ ...apt, locationId: activeSiteId !== 'all' ? activeSiteId : undefined }); setShowModal(false); setModalVisitType('In-Person'); setModalTime(''); setModalProvider(''); }}
       />
     </div>
   );
