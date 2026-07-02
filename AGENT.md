@@ -42,22 +42,26 @@ Single source of truth for the AI agent working on this project. Keep this file 
 
 ## Deployment workflow
 
-### Frontend change
+### Automatic (preferred): push to main
+Every push to `main` triggers `.github/workflows/deploy.yml`, which deploys BOTH tiers:
+1. Builds the frontend and rsyncs `dist/` to the droplet
+2. On the droplet: `git reset --hard origin/main` in `/var/www/ehr`, `npm ci --omit=dev` in `server/`, PM2 restart (`clarity-api`)
+3. Health check: SSHes to the droplet and curls `https://api.clarity-ehr.com/api/health` through local nginx (a public curl from CI gets 403 from the Cloudflare WAF), requires HTTP 200
+
+`/var/www/ehr` on the droplet IS a git checkout of this repo and tracks `main` exactly. Do not SCP individual files — anything not committed will be wiped by the next deploy's `git reset --hard`.
+
+DB migrations run automatically at server startup (`server/index.js` → `runMigrations`), so a PM2 restart applies any new migration files.
+
+Cloudflare Pages (app.clarity-ehr.com) deploys separately:
+```bash
+npm run deploy   # vite build + wrangler pages deploy dist --project-name=clarity-ehr
+```
+
+### Manual frontend-only deploy
 ```bash
 npm run build
 npx wrangler pages deploy dist --project-name=clarity-ehr
 ```
-
-### Backend change
-The server is NOT a git repo — files must be SCP'd individually to `/var/www/ehr/server/`:
-```bash
-scp -i ~/.ssh/clarity_ehr server/routes/someFile.js root@107.170.10.202:/var/www/ehr/server/routes/
-scp -i ~/.ssh/clarity_ehr server/middleware/someFile.js root@107.170.10.202:/var/www/ehr/server/middleware/
-scp -i ~/.ssh/clarity_ehr server/index.js root@107.170.10.202:/var/www/ehr/server/
-ssh -i ~/.ssh/clarity_ehr root@107.170.10.202 "pm2 restart clarity-api --update-env"
-```
-
-**Warning:** Do NOT deploy `server/index.js` wholesale — the server runs an older codebase and may lack routes that exist locally. Only SCP specific changed files (routes, middleware). If you must update `index.js`, make surgical edits via SSH rather than replacing the whole file.
 
 ### Adding/changing env vars on server
 ```bash
