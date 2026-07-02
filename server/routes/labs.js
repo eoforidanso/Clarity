@@ -8,6 +8,7 @@ import { routeError } from '../utils/routeError.js';
 import { validate } from '../middleware/validate.js';
 import { CreateLabSchema } from '../schemas/labSchema.js';
 import { logPhiRead } from '../middleware/phiAudit.js';
+import { resolveTaskProvider } from '../utils/resolveTaskProvider.js';
 import { validateResponse } from '../middleware/validateResponse.js';
 import { LabResultResponseSchema, LabListResponseSchema } from '../schemas/responseSchemas.js';
 
@@ -32,17 +33,7 @@ async function triageLabResult(patientId, labResultId, orderedBy, tests) {
 
   if (abnormalComponents.length === 0) return; // all normal — no triage needed
 
-  // Resolve provider: use orderedBy if it looks like a UUID, else fallback to patient PCP
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  let providerId = UUID_RE.test(orderedBy || '') ? orderedBy : '';
-  if (!providerId) {
-    const patient = await db.prepare(`SELECT assigned_provider FROM patients WHERE id = $1`).get(patientId);
-    providerId = patient?.assigned_provider || '';
-  }
-  if (!providerId) {
-    const fallback = await db.prepare(`SELECT id FROM users WHERE role = 'provider' LIMIT 1`).get();
-    providerId = fallback?.id || '';
-  }
+  const providerId = await resolveTaskProvider({ candidateId: orderedBy, patientId });
 
   const patient = await db.prepare(`SELECT first_name, last_name FROM patients WHERE id = $1`).get(patientId);
   const patientName = patient ? `${patient.first_name} ${patient.last_name}` : '';
@@ -161,7 +152,8 @@ router.post('/:patientId/labs', validate(CreateLabSchema), validateResponse(LabR
     const formatted = await formatLabResult(row);
 
     // Fire-and-forget: triage abnormal results into the inbox
-    triageLabResult(req.params.patientId, id, b.orderedBy || '', b.tests || []).catch(() => {});
+    triageLabResult(req.params.patientId, id, b.orderedBy || '', b.tests || [])
+      .catch(err => routeError(req, '[labs] auto-triage failed — abnormal result may be unrouted', err));
 
     res.status(201).json(formatted);
   } catch (err) {

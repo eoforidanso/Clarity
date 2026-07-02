@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { routeError } from '../utils/routeError.js';
+import { resolveTaskProvider } from '../utils/resolveTaskProvider.js';
 
 const CRITICAL_FLAGS = new Set(['HH', 'LL', 'C', 'CH', 'CL', 'AA']);
 const ABNORMAL_FLAGS = new Set(['H', 'L', 'HH', 'LL', 'C', 'CH', 'CL', 'A', 'AA']);
@@ -16,17 +17,7 @@ async function triageOrderResult(order, newFlag) {
   if (existing) return;
 
   const hasCritical = CRITICAL_FLAGS.has(flag);
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  let providerId = UUID_RE.test(order.ordered_by || '') ? order.ordered_by : '';
-
-  if (!providerId) {
-    const patient = await db.prepare(`SELECT assigned_provider FROM patients WHERE id = $1`).get(order.patient_id);
-    providerId = patient?.assigned_provider || '';
-  }
-  if (!providerId) {
-    const fallback = await db.prepare(`SELECT id FROM users WHERE role = 'provider' LIMIT 1`).get();
-    providerId = fallback?.id || '';
-  }
+  const providerId  = await resolveTaskProvider({ candidateId: order.ordered_by, patientId: order.patient_id });
 
   const patient = await db.prepare(`SELECT first_name, last_name FROM patients WHERE id = $1`).get(order.patient_id);
   const patientName = patient ? `${patient.first_name} ${patient.last_name}` : '';
@@ -156,7 +147,8 @@ router.put('/:orderId', async (req, res) => {
 
     // Auto-triage: file inbox message if result has an abnormal flag being set for the first time
     if (b.resultFlag && b.resultFlag !== existing.result_flag) {
-      triageOrderResult(updated, b.resultFlag).catch(() => {});
+      triageOrderResult(updated, b.resultFlag)
+        .catch(err => routeError(req, '[lab-tracking] auto-triage failed — abnormal result may be unrouted', err));
     }
 
     res.json(formatLabOrder(updated));

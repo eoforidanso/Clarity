@@ -97,7 +97,7 @@ function StaffRefillRequest() {
       status: 'Unread',
     });
 
-    updateMessageStatus(msg.id, 'Forwarded');
+    updateMessageStatus(msg.id, 'Forwarded').catch(() => {});
     setAssignedIds(prev => ({ ...prev, [msg.id]: true }));
   };
 

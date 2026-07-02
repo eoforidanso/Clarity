@@ -30,16 +30,29 @@ jobs:
     name: Full Sweep (with live API)
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ehr_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       NODE_ENV: test
       PORT: 5001
       JWT_SECRET: ci-only-not-a-real-secret-replace-in-prod
-      DATABASE_URL: file:/tmp/ci-test.db
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ehr_ci
       CSRF_SECRET: ci-csrf-secret
       SESSION_SECRET: ci-session-secret
       API_BASE: http://localhost:5001
-      TEST_USER: ${{ secrets.CI_TEST_USER }}
-      TEST_PASS: ${{ secrets.CI_TEST_PASS }}
+      TEST_USER: ${{ secrets.CI_TEST_USER || 'harriet' }}
+      TEST_PASS: ${{ secrets.CI_TEST_PASS || 'Pass123!' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -56,15 +69,26 @@ jobs:
         working-directory: server
         run: npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts
 
+      - name: Seed test database
+        run: |
+          node server/db/seed.js
+          # Seeded users have 2FA on; the sweep needs a plain login
+          node -e "import('./server/db/database.js').then(async m => { await m.db.prepare(\"UPDATE users SET two_factor_enabled=false WHERE username='harriet'\").run(); process.exit(0); })"
+
       - name: Start test server
         run: |
-          node server/index.js &
+          node server/index.js > server.log 2>&1 &
           echo "SERVER_PID=$!" >> $GITHUB_ENV
-          # Wait for server to be ready
-          for i in $(seq 1 20); do
-            curl -sf -H 'CF-Visitor: {"scheme":"https"}' http://localhost:5001/api/health && break
+          ok=""
+          for i in $(seq 1 30); do
+            if curl -sf -H 'CF-Visitor: {"scheme":"https"}' http://localhost:5001/api/health > /dev/null; then ok=1; break; fi
             sleep 1
           done
+          if [ -z "$ok" ]; then
+            echo "❌ Server failed to start — sweep would silently test nothing"
+            tail -50 server.log
+            exit 1
+          fi
 
       - name: Run full bug sweep
         run: node scripts/bugcheck.js --verbose

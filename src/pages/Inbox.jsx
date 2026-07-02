@@ -213,7 +213,7 @@ export default function Inbox() {
     setReplyText('');
     if (isMobile) setMobilePanel(2);
     if (msg.status === 'Unread') {
-      updateMessageStatus(msg.id, 'Read');
+      updateMessageStatus(msg.id, 'Read').catch(() => {});
     }
   };
 
@@ -223,7 +223,7 @@ export default function Inbox() {
   };
 
   const handleMarkUnread = (id) => {
-    updateMessageStatus(id, 'Unread');
+    updateMessageStatus(id, 'Unread').catch(() => {});
   };
 
   const [replySent, setReplySent] = useState(false);
@@ -262,19 +262,27 @@ export default function Inbox() {
       read: false,
       status: 'Unread',
     });
-    updateMessageStatus(selectedMessage.id, 'Assigned to Provider');
+    updateMessageStatus(selectedMessage.id, 'Assigned to Provider').catch(() => {});
     setAssignedMsg(true);
     setTimeout(() => setAssignedMsg(false), 4000);
   };
 
-  const handleApproveRefill = (msg) => {
-    updateMessageStatus(msg.id, 'Approved');
-    setRefillAction(prev => ({ ...prev, [msg.id]: 'Approved' }));
+  const handleApproveRefill = async (msg) => {
+    try {
+      await updateMessageStatus(msg.id, 'Approved');
+      setRefillAction(prev => ({ ...prev, [msg.id]: 'Approved' }));
+    } catch (err) {
+      alert(`Could not approve refill: ${err.message}`);
+    }
   };
 
-  const handleDenyRefill = (msg) => {
-    updateMessageStatus(msg.id, 'Denied');
-    setRefillAction(prev => ({ ...prev, [msg.id]: 'Denied' }));
+  const handleDenyRefill = async (msg) => {
+    try {
+      await updateMessageStatus(msg.id, 'Denied');
+      setRefillAction(prev => ({ ...prev, [msg.id]: 'Denied' }));
+    } catch (err) {
+      alert(`Could not deny refill: ${err.message}`);
+    }
   };
 
   const handleSendReply = () => {

@@ -361,11 +361,16 @@ export function PatientProvider({ children, demoMode = false }) {
   const updateMessageStatus = useCallback(async (msgId, newStatus) => {
     try {
       await inboxApi.updateStatus(msgId, newStatus);
-    } catch { /* update locally anyway */ }
+    } catch (err) {
+      // In demo mode there is no backend — the local update IS the state.
+      // Otherwise don't lie: surface the failure instead of showing a
+      // status the server rejected (e.g. a refill approval that didn't land).
+      if (!demoMode) throw err;
+    }
     setInboxMessages((prev) =>
       prev.map((m) => (m.id === msgId ? { ...m, status: newStatus, read: newStatus === 'Read' } : m))
     );
-  }, []);
+  }, [demoMode]);
 
   const addInboxMessage = useCallback(async (message) => {
     try {

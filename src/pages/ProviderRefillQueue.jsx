@@ -1,18 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-
-const API = import.meta.env.VITE_API_URL || '/api';
+import { inbox as inboxApi } from '../services/api';
 
 function fmtDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-}
-
-async function apiFetch(path, opts = {}) {
-  const res = await fetch(`${API}${path}`, { credentials: 'include', ...opts });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
 }
 
 export default function ProviderRefillQueue() {
@@ -37,7 +30,7 @@ export default function ProviderRefillQueue() {
   async function loadTasks() {
     setLoading(true);
     try {
-      const data = await apiFetch('/inbox/refill-queue');
+      const data = await inboxApi.refillQueue();
       setTasks(data || []);
       // Auto-select first task if none selected
       setSelectedId(id => id ?? data?.[0]?.id ?? null);
@@ -54,7 +47,7 @@ export default function ProviderRefillQueue() {
   useEffect(() => {
     if (!selectedId) { setThread([]); return; }
     setThreadLoading(true);
-    apiFetch(`/inbox/refill-queue/${selectedId}/thread`)
+    inboxApi.refillThread(selectedId)
       .then(data => { setThread(data || []); })
       .catch(() => setThread([]))
       .finally(() => setThreadLoading(false));
@@ -100,7 +93,7 @@ export default function ProviderRefillQueue() {
     if (!selected || acting) return;
     setActing(true);
     try {
-      await apiFetch(`/inbox/refill-queue/${selected.id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      await inboxApi.approveRefill(selected.id);
       showToast(`✅ Approved — ${selected.medicationName} for ${selected.patientName}`);
       advanceAfter(selected.id);
     } catch {
@@ -114,11 +107,7 @@ export default function ProviderRefillQueue() {
     if (!selected || acting) return;
     setActing(true);
     try {
-      await apiFetch(`/inbox/refill-queue/${selected.id}/deny`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: denyReason.trim() || undefined }),
-      });
+      await inboxApi.denyRefill(selected.id, denyReason.trim() || undefined);
       showToast(`❌ Denied — ${selected.medicationName} for ${selected.patientName}`);
       advanceAfter(selected.id);
     } catch {

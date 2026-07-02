@@ -96,6 +96,11 @@ router.put('/:id/status', validate(InboxStatusUpdateSchema), async (req, res) =>
 
     const isRefillResolution = row.type === 'Rx Refill Request' && (status === 'Approved' || status === 'Denied');
 
+    // Resolving a refill is a clinical decision — prescriber or admin only
+    if (isRefillResolution && !['prescriber', 'admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Not authorized to resolve refill requests' });
+    }
+
     // Refill resolution: close the task + the thread, then send a portal reply
     if (isRefillResolution) {
       const resolvedStatus = status === 'Approved' ? 'approved' : 'denied';
@@ -234,11 +239,22 @@ router.get('/refill-queue/:taskId/thread', async (req, res) => {
 // POST /api/inbox/refill-queue/:taskId/approve
 router.post('/refill-queue/:taskId/approve', async (req, res) => {
   try {
+    // Approving a refill is a clinical decision — prescribers act on their own
+    // queue, admin on any task
+    if (!['prescriber', 'admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Not authorized to resolve refill requests' });
+    }
     const task = await db.prepare('SELECT * FROM refill_tasks WHERE id = ?').get(req.params.taskId);
     if (!task) return res.status(404).json({ error: 'Task not found' });
-    if (task.status !== 'pending') return res.status(409).json({ error: 'Already resolved' });
+    if (req.user.role !== 'admin' && task.provider_id !== req.user.id) {
+      return res.status(403).json({ error: 'Task is assigned to another provider' });
+    }
 
-    await db.prepare('UPDATE refill_tasks SET status=?, resolved_at=NOW() WHERE id=?').run('approved', task.id);
+    // Atomic claim — a concurrent approve/deny loses and gets 409
+    const claimed = await db.prepare(
+      `UPDATE refill_tasks SET status=?, resolved_at=NOW() WHERE id=? AND status='pending' RETURNING id`
+    ).get('approved', task.id);
+    if (!claimed) return res.status(409).json({ error: 'Already resolved' });
 
     if (task.linked_message_id) {
       await db.prepare(
@@ -283,11 +299,20 @@ router.post('/refill-queue/:taskId/approve', async (req, res) => {
 router.post('/refill-queue/:taskId/deny', async (req, res) => {
   try {
     const { reason } = req.body || {};
+    if (!['prescriber', 'admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Not authorized to resolve refill requests' });
+    }
     const task = await db.prepare('SELECT * FROM refill_tasks WHERE id = ?').get(req.params.taskId);
     if (!task) return res.status(404).json({ error: 'Task not found' });
-    if (task.status !== 'pending') return res.status(409).json({ error: 'Already resolved' });
+    if (req.user.role !== 'admin' && task.provider_id !== req.user.id) {
+      return res.status(403).json({ error: 'Task is assigned to another provider' });
+    }
 
-    await db.prepare('UPDATE refill_tasks SET status=?, resolved_at=NOW() WHERE id=?').run('denied', task.id);
+    // Atomic claim — a concurrent approve/deny loses and gets 409
+    const claimed = await db.prepare(
+      `UPDATE refill_tasks SET status=?, resolved_at=NOW() WHERE id=? AND status='pending' RETURNING id`
+    ).get('denied', task.id);
+    if (!claimed) return res.status(409).json({ error: 'Already resolved' });
 
     if (task.linked_message_id) {
       await db.prepare(

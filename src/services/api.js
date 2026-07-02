@@ -268,6 +268,10 @@ export const inbox = {
   create: (data) => post('/inbox', data),
   update: (id, data) => put(`/inbox/${id}`, data),
   updateStatus: (id, status) => put(`/inbox/${id}/status`, { status }),
+  refillQueue: () => get('/inbox/refill-queue'),
+  refillThread: (taskId) => get(`/inbox/refill-queue/${taskId}/thread`),
+  approveRefill: (taskId) => post(`/inbox/refill-queue/${taskId}/approve`, {}),
+  denyRefill: (taskId, reason) => post(`/inbox/refill-queue/${taskId}/deny`, { reason }),
 };
 
 // ─── Messaging ───────────────────────────────────────

@@ -21,6 +21,7 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db/database.js';
 import { portalTelehealthToken } from './telehealthToken.js';
+import { resolveTaskProvider } from '../utils/resolveTaskProvider.js';
 import { validate } from '../middleware/validate.js';
 import {
   PortalMessageSchema,
@@ -1216,14 +1217,8 @@ router.post('/refill-request', authenticatePortal, validate(PortalRefillRequestS
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
   // ── Auto-triage: resolve provider ─────────────────────────────────────────
-  // 1. Use assigned_provider (PCP); 2. fall back to any active provider at clinic
-  let toUser = patient.assigned_provider || '';
-  if (!toUser) {
-    const fallback = await db.prepare(
-      `SELECT id FROM users WHERE role = 'provider' LIMIT 1`
-    ).get();
-    toUser = fallback?.id || '';
-  }
+  // assigned_provider (PCP) → prescriber at patient's clinic → any prescriber
+  const toUser = await resolveTaskProvider({ patientId: req.patientId });
 
   // ── Auto-triage: check urgency via medication record ──────────────────────
   // Urgent if patient has zero refills left or medication is out
