@@ -1211,25 +1211,66 @@ router.post('/refill-request', authenticatePortal, validate(PortalRefillRequestS
   if (!medicationName) return res.status(400).json({ error: 'medicationName required' });
 
   const patient = await db.prepare(
-    'SELECT id, first_name, last_name, assigned_provider FROM patients WHERE id = $1'
+    'SELECT id, first_name, last_name, assigned_provider, primary_location FROM patients WHERE id = $1'
   ).get(req.patientId);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+  // ── Auto-triage: resolve provider ─────────────────────────────────────────
+  // 1. Use assigned_provider (PCP); 2. fall back to any active provider at clinic
+  let toUser = patient.assigned_provider || '';
+  if (!toUser) {
+    const fallback = await db.prepare(
+      `SELECT id FROM users WHERE role = 'provider' LIMIT 1`
+    ).get();
+    toUser = fallback?.id || '';
+  }
+
+  // ── Auto-triage: check urgency via medication record ──────────────────────
+  // Urgent if patient has zero refills left or medication is out
+  let refillsLeft = null;
+  let lastFillDate = null;
+  let pharmacyName = pharmacy || '';
+
+  if (medicationId) {
+    const med = await db.prepare(
+      `SELECT refills_left, pharmacy FROM medications WHERE id = $1 LIMIT 1`
+    ).get(medicationId);
+    if (med) {
+      refillsLeft  = med.refills_left  ?? null;
+      pharmacyName = pharmacy || med.pharmacy || '';
+    }
+  }
+
+  const isUrgent = refillsLeft !== null && refillsLeft <= 0;
+
+  // ── Build enriched message body ───────────────────────────────────────────
+  const metaLines = [
+    `Medication: ${medicationName}${dose ? ' ' + dose : ''}${frequency ? ' — ' + frequency : ''}`,
+    refillsLeft !== null ? `Refills remaining: ${refillsLeft}` : null,
+    pharmacyName ? `Preferred pharmacy: ${pharmacyName}` : null,
+    isUrgent ? '\n⚠️ URGENT: Patient appears to be out of refills. Expedited review recommended.' : null,
+  ].filter(Boolean).join('\n');
+
+  const msgBody = `Patient has requested a refill via the Patient Portal.\n\n${metaLines}`;
 
   const patientName = `${patient.first_name} ${patient.last_name}`;
   const id          = uuidv4();
   const msgId       = uuidv4();
+  const taskId      = uuidv4();
   const now         = new Date();
-  const toUser      = patient.assigned_provider || '';
 
   await db.prepare(`
     INSERT INTO refills
-      (id, patient_id, medication_id, medication_name, dose, frequency, created_by, status, priority, notes, created_at, updated_at)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,'pending','normal',$8,NOW(),NOW())
+      (id, patient_id, medication_id, medication_name, dose, frequency, pharmacy_name,
+       created_by, status, priority, refills_remaining, notes, created_at, updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,$11,NOW(),NOW())
   `).run(
     id, req.patientId, medicationId || null, medicationName,
-    dose || '', frequency || '',
+    dose || '', frequency || '', pharmacyName || null,
     `patient-portal:${patientName}`,
-    pharmacy ? `Preferred pharmacy: ${pharmacy}` : null
+    isUrgent ? 'urgent' : 'normal',
+    refillsLeft ?? null,
+    pharmacyName ? `Preferred pharmacy: ${pharmacyName}` : null
   );
 
   const refillThreadKey = `${req.patientId}:${toUser || 'unassigned'}`;
@@ -1239,20 +1280,30 @@ router.post('/refill-request', authenticatePortal, validate(PortalRefillRequestS
       (id, type, from_name, to_user, provider_id, patient_id, patient_name,
        subject, body, date, time, read, priority, status, urgent,
        from_user_type, to_user_type, is_active, thread_key, category)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,'Normal','Unread',false,'patient','provider',true,$12,'Refill')
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,$12,'Unread',$13,'patient','provider',true,$14,'Refill')
   `).run(
     msgId, 'Rx Refill Request',
     `${patientName} (Patient Portal)`,
     toUser, toUser,
     req.patientId, patientName,
     `Refill Request: ${medicationName}${dose ? ' ' + dose : ''}`,
-    `Patient has requested a refill via the Patient Portal.\n\nMedication: ${medicationName}${dose ? ' ' + dose : ''}${frequency ? ' — ' + frequency : ''}${pharmacy ? '\nPreferred pharmacy: ' + pharmacy : ''}`,
+    msgBody,
     now.toISOString().split('T')[0],
     now.toTimeString().slice(0, 5),
+    isUrgent ? 'Urgent' : 'Normal',
+    isUrgent,
     refillThreadKey
   );
 
-  await portalAudit(req.portalUser.id, req.patientId, 'refill_requested', { medicationName }, req.ip);
+  // ── Create refill_task for structured workflow ─────────────────────────────
+  await db.prepare(`
+    INSERT INTO refill_tasks
+      (id, patient_id, provider_id, refill_id, linked_message_id,
+       medication_name, medication_id, status, auto_urgent)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8)
+  `).run(taskId, req.patientId, toUser, id, msgId, medicationName, medicationId || null, isUrgent);
+
+  await portalAudit(req.portalUser.id, req.patientId, 'refill_requested', { medicationName, isUrgent }, req.ip);
   res.status(201).json({ ok: true, refillId: id });
 });
 

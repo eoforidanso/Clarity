@@ -4,22 +4,16 @@ import { usePatient } from '../contexts/PatientContext';
 import { useAuth } from '../contexts/AuthContext';
 import { DemoDisabled } from '../demo/DemoGuard';
 
-// ── Category grouping ─────────────────────────────────────────────────────────
-const CATEGORY_MAP = {
-  'Check-in Alert':    'System Alerts',
-  'Prior Auth':        'System Alerts',
-  'Lab Result':        'System Alerts',
-  'Rx Refill Request': 'Pharmacy',
-  'Patient Message':   'Patient Messages',
-  'Referral Response': 'Patient Messages',
-  'Staff Message':     'Patient Messages',
-};
-
+// ── Category grouping — keyed on DB `category` column values ─────────────────
 const CATEGORY_META = {
-  'System Alerts':   { icon: '🔔', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5' },
-  'Pharmacy':        { icon: '💊', color: '#7c3aed', bg: '#f5f3ff', border: '#c4b5fd' },
-  'Patient Messages':{ icon: '💬', color: '#0369a1', bg: '#f0f9ff', border: '#7dd3fc' },
+  Refill:      { icon: '💊', color: '#7c3aed', bg: '#f5f3ff', border: '#c4b5fd' },
+  Labs:        { icon: '🔬', color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc' },
+  Medication:  { icon: '💉', color: '#6366f1', bg: '#eef2ff', border: '#c7d2fe' },
+  Appointment: { icon: '📅', color: '#16a34a', bg: '#f0fdf4', border: '#86efac' },
+  General:     { icon: '💬', color: '#0369a1', bg: '#f0f9ff', border: '#7dd3fc' },
+  Billing:     { icon: '🧾', color: '#9333ea', bg: '#faf5ff', border: '#d8b4fe' },
 };
+const CATEGORY_ORDER = ['Refill', 'Labs', 'Medication', 'Appointment', 'General', 'Billing'];
 
 // ── Severity helpers ──────────────────────────────────────────────────────────
 function SeverityDot({ msg }) {
@@ -77,7 +71,7 @@ export default function Inbox() {
   const navigate = useNavigate();
   const [selectedId, setSelectedId] = useState(null);
   const [selectedPatientId, setSelectedPatientId] = useState(null);
-  const [filterType, setFilterType] = useState('All');
+  const [filterCategory, setFilterCategory] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterUrgent, setFilterUrgent] = useState(false);
   const [replyText, setReplyText] = useState('');
@@ -153,8 +147,8 @@ export default function Inbox() {
     if (filterUrgent) {
       msgs = msgs.filter(m => m.urgent);
     }
-    if (filterType !== 'All') {
-      msgs = msgs.filter(m => m.type === filterType);
+    if (filterCategory !== 'All') {
+      msgs = msgs.filter(m => (m.category || 'General') === filterCategory);
     }
     if (filterStatus === 'Unread') {
       msgs = msgs.filter(m => m.status === 'Unread');
@@ -162,12 +156,20 @@ export default function Inbox() {
       msgs = msgs.filter(m => m.status === 'Read');
     }
 
-    return msgs.sort((a, b) => {
-      if (a.status === 'Unread' && b.status !== 'Unread') return -1;
-      if (a.status !== 'Unread' && b.status === 'Unread') return 1;
+    // Split active vs completed (is_active=false = auto-closed by triage)
+    const active    = msgs.filter(m => m.isActive !== false);
+    const completed = msgs.filter(m => m.isActive === false);
+
+    const sortFn = (a, b) => {
+      if (a.urgent  && !b.urgent)                           return -1;
+      if (!a.urgent && b.urgent)                            return 1;
+      if (a.status === 'Unread' && b.status !== 'Unread')  return -1;
+      if (a.status !== 'Unread' && b.status === 'Unread')  return 1;
       return new Date(b.date) - new Date(a.date);
-    });
-  }, [inboxMessages, filterType, filterStatus, filterUrgent, currentUser, selectedPatientId, accessiblePatientIds]);
+    };
+
+    return { active: active.sort(sortFn), completed: completed.sort(sortFn) };
+  }, [inboxMessages, filterCategory, filterStatus, filterUrgent, currentUser, selectedPatientId, accessiblePatientIds]);
 
   const selectedMessage = (inboxMessages || []).find(m => m.id === selectedId);
 
@@ -183,7 +185,15 @@ export default function Inbox() {
   }, [inboxMessages, currentUser, accessiblePatientIds]);
 
   const unreadCount = scopedMessages.filter(m => m.status === 'Unread').length;
-  const messageTypes = [...new Set(scopedMessages.map(m => m.type))];
+
+  const categoryCounts = useMemo(() => {
+    const counts = {};
+    scopedMessages.forEach(m => {
+      const c = m.category || 'General';
+      counts[c] = (counts[c] || 0) + 1;
+    });
+    return counts;
+  }, [scopedMessages]);
 
   // Auto-populate: select first patient with unread messages on mount
   useEffect(() => {
@@ -219,6 +229,7 @@ export default function Inbox() {
   const [replySent, setReplySent] = useState(false);
   const [assignedMsg, setAssignedMsg] = useState(false);
   const [refillAction, setRefillAction] = useState({}); // { [msgId]: 'Approved' | 'Denied' }
+  const [showCompleted, setShowCompleted] = useState(false);
 
   // Mobile responsive state
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
@@ -330,24 +341,24 @@ export default function Inbox() {
         </div>
       </div>
 
-      {/* Filters — pill bar */}
+      {/* Filters — category pill bar */}
       <div style={{ marginBottom: 14, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        {['All', ...messageTypes].map(t => {
-          const active = filterType === t;
-          const tc = TYPE_TAG_COLORS[t];
+        {['All', ...CATEGORY_ORDER.filter(c => categoryCounts[c])].map(cat => {
+          const active = filterCategory === cat;
+          const meta = CATEGORY_META[cat];
           return (
-            <button key={t} type="button" onClick={() => setFilterType(t)}
+            <button key={cat} type="button" onClick={() => setFilterCategory(cat)}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,
                 padding: '5px 13px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                 border: active ? 'none' : '1.5px solid var(--border)',
-                background: active ? (tc ? tc.color : '#0f172a') : (tc ? tc.bg : '#fff'),
-                color: active ? '#fff' : (tc ? tc.color : 'var(--text-secondary)'),
+                background: active ? (meta ? meta.color : '#0f172a') : (meta ? meta.bg : '#fff'),
+                color: active ? '#fff' : (meta ? meta.color : 'var(--text-secondary)'),
                 transition: 'all 0.15s',
                 boxShadow: active ? 'var(--shadow-sm)' : 'none',
               }}>
-              {t !== 'All' && <TypeIcon type={t} size={11} />}
-              {t === 'Rx Refill Request' ? 'Refills' : t === 'Lab Result' ? 'Labs' : t === 'Patient Message' ? 'Messages' : t === 'Check-in Alert' ? 'Check-ins' : t === 'Prior Auth' ? 'Prior Auth' : t === 'Staff Message' ? 'Staff' : t === 'Referral Response' ? 'Referrals' : t}
+              {cat !== 'All' && meta && <span style={{ fontSize: 12 }}>{meta.icon}</span>}
+              {cat}{cat !== 'All' && categoryCounts[cat] ? ` (${categoryCounts[cat]})` : ''}
             </button>
           );
         })}
@@ -365,7 +376,7 @@ export default function Inbox() {
             </button>
           ))}
         </div>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{filteredMessages.length} msg{filteredMessages.length !== 1 ? 's' : ''}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{filteredMessages.active.length} msg{filteredMessages.active.length !== 1 ? 's' : ''}</span>
       </div>
 
       {/* Three-Column Inbox Layout */}
@@ -453,26 +464,25 @@ export default function Inbox() {
           {selectedPatientId && (
             <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border)', background:'#fafbfc', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
               <span style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.3px' }}>Messages</span>
-              <span style={{ fontSize:11, color:'var(--text-muted)' }}>{filteredMessages.length} total</span>
+              <span style={{ fontSize:11, color:'var(--text-muted)' }}>{filteredMessages.active.length} active</span>
             </div>
           )}
-          {filteredMessages.length === 0 && (
+          {filteredMessages.active.length === 0 && filteredMessages.completed.length === 0 && (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
               <div style={{ fontSize: 40, marginBottom: 8 }}>📭</div>
               {selectedPatientId ? 'No messages for this patient' : 'No messages match your filters'}
             </div>
           )}
 
-          {/* Group messages by category */}
+          {/* Group active messages by DB category */}
           {(() => {
             const grouped = {};
-            filteredMessages.forEach(msg => {
-              const cat = CATEGORY_MAP[msg.type] || 'Patient Messages';
+            filteredMessages.active.forEach(msg => {
+              const cat = msg.category || 'General';
               if (!grouped[cat]) grouped[cat] = [];
               grouped[cat].push(msg);
             });
-            const order = ['System Alerts', 'Pharmacy', 'Patient Messages'];
-            return order.filter(cat => grouped[cat]?.length > 0).map(cat => {
+            return CATEGORY_ORDER.filter(cat => grouped[cat]?.length > 0).map(cat => {
               const meta = CATEGORY_META[cat];
               const msgs = grouped[cat];
               const urgentInGroup = msgs.filter(m => m.urgent).length;
@@ -572,6 +582,51 @@ export default function Inbox() {
               );
             });
           })()}
+
+          {/* Completed / auto-closed section */}
+          {filteredMessages.completed.length > 0 && (
+            <div>
+              <button
+                onClick={() => setShowCompleted(s => !s)}
+                style={{
+                  width: '100%', padding: '8px 14px', background: '#f8fafc', border: 'none',
+                  borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)',
+                  display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+                  fontSize: 11, fontWeight: 700, color: '#6b7280', textAlign: 'left',
+                }}>
+                <span style={{ fontSize: 10, transform: showCompleted ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 0.15s' }}>▶</span>
+                ✅ Completed ({filteredMessages.completed.length})
+                <span style={{ fontSize: 10, fontWeight: 400, color: '#9ca3af' }}>— auto-closed after resolution</span>
+              </button>
+              {showCompleted && filteredMessages.completed.map(msg => (
+                <div
+                  key={msg.id}
+                  onClick={() => handleSelectMessage(msg)}
+                  style={{
+                    padding: '8px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
+                    background: selectedId === msg.id ? '#f0fdf4' : '#fafafa',
+                    opacity: 0.75, transition: 'background 0.12s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = '0.75'; }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                    <div style={{ fontSize: 12, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                      {msg.subject}
+                    </div>
+                    <span style={{ fontSize: 10, color: '#9ca3af', flexShrink: 0 }}>{msg.date}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 3 }}>
+                    <span style={{
+                      fontSize: 9.5, background: '#dcfce7', color: '#166534',
+                      padding: '1px 6px', borderRadius: 8, fontWeight: 700, flexShrink: 0,
+                    }}>✓ {msg.status}</span>
+                    <span style={{ fontSize: 11, color: '#9ca3af' }}>{msg.from}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         )} {/* end message list column */}
 
@@ -610,6 +665,20 @@ export default function Inbox() {
                       <TypeIcon type={selectedMessage.type} size={12} />
                       {selectedMessage.type}
                     </span>
+                    {(() => {
+                      const cat = selectedMessage.category || 'General';
+                      const meta = CATEGORY_META[cat];
+                      if (!meta || cat === 'General') return null;
+                      return (
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          padding: '3px 10px', borderRadius: 'var(--radius-chip)', fontSize: 11, fontWeight: 700,
+                          background: meta.bg, color: meta.color, border: `1px solid ${meta.border}`,
+                        }}>
+                          {meta.icon} {cat}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="flex gap-4 text-sm text-muted" style={{ flexWrap: 'wrap' }}>

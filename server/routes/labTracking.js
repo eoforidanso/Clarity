@@ -1,7 +1,70 @@
 import { Router } from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { routeError } from '../utils/routeError.js';
+
+const CRITICAL_FLAGS = new Set(['HH', 'LL', 'C', 'CH', 'CL', 'AA']);
+const ABNORMAL_FLAGS = new Set(['H', 'L', 'HH', 'LL', 'C', 'CH', 'CL', 'A', 'AA']);
+
+async function triageOrderResult(order, newFlag) {
+  const flag = (newFlag || '').trim().toUpperCase();
+  if (!ABNORMAL_FLAGS.has(flag)) return;
+
+  // Skip if already triaged for this order
+  const existing = await db.prepare(`SELECT id FROM lab_review_tasks WHERE order_id = $1`).get(order.id);
+  if (existing) return;
+
+  const hasCritical = CRITICAL_FLAGS.has(flag);
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  let providerId = UUID_RE.test(order.ordered_by || '') ? order.ordered_by : '';
+
+  if (!providerId) {
+    const patient = await db.prepare(`SELECT assigned_provider FROM patients WHERE id = $1`).get(order.patient_id);
+    providerId = patient?.assigned_provider || '';
+  }
+  if (!providerId) {
+    const fallback = await db.prepare(`SELECT id FROM users WHERE role = 'provider' LIMIT 1`).get();
+    providerId = fallback?.id || '';
+  }
+
+  const patient = await db.prepare(`SELECT first_name, last_name FROM patients WHERE id = $1`).get(order.patient_id);
+  const patientName = patient ? `${patient.first_name} ${patient.last_name}` : '';
+
+  const testDesc   = order.description || order.test_name || 'Lab Order';
+  const resultLine = `${testDesc}: ${order.result_value || '?'} ${flag} (ref ${order.ref_range || 'N/A'})`;
+  const now        = new Date();
+  const msgId      = uuidv4();
+  const taskId     = uuidv4();
+  const threadKey  = `${order.patient_id}:${providerId || 'unassigned'}`;
+  const msgBody    = [
+    hasCritical ? '🚨 CRITICAL value requires immediate attention.\n' : '⚠️ Abnormal result filed.\n',
+    resultLine,
+    '\nPlease review in the patient chart.',
+  ].join('\n');
+
+  await db.prepare(`
+    INSERT INTO inbox_messages
+      (id, type, from_name, to_user, provider_id, patient_id, patient_name,
+       subject, body, date, time, read, priority, status, urgent,
+       from_user_type, to_user_type, is_active, thread_key, category)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,$12,'Unread',$13,'system','provider',true,$14,'Labs')
+  `).run(
+    msgId, 'Lab Result', 'Lab System',
+    providerId, providerId, order.patient_id, patientName,
+    `${hasCritical ? '🚨 Critical' : '⚠️ Abnormal'} Result — ${patientName}`,
+    msgBody,
+    now.toISOString().split('T')[0], now.toTimeString().slice(0, 5),
+    hasCritical ? 'Urgent' : 'Normal', hasCritical, threadKey
+  );
+
+  await db.prepare(`
+    INSERT INTO lab_review_tasks
+      (id, patient_id, provider_id, order_id, linked_message_id,
+       test_summary, abnormal_flag, status, auto_urgent)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8)
+  `).run(taskId, order.patient_id, providerId, order.id, msgId, resultLine, hasCritical ? 'critical' : 'abnormal', hasCritical);
+}
 
 const router = Router();
 router.use(authenticate);
@@ -90,6 +153,12 @@ router.put('/:orderId', async (req, res) => {
       FROM orders o LEFT JOIN patients p ON p.id = o.patient_id
       WHERE o.id = ?
     `).get(req.params.orderId);
+
+    // Auto-triage: file inbox message if result has an abnormal flag being set for the first time
+    if (b.resultFlag && b.resultFlag !== existing.result_flag) {
+      triageOrderResult(updated, b.resultFlag).catch(() => {});
+    }
+
     res.json(formatLabOrder(updated));
   } catch (err) {
     routeError(req, '[lab-tracking] PUT', err);

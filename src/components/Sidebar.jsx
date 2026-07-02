@@ -17,6 +17,7 @@ export default function Sidebar() {
   const aiPrefs = getAIFeatures();
   const [chartExpanded, setChartExpanded] = useState(true);
   const [portalQueueCount, setPortalQueueCount] = useState(0);
+  const [refillQueueCount, setRefillQueueCount] = useState(0);
 
   // ── Collapsible section state ────────────────────────────
   const [expanded, setExpanded] = useState(() => {
@@ -68,6 +69,21 @@ export default function Sidebar() {
     const id = setInterval(load, 60_000);
     return () => clearInterval(id);
   }, [isAdminOrFrontDesk]);
+
+  // Live refill queue badge for clinical providers
+  useEffect(() => {
+    const clinical = ['prescriber', 'nurse', 'therapist'].includes(currentUser?.role);
+    if (!clinical) return;
+    const BASE = import.meta.env.VITE_API_URL || '/api';
+    const load = () =>
+      fetch(`${BASE}/inbox/refill-queue`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (Array.isArray(d)) setRefillQueueCount(d.length); })
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 90_000);
+    return () => clearInterval(id);
+  }, [currentUser?.role]);
 
   const isClinical = ['prescriber', 'nurse', 'therapist'].includes(currentUser?.role);
   const isNonClinical = ['admin', 'front_desk', 'biller'].includes(currentUser?.role);
@@ -203,7 +219,8 @@ export default function Sidebar() {
         <ul className="sidebar-nav">
           {navItem('/dashboard', '📊', 'Dashboard')}
           {navItem('/schedule',  '📅', 'Schedule', todayApptCount)}
-          {navItem('/inbox',     '📬', 'Clinical Inbox', unreadCount)}
+          {navItem('/inbox',               '📬', 'Clinical Inbox',    unreadCount)}
+          {isClinical && navItem('/provider-refill-queue', '💊', 'Refill Requests', refillQueueCount)}
           {navItem('/patients',  '🔍', 'Patient Search')}
           {navItem('/patient-registration', '📝', 'Patient Registration')}
           {navItem('/refill-queue', '💊', 'Refill Queue')}
