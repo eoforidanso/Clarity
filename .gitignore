@@ -6,3 +6,8 @@ server/db/ehr.db-shm
 server/db/ehr.db-wal
 *.sqlite
 server-spring/target/
+logs/
+.DS_Store
+*.pdf
+generate-pdf*.js
+pdf-server.js
