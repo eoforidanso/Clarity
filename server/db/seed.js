@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import { pathToFileURL } from 'url';
 import db, { initializeDatabase } from './database.js';
 
 const SALT_ROUNDS = 10;
@@ -478,5 +479,7 @@ export default async function seed() {
   console.log('Database seeding complete!');
 }
 
-// Run directly
-seed().catch(err => { console.error(err); process.exit(1); });
+// Run only when executed directly (node server/db/seed.js), never on import
+if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+  seed().catch(err => { console.error(err); process.exit(1); });
+}

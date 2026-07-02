@@ -6,6 +6,8 @@ import { refillQueue as refillApi } from '../services/api';
 const REFILL_STATUSES = [
   { id: 'all', label: 'All', icon: '📄', color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
   { id: 'pending', label: 'Pending', icon: '⏳', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a' },
+  { id: 'approved', label: 'Provider Approved', icon: '✔️', color: '#059669', bg: '#ecfdf5', border: '#6ee7b7' },
+  { id: 'denied', label: 'Denied by Provider', icon: '🚫', color: '#b91c1c', bg: '#fef2f2', border: '#fca5a5' },
   { id: 'queued', label: 'Queued', icon: '📋', color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe' },
   { id: 'sent', label: 'Sent to Pharmacy', icon: '✅', color: '#10b981', bg: '#f0fdf4', border: '#86efac' },
   { id: 'filled', label: 'Filled', icon: '💊', color: '#8b5cf6', bg: '#faf5ff', border: '#ddd6fe' },

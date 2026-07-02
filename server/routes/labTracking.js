@@ -12,12 +12,16 @@ async function triageOrderResult(order, newFlag) {
   const flag = (newFlag || '').trim().toUpperCase();
   if (!ABNORMAL_FLAGS.has(flag)) return;
 
-  // Skip if already triaged for this order
-  const existing = await db.prepare(`SELECT id FROM lab_review_tasks WHERE order_id = $1`).get(order.id);
-  if (existing) return;
-
   const hasCritical = CRITICAL_FLAGS.has(flag);
-  const providerId  = await resolveTaskProvider({ candidateId: order.ordered_by, patientId: order.patient_id });
+
+  // Skip if a pending task already covers this order — unless the flag has
+  // escalated to critical (e.g. H → HH), which must not be swallowed
+  const existing = await db.prepare(
+    `SELECT id, auto_urgent FROM lab_review_tasks WHERE order_id = $1 AND status = 'pending'`
+  ).get(order.id);
+  if (existing && (!hasCritical || existing.auto_urgent)) return;
+
+  const providerId = await resolveTaskProvider({ candidateId: order.ordered_by, patientId: order.patient_id });
 
   const patient = await db.prepare(`SELECT first_name, last_name FROM patients WHERE id = $1`).get(order.patient_id);
   const patientName = patient ? `${patient.first_name} ${patient.last_name}` : '';
@@ -49,12 +53,21 @@ async function triageOrderResult(order, newFlag) {
     hasCritical ? 'Urgent' : 'Normal', hasCritical, threadKey
   );
 
-  await db.prepare(`
-    INSERT INTO lab_review_tasks
-      (id, patient_id, provider_id, order_id, linked_message_id,
-       test_summary, abnormal_flag, status, auto_urgent)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8)
-  `).run(taskId, order.patient_id, providerId, order.id, msgId, resultLine, hasCritical ? 'critical' : 'abnormal', hasCritical);
+  if (existing) {
+    // Escalation: upgrade the pending task in place instead of duplicating it
+    await db.prepare(`
+      UPDATE lab_review_tasks
+      SET auto_urgent = true, abnormal_flag = 'critical', test_summary = $1, linked_message_id = $2
+      WHERE id = $3
+    `).run(resultLine, msgId, existing.id);
+  } else {
+    await db.prepare(`
+      INSERT INTO lab_review_tasks
+        (id, patient_id, provider_id, order_id, linked_message_id,
+         test_summary, abnormal_flag, status, auto_urgent)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8)
+    `).run(taskId, order.patient_id, providerId, order.id, msgId, resultLine, hasCritical ? 'critical' : 'abnormal', hasCritical);
+  }
 }
 
 const router = Router();

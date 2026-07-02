@@ -70,10 +70,10 @@ export default function Sidebar() {
     return () => clearInterval(id);
   }, [isAdminOrFrontDesk]);
 
-  // Live refill queue badge for clinical providers
+  // Live refill queue badge — prescribers only: refill tasks are routed to
+  // prescribers and only prescriber/admin can resolve them
   useEffect(() => {
-    const clinical = ['prescriber', 'nurse', 'therapist'].includes(currentUser?.role);
-    if (!clinical) return;
+    if (currentUser?.role !== 'prescriber') return;
     const BASE = import.meta.env.VITE_API_URL || '/api';
     const load = () =>
       fetch(`${BASE}/inbox/refill-queue`, { credentials: 'include' })
@@ -220,7 +220,7 @@ export default function Sidebar() {
           {navItem('/dashboard', '📊', 'Dashboard')}
           {navItem('/schedule',  '📅', 'Schedule', todayApptCount)}
           {navItem('/inbox',               '📬', 'Clinical Inbox',    unreadCount)}
-          {isClinical && navItem('/provider-refill-queue', '💊', 'Refill Requests', refillQueueCount)}
+          {currentUser?.role === 'prescriber' && navItem('/provider-refill-queue', '💊', 'Refill Requests', refillQueueCount)}
           {navItem('/patients',  '🔍', 'Patient Search')}
           {navItem('/patient-registration', '📝', 'Patient Registration')}
           {navItem('/refill-queue', '💊', 'Refill Queue')}

@@ -45,7 +45,8 @@ export async function up(db) {
   // read / urgent: ensure no NULLs before type cast
   // On fresh installs these are INTEGER; on prod they were migrated to BOOLEAN already
   const readTypeRow = await db.prepare(
-    `SELECT data_type FROM information_schema.columns WHERE table_name='inbox_messages' AND column_name='read'`
+    `SELECT data_type FROM information_schema.columns
+     WHERE table_schema = current_schema() AND table_name='inbox_messages' AND column_name='read'`
   ).get();
   const readIsInt = readTypeRow?.data_type === 'integer';
   if (readIsInt) {
