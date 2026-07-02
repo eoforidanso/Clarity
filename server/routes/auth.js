@@ -151,7 +151,7 @@ router.post('/login', rateLimitLoginByIp, async (req, res) => { const { username
     return res.status(400).json({ error: 'Invalid password' });
   }
 
-  const user = await db.prepare('SELECT id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, totp_secret, must_change_password, patient_id, location_id, is_global, is_locked, locked_reason FROM users WHERE LOWER(email) = LOWER($1)').get(sanitizedUsername);
+  const user = await db.prepare('SELECT id, username, password_hash, first_name, last_name, role, credentials, specialty, npi, dea_number, email, two_factor_enabled, totp_secret, must_change_password, patient_id, location_id, is_global, is_locked, locked_reason FROM users WHERE LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1)').get(sanitizedUsername);
 
   // ── Account lockout check ───────────────────────────────────────────────────
   if (user?.is_locked) {

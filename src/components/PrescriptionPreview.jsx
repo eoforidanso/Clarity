@@ -14,6 +14,7 @@ export function PrescriptionPreview({ prescription }) {
     safety,
     pharmacy,
     prescriber,
+    clinic,
     clinicalNotes,
     signedAt,
     sendDate,
@@ -121,6 +122,31 @@ export function PrescriptionPreview({ prescription }) {
               <div className="rx-label">Method / Status</div>
               <div className="rx-value">{pharmacy.method} · {pharmacy.status}</div>
             </div>
+          </div>
+        </section>
+      )}
+
+      {/* Clinic */}
+      {clinic && (
+        <section className="rx-section">
+          <h3 className="rx-section__title">Clinic</h3>
+          <div className="rx-grid rx-grid--2">
+            <div>
+              <div className="rx-label">Name</div>
+              <div className="rx-value">{clinic.name}</div>
+            </div>
+            {clinic.phone && (
+              <div>
+                <div className="rx-label">Phone</div>
+                <div className="rx-value">{clinic.phone}</div>
+              </div>
+            )}
+            {clinic.address && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <div className="rx-label">Address</div>
+                <div className="rx-value">{clinic.address}</div>
+              </div>
+            )}
           </div>
         </section>
       )}

@@ -43,8 +43,18 @@ export async function up(db) {
   ).run();
 
   // read / urgent: ensure no NULLs before type cast
-  await db.prepare(`UPDATE inbox_messages SET read   = 0 WHERE read   IS NULL`).run();
-  await db.prepare(`UPDATE inbox_messages SET urgent = 0 WHERE urgent IS NULL`).run();
+  // On fresh installs these are INTEGER; on prod they were migrated to BOOLEAN already
+  const readTypeRow = await db.prepare(
+    `SELECT data_type FROM information_schema.columns WHERE table_name='inbox_messages' AND column_name='read'`
+  ).get();
+  const readIsInt = readTypeRow?.data_type === 'integer';
+  if (readIsInt) {
+    await db.prepare(`UPDATE inbox_messages SET read   = 0 WHERE read   IS NULL`).run();
+    await db.prepare(`UPDATE inbox_messages SET urgent = 0 WHERE urgent IS NULL`).run();
+  } else {
+    await db.prepare(`UPDATE inbox_messages SET read   = false WHERE read   IS NULL`).run();
+    await db.prepare(`UPDATE inbox_messages SET urgent = false WHERE urgent IS NULL`).run();
+  }
 
   // ── 3. Set NOT NULL on the four required columns ──────────────────────────
   await db.prepare(`ALTER TABLE inbox_messages ALTER COLUMN patient_id     SET NOT NULL`).run();
@@ -58,13 +68,15 @@ export async function up(db) {
   await db.prepare(`ALTER TABLE inbox_messages ALTER COLUMN from_user_type SET DEFAULT 'system'`).run();
   await db.prepare(`ALTER TABLE inbox_messages ALTER COLUMN to_user_type   SET DEFAULT 'provider'`).run();
 
-  // ── 5. Cast read + urgent from INTEGER to BOOLEAN ────────────────────────
-  await db.prepare(
-    `ALTER TABLE inbox_messages ALTER COLUMN read   TYPE BOOLEAN USING (read   != 0)`
-  ).run();
-  await db.prepare(
-    `ALTER TABLE inbox_messages ALTER COLUMN urgent TYPE BOOLEAN USING (urgent != 0)`
-  ).run();
+  // ── 5. Cast read + urgent from INTEGER to BOOLEAN (skip if already boolean) ─
+  if (readIsInt) {
+    await db.prepare(
+      `ALTER TABLE inbox_messages ALTER COLUMN read   TYPE BOOLEAN USING (read   != 0)`
+    ).run();
+    await db.prepare(
+      `ALTER TABLE inbox_messages ALTER COLUMN urgent TYPE BOOLEAN USING (urgent != 0)`
+    ).run();
+  }
   await db.prepare(`ALTER TABLE inbox_messages ALTER COLUMN read   SET NOT NULL`).run();
   await db.prepare(`ALTER TABLE inbox_messages ALTER COLUMN urgent SET NOT NULL`).run();
   await db.prepare(`ALTER TABLE inbox_messages ALTER COLUMN read   SET DEFAULT false`).run();
