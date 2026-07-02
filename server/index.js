@@ -98,9 +98,10 @@ if (config.nodeEnv === 'production') {
   });
 }
 
-// Requests arrive via Cloudflare Tunnel (127.0.0.1) or direct localhost.
-// Trust the loopback proxy so Express sees the forwarded headers.
-app.set('trust proxy', '127.0.0.1');
+// Requests arrive via nginx on loopback. nginx's proxy_pass uses
+// "localhost", which resolves to both 127.0.0.1 and ::1 — trust both,
+// or requests arriving over ::1 lose X-Forwarded-Proto and get 301'd.
+app.set('trust proxy', 'loopback');
 
 // Extract real client IP from CF-Connecting-IP (set by Cloudflare edge, not spoofable).
 // Falls back to X-Real-IP (legacy nginx setups) then req.ip (direct connections).
