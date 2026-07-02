@@ -1,0 +1,378 @@
+# SOC 2 Scope Definition
+## Clarity EHR Platform
+
+**Document Version:** 1.0  
+**Date:** June 12, 2026  
+**Status:** DRAFT — For Executive Review  
+**Prepared By:** Security Team  
+**Next Step:** Readiness Assessment (Step 02)
+
+---
+
+## 1. Executive Summary
+
+Clarity EHR is pursuing **SOC 2 Type II Certification** across three Trust Service Criteria (TSCs):
+1. **Security (CC)** — Controls over access, cryptography, and threat detection
+2. **Availability (A)** — Controls ensuring system uptime and disaster recovery
+3. **Confidentiality (C)** — Controls protecting Protected Health Information (PHI) from unauthorized disclosure
+
+**Certification Timeline:**
+- Target Audit Start: Q4 2026
+- Type II Evidence Period: 6–12 months (Sep 2026–Sep 2027)
+- Report Delivery: Q4 2027
+
+**Expected Benefit:** Enterprise compliance for healthcare customers, federal tenders, and regulated partnerships.
+
+---
+
+## 2. Trust Service Criteria (TSCs) Selection
+
+### Selected: Security (CC) — MANDATORY
+
+**Rationale:** All SOC 2 reports must include Security. For healthcare, this is non-negotiable.
+
+**Scope:**
+- Authentication & authorization (JWT tokens, session management, MFA)
+- Access controls (role-based access, privilege elevation, audit trails)
+- Cryptography (AES-256-GCM for PII, TLS for transit, secrets management)
+- Threat detection & response (anomaly detection, CSRF protection, rate limiting)
+- Change management (audit log immutability, migration tracking)
+- Incident management (security monitoring, alerting, runbooks)
+
+**Key Controls Already in Place:**
+- ✅ CSRF token protection (middleware)
+- ✅ Audit log immutability (database triggers)
+- ✅ Secrets management (validation at startup)
+- ✅ PII encryption (AES-256-GCM)
+- ✅ Risk scoring & anomaly detection
+- ✅ Rate limiting & account lockout
+
+---
+
+### Selected: Availability (A) — RECOMMENDED for Healthcare
+
+**Rationale:** EHR downtime directly impacts patient care. Availability controls prove uptime SLAs and disaster recovery.
+
+**Scope:**
+- Infrastructure monitoring (uptime metrics, alerting)
+- Backup & restore procedures (daily backups, tested recovery)
+- Disaster recovery plan (RTO/RPO targets, failover procedures)
+- Load balancing & scaling (handle traffic spikes)
+- Database replication (PostgreSQL high availability)
+- Incident escalation (on-call rotation, incident severity levels)
+
+**Key Controls Needed:**
+- ⚠️ Backup automation & testing (build in Step 03)
+- ⚠️ Disaster recovery runbook (build in Step 03)
+- ⚠️ Uptime monitoring dashboard (build in Step 03)
+- ⚠️ RTO/RPO SLAs documented (define in Step 03)
+- ⚠️ Failover testing log (evidence in Step 04)
+
+---
+
+### Selected: Confidentiality (C) — RECOMMENDED for Healthcare
+
+**Rationale:** PHI is the crown jewel. Confidentiality controls prove that patient data is protected from unauthorized access.
+
+**Scope:**
+- Data classification (PHI vs. non-sensitive)
+- Encryption at rest (PII fields encrypted in database)
+- Encryption in transit (HTTPS/TLS enforced)
+- Access restrictions (role-based, field-level encryption)
+- Data retention & purging (soft-delete with audit trail)
+- Third-party data handling (vendor risk assessments)
+
+**Key Controls Already in Place:**
+- ✅ PII field encryption (AES-256-GCM)
+- ✅ TLS enforcement (HTTPS redirect, HSTS headers)
+- ✅ Role-based access control (provider, admin, front_desk)
+- ✅ Audit log immutability (full traceability)
+- ✅ Rate limiting (prevents data scraping)
+
+---
+
+### NOT Selected: Processing Integrity (PI)
+
+**Rationale:** While important for financial systems, Processing Integrity is lower priority for EHR. We can add it in a future certification cycle if customers request it.
+
+---
+
+### NOT Selected: Privacy (P)
+
+**Rationale:** Privacy in SOC 2 is about organizational policies around *use* of personal data (CCPA, GDPR). This is separate from SOC 2 and handled by your Privacy Policy. We can pursue SOC 2 + GDPR certification separately if needed.
+
+---
+
+## 3. System Boundaries
+
+### What's IN Scope
+
+```
+┌─────────────────────────────────────────┐
+│ Clarity EHR Platform (IN SCOPE)         │
+├─────────────────────────────────────────┤
+│                                         │
+│  Frontend Layer                         │
+│  ├─ Web app (app.clarity-ehr.com)      │
+│  ├─ Authentication UI (login, MFA)     │
+│  └─ Patient portal                     │
+│                                         │
+│  API Server (server/index.js)           │
+│  ├─ Auth service (JWT, sessions)       │
+│  ├─ Patient data service               │
+│  ├─ Prescription/medication service    │
+│  ├─ Audit & security logging           │
+│  └─ Anomaly detection engine           │
+│                                         │
+│  Database Layer                         │
+│  ├─ PostgreSQL (clarity_ehr)           │
+│  ├─ Encrypted PII fields               │
+│  ├─ Immutable audit logs               │
+│  └─ Session management                 │
+│                                         │
+│  Infrastructure                         │
+│  ├─ Secrets management (env vars)      │
+│  ├─ TLS certificates                   │
+│  ├─ HTTPS enforcement                  │
+│  ├─ Security monitoring (Sentry)       │
+│  └─ Backup systems                     │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+**Included Components:**
+- API endpoints (/api/patients, /api/users, /api/security, etc.)
+- Authentication & authorization layer
+- Database with encryption & audit logging
+- Monitoring & alerting (Sentry, security monitor)
+- Change management (migrations, deployments)
+- Incident response procedures
+
+---
+
+### What's OUT of Scope
+
+**Infrastructure (if managed by vendor):**
+- ❌ Physical data center security (managed by cloud provider)
+- ❌ Network infrastructure (managed by Cloudflare)
+- ❌ Operating system patches (managed by cloud provider)
+- ❌ Hardware maintenance
+
+**Third-Party Integrations (covered separately):**
+- ⚠️ DEA/pharmacy APIs (integrated via API keys, not user-facing)
+- ⚠️ Email delivery (Resend service)
+- ⚠️ Cloud storage (if used, TBD)
+
+**User Applications:**
+- ❌ Mobile apps (separate scope if audited)
+- ❌ Third-party EHR integrations (unless built by us)
+
+---
+
+## 4. User Population & Data Classification
+
+### User Types
+
+| User Type | Role | Access Level | PHI Access |
+|-----------|------|--------------|-----------|
+| Provider (MD/DO) | provider | Full | Yes—own patients |
+| Nurse | provider | Full | Yes—assigned patients |
+| Front Desk | front_desk | Limited | Yes—basic demographics |
+| Administrator | admin | Full | Yes—all data + system settings |
+| Patient (Portal) | patient | Restricted | Yes—own records only |
+
+### Data Classification
+
+**PHI (Protected Health Information) — Encrypted at rest:**
+- Patient name, DOB, SSN
+- Contact info (phone, email, address)
+- Insurance information
+- Medical record number
+- Diagnosis, prescriptions, allergies
+- Lab results, encounter notes
+
+**Non-PHI (Not encrypted, but audited):**
+- User roles, permissions
+- Session IDs, device fingerprints
+- Audit log entries (who, what, when, where)
+- System health metrics
+
+### Data Sensitivity
+
+| Data | Sensitivity | Protection | Audit |
+|------|-------------|-----------|-------|
+| Patient SSN | CRITICAL | AES-256-GCM | ✅ Immutable log |
+| Diagnosis | CRITICAL | AES-256-GCM | ✅ Immutable log |
+| Prescription | HIGH | AES-256-GCM | ✅ Immutable log |
+| Contact Info | HIGH | AES-256-GCM | ✅ Immutable log |
+| Session ID | MEDIUM | Encrypted (transit only) | ✅ Log |
+| Audit Trail | CRITICAL | Immutable DB triggers | ✅ Never deleted |
+
+---
+
+## 5. Audit Period & Type
+
+### SOC 2 Type II (Recommended for Healthcare)
+
+**Why Type II?**
+- Healthcare customers expect evidence of controls over **time**, not just existence
+- Type II demonstrates 6–12 months of operational effectiveness
+- More expensive but much higher customer confidence
+
+**Evidence Period:** September 1, 2026 — September 1, 2027 (12 months)
+
+**Timeline:**
+- Q3 2026: Readiness assessment, policy documentation
+- Q4 2026: Evidence collection begins (baseline established)
+- Q1–Q4 2027: Continue collecting evidence, monthly reviews
+- Q4 2027: Formal audit starts, report delivered by year-end
+
+### Alternative: SOC 2 Type I (Faster, Less Evidence)
+
+**Not Recommended** — Would only show controls exist on a single date (e.g., Dec 2026). Healthcare customers typically require Type II.
+
+---
+
+## 6. Control Objectives (Preliminary)
+
+### Security (CC) — 17 Objectives
+
+| Objective | Status | Notes |
+|-----------|--------|-------|
+| CC1.1: Org oversight of security | ⚠️ Draft policy | Document security steering committee |
+| CC1.2: Board oversight | ⚠️ Draft policy | CISO/security lead reports to leadership |
+| CC1.3: Establish responsibility | ⚠️ In place | Security team assigned |
+| CC1.4: Competence of security team | ⚠️ Document | Create role descriptions |
+| CC2.1: Analyze risk | ⚠️ In progress | Threat model → audit matrix |
+| CC2.2: Risk response | ⚠️ Partial | Have controls, need documented procedures |
+| CC2.3: Respond to risk | ⚠️ Draft | Incident response procedures |
+| CC3.1: Logical access policies | ✅ In place | RBAC, CSRF, secrets mgmt |
+| CC3.2: Restrict access | ✅ In place | Session management, elevation |
+| CC4.1: Detect anomalies | ✅ In place | Anomaly detection engine |
+| CC4.2: Monitor system activity | ✅ In place | Audit log immutability |
+| CC5.1: Manage change | ⚠️ Partial | Migrations logged, need runbook |
+| CC5.2: Configuration control | ⚠️ Draft | Document env var management |
+| CC6.1: Logical access control | ✅ In place | RBAC, MFA, device tracking |
+| CC6.2: User identity | ✅ In place | JWT sessions with device binding |
+| CC7.1: Manage cryptography | ✅ In place | AES-256-GCM, TLS, secrets mgmt |
+| CC7.2: Manage secrets | ✅ In place | Env var validation, rotation capable |
+
+### Availability (A) — 3 Objectives
+
+| Objective | Status | Notes |
+|-----------|--------|-------|
+| A1.1: Availability policy | ⚠️ Need to document | Define uptime SLA, RTO/RPO |
+| A1.2: Monitor & test | ⚠️ Need to implement | Uptime monitoring, failover test log |
+| A2.1: Backup & recovery | ⚠️ Need to document | Backup schedule, recovery procedures |
+
+### Confidentiality (C) — 4 Objectives
+
+| Objective | Status | Notes |
+|-----------|--------|-------|
+| C1.1: Confidentiality policies | ⚠️ Draft | Data classification matrix |
+| C1.2: Authorize use | ✅ In place | RBAC prevents unauthorized access |
+| C2.1: Encrypt PHI at rest | ✅ In place | AES-256-GCM on sensitive fields |
+| C2.2: Encrypt PHI in transit | ✅ In place | HTTPS/TLS enforcement |
+
+---
+
+## 7. Scope Approval Checklist
+
+- [ ] **Executive sign-off** — CEO/founder approves 12-month commitment & budget
+- [ ] **Compliance lead assignment** — Single point of contact for audit
+- [ ] **Timeline acceptance** — Team agrees to Q4 2026 audit start
+- [ ] **Budget approval** — Allocate for auditor (~$15K–$30K), tools, time
+- [ ] **Resource commitment** — Engineering & ops support for evidence collection
+- [ ] **Vendor selection kickoff** — Begin vetting Big Four or mid-size auditors
+
+---
+
+## 8. Next Steps
+
+1. ✅ **Distribute this scope document** — Leadership review & sign-off
+2. ⏭️ **Begin Step 02: Readiness Assessment** — Audit partner identifies gaps (detailed control matrix)
+3. ⏭️ **Assign compliance lead** — Owner for policies, evidence collection, auditor coordination
+4. ⏭️ **Initiate vendor selection** — RFP to 3–5 auditors for proposals & pricing
+
+---
+
+## 9. Key Assumptions & Constraints
+
+### Assumptions
+- PostgreSQL database is hosted on managed cloud (Digital Ocean, AWS RDS, etc.)
+- Cloud provider provides SLA documentation (backup, replication)
+- Organization has dedicated security/ops person for evidence collection
+- Budget exists for external auditor (~$20K–$30K)
+- 12-month timeline is acceptable (Type II requires this)
+
+### Constraints
+- **No additional features** during audit period (only bug fixes & security patches)
+- **Monthly evidence reviews** needed (audit logs, screenshots, test results)
+- **No major migrations** of infrastructure during evidence window
+- **Staff retention** — key team members must remain for full 12 months
+- **Vendor management** — any third-party integrations must have security questionnaires
+
+---
+
+## 10. Scope Document Sign-Off
+
+**To be completed after executive review:**
+
+| Role | Name | Signature | Date |
+|------|------|-----------|------|
+| CEO / Founder | ________________ | ________ | ________ |
+| CISO / Security Lead | ________________ | ________ | ________ |
+| CTO / VP Engineering | ________________ | ________ | ________ |
+| CFO / Finance Lead | ________________ | ________ | ________ |
+
+---
+
+## Appendix A: Control Mapping to Existing Implementation
+
+### Already Implemented Controls
+
+| Control | Component | Evidence |
+|---------|-----------|----------|
+| **Cryptography** | AES-256-GCM PII encryption | server/security/piiEncryption.js |
+| **Secrets** | Env var validation | server/security/secrets.js |
+| **Auth** | JWT + session tracking | server/middleware/auth.js |
+| **CSRF** | Token-based CSRF protection | server/middleware/csrf.js |
+| **Audit** | Immutable audit logs | server/db/migrations/.../audit_log_immutability.js |
+| **Rate limiting** | Login + API rate limits | server/security/rateLimiter.js |
+| **Anomaly detection** | Risk scoring + detection rules | server/security/anomalyDetector.js |
+| **Monitoring** | Security monitor + Sentry | server/security/alerting.js |
+| **HTTPS** | TLS enforcement | server/index.js |
+| **Access control** | RBAC (provider, admin, front_desk) | server/middleware/auth.js |
+| **MFA** | Risk-based 2FA | server/routes/auth.js |
+| **Session management** | Device fingerprinting, revocation | server/db/migrations/...auth_hardening.js |
+
+---
+
+## Appendix B: Estimated Gap Closure Effort
+
+| Category | Effort | Timeline |
+|----------|--------|----------|
+| **Documentation** (policies, runbooks) | 40–60 hours | 4 weeks |
+| **Monitoring Setup** (uptime, backups) | 20–30 hours | 2 weeks |
+| **Evidence Systems** (automated collection) | 30–40 hours | 3 weeks |
+| **Testing** (failover, recovery drills) | 20–30 hours | 2 weeks |
+| **Auditor Selection** | 10–15 hours | 4 weeks |
+| **Total** | **120–175 hours** | **~10 weeks** |
+
+**Total Investment:** ~$10K–$20K (internal staff) + $20K–$30K (auditor)
+
+---
+
+## Appendix C: Reference Documents
+
+- SOC 2 Type II Requirements (AICPA Trust Service Criteria)
+- Clarity EHR Security Hardening Implementation (completed June 2026)
+- HIPAA Security Rule (for healthcare context)
+- Enterprise customer security questionnaires (typical asks)
+
+---
+
+**Document Status:** DRAFT  
+**Review By:** [Executive team]  
+**Approve By:** [CEO/Founder]  
+**Next Review:** After readiness assessment (Step 02)

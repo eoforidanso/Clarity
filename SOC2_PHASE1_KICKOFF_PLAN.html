@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SOC2_PHASE1_KICKOFF_PLAN.md</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; margin: 40px; max-width: 900px; color: #333; }
+    h1 { border-bottom: 3px solid #0066cc; padding-bottom: 10px; margin-top: 40px; }
+    h2 { border-bottom: 2px solid #0099ff; margin-top: 30px; padding-bottom: 5px; }
+    h3 { color: #0066cc; margin-top: 20px; }
+    code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: 'Courier New', monospace; }
+    pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+    th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+    th { background: #f0f0f0; font-weight: bold; }
+    ul { margin: 15px 0; padding-left: 25px; }
+    @media print { body { margin: 20px; } h1 { page-break-after: avoid; } h2 { page-break-after: avoid; } }
+  </style>
+</head>
+<body>
+<pre style="white-space: pre-wrap; font-family: inherit; background: white; padding: 0;"># Phase 1: Readiness Assessment — Kickoff Plan
+## Week 1 of Q3 2026
+
+**Phase 1 Duration:** 8 weeks (approximately Jul–Aug 2026)  
+**Phase 1 Goal:** Identify gaps, create remediation roadmap, select auditor  
+**Phase 1 Owner:** SOC 2 Compliance Lead  
+**Phase 1 Success:** Gap analysis report, scored controls, auditor selected  
+
+---
+
+## Pre-Kickoff Checklist (Do This First)
+
+**Before Week 1 starts, complete:**
+
+- [ ] Charter signed by all 4 executives
+- [ ] Compliance lead hired or assigned
+- [ ] Budget approved ($147K–$210K)
+- [ ] Compliance lead has system access (GitHub, database, monitoring tools)
+- [ ] Schedule decision meeting with auditor/consultant (if using internal readiness assessment)
+- [ ] Reserve conference room for kickoff meeting
+- [ ] Share scope documents with team (send links to all attendees)
+
+---
+
+## Week 1: Readiness Assessment Kickoff
+
+### Monday: Compliance Lead Onboarding
+
+**Time: 8 hours**  
+**Participants:** Compliance Lead, CEO, CTO
+
+**Activities:**
+1. System access & platform walkthrough (1 hour with CTO)
+   - GitHub repositories
+   - Database schema
+   - Monitoring dashboard (Sentry)
+   - Email & Slack
+   - Compliance folder structure
+
+2. Review existing documentation (2 hours)
+   - SECURITY_HARDENING.md (what we built)
+   - SOC2_SCOPE_DEFINITION.md (what we're auditing)
+   - SOC2_CONTROL_MATRIX.md (15 implemented, 9 partial)
+
+3. Kick-off expectations discussion (1 hour with CEO)
+   - Timeline (18 months, firm deadline Dec 31, 2027)
+   - Budget constraints ($147K–$210K)
+   - Monthly reporting requirements
+   - Escalation process for blockers
+
+4. Create working folder structure (1 hour)
+   ```
+   docs/soc2/
+   ├─ governance/
+   │  ├─ SOC2_CHARTER_SIGNATURE_PAGE.md (signed copy)
+   │  ├─ SOC2_PROGRAM_CHARTER.md
+   │  └─ SOC2_DECISION_MEETING_NOTES.md
+   ├─ scope/
+   │  ├─ SOC2_SCOPE_DEFINITION.md
+   │  └─ SOC2_CONTROL_MATRIX.md
+   ├─ readiness/
+   │  ├─ Readiness_Assessment_Report.md (in progress)
+   │  ├─ Gap_Analysis.xlsx
+   │  └─ Remediation_Roadmap.md
+   ├─ policies/
+   │  ├─ Security_Policy.md (template)
+   │  ├─ Access_Control_Policy.md (template)
+   │  └─ ... (6 more policies)
+   ├─ evidence/
+   │  ├─ Monthly_Logs/
+   │  ├─ Control_Test_Results/
+   │  ├─ Incident_Reports/
+   │  └─ Screenshots/
+   ├─ audit/
+   │  ├─ Auditor_Selection/ (RFP, proposals)
+   │  ├─ SOW/
+   │  └─ Audit_Communications/
+   └─ tools/
+      ├─ Evidence_Collection_Checklist.md
+      ├─ Monthly_Compliance_Dashboard_Template.xlsx
+      └─ Control_Testing_Schedule.md
+   ```
+
+5. Create 90-day roadmap (1 hour)
+   - Week 1–4: Readiness assessment execution
+   - Week 5–6: Gap analysis completion, remediation prioritization
+   - Week 7–8: Auditor selection, Phase 2 planning
+
+---
+
+### Tuesday–Thursday: Readiness Assessment Execution
+
+**Time: 20 hours total (4–5 hours/day)**  
+**Participants:** Compliance Lead, CTO, Ops Lead, Engineering Team (as needed)
+
+**Activities:**
+
+#### Day 1 (Tue): Security Controls Review (CC1–CC7)
+
+- [ ] Meet with CTO (2 hours) — review:
+  - Authentication & authorization (JWT, sessions, MFA)
+  - Cryptography (AES-256-GCM, TLS, secrets)
+  - CSRF protection (middleware, one-time use)
+  - Audit logging (immutability, triggers)
+  - Incident response procedures (current state)
+  - Change management (migrations, code review)
+
+- [ ] Interview engineering team (1 hour) — ask:
+  - How do we test access control?
+  - How often do we rotate secrets?
+  - What happens when someone leaves?
+  - How do we handle security incidents?
+
+- [ ] Document findings in `Gap_Analysis.xlsx` — control by control
+
+#### Day 2 (Wed): Availability Controls Review (A1–A2)
+
+- [ ] Meet with Ops Lead (2 hours) — review:
+  - Uptime monitoring (current tools, alerting)
+  - Backup procedures (frequency, testing, recovery)
+  - Disaster recovery plan (RTO/RPO, failover procedures)
+  - Database replication (if applicable)
+  - On-call rotation
+
+- [ ] Interview finance/procurement (30 min) — ask:
+  - What's our current backup vendor + SLA?
+  - How often is backup tested?
+  - What's acceptable downtime?
+
+- [ ] Review infrastructure (if cloud-managed):
+  - Document provider's SLA + compliance responsibilities
+  - Identify what we're responsible for vs. provider
+
+- [ ] Document findings in `Gap_Analysis.xlsx`
+
+#### Day 3 (Thu): Confidentiality Controls Review (C1–C2)
+
+- [ ] Meet with CTO + ops (2 hours) — review:
+  - Data classification (what's PHI, what's not)
+  - Encryption at rest (PII fields, database, backups)
+  - Encryption in transit (HTTPS, API calls, email)
+  - Data retention & purging (soft-delete, archive)
+  - Third-party data sharing (if any)
+
+- [ ] Review patient records (sample):
+  - Are sensitive fields actually encrypted?
+  - Can we read/decrypt them?
+  - What metadata is unencrypted?
+
+- [ ] Document findings in `Gap_Analysis.xlsx`
+
+#### Day 4 (Fri): Gap Scoring + Interviews
+
+- [ ] Score each control gap (impact + effort):
+  - **Impact:** High (audit failure) / Medium (finding) / Low (observation)
+  - **Effort:** High (4+ weeks) / Medium (2–4 weeks) / Low (<2 weeks)
+
+- [ ] Conduct informal interviews:
+  - CEO: Business priorities, budget constraints
+  - CTO: Technical feasibility, risk tolerance
+  - Finance: Cost sensitivity, timeline pressure
+  - Ops: Infrastructure limitations
+
+- [ ] Create preliminary remediation roadmap
+  - High-impact, low-effort first (quick wins)
+  - Then medium-impact, medium-effort
+  - Then stretch goals (nice-to-haves)
+
+---
+
+### Friday: Present Initial Findings
+
+**Time: 1 hour meeting**  
+**Participants:** Compliance Lead, CEO, CTO, CFO
+
+**Agenda:**
+1. Walk through gap analysis (5 slides)
+   - Summary of 24 controls
+   - 15 fully implemented ✅
+   - 9 with gaps 🟡
+   - No critical failures 🔴
+
+2. Highlight quick wins (2–3 gaps that close fast)
+   - Example: "Document access control policy" (write once, 20 hours)
+   - Example: "Set up uptime monitoring" (tool implementation, 40 hours)
+
+3. Flag risks / blockers
+   - Any gaps that require customer coordination?
+   - Any infrastructure changes needed?
+   - Any timeline pressure?
+
+4. Next week plan: Full readiness assessment report due
+
+**Decision point:** Proceed to Week 2–4 (detailed assessment)?
+
+---
+
+## Weeks 2–4: Deep Readiness Assessment
+
+### Weekly Activities (4 weeks × 20 hours = 80 hours)
+
+#### Week 2: Detailed Control Testing
+
+For each of the 24 controls, test actual operation:
+
+**Security Controls (CC1–CC7) — 17 controls**
+- [ ] Test CSRF token generation, validation, one-time use (run actual curl commands)
+- [ ] Test JWT claim validation, expiry, device binding
+- [ ] Test role-based access (provider sees only assigned patients, admin sees all, etc.)
+- [ ] Test encryption (encrypt/decrypt sample PII fields)
+- [ ] Test secrets validation (verify env vars required at startup)
+- [ ] Test session revocation (logout → token no longer valid)
+- [ ] Test MFA enforcement (account with 2FA required v.s. risk score threshold)
+- [ ] Test anomaly detection (run test query that should trigger alert)
+- [ ] Test rate limiting (rapid-fire login attempts → blocked)
+- [ ] Test audit logging (action → immutable log entry)
+- [ ] (+ 7 more controls)
+
+**Availability Controls (A1–A2) — 3 controls**
+- [ ] Inspect backup configuration (frequency, destination, encryption)
+- [ ] Test backup restoration (actually restore to test DB, measure RTO)
+- [ ] Document disaster recovery procedure (if written, is it correct?)
+
+**Confidentiality Controls (C1–C2) — 4 controls**
+- [ ] Verify PII fields encrypted in database (check actual data)
+- [ ] Verify unencrypted fields acceptable (audit logs, session IDs, etc.)
+- [ ] Test TLS (HTTP request → redirects to HTTPS)
+- [ ] Review access logs (confirm role-based filtering)
+
+**Document all tests in:** `Control_Test_Results/Week2_Testing_Report.md`
+
+#### Week 3: Policy Gap Analysis
+
+For each of the 8–10 policies needed, assess current state:
+
+| Policy | Current State | Effort | Owner |
+|--------|---------------|--------|-------|
+| Security Policy | Exists in code comments | 20 hrs | CTO |
+| Access Control Policy | RBAC implemented, not written | 15 hrs | Compliance Lead |
+| Data Classification | Implicit in encryption | 10 hrs | Compliance Lead |
+| Change Management | Git + code review exists | 15 hrs | CTO |
+| Risk Management | Informal process | 20 hrs | CTO + Compliance Lead |
+| Incident Response | On-call rotation only | 25 hrs | CTO + Ops Lead |
+| Backup & Recovery | Procedure exists, not tested | 30 hrs | Ops Lead |
+| Key Rotation | Capability built, not scheduled | 20 hrs | CTO + Ops Lead |
+| Vendor Management | Informal | 15 hrs | Finance + Compliance Lead |
+| **Total** | | **170 hours** | |
+
+**Document all gaps in:** `Readiness_Assessment_Report.md` (Policy section)
+
+#### Week 4: Remediation Roadmap
+
+Create prioritized list of 24 gaps to close:
+
+```
+PHASE 2 ROADMAP (Oct–Dec 2026)
+
+QUICK WINS (Weeks 1–4 of Phase 2, Oct 2026)
+├─ Write formal security policy (20 hrs, CTO)
+├─ Set up uptime monitoring dashboard (15 hrs, Ops)
+├─ Create access control policy (15 hrs, Compliance Lead)
+└─ Document incident response runbook (25 hrs, CTO + Ops)
+
+CORE WORK (Weeks 5–8 of Phase 2, Nov–Dec 2026)
+├─ Document backup & recovery procedures (30 hrs, Ops)
+├─ Create disaster recovery runbook (20 hrs, Ops)
+├─ Document change management (15 hrs, CTO)
+├─ Build risk management procedures (20 hrs, CTO)
+└─ Create key rotation schedule + test (20 hrs, CTO)
+
+ONGOING (Jan–Sep 2027)
+├─ Monthly evidence collection (10 hrs/month)
+├─ Quarterly control testing (20 hrs/quarter)
+└─ Monthly policy reviews & updates (5 hrs/month)
+
+TOTAL PHASE 2 EFFORT: 150–190 hours (3–4 weeks full-time)
+```
+
+**Document in:** `Remediation_Roadmap.md`
+
+---
+
+## Weeks 5–8: Auditor Selection + Phase 2 Planning
+
+### Week 5: RFP Process
+
+**Time: 20 hours**
+
+- [ ] Draft RFP document (request for proposal)
+- [ ] Identify 3–5 auditor firms (Big Four + mid-size)
+- [ ] Send RFP with:
+  - Scope definition (3 TSCs)
+  - Preliminary gap analysis
+  - Timeline (evidence starts Sep 1, 2026)
+  - Budget budget budget budget
+  - Questions for auditor
+  - Reference requests (from other healthcare customers)
+
+- [ ] Set proposal deadline (2 weeks out)
+
+---
+
+### Week 6–7: Auditor Evaluation
+
+**Time: 20 hours**
+
+- [ ] Receive proposals (back from 3–5 auditors)
+- [ ] Score on:
+  - **Cost** (budget is $15–30K)
+  - **Timeline** (can start Oct 1?)
+  - **Healthcare experience** (prefer)
+  - **References** (call them)
+  - **Team experience** (who's leading the audit?)
+
+- [ ] Narrow to top 2 firms
+- [ ] Schedule final interviews (CEO, CTO, Compliance Lead)
+- [ ] Negotiate SOW (Statement of Work)
+  - Scope, timeline, deliverables
+  - Fee structure (hourly, fixed, success-based?)
+  - Exit clause (what if we discover major issues?)
+
+---
+
+### Week 8: Phase 2 Planning
+
+**Time: 15 hours**
+
+- [ ] Award auditor contract + sign SOW
+- [ ] Schedule auditor kick-off call (announce to team)
+- [ ] Create Phase 2 detailed timeline
+- [ ] Assign gap remediation owners:
+  - 8–10 people assigned specific policies/controls
+  - Each knows: What to do, by when, who reviews
+
+- [ ] Schedule Phase 2 kick-off meeting (all hands, 1 hour)
+  - Explain what's about to happen
+  - Introduce auditor
+  - Share timeline
+  - Answer questions
+
+---
+
+## Deliverables at End of Phase 1
+
+### 1. Readiness Assessment Report (20–30 pages)
+
+```
+├─ Executive Summary (2 pages)
+│  ├─ Overall compliance readiness: 63% complete
+│  ├─ High-risk gaps: [list 2–3]
+│  └─ Timeline to audit-ready: 12–16 weeks (Phase 2)
+├─ Control Assessment (15 pages)
+│  ├─ CC1–CC7 (Security): 15 controls assessed
+│  ├─ A1–A2 (Availability): 3 controls assessed
+│  └─ C1–C2 (Confidentiality): 4 controls assessed
+├─ Gap Analysis (5 pages)
+│  ├─ 24 control gaps scored (impact × effort)
+│  ├─ Quick wins identified (high impact, low effort)
+│  └─ Stretch goals (nice-to-haves)
+├─ Remediation Roadmap (3 pages)
+│  ├─ Phase 2 timeline (Oct–Dec 2026)
+│  ├─ Owner assignments
+│  └─ Success criteria
+└─ Appendix (3 pages)
+   ├─ Control Testing Results (detailed)
+   ├─ Policy Gap Analysis (detailed)
+   └─ Risk Register (issues/risks discovered)
+```
+
+**Completed by:** End of Week 4
+
+---
+
+### 2. Gap Analysis Spreadsheet
+
+```
+Control | Status | Current State | Gap | Impact | Effort | Owner | Due Date
+--------|--------|---------------|-----|--------|--------|-------|----------
+CC1.1   | Partial| Policy exists | Doc | High   | Low    | CTO   | Oct 31
+CC1.2   | Gap    | No board oversight | Create | Med | Low | Lead | Oct 31
+... (24 rows total)
+```
+
+**Updated throughout:** Weeks 2–4, finalized end of Week 4
+
+---
+
+### 3. Auditor Selection + SOW
+
+- [ ] Selected auditor firm (name, contact, timeline)
+- [ ] Signed SOW (deliverables, cost, timeline)
+- [ ] Kick-off meeting scheduled (dates in October)
+
+**Completed by:** End of Week 8
+
+---
+
+### 4. Phase 2 Detailed Plan
+
+- [ ] Week-by-week timeline (Oct–Dec 2026)
+- [ ] Gap remediation owners assigned
+- [ ] Policy writing schedule
+- [ ] Testing schedule (backup restore, failover, access review)
+- [ ] Monthly evidence collection schedule
+
+**Completed by:** End of Week 8
+
+---
+
+## Go/No-Go Decision (End of Phase 1, Week 8)
+
+**CEO/CTO/CFO decide: Proceed to Phase 2?**
+
+### Go Criteria ✅
+- [ ] Gap count < 10
+- [ ] No critical gaps preventing audit
+- [ ] Auditor selected + contract signed
+- [ ] Phase 2 remediation timeline feasible
+- [ ] Budget ($147K–$210K) still approved
+
+### No-Go Criteria ❌
+- [ ] Gap count > 15 (too much work)
+- [ ] Critical gap impossible to close (e.g., third-party dependency we can't control)
+- [ ] Budget cuts require scope reduction
+- [ ] Timeline pressure forces delay to 2027
+
+**If Go:** Launch Phase 2 (Oct 1, 2026)  
+**If No-Go:** Pause, re-plan, restart in 6 months
+
+---
+
+## Phase 1 Success Metrics
+
+| Metric | Target |
+|--------|--------|
+| Readiness assessment complete | Yes, by Week 4 |
+| Gap analysis scored | All 24 controls, by Week 4 |
+| Auditor selected | Yes, by Week 8 |
+| SOW signed | Yes, by Week 8 |
+| Phase 2 remediation roadmap | Detailed, by Week 8 |
+| Team buy-in | 90%+ (no objections to timeline) |
+
+---
+
+## Budget for Phase 1
+
+| Item | Cost |
+|------|------|
+| Compliance Lead salary (8 weeks @ 50% FTE) | $7,500 |
+| Engineering/ops support (20 hrs @ $100/hr avg) | $2,000 |
+| Auditor RFP + evaluation support | $3,000 |
+| Compliance tools/software (trial licenses) | $500 |
+| **Total Phase 1** | **~$13,000** |
+
+(Remaining $134K–$197K budgeted for Phase 2–4)
+
+---
+
+## Files to Create During Phase 1
+
+Create these in `docs/soc2/` folder:
+
+```
+docs/soc2/
+├─ readiness/
+│  ├─ Readiness_Assessment_Report.md (FINAL, Week 4)
+│  ├─ Gap_Analysis.xlsx (FINAL, Week 4)
+│  ├─ Remediation_Roadmap.md (FINAL, Week 8)
+│  └─ Control_Test_Results/
+│     ├─ Week2_Security_Testing_Report.md
+│     ├─ Week2_Availability_Testing_Report.md
+│     └─ Week2_Confidentiality_Testing_Report.md
+├─ audit/
+│  ├─ Auditor_RFP.md (Week 5)
+│  ├─ RFP_Responses/ (Week 6–7)
+│  │  ├─ Big_Four_Firm_A_Proposal.pdf
+│  │  ├─ Mid_Size_Firm_B_Proposal.pdf
+│  │  └─ ... (3–5 total)
+│  ├─ Auditor_Evaluation_Scorecard.xlsx (Week 7)
+│  ├─ Selected_Auditor_SOW.pdf (Week 8)
+│  └─ Auditor_Contact_Info.md (Week 8)
+└─ phase2/
+   └─ Phase2_Detailed_Plan.md (Week 8)
+```
+
+---
+
+## Checklist: Phase 1 Kickoff
+
+**Execute this checklist in Week 1 of Q3:**
+
+- [ ] Compliance lead onboarded (system access, platform walkthrough)
+- [ ] Compliance folder structure created (`docs/soc2/`)
+- [ ] CTO + Ops team scheduled for readiness assessment interviews (Weeks 2–4)
+- [ ] Gap Analysis template created (`Gap_Analysis.xlsx`)
+- [ ] Control Testing Plan created (what to test, how, when)
+- [ ] Weekly standup scheduled with CEO/CTO (same time every week)
+- [ ] Monthly compliance dashboard created (template)
+- [ ] Phase 1 timeline posted (8 weeks, clear milestones)
+- [ ] Team notified (all-hands email: "Phase 1 readiness assessment starting")
+
+---
+
+**Phase 1 Begins:** [Week 1 of Q3 2026]  
+**Phase 1 Ends:** [Week 8 of Q3 2026]  
+**Phase 2 Begins:** [Week 1 of Q4 2026]  
+**Phase 1 Owner:** SOC 2 Compliance Lead  
+**Phase 1 Sponsor:** CEO
+
+---
+
+**READY TO EXECUTE PHASE 1? SEND THIS CHECKLIST TO COMPLIANCE LEAD ON DAY 1.**
+</pre>
+</body>
+</html>

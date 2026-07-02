@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SOC2_CONTROL_MATRIX.md</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; margin: 40px; max-width: 900px; color: #333; }
+    h1 { border-bottom: 3px solid #0066cc; padding-bottom: 10px; margin-top: 40px; }
+    h2 { border-bottom: 2px solid #0099ff; margin-top: 30px; padding-bottom: 5px; }
+    h3 { color: #0066cc; margin-top: 20px; }
+    code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: 'Courier New', monospace; }
+    pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+    th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+    th { background: #f0f0f0; font-weight: bold; }
+    ul { margin: 15px 0; padding-left: 25px; }
+    @media print { body { margin: 20px; } h1 { page-break-after: avoid; } h2 { page-break-after: avoid; } }
+  </style>
+</head>
+<body>
+<pre style="white-space: pre-wrap; font-family: inherit; background: white; padding: 0;"># SOC 2 Control Matrix
+## Clarity EHR — Trust Service Criteria Mapping
+
+**Purpose:** Maps each SOC 2 control objective to Clarity's existing implementation, identifies gaps, and prioritizes remediation.
+
+**Status:** DRAFT — For Step 02 (Readiness Assessment)
+
+---
+
+## Legend
+
+| Status | Meaning | Action |
+|--------|---------|--------|
+| ✅ **Implemented** | Control exists and is operational | Evidence collection → audit |
+| 🟡 **Partial** | Control exists but needs strengthening | Document + enhance in Step 03 |
+| 🔴 **Gap** | Control missing or incomplete | Build in Step 03 |
+| ⚪ **Out of Scope** | Not applicable to Clarity | N/A |
+
+---
+
+## 1. SECURITY (CC) — 17 Control Objectives
+
+### CC1: Entity's Purpose, Strategy & Governance
+
+#### CC1.1 — Oversight of Security Controls
+**Objective:** Organization establishes a process to achieve objectives related to the provision of secure IT services and the protection of personal information.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Security policy existence | 🟡 Partial | SECURITY_HARDENING.md exists but not formal policy | Document formal security policy by CTO |
+| Board oversight | 🔴 Gap | Ad-hoc security discussion | Create security steering committee (monthly) |
+| Security metrics | 🔴 Gap | Internal tracking only | Create executive dashboard (uptime, incidents, MTTR) |
+| Evidence | 🟡 Partial | Logs exist, not centralized | Implement centralized event logging (Sentry) |
+
+**Remediation Timeline:** 4 weeks  
+**Owner:** CTO + Security Lead
+
+---
+
+#### CC1.2 — Board Oversight of Risks
+**Objective:** Board understands risks to security and responds appropriately.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Risk assessment | 🟡 Partial | Informal risk identification | Document threat model + risk register |
+| Reporting cadence | 🔴 Gap | No formal reporting | Monthly security report to board |
+| Risk response tracking | 🔴 Gap | No formal process | Create risk remediation tracker |
+
+**Remediation Timeline:** 3 weeks  
+**Owner:** Security Lead
+
+---
+
+#### CC1.3 — Establish Responsibility
+**Objective:** Organization establishes clear roles & responsibilities for security.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| CISO/Security lead assigned | ✅ Implemented | Security team exists | ✅ No action |
+| Role descriptions | 🟡 Partial | Informal definitions | Document role/responsibility matrix |
+| Escalation paths | 🟡 Partial | On-call rotation exists | Document escalation procedures in runbook |
+| Accountability | 🟡 Partial | Tracking informal | Create incident tracker (ownership assigned) |
+
+**Remediation Timeline:** 2 weeks  
+**Owner:** HR + Security Lead
+
+---
+
+#### CC1.4 — Competence of Resources
+**Objective:** Team members have adequate training & skills for their security roles.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Training program | 🔴 Gap | No formal training | Create annual security training plan |
+| Certification tracking | 🔴 Gap | Informal | Track certifications (CISSP, etc.) |
+| Onboarding | 🟡 Partial | Manual process | Document security onboarding checklist |
+| Third-party security | 🔴 Gap | No assessments | Create vendor security questionnaire |
+
+**Remediation Timeline:** 6 weeks  
+**Owner:** HR + Security Lead
+
+---
+
+### CC2: Entity Achieves Objectives to Support Effective Operations
+
+#### CC2.1 — Analyze Risk
+**Objective:** Organization understands threats and vulnerabilities relevant to security.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Threat identification | 🟡 Partial | Hardening addresses known threats | Document threat model (STRIDE) |
+| Vulnerability assessment | 🟡 Partial | Code review + npm audit | Schedule quarterly pentest |
+| Risk scoring | ✅ Implemented | Risk scoring in auth service | ✅ No action |
+| Risk registers | 🔴 Gap | Informal list | Create risk register (likelihood × impact) |
+
+**Remediation Timeline:** 6 weeks  
+**Owner:** Security Lead
+
+---
+
+#### CC2.2 — Respond to Risk
+**Objective:** Organization prioritizes and responds to identified risks.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Risk response plan | 🔴 Gap | Controls exist, not formalized | Document risk response strategy |
+| Mitigation tracking | 🔴 Gap | Ad-hoc fixes | Create risk remediation tracker |
+| Exception process | 🔴 Gap | No formal process | Document risk exception approval workflow |
+| Testing of controls | 🟡 Partial | Unit tests exist | Add integration + pentest annually |
+
+**Remediation Timeline:** 8 weeks  
+**Owner:** CTO + Security Lead
+
+---
+
+#### CC2.3 — Respond to Changes
+**Objective:** Organization's risk response procedures consider impact of changes.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Change impact analysis | 🟡 Partial | Code review done | Document change impact form |
+| Baseline controls | 🟡 Partial | Security checks exist | Formalize pre-deployment checklist |
+| Testing of changes | ✅ Implemented | CI/CD pipeline tests changes | ✅ No action |
+| Change log | ✅ Implemented | Git history + migrations | ✅ No action |
+
+**Remediation Timeline:** 2 weeks  
+**Owner:** CTO
+
+---
+
+### CC3: Entity Maintains Effective IT Systems
+
+#### CC3.1 — Logical Access Policies
+**Objective:** Organization has documented policies restricting logical access.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Access control policy | 🟡 Partial | RBAC implemented in code | Document formal access control policy |
+| Role definitions | ✅ Implemented | Provider, admin, front_desk roles | ✅ No action |
+| Least privilege principle | ✅ Implemented | Roles grant minimum necessary | ✅ No action |
+| User provisioning | 🟡 Partial | Manual admin process | Document user provisioning SOP |
+| User deprovisioning | 🟡 Partial | Soft-delete implemented | Document offboarding procedures |
+
+**Remediation Timeline:** 3 weeks  
+**Owner:** Security Lead + Ops
+
+---
+
+#### CC3.2 — Restrict Logical Access
+**Objective:** Organization restricts logical access to authorized users.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| User authentication | ✅ Implemented | JWT + MFA | ✅ No action |
+| Session management | ✅ Implemented | Session revocation, device binding | ✅ No action |
+| Privilege elevation | ✅ Implemented | EPCS elevation, BTG elevation | ✅ No action |
+| Access logging | ✅ Implemented | Immutable audit log | ✅ No action |
+| Access review | 🟡 Partial | Manual spot checks | Automate quarterly access review |
+| Termination process | 🟡 Partial | Manual deprovisioning | Document termination checklist |
+
+**Remediation Timeline:** 2 weeks  
+**Owner:** Security Lead
+
+---
+
+### CC4: Entity Restricts or Promptly Detects Anomalous Activity
+
+#### CC4.1 — Detect Anomalies
+**Objective:** Organization identifies unusual activity that could indicate a threat.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Anomaly detection rules | ✅ Implemented | 8 detection rules (IP change, brute force, etc.) | ✅ No action |
+| Real-time alerting | ✅ Implemented | Sentry alerts on suspicious activity | ✅ No action |
+| Thresholds | 🟡 Partial | Hardcoded thresholds in code | Document threshold policy + tuning log |
+| Investigation process | 🔴 Gap | Ad-hoc investigation | Document incident response runbook |
+| False positive handling | 🔴 Gap | No formal process | Create whitelist/exception approval workflow |
+
+**Remediation Timeline:** 4 weeks  
+**Owner:** Security Lead
+
+---
+
+#### CC4.2 — Monitor System Activity
+**Objective:** Organization monitors activity for unauthorized changes.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Log collection | ✅ Implemented | Sentry + audit_log_immutable | ✅ No action |
+| Log retention | 🟡 Partial | Not formally defined | Define retention policy (e.g., 7 years for healthcare) |
+| Log integrity | ✅ Implemented | Immutable audit log triggers | ✅ No action |
+| Log review | 🔴 Gap | Automated only, no manual review | Weekly security team log review |
+| Alert response | 🟡 Partial | Team notified, no formal SLA | Document alert response SLA (30 min) |
+| Configuration monitoring | 🟡 Partial | Git tracks code changes | Add infrastructure change tracking |
+
+**Remediation Timeline:** 4 weeks  
+**Owner:** Ops + Security Lead
+
+---
+
+### CC5: Entity Selects, Develops, Deploys Controls to Achieve Its Objectives
+
+#### CC5.1 — Select Controls
+**Objective:** Organization selects controls to address identified risks.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Risk-control mapping | 🟡 Partial | Controls exist, not formally mapped | Create risk-control matrix |
+| Control design | ✅ Implemented | Cryptography, CSRF, audit logging | ✅ No action |
+| Design reviews | 🟡 Partial | Code review + design docs | Formalize security design review process |
+| Documentation | 🟡 Partial | Some controls documented | Create control documentation template |
+
+**Remediation Timeline:** 3 weeks  
+**Owner:** CTO + Security Lead
+
+---
+
+#### CC5.2 — Configuration Control
+**Objective:** Organization maintains secure baseline configuration for systems.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Baseline configuration | 🟡 Partial | docker-compose.yml exists | Document hardened baseline config |
+| Change control | ✅ Implemented | Git + code review | ✅ No action |
+| Unauthorized change detection | 🟡 Partial | Manual checks | Implement file integrity monitoring |
+| Configuration review | 🟡 Partial | Spot checks | Quarterly configuration audit |
+| Default credentials | ✅ Implemented | No hardcoded secrets | ✅ No action |
+
+**Remediation Timeline:** 3 weeks  
+**Owner:** CTO + Ops
+
+---
+
+### CC6: Entity Implements Logical Access Controls to Achieve Its Objectives
+
+#### CC6.1 — Logical Access Control
+**Objective:** Organization restricts logical access based on role & need-to-know.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Access matrix | 🟡 Partial | RBAC in code | Document access control matrix (who can do what) |
+| Patient data access | ✅ Implemented | Providers see only assigned patients | ✅ No action |
+| Admin access | ✅ Implemented | Elevated with elevation tracking | ✅ No action |
+| Third-party access | 🔴 Gap | Not implemented | Document third-party access policy |
+| Access testing | 🟡 Partial | Manual verification | Create automated access control tests |
+| Revocation | ✅ Implemented | Session revocation on logout | ✅ No action |
+
+**Remediation Timeline:** 4 weeks  
+**Owner:** Security Lead
+
+---
+
+#### CC6.2 — User Identity
+**Objective:** Organization authenticates and identifies users.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Identity verification | ✅ Implemented | JWT + session ID + device ID | ✅ No action |
+| Authentication strength | ✅ Implemented | Password + optional 2FA + risk scoring | ✅ No action |
+| Session management | ✅ Implemented | Expiration, revocation, device binding | ✅ No action |
+| MFA | ✅ Implemented | Risk-based MFA | ✅ No action |
+| Identity removal | 🟡 Partial | Soft-delete implemented | Document identity cleanup procedures |
+| Password policy | 🟡 Partial | Enforced in code | Document password policy + change frequency |
+
+**Remediation Timeline:** 2 weeks  
+**Owner:** Security Lead
+
+---
+
+### CC7: Entity Restricts IT System Access Through Cryptography
+
+#### CC7.1 — Manage Cryptography
+**Objective:** Organization uses cryptography to protect sensitive data.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Encryption algorithm | ✅ Implemented | AES-256-GCM for PII, TLS for transit | ✅ No action |
+| Key generation | ✅ Implemented | Random key generation | ✅ No action |
+| Key storage | 🟡 Partial | Env vars (development), vault (production needed) | Implement production key management (AWS KMS, Vault) |
+| Key rotation | 🟡 Partial | Rotation capability built, not implemented | Document key rotation procedures + testing |
+| Cryptographic standards | ✅ Implemented | Industry-standard algorithms | ✅ No action |
+| Certificate management | 🟡 Partial | Auto-renewal via Cloudflare | Document certificate management SOP |
+
+**Remediation Timeline:** 6 weeks  
+**Owner:** CTO + Security Lead
+
+---
+
+#### CC7.2 — Manage Secrets
+**Objective:** Organization manages access to cryptographic keys and secrets.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Secret inventory | 🔴 Gap | Informal list | Document all secrets in use (JWT, ENCRYPTION_KEY, etc.) |
+| Secret rotation | 🟡 Partial | Capability exists, not scheduled | Create secret rotation schedule (90 days for JWT_SECRET) |
+| Access to secrets | ✅ Implemented | Env vars + secret validation | ✅ No action |
+| Secret auditing | 🟡 Partial | Code review only | Add secret scanning to CI/CD pipeline |
+| Incident handling | 🔴 Gap | No formal process | Document secret compromise response |
+| Third-party secrets | 🔴 Gap | Ad-hoc management | Create third-party API key management SOP |
+
+**Remediation Timeline:** 4 weeks  
+**Owner:** CTO + Ops
+
+---
+
+## 2. AVAILABILITY (A) — 3 Control Objectives
+
+### A1: Entity Maintains, Monitors, and Evaluates Its Ability to Provide Service
+
+#### A1.1 — Availability Policy
+**Objective:** Organization has documented availability objectives and strategy.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Uptime SLA | 🔴 Gap | No formal SLA defined | Define SLA (e.g., 99.5% uptime) |
+| RTO (Recovery Time Objective) | 🔴 Gap | Not defined | Define RTO (e.g., 1 hour) |
+| RPO (Recovery Point Objective) | 🔴 Gap | Not defined | Define RPO (e.g., 15 minutes) |
+| Availability metrics | 🟡 Partial | Uptime tracking exists | Document metric definitions & calculations |
+| Monitoring scope | 🟡 Partial | Health checks exist | Document what's monitored (API, DB, etc.) |
+| Escalation process | 🟡 Partial | On-call rotation | Document escalation SOP + timelines |
+
+**Remediation Timeline:** 3 weeks  
+**Owner:** CTO + Ops
+
+---
+
+#### A1.2 — Monitor & Test
+**Objective:** Organization monitors availability and tests disaster recovery.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Monitoring tools | 🟡 Partial | Sentry + health checks | Add uptime monitoring dashboard (Uptime Robot, etc.) |
+| Alert thresholds | 🟡 Partial | Hard-coded | Document alert thresholds + escalation |
+| Alert response | 🟡 Partial | Manual response | Document alert response SLA |
+| Failover testing | 🔴 Gap | Not tested | Schedule quarterly failover drills |
+| Failover procedures | 🔴 Gap | Not documented | Document failover runbook |
+| Recovery testing | 🔴 Gap | Not tested | Test backup restoration quarterly |
+| Recovery procedures | 🟡 Partial | Backup exists | Document backup restoration SOP |
+
+**Remediation Timeline:** 8 weeks  
+**Owner:** CTO + Ops
+
+---
+
+### A2: Entity Implements Monitoring and Response Procedures
+
+#### A2.1 — Backup & Recovery
+**Objective:** Organization maintains backups and tests recovery.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Backup frequency | 🟡 Partial | Daily backups configured | Document backup schedule (e.g., 6-hourly) |
+| Backup scope | 🟡 Partial | Database only | Expand to include config + encryption keys |
+| Backup encryption | 🟡 Partial | Encrypted in transit | Verify encryption at rest |
+| Backup location | 🟡 Partial | Off-site (Digital Ocean backup) | Document backup locations + redundancy |
+| Backup testing | 🔴 Gap | Never tested | Test restoration monthly |
+| Recovery time | 🔴 Gap | Unknown | Measure actual RTO via drill |
+| Recovery procedures | 🟡 Partial | Informal process | Document step-by-step recovery runbook |
+| Off-site verification | 🔴 Gap | No verification | Monthly backup verification test |
+
+**Remediation Timeline:** 6 weeks  
+**Owner:** CTO + Ops
+
+---
+
+## 3. CONFIDENTIALITY (C) — 4 Control Objectives
+
+### C1: Entity Restricts Access to Confidential Data
+
+#### C1.1 — Confidentiality Policy
+**Objective:** Organization has documented data classification and confidentiality policies.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Data classification | 🟡 Partial | PII identified in code | Document formal data classification policy |
+| Handling procedures | 🟡 Partial | Encryption implemented | Document handling procedures (storage, transit, disposal) |
+| Retention policy | 🟡 Partial | Soft-delete exists | Define retention period (e.g., 7 years for healthcare) |
+| Disposal procedures | 🔴 Gap | Not documented | Document secure disposal of backups |
+| Access restrictions | ✅ Implemented | RBAC enforced | ✅ No action |
+| Third-party access | 🔴 Gap | No controls | Document third-party confidentiality requirements |
+
+**Remediation Timeline:** 4 weeks  
+**Owner:** Legal + Security Lead
+
+---
+
+#### C1.2 — Authorize Use
+**Objective:** Organization authorizes use of confidential data.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| User authorization | ✅ Implemented | RBAC grants roles | ✅ No action |
+| Data access authorization | ✅ Implemented | Providers see own patients | ✅ No action |
+| Privilege management | ✅ Implemented | Elevation for admin functions | ✅ No action |
+| Authorization review | 🟡 Partial | Manual spot checks | Automate quarterly role review |
+| User termination | 🟡 Partial | Soft-delete in place | Document immediate access revocation procedures |
+| Contractor access | 🔴 Gap | Not covered | Document contractor confidentiality agreement requirements |
+
+**Remediation Timeline:** 2 weeks  
+**Owner:** HR + Security Lead
+
+---
+
+### C2: Entity Restricts Unauthorized Access
+
+#### C2.1 — Encrypt Confidential Data at Rest
+**Objective:** Organization encrypts confidential data stored in the system.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| Encryption implementation | ✅ Implemented | AES-256-GCM for PII fields | ✅ No action |
+| Encryption coverage | 🟡 Partial | PII fields encrypted | Verify all sensitive fields encrypted |
+| Encryption key storage | 🟡 Partial | Env vars (dev), need KMS (prod) | Implement KMS for production |
+| Key rotation | 🟡 Partial | Capability built | Schedule and test key rotation |
+| Database encryption | 🟡 Partial | Application-level only | Add database-level encryption if available |
+| Backup encryption | 🟡 Partial | Encrypted in transit | Verify encrypted at rest |
+
+**Remediation Timeline:** 6 weeks  
+**Owner:** CTO + Security Lead
+
+---
+
+#### C2.2 — Encrypt Confidential Data in Transit
+**Objective:** Organization encrypts confidential data in transit.
+
+| Aspect | Status | Current State | Gap/Action |
+|--------|--------|---------------|-----------|
+| HTTPS enforcement | ✅ Implemented | HTTP→HTTPS redirect + HSTS | ✅ No action |
+| TLS version | 🟡 Partial | Cloudflare handles | Verify TLS 1.2+ only (disable old versions) |
+| Certificate management | 🟡 Partial | Auto-renewal via Cloudflare | Document certificate SOP |
+| API encryption | ✅ Implemented | All API calls over HTTPS | ✅ No action |
+| Email encryption | 🔴 Gap | No encryption for reset emails | Implement TLS for email or use secure link |
+| Database connection | ✅ Implemented | SSL/TLS to PostgreSQL | ✅ No action |
+| Third-party data | 🟡 Partial | API keys over HTTPS | Document third-party encryption requirements |
+
+**Remediation Timeline:** 3 weeks  
+**Owner:** CTO + Ops
+
+---
+
+## Summary: Effort & Timeline
+
+### By Category
+
+| Category | Implemented | Partial | Gap | Total Effort |
+|----------|-------------|---------|-----|--------------|
+| **Security (CC)** | 9/17 | 6/17 | 2/17 | 80–100 hours |
+| **Availability (A)** | 1/3 | 2/3 | 0/3 | 40–50 hours |
+| **Confidentiality (C)** | 5/4 | 3/4 | 2/4 | 30–40 hours |
+| **TOTAL** | **15/24** | **11/24** | **4/24** | **150–190 hours** |
+
+### Remediation Timeline
+
+**Phase 1 (Weeks 1–2): Quick Wins**
+- Document access control policy
+- Define uptime SLA / RTO / RPO
+- Create incident response runbook
+- Effort: 20 hours
+
+**Phase 2 (Weeks 3–6): Core Policies**
+- Document security policy
+- Create threat model + risk register
+- Document change management procedures
+- Implement automated access review
+- Effort: 50 hours
+
+**Phase 3 (Weeks 7–10): Testing & Monitoring**
+- Set up uptime monitoring dashboard
+- Test backup restoration
+- Schedule + conduct failover drill
+- Document backup/recovery SOP
+- Effort: 40 hours
+
+**Phase 4 (Weeks 11+): Ongoing**
+- Monthly evidence collection
+- Quarterly access reviews
+- Monthly security team log review
+- Continuous monitoring
+- Effort: 10 hours/month
+
+---
+
+**Total Readiness Effort:** ~150–190 hours (3.5–4.5 FTE-months)  
+**Timeline:** 10–12 weeks to audit-ready  
+**Owner:** Security Lead + CTO + Ops
+
+---
+
+**Next Step:** Distribute gap analysis to team, prioritize remediation, assign owners per control objective.
+</pre>
+</body>
+</html>

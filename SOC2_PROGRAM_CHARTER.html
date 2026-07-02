@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SOC2_PROGRAM_CHARTER.md</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; margin: 40px; max-width: 900px; color: #333; }
+    h1 { border-bottom: 3px solid #0066cc; padding-bottom: 10px; margin-top: 40px; }
+    h2 { border-bottom: 2px solid #0099ff; margin-top: 30px; padding-bottom: 5px; }
+    h3 { color: #0066cc; margin-top: 20px; }
+    code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: 'Courier New', monospace; }
+    pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+    th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+    th { background: #f0f0f0; font-weight: bold; }
+    ul { margin: 15px 0; padding-left: 25px; }
+    @media print { body { margin: 20px; } h1 { page-break-after: avoid; } h2 { page-break-after: avoid; } }
+  </style>
+</head>
+<body>
+<pre style="white-space: pre-wrap; font-family: inherit; background: white; padding: 0;"># SOC 2 Certification Program Charter
+## Clarity EHR
+
+**Charter Version:** 1.0  
+**Date:** June 12, 2026  
+**Status:** DRAFT — For Executive Approval  
+**Prepared By:** Security Team  
+**Distribution:** Executive Leadership, Board (if applicable)
+
+---
+
+## 1. Executive Summary
+
+Clarity EHR is pursuing **SOC 2 Type II Certification** to demonstrate industry-standard security, availability, and confidentiality controls to enterprise healthcare customers.
+
+**Business Case:**
+- **Current State:** Healthcare customers ask for SOC 2; we don't have it
+- **Target State:** SOC 2 Type II report in hand by Q4 2027
+- **Expected Outcome:** Unlock enterprise deals, reduce customer RFP friction, build trust
+- **Investment:** ~$150–190K (staff + auditor) over 18 months
+
+**Success Metrics:**
+- ✅ SOC 2 Type II report issued by year-end 2027
+- ✅ <4 material weaknesses identified
+- ✅ All critical controls operating effectively
+- ✅ Zero audit delays due to missing evidence
+
+---
+
+## 2. Program Goals & Objectives
+
+### Primary Goals
+
+1. **Achieve SOC 2 Type II Certification** in Security, Availability, and Confidentiality
+2. **Demonstrate Sustained Control Effectiveness** over 12-month period (Sep 2026–Sep 2027)
+3. **Close Compliance Gaps** identified in readiness assessment
+4. **Establish Compliance Culture** — embed controls into operational processes
+
+### Key Objectives
+
+| Objective | Timeline | Owner | Success Criteria |
+|-----------|----------|-------|-----------------|
+| Readiness assessment complete | Q3 2026 | Security Lead | Gap analysis delivered, scored |
+| Audit-ready policies documented | Q4 2026 | CTO + Security Lead | 95%+ controls documented |
+| Evidence collection systems live | Q4 2026 | Ops + Security Lead | Automated collection operational |
+| Auditor selected & engaged | Q4 2026 | CEO + Finance | NDA signed, audit plan approved |
+| Evidence period begins | Q4 2026 (Sep 1) | All | Baseline established |
+| Monthly compliance reviews | Q4 2026–Q4 2027 | Security Lead | Evidence reviewed & approved |
+| Formal audit execution | Q4 2027 (Oct–Dec) | Auditor + all teams | Fieldwork completed on-time |
+| SOC 2 report delivered | Q4 2027 (Dec) | Auditor | Report issued, no exceptions |
+
+---
+
+## 3. Program Scope
+
+### In Scope
+
+✅ **Clarity EHR Platform** — API, database, authentication, audit logging, monitoring  
+✅ **Three Trust Service Criteria** — Security (CC), Availability (A), Confidentiality (C)  
+✅ **12-Month Evidence Period** — Sep 1, 2026 to Sep 1, 2027  
+✅ **Type II Certification** — Controls tested over time, not snapshot
+
+### Out of Scope
+
+❌ **Infrastructure** — Managed by cloud provider (Digital Ocean, AWS, Cloudflare)  
+❌ **Processing Integrity (PI)** — Lower priority, can add in future cycles  
+❌ **Privacy (P)** — Handled by GDPR/CCPA separately  
+❌ **Mobile Apps** — Separate scope if audited later  
+
+**Full Details:** See `SOC2_SCOPE_DEFINITION.md`
+
+---
+
+## 4. Program Governance
+
+### Program Sponsor (Executive Steering)
+
+| Role | Name | Responsibility |
+|------|------|-----------------|
+| **CEO/Founder** | ________ | Overall program approval, board communication |
+| **CTO** | ________ | Technical control implementation, architecture |
+| **CFO** | ________ | Budget allocation, auditor selection |
+| **CISO/Compliance Lead** | ________ | Daily program management, evidence coordination |
+
+### Program Team
+
+| Role | Responsibility |
+|------|-----------------|
+| **CISO/Compliance Lead** | Program manager, policy author, evidence coordinator |
+| **Engineering Lead** | Control implementation, testing, code review |
+| **Ops/Infrastructure Lead** | Monitoring, backup/recovery, infrastructure controls |
+| **Finance/Legal** | Vendor management, contracts, evidence coordination |
+| **All Staff** | Policy awareness, evidence collection, compliance support |
+
+### Decision Authority
+
+| Decision | Authority | Escalation |
+|----------|-----------|-----------|
+| Control implementation | CTO | CEO if budget impact |
+| Policy approval | CISO + CTO | CEO if scope impact |
+| Evidence standards | CISO | Auditor if questioned |
+| Timeline changes | CEO + CISO | Board if >2 weeks |
+| Budget overruns | CFO + CEO | Board if >10% |
+
+---
+
+## 5. Program Phases & Milestones
+
+### Phase 1: Preparation (Q3 2026)
+
+**Duration:** 8 weeks  
+**Effort:** 120–150 hours  
+**Owner:** CISO + CTO
+
+| Week | Milestone | Deliverable |
+|------|-----------|-------------|
+| 1–2 | Scope finalization | Scope definition approved + signed off |
+| 3–4 | Readiness assessment | Gap analysis + remediation plan |
+| 5–6 | Policy documentation | Security policy, risk register, procedures |
+| 7–8 | Auditor selection | SOW signed, audit plan approved |
+
+**Go/No-Go Decision:** Gap count <10, timeline feasible, budget approved
+
+---
+
+### Phase 2: Implementation & Evidence Setup (Q4 2026)
+
+**Duration:** 12 weeks  
+**Effort:** 80–100 hours  
+**Owner:** CTO + Ops + CISO
+
+| Month | Milestone | Deliverable |
+|-------|-----------|-------------|
+| Oct | Control implementation | Policies operationalized, monitoring live |
+| Oct | Evidence systems | Automated log collection, screenshot tools |
+| Nov | Testing | Failover drills, backup recovery tests |
+| Dec | Evidence baseline | Baseline controls established, month 1 evidence collected |
+
+**Go/No-Go Decision:** All critical controls operational, evidence collection automated
+
+---
+
+### Phase 3: Evidence Collection (Jan 2027–Sep 2027)
+
+**Duration:** 9 months  
+**Effort:** 10–15 hours/month  
+**Owner:** CISO + Security Team
+
+**Monthly Activities:**
+- ✅ Collect audit logs, screenshots, test results
+- ✅ Review evidence completeness
+- ✅ Investigate anomalies, document resolutions
+- ✅ Report to leadership on compliance status
+
+**Quarterly Activities:**
+- ✅ Access control review
+- ✅ Risk register update
+- ✅ Policy compliance testing
+- ✅ Incident summary review
+
+---
+
+### Phase 4: Audit Execution (Oct 2027–Dec 2027)
+
+**Duration:** 12 weeks  
+**Effort:** 20–30 hours/week (high interaction period)  
+**Owner:** All teams (with auditor)
+
+| Month | Activity | Responsibility |
+|-------|----------|-----------------|
+| Oct | Interim audit | Auditor reviews 9 months of evidence |
+| Nov | Final audit | Auditor conducts fieldwork, interviews |
+| Dec | Report issuance | Auditor finalizes + delivers report |
+
+**Expected Outcome:** SOC 2 Type II report with 0–2 minor findings
+
+---
+
+## 6. Resources & Budget
+
+### Staffing
+
+| Role | FTE (Annualized) | Cost |
+|------|------------------|------|
+| CISO/Compliance Lead (dedicated) | 0.5 | $60K–$80K |
+| CTO/Security (20% effort) | 0.2 | $20K–$30K |
+| Ops/Infrastructure (15% effort) | 0.15 | $15K–$20K |
+| Finance/Legal (10% effort) | 0.1 | $10K–$15K |
+| **Subtotal** | **0.95 FTE** | **$105K–$145K** |
+
+### External
+
+| Item | Cost |
+|------|------|
+| SOC 2 Audit (Big Four) | $20K–$30K |
+| SOC 2 Audit (Mid-size) | $15K–$20K |
+| Monitoring tools (uptime, etc.) | $2K–$5K |
+| Training & certifications | $5K–$10K |
+| **Subtotal** | **$42K–$65K** |
+
+### **Total Investment: $147K–$210K**
+
+**Funding Source:** [To be determined — budget allocation from CEO/Finance]
+
+---
+
+## 7. Risk Management
+
+### Key Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|-----------|
+| **Timeline Slip** | Medium | High | Dedicated compliance lead, monthly tracking |
+| **Key Person Leave** | Low | High | Document procedures, cross-train 2+ people |
+| **Evidence Gaps** | Medium | Medium | Automated collection, monthly reviews |
+| **Budget Overrun** | Low | Medium | Detailed budget, vendor quotes, scope control |
+| **Auditor Issue** | Low | High | Vendor selection process, reference checks |
+| **Control Failure** | Low | High | Monthly testing, incident response drills |
+
+### Risk Escalation
+
+- **Red (Critical):** CEO + board notification within 24 hours
+- **Yellow (High):** CEO + sponsor notification within 48 hours
+- **Green (Medium):** CISO manages within scope, inform sponsor monthly
+
+---
+
+## 8. Communication Plan
+
+### Stakeholder Updates
+
+| Stakeholder | Frequency | Format | Owner |
+|-------------|-----------|--------|-------|
+| **Executive Sponsor** | Weekly | 15-min sync | CISO |
+| **Full Team** | Monthly | 30-min all-hands | CISO |
+| **Board** | Quarterly | Dashboard + update | CEO |
+| **Auditor** | Bi-weekly | Status call + evidence dump | CISO |
+| **Customers** | TBD | "Coming soon" messaging | Sales/Marketing |
+
+### Key Messages
+
+- **For Executive:** "On track for Q4 2027 report, unlocks enterprise deals"
+- **For Team:** "Your compliance work matters; here's the evidence we collected"
+- **For Customers:** "We're pursuing SOC 2 certification for your assurance"
+- **For Auditor:** "Here's our monthly evidence; we're operating controls as designed"
+
+---
+
+## 9. Compliance Metrics & Reporting
+
+### Monthly Dashboard
+
+```
+SOC 2 Program Status — [Month YYYY]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Phase:              Implementation (Q4 2026)
+Controls Implemented:  15/24 (63%)
+Evidence Collected:     Month 3 of 12
+Timeline Health:        ✅ On Track
+Budget Health:          ✅ On Budget
+Risk Status:            🟡 2 Yellow, 1 Green
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Key Metrics:
+├─ Audit Log Entries:        45,327
+├─ Policy Documentation:     18/20 policies done
+├─ Control Tests Run:        12 (all passed)
+├─ Incidents Investigated:   2 (resolved)
+└─ Auditor Engagement:       On schedule
+
+Next Month Focus:
+└─ Complete backup testing (Phase 2 milestone)
+```
+
+### Success Criteria
+
+| Metric | Target | Current |
+|--------|--------|---------|
+| Controls fully implemented | 95%+ | Track monthly |
+| Evidence completeness | 90%+ | Track monthly |
+| Audit readiness score | 90/100+ | Track monthly |
+| Policy compliance | 95%+ | Track monthly |
+| Control testing pass rate | 95%+ | Track monthly |
+
+---
+
+## 10. Approval & Sign-Off
+
+### Program Charter Approval
+
+This charter authorizes the Clarity EHR SOC 2 Certification Program as described above.
+
+| Role | Name | Signature | Date | Authority |
+|------|------|-----------|------|-----------|
+| **CEO/Founder** | __________ | ________ | ________ | Budget + timeline approval |
+| **CTO** | __________ | ________ | ________ | Technical scope + resources |
+| **CFO** | __________ | ________ | ________ | Budget allocation |
+| **CISO/Lead** | __________ | ________ | ________ | Program execution |
+
+---
+
+## 11. Document Control
+
+| Document | Location | Owner | Last Updated |
+|----------|----------|-------|--------------|
+| Scope Definition | `SOC2_SCOPE_DEFINITION.md` | CISO | Jun 2026 |
+| Control Matrix | `SOC2_CONTROL_MATRIX.md` | CISO | Jun 2026 |
+| Policy Library | `docs/soc2/policies/` | CISO | TBD (Phase 2) |
+| Evidence Log | `docs/soc2/evidence/` | Ops | Monthly |
+| Audit Plan | (From Auditor) | Auditor | After selection |
+
+---
+
+## 12. Next Steps
+
+**Immediate (This Week):**
+1. ✅ Distribute Charter to executive sponsors
+2. ✅ Schedule approval meeting (target: 2 hours)
+3. ⏭️ Collect signatures on Charter
+
+**Week 2:**
+4. ⏭️ Assign CISO/Compliance Lead (dedicated role)
+5. ⏭️ Schedule readiness assessment kickoff
+
+**Week 3:**
+6. ⏭️ Begin Gap Analysis (Phase 1 → Phase 2 transition)
+7. ⏭️ Start auditor RFP process
+
+---
+
+## Appendix A: Reference Documents
+
+- **SOC 2 Type II Requirements** — AICPA Trust Service Criteria (2017)
+- **Scope Definition** — `SOC2_SCOPE_DEFINITION.md`
+- **Control Matrix** — `SOC2_CONTROL_MATRIX.md`
+- **Security Hardening** — `SECURITY_HARDENING.md` (completed June 2026)
+- **Existing Controls** — Source code in `server/` directory
+
+---
+
+**Program Start Date:** June 12, 2026  
+**Target Report Delivery:** December 31, 2027  
+**Program Lead:** [CISO Name]  
+**Sponsor:** [CEO/Founder Name]
+
+---
+
+**Status:** ⏳ **PENDING APPROVAL** — Charter awaiting executive sign-off
+</pre>
+</body>
+</html>
