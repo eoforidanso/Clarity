@@ -69,9 +69,14 @@ jobs:
           EOF
 
       - name: Verify API is up
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
         run: |
           sleep 10
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.clarity-ehr.com/api/health)
+          # Check from the server through local nginx — Cloudflare WAF 403s
+          # requests from GitHub runner IPs, so a public curl can't verify.
+          STATUS=$(ssh $DO_USER@$DO_HOST "curl -sk -o /dev/null -w '%{http_code}' --resolve api.clarity-ehr.com:443:127.0.0.1 https://api.clarity-ehr.com/api/health")
           echo "Health check status: $STATUS"
           if [ "$STATUS" != "200" ]; then echo "❌ API health check failed"; exit 1; fi
           echo "✅ API is responding (HTTP $STATUS)"
